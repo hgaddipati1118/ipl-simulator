@@ -1,0 +1,15 @@
+{
+  "name": "ipl-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=packages/app",
+    "build": "npm run build --workspace=packages/engine && npm run build --workspace=packages/ratings && npm run build --workspace=packages/app",
+    "ratings:generate": "npm run generate --workspace=packages/ratings",
+    "ratings:snapshot": "npm run snapshot --workspace=packages/ratings",
+    "engine:test": "npm test --workspace=packages/engine"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@ipl-sim/ratings",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "generate": "node --loader ts-node/esm src/generate.ts",
+    "snapshot": "node --loader ts-node/esm src/snapshot.ts"
+  },
+  "dependencies": {
+    "@ipl-sim/engine": "1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.4.0"
+  }
+}
