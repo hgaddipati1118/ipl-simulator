@@ -136,7 +136,7 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     if (loadWomen) {
       const wplPlayers = getWPLPlayers();
       for (const data of wplPlayers) {
-        if (!activeIds.has(data.teamId)) continue;
+        if (!data.teamId || !activeIds.has(data.teamId)) continue;
         const player = createPlayerFromData(data);
         const team = teams.find(t => t.id === data.teamId);
         if (team) team.addPlayer(player, Math.min(player.marketValue, maxBid));

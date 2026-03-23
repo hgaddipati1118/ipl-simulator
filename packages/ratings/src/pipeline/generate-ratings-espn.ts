@@ -6,24 +6,35 @@
  * uses the same rating formula as generate-ratings.ts (via calculator.ts),
  * but leverages REAL fours/sixes data (fo/si fields) instead of estimating them.
  *
+ * Also generates women's ratings from the same ESPN data:
+ *   - Uses cl=10 (WT20I) instead of cl=6/cl=3 for T20 stats
+ *   - Minimum 10 WT20I matches
+ *   - Same rating formula (z-scores naturally produce lower ratings for women)
+ *   - Age 38+ hard cutoff for retirement
+ *
  * Outputs:
- *   - data/scraped/espn-ratings.json  (full rated player objects)
- *   - src/all-players.ts              (TypeScript module for the app)
+ *   - data/scraped/espn-ratings.json       (full rated male player objects)
+ *   - data/scraped/espn-ratings-women.json  (full rated female player objects)
+ *   - src/all-players.ts                    (TypeScript module for men)
+ *   - src/wpl-players.ts                    (TypeScript module for women/WPL)
  *
  * Usage: npx tsx src/pipeline/generate-ratings-espn.ts
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
-import { calculateRatings, inferRole } from "../calculator.js";
+import { calculateRatings, inferRole, type GenderPop } from "../calculator.js";
 import { OUTPUT_DIR } from "./config.js";
 import { IPL_2026_ROSTERS } from "../ipl-rosters.js";
+import { WPL_2025_ROSTERS } from "../wpl-rosters.js";
 
 // ── Input / output paths ──────────────────────────────────────────────
 
 const ESPN_FILE = join(OUTPUT_DIR, "espn-players.json");
 const OUTPUT_JSON = join(OUTPUT_DIR, "espn-ratings.json");
+const OUTPUT_JSON_WOMEN = join(OUTPUT_DIR, "espn-ratings-women.json");
 const OUTPUT_TS = join(dirname(OUTPUT_DIR), "..", "src", "all-players.ts");
+const OUTPUT_TS_WOMEN = join(dirname(OUTPUT_DIR), "..", "src", "wpl-players.ts");
 
 // ── ESPN data types ───────────────────────────────────────────────────
 
@@ -187,13 +198,21 @@ function extractCountry(profile: EspnProfile): string {
 
 /**
  * Get a stat record for a given type and class from the career stats array.
- * Prefers cl=6 (all T20s), falls back to cl=3 (T20I).
+ * For men: Prefers cl=6 (all T20s), falls back to cl=3 (T20I).
+ * For women: Uses cl=10 (WT20I) — women's T20 stats are stored separately on ESPN.
  */
 function getT20Stat(
   stats: EspnCareerStat[],
   type: "BATTING" | "BOWLING",
+  gender: "M" | "F" = "M",
 ): { stat: EspnCareerStat; cl: number } | null {
-  // Prefer cl=6 (all T20s including franchise)
+  if (gender === "F") {
+    // Women's T20I stats are in cl=10 (WT20I)
+    const cl10 = stats.find(s => s.type === type && s.cl === 10);
+    if (cl10) return { stat: cl10, cl: 10 };
+    return null;
+  }
+  // Men: Prefer cl=6 (all T20s including franchise)
   const cl6 = stats.find(s => s.type === type && s.cl === 6);
   if (cl6) return { stat: cl6, cl: 6 };
   // Fallback to cl=3 (T20 Internationals)
@@ -214,10 +233,11 @@ function safeNum(val: number | string | null | undefined, fallback: number = 0):
 /**
  * Convert ESPN player data to the calculator input format.
  * Uses REAL fours and sixes from ESPN data (fo/si fields).
+ * For women, uses cl=10 (WT20I) and relaxed bowling threshold.
  */
-function toCalculatorInput(player: EspnPlayer) {
-  const batResult = getT20Stat(player.careerStats, "BATTING");
-  const bowlResult = getT20Stat(player.careerStats, "BOWLING");
+function toCalculatorInput(player: EspnPlayer, gender: "M" | "F" = "M") {
+  const batResult = getT20Stat(player.careerStats, "BATTING", gender);
+  const bowlResult = getT20Stat(player.careerStats, "BOWLING", gender);
   const bat = batResult?.stat ?? null;
   const bowl = bowlResult?.stat ?? null;
 
@@ -225,7 +245,15 @@ function toCalculatorInput(player: EspnPlayer) {
   const battingInnings = bat ? bat.in : 0;
   const notOuts = bat ? safeNum(bat.no) : 0;
   const runs = bat ? safeNum(bat.rn) : 0;
-  const ballsFaced = bat ? safeNum(bat.bl) : 0;
+  let ballsFaced = bat ? safeNum(bat.bl) : 0;
+
+  // If balls faced is missing but we have runs, estimate from average strike rate.
+  // Some older ESPN profiles (especially women's WT20I) have null bl/sr fields.
+  if (ballsFaced === 0 && runs > 0 && battingInnings > 0) {
+    // Estimate SR based on gender: women's WT20I average ~115, men's T20 ~130
+    const estimatedSR = gender === "F" ? 115 : 130;
+    ballsFaced = Math.round((runs / estimatedSR) * 100);
+  }
 
   // REAL fours and sixes from ESPN data — the key improvement over the CricketArchive pipeline
   const fours = bat ? safeNum(bat.fo) : 0;
@@ -236,11 +264,17 @@ function toCalculatorInput(player: EspnPlayer) {
   let finalFours = fours;
   let finalSixes = sixes;
   if (!hasBoundaryData && runs > 0 && ballsFaced > 0) {
+    // Use actual SR if we computed/have balls, else use estimated SR
     const sr = (runs / ballsFaced) * 100;
-    const boundaryPct = Math.min(0.75, 0.3 + (sr - 100) * 0.003);
-    const boundaryRuns = runs * boundaryPct;
-    finalSixes = Math.round(boundaryRuns * 0.35 / 6);
-    finalFours = Math.round(boundaryRuns * 0.65 / 4);
+    // Women have lower boundary percentage than men
+    const baseBdryPct = gender === "F" ? 0.25 : 0.3;
+    const bdrySlope = gender === "F" ? 0.0025 : 0.003;
+    const boundaryPct = Math.min(0.75, baseBdryPct + (sr - 100) * bdrySlope);
+    const boundaryRuns = runs * Math.max(boundaryPct, 0.15);
+    // Women hit fewer sixes relative to fours
+    const sixPct = gender === "F" ? 0.20 : 0.35;
+    finalSixes = Math.round(boundaryRuns * sixPct / 6);
+    finalFours = Math.round(boundaryRuns * (1 - sixPct) / 4);
   }
 
   const bowlBalls = bowl ? safeNum(bowl.bl) : 0;
@@ -248,9 +282,12 @@ function toCalculatorInput(player: EspnPlayer) {
   const wickets = bowl ? safeNum(bowl.wk) : 0;
   const bowlInnings = bowl ? safeNum(bowl.in) : 0;
 
-  // Must have bowled at least 300 balls (50 overs) AND taken 15+ wickets to count as a bowler
-  // This filters out part-timers like SKY (138 balls, 8 wickets) and Babar (4 wickets)
-  const hasMeaningfulBowling = bowlBalls >= 300 && wickets >= 15;
+  // Must have bowled minimum balls AND taken minimum wickets to count as a bowler.
+  // Men: 300 balls (50 overs) + 15 wickets — filters out part-timers like SKY, Babar.
+  // Women: 150 balls (25 overs) + 8 wickets — lower thresholds due to fewer matches.
+  const minBalls = gender === "F" ? 150 : 300;
+  const minWickets = gender === "F" ? 8 : 15;
+  const hasMeaningfulBowling = bowlBalls >= minBalls && wickets >= minWickets;
 
   return {
     name: player.profile.longName || player.profile.name,
@@ -321,6 +358,39 @@ function isRetired(player: EspnPlayer): boolean {
 
   // No career span and age 40+ → likely retired
   if (!span && age >= 40) return true;
+
+  return false;
+}
+
+/**
+ * Detect if a women's player is retired based on career span and age.
+ * Women's cricket has less retirement — use age 38+ as hard cutoff.
+ */
+function isRetiredWomen(player: EspnPlayer): boolean {
+  const age = calculateAge(player.profile.dateOfBirth);
+  const span = player.profile.intlCareerSpan;
+
+  // Parse career span end year
+  let lastYear = 0;
+  if (span) {
+    const match = span.match(/(\d{4})\s*$/);
+    if (match) lastYear = parseInt(match[1]);
+  }
+
+  // Hard age cutoff for women
+  if (age >= 40) return true;
+
+  // If intl career span extends to 2024+ they're definitely active
+  if (lastYear >= 2024) return false;
+
+  // Career ended before 2022 and player is 35+ → retired
+  if (lastYear > 0 && lastYear < 2022 && age >= 35) return true;
+
+  // Career ended before 2020 and player is 32+ → long-retired
+  if (lastYear > 0 && lastYear < 2020 && age >= 32) return true;
+
+  // No career span and age 38+ → likely retired
+  if (!span && age >= 38) return true;
 
   return false;
 }
@@ -819,6 +889,325 @@ export const PLAYER_COUNT = ${players.length};
   console.log(`TypeScript output: ${OUTPUT_TS} (${players.length} players)`);
 }
 
+// ── Women's League Franchises (for competition quality) ──────────────
+
+const WOMEN_LEAGUES = [
+  // WPL
+  "mumbai indians", "delhi capitals", "royal challengers",
+  "gujarat giants", "up warriorz",
+  // WBBL
+  "sydney sixers women", "sydney thunder women", "melbourne stars women",
+  "melbourne renegades women", "hobart hurricanes women", "brisbane heat women",
+  "perth scorchers women", "adelaide strikers women",
+  // The Hundred (Women's)
+  "oval invincibles", "trent rockets", "manchester originals", "london spirit",
+  "birmingham phoenix", "northern superchargers", "southern brave", "welsh fire",
+  // WPL team variations
+  "royal challengers bangalore women", "royal challengers bengaluru women",
+  "trailblazers", "velocity", "supernovas",
+];
+
+/**
+ * Competition quality for women's cricket.
+ * Simpler than men's — most WT20I players are from Full Member nations.
+ */
+function getCompetitionQualityWomen(player: EspnPlayer): number {
+  const teams = (player.profile.teams || []).map(t => t.toLowerCase());
+  const country = extractCountry(player.profile).toLowerCase();
+
+  // Check if player has played in top women's leagues
+  const hasTopLeague = teams.some(team =>
+    WOMEN_LEAGUES.some(league => team.includes(league))
+  );
+  if (hasTopLeague) return 1.0;
+
+  // Full member national team
+  if (FULL_MEMBERS.has(country)) return 0.95;
+
+  // Strong associate women's teams
+  const strongWomenAssociates = new Set(["thailand", "nepal", "usa", "scotland", "ireland"]);
+  if (strongWomenAssociates.has(country)) return 0.8;
+
+  // Others
+  return 0.65;
+}
+
+// ── WPL Roster Matching ──────────────────────────────────────────────
+
+/**
+ * Name aliases for WPL roster names that differ from ESPN database names.
+ * Key: roster name (lowercase), Value: ESPN longName (lowercase).
+ */
+const WPL_ROSTER_NAME_ALIASES: Record<string, string> = {
+  // Name variations between roster and ESPN
+  "danielle gibson": "dani gibson",
+  // Players listed differently in ESPN vs roster
+};
+
+/**
+ * Build a map from ESPN player name (lowercase) -> { teamId, price } for WPL 2025 rosters.
+ */
+function buildWPLRosterTeamMap(): Map<string, RosterEntry> {
+  const map = new Map<string, RosterEntry>();
+
+  for (const roster of WPL_2025_ROSTERS) {
+    for (const player of roster.players) {
+      const lowerName = player.name.toLowerCase();
+      const espnName = WPL_ROSTER_NAME_ALIASES[lowerName] ?? lowerName;
+      map.set(espnName, { teamId: roster.teamId, price: player.price });
+    }
+  }
+
+  return map;
+}
+
+// ── Women's ratings generator ────────────────────────────────────────
+
+/**
+ * Generate ratings for all female ESPN-scraped players.
+ * Uses cl=10 (WT20I) stats, minimum 10 matches, age < 38 cutoff.
+ */
+export function generateWomenRatings(): RatedPlayer[] {
+  if (!existsSync(ESPN_FILE)) {
+    throw new Error(`ESPN players file not found at ${ESPN_FILE}. Run espn-scraper.ts first.`);
+  }
+
+  const allPlayers: EspnPlayer[] = JSON.parse(readFileSync(ESPN_FILE, "utf-8"));
+  const femalePlayers = allPlayers.filter(p => p.profile.gender === "F");
+
+  console.log(`\n=== Generating Women's ESPN Ratings ===`);
+  console.log(`Total female players scraped: ${femalePlayers.length}`);
+
+  const rated: RatedPlayer[] = [];
+
+  for (const player of femalePlayers) {
+    const batResult = getT20Stat(player.careerStats, "BATTING", "F");
+    const bowlResult = getT20Stat(player.careerStats, "BOWLING", "F");
+    const bat = batResult?.stat ?? null;
+    const bowl = bowlResult?.stat ?? null;
+
+    // Require at least 10 WT20I matches for meaningful ratings
+    const matches = bat ? bat.mt : 0;
+    if (matches < 10) continue;
+
+    // Filter out retired players
+    if (isRetiredWomen(player)) continue;
+
+    const input = toCalculatorInput(player, "F");
+    const ratings = calculateRatings(input, "women");
+
+    // Competition quality adjustment
+    const qualityFactor = getCompetitionQualityWomen(player);
+    if (qualityFactor < 1.0) {
+      ratings.battingIQ = Math.round(50 + (ratings.battingIQ - 50) * qualityFactor);
+      ratings.timing = Math.round(50 + (ratings.timing - 50) * qualityFactor);
+      ratings.power = Math.round(50 + (ratings.power - 50) * qualityFactor);
+      ratings.running = Math.round(50 + (ratings.running - 50) * qualityFactor);
+      ratings.wicketTaking = Math.round(50 + (ratings.wicketTaking - 50) * qualityFactor);
+      ratings.economy = Math.round(50 + (ratings.economy - 50) * qualityFactor);
+      ratings.accuracy = Math.round(50 + (ratings.accuracy - 50) * qualityFactor);
+      ratings.clutch = Math.round(50 + (ratings.clutch - 50) * qualityFactor);
+
+      // Recompute overalls
+      ratings.battingOvr = Math.round(ratings.battingIQ * 0.30 + ratings.timing * 0.30 + ratings.power * 0.35 + ratings.running * 0.05);
+      ratings.bowlingOvr = Math.round(ratings.wicketTaking * 0.45 + ratings.economy * 0.30 + ratings.accuracy * 0.10 + ratings.clutch * 0.15);
+      const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
+      const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
+      ratings.overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
+    }
+
+    const role = inferRole(ratings);
+    const age = calculateAge(player.profile.dateOfBirth);
+    const country = extractCountry(player.profile);
+
+    const battingHand = player.profile.battingStyles?.[0] ?? "unknown";
+    const bowlingStyle = player.profile.bowlingStyles?.[0] ?? "unknown";
+
+    rated.push({
+      id: `espn_${player.profile.espnId}`,
+      name: player.profile.longName || player.profile.name,
+      fullName: player.profile.longName || player.profile.name,
+      age,
+      country,
+      battingHand,
+      bowlingStyle,
+      role,
+      isInternational: country !== "India",
+      ratings: {
+        battingIQ: ratings.battingIQ,
+        timing: ratings.timing,
+        power: ratings.power,
+        running: ratings.running,
+        wicketTaking: ratings.wicketTaking,
+        economy: ratings.economy,
+        accuracy: ratings.accuracy,
+        clutch: ratings.clutch,
+      },
+      overalls: {
+        battingOvr: ratings.battingOvr,
+        bowlingOvr: ratings.bowlingOvr,
+        overall: ratings.overall,
+      },
+      sourceStats: {
+        t20Matches: matches,
+        t20Runs: bat ? safeNum(bat.rn) : 0,
+        t20Average: bat ? safeNum(bat.avg) : 0,
+        t20StrikeRate: bat ? safeNum(bat.sr) : 0,
+        t20Fours: bat ? safeNum(bat.fo) : 0,
+        t20Sixes: bat ? safeNum(bat.si) : 0,
+        t20Wickets: bowl ? safeNum(bowl.wk) : 0,
+        t20Economy: bowl ? safeNum(bowl.bwe) : 0,
+        statClass: batResult?.cl ?? bowlResult?.cl ?? 10,
+      },
+      espnId: player.profile.espnId,
+    });
+  }
+
+  // ── Assign teamId + price from WPL 2025 rosters ──────────────────
+  const rosterMap = buildWPLRosterTeamMap();
+  let rosterMatches = 0;
+  const unmatchedRoster = new Set(rosterMap.keys());
+
+  for (const p of rated) {
+    const entry = findRosterEntry(p.name, rosterMap);
+    if (entry) {
+      p.teamId = entry.teamId;
+      p.price = entry.price;
+      rosterMatches++;
+      const lower = p.name.toLowerCase();
+      unmatchedRoster.delete(lower);
+      for (const [rosterName] of rosterMap.entries()) {
+        const normalizedRoster = rosterName.replace(/\s+/g, " ").trim();
+        if (lower.replace(/\s+/g, " ").trim() === normalizedRoster) {
+          unmatchedRoster.delete(rosterName);
+        }
+      }
+    }
+  }
+
+  // Sort by overall rating descending
+  rated.sort((a, b) => b.overalls.overall - a.overalls.overall);
+
+  console.log(`Rated women players (10+ WT20I matches): ${rated.length}`);
+  console.log(`\nTop 20 women:`);
+  for (const p of rated.slice(0, 20)) {
+    const team = p.teamId ? ` [${p.teamId}]` : "";
+    console.log(
+      `  ${p.overalls.overall.toString().padStart(2)} ${p.name.padEnd(30)} (${p.country.padEnd(15)}) ${p.role.padEnd(12)} bat:${p.overalls.battingOvr} bowl:${p.overalls.bowlingOvr}${team}`,
+    );
+  }
+
+  // Show roster matching stats
+  const rosterPlayers = rated.filter(p => p.teamId);
+  console.log(`\n=== WPL 2025 Roster Matching ===`);
+  console.log(`Roster players matched to ESPN data: ${rosterMatches}`);
+  console.log(`Total players with teamId: ${rosterPlayers.length}`);
+  if (unmatchedRoster.size > 0) {
+    console.log(`Unmatched WPL roster names (${unmatchedRoster.size}):`);
+    for (const name of unmatchedRoster) {
+      console.log(`  - ${name}`);
+    }
+  }
+
+  // Show per-team breakdown
+  console.log(`\nPer-team roster counts:`);
+  const teamCounts = new Map<string, number>();
+  for (const p of rosterPlayers) {
+    teamCounts.set(p.teamId!, (teamCounts.get(p.teamId!) ?? 0) + 1);
+  }
+  for (const [teamId, count] of [...teamCounts.entries()].sort()) {
+    console.log(`  ${teamId.padEnd(5)}: ${count} players`);
+  }
+
+  // Save as JSON
+  if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
+  writeFileSync(OUTPUT_JSON_WOMEN, JSON.stringify(rated, null, 2), "utf-8");
+  console.log(`\nJSON output: ${OUTPUT_JSON_WOMEN}`);
+
+  // Generate TypeScript module for WPL
+  generateWPLTypeScriptModule(rated);
+
+  return rated;
+}
+
+// ── WPL TypeScript module output ──────────────────────────────────────
+
+/**
+ * Write wpl-players.ts with both a compact tuple format and an interface-based accessor.
+ */
+function generateWPLTypeScriptModule(players: RatedPlayer[]): void {
+  const dir = dirname(OUTPUT_TS_WOMEN);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+  const entries = players.map(p => {
+    const teamIdLine = p.teamId ? `\n    teamId: ${JSON.stringify(p.teamId)},` : "";
+    const bidLine = p.price != null ? `\n    bid: ${p.price},` : "";
+    return `  {
+    id: ${JSON.stringify(p.id)},
+    name: ${JSON.stringify(p.name)},
+    age: ${p.age},
+    country: ${JSON.stringify(p.country)},
+    role: ${JSON.stringify(p.role)},
+    ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
+    isInternational: ${p.isInternational},${teamIdLine}${bidLine}
+  }`;
+  }).join(",\n");
+
+  const content = `/**
+ * AUTO-GENERATED — Do not edit manually.
+ * Generated by: npx tsx src/pipeline/generate-ratings-espn.ts
+ * Source: ESPN Cricinfo WT20I career stats (cl=10)
+ * Players: ${players.length} (female, 10+ WT20I matches)
+ * Generated: ${new Date().toISOString()}
+ */
+
+import type { PlayerData } from "@ipl-sim/engine";
+
+export const WPL_PLAYERS: Omit<PlayerData, "injured" | "injuryGamesLeft">[] = [
+${entries}
+];
+
+export const WPL_PLAYER_COUNT = ${players.length};
+
+export interface WPLPlayerData {
+  name: string;
+  age: number;
+  country: string;
+  role: string;
+  battingIQ: number;
+  timing: number;
+  power: number;
+  running: number;
+  wicketTaking: number;
+  economy: number;
+  accuracy: number;
+  clutch: number;
+  teamId?: string;
+}
+
+export function getWPLPlayers(): WPLPlayerData[] {
+  return WPL_PLAYERS.map(p => ({
+    name: p.name,
+    age: p.age,
+    country: p.country,
+    role: p.role,
+    battingIQ: p.ratings.battingIQ,
+    timing: p.ratings.timing,
+    power: p.ratings.power,
+    running: p.ratings.running,
+    wicketTaking: p.ratings.wicketTaking,
+    economy: p.ratings.economy,
+    accuracy: p.ratings.accuracy,
+    clutch: p.ratings.clutch,
+    teamId: p.teamId,
+  }));
+}
+`;
+
+  writeFileSync(OUTPUT_TS_WOMEN, content, "utf-8");
+  console.log(`TypeScript output: ${OUTPUT_TS_WOMEN} (${players.length} players)`);
+}
+
 // ── CLI entry point ───────────────────────────────────────────────────
 
 if (
@@ -826,4 +1215,5 @@ if (
   process.argv[1]?.endsWith("generate-ratings-espn.js")
 ) {
   generateAllRatings();
+  generateWomenRatings();
 }

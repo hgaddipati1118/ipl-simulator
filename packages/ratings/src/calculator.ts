@@ -72,34 +72,90 @@ function zToRating(zBlend: number): number {
 }
 
 // ── Population statistics for z-scoring ──────────────────────────────
-// These are calibrated from the full ESPN player dataset (2,400+ T20 players).
+// These are calibrated from the full ESPN player dataset.
 // Each stat is the (mean, stdev) of the per-innings/per-ball metric across all players.
 
 interface PopStats { mean: number; std: number; }
 
+interface BatPopStats {
+  average: PopStats;
+  strikeRate: PopStats;
+  ballsPerOut: PopStats;
+  boundariesPerBall: PopStats;
+  sixesPerBall: PopStats;
+  srNoBoundaries: PopStats;
+  batPct: PopStats;
+  experience: PopStats;
+}
+
+interface BowlPopStats {
+  wicketsPerBall: PopStats;
+  runsPerBall: PopStats;
+  ballsPerBoundary: PopStats;
+  bowlPct: PopStats;
+  ballsPerInnings: PopStats;
+  dotBallPct: PopStats;
+}
+
 // Batting stats — calibrated from 2,200+ ESPN T20 players (10+ matches)
-const POP_BAT = {
-  average:          { mean: 19, std: 8.5 } as PopStats,      // batting avg
-  strikeRate:       { mean: 116, std: 25 } as PopStats,       // batting SR
-  ballsPerOut:      { mean: 15, std: 8 } as PopStats,         // balls faced / dismissals
-  boundariesPerBall:{ mean: 0.12, std: 0.05 } as PopStats,    // (4s+6s) / balls faced
-  sixesPerBall:     { mean: 0.043, std: 0.029 } as PopStats,  // sixes / balls faced
-  srNoBoundaries:   { mean: 42, std: 16 } as PopStats,        // (runs - boundary runs) / balls * 100
-  batPct:           { mean: 0.75, std: 0.2 } as PopStats,     // batting innings / matches
-  experience:       { mean: 74, std: 82 } as PopStats,        // total matches
+const POP_BAT: BatPopStats = {
+  average:          { mean: 19, std: 8.5 },      // batting avg
+  strikeRate:       { mean: 116, std: 25 },       // batting SR
+  ballsPerOut:      { mean: 15, std: 8 },         // balls faced / dismissals
+  boundariesPerBall:{ mean: 0.12, std: 0.05 },    // (4s+6s) / balls faced
+  sixesPerBall:     { mean: 0.043, std: 0.029 },  // sixes / balls faced
+  srNoBoundaries:   { mean: 42, std: 16 },        // (runs - boundary runs) / balls * 100
+  batPct:           { mean: 0.75, std: 0.2 },     // batting innings / matches
+  experience:       { mean: 74, std: 82 },        // total matches
 };
 
 // Bowling stats — calibrated from 1,000+ qualified bowlers
 // Use artificially wider stdev to spread the pre-filtered population
 // and prevent compression of z-scores among "all decent" bowlers
-const POP_BOWL = {
-  wicketsPerBall:   { mean: 0.045, std: 0.018 } as PopStats,  // wider mean/std to spread from avg to elite
-  runsPerBall:      { mean: 1.35, std: 0.25 } as PopStats,    // wider — 8.1 econ = avg, 6.5 = elite, 10 = poor
-  ballsPerBoundary: { mean: 6, std: 3 } as PopStats,
-  bowlPct:          { mean: 0.5, std: 0.3 } as PopStats,
-  ballsPerInnings:  { mean: 20, std: 8 } as PopStats,
-  dotBallPct:       { mean: 0.38, std: 0.15 } as PopStats,
+const POP_BOWL: BowlPopStats = {
+  wicketsPerBall:   { mean: 0.045, std: 0.018 },  // wider mean/std to spread from avg to elite
+  runsPerBall:      { mean: 1.35, std: 0.25 },    // wider — 8.1 econ = avg, 6.5 = elite, 10 = poor
+  ballsPerBoundary: { mean: 6, std: 3 },
+  bowlPct:          { mean: 0.5, std: 0.3 },
+  ballsPerInnings:  { mean: 20, std: 8 },
+  dotBallPct:       { mean: 0.38, std: 0.15 },
 };
+
+// Women's batting stats — calibrated from 468 qualified WT20I players (10+ matches)
+// Women's T20I features lower scoring rates, fewer boundaries, and much fewer sixes.
+const POP_BAT_WOMEN: BatPopStats = {
+  average:          { mean: 13, std: 9 },         // lower than men (13 vs 19)
+  strikeRate:       { mean: 90, std: 28 },         // women ~90 SR on average (vs 116)
+  ballsPerOut:      { mean: 16, std: 8 },          // similar to men
+  boundariesPerBall:{ mean: 0.07, std: 0.04 },     // far fewer boundaries
+  sixesPerBall:     { mean: 0.008, std: 0.012 },   // very few sixes in women's cricket
+  srNoBoundaries:   { mean: 35, std: 15 },          // lower non-boundary scoring
+  batPct:           { mean: 0.75, std: 0.2 },       // similar to men
+  experience:       { mean: 55, std: 50 },           // fewer career matches on average
+};
+
+// Women's bowling stats — calibrated from 316 qualified WT20I bowlers (100+ balls, 5+ wk).
+// The actual population is: econ mean=5.84 std=1.04, RPB mean=0.973 std=0.174.
+// We shift the mean slightly upward (worse) so that elite bowlers (econ ~5.8-6.0)
+// get positive z-scores. This ensures top international bowlers rate 75-85.
+const POP_BOWL_WOMEN: BowlPopStats = {
+  wicketsPerBall:   { mean: 0.042, std: 0.020 },   // shifted down so elite wpb=0.06 → z=0.9
+  runsPerBall:      { mean: 1.10, std: 0.22 },      // shifted up so econ 6.0 → rpb=1.0 → z=0.45
+  ballsPerBoundary: { mean: 10, std: 5 },
+  bowlPct:          { mean: 0.5, std: 0.3 },
+  ballsPerInnings:  { mean: 18, std: 6 },
+  dotBallPct:       { mean: 0.40, std: 0.15 },
+};
+
+export type GenderPop = "men" | "women";
+
+/** Get population stats for the given gender */
+function getPopStats(gender: GenderPop = "men"): { bat: BatPopStats; bowl: BowlPopStats } {
+  if (gender === "women") {
+    return { bat: POP_BAT_WOMEN, bowl: POP_BOWL_WOMEN };
+  }
+  return { bat: POP_BAT, bowl: POP_BOWL };
+}
 
 /** Compute z-score for a stat value */
 function zScore(value: number, pop: PopStats): number {
@@ -109,9 +165,11 @@ function zScore(value: number, pop: PopStats): number {
 
 // ── Main calculator ──────────────────────────────────────────────────
 
-export function calculateRatings(stats: RawPlayerStats): CalculatedRatings {
+export function calculateRatings(stats: RawPlayerStats, gender: GenderPop = "men"): CalculatedRatings {
   const hasBatting = stats.battingInnings > 0 && stats.ballsFaced > 0;
   const hasBowling = stats.bowlingInnings > 0 && stats.ballsBowled > 0;
+
+  const { bat: popBat, bowl: popBowl } = getPopStats(gender);
 
   // ── Derived batting metrics ──
   const dismissals = Math.max(stats.battingInnings - stats.notOuts, 1);
@@ -126,14 +184,14 @@ export function calculateRatings(stats: RawPlayerStats): CalculatedRatings {
   const batPct = stats.matches > 0 ? stats.battingInnings / stats.matches : 0;
 
   // ── Z-scores for batting ──
-  const zAvg = zScore(battingAvg, POP_BAT.average);
-  const zSR = zScore(strikeRate, POP_BAT.strikeRate);
-  const zBPO = zScore(ballsPerOut, POP_BAT.ballsPerOut);
-  const zBdryPB = zScore(boundariesPerBall, POP_BAT.boundariesPerBall);
-  const zSixPB = zScore(sixesPerBall, POP_BAT.sixesPerBall);
-  const zSRnb = zScore(srNoBoundaries, POP_BAT.srNoBoundaries);
-  const zBatPct = zScore(batPct, POP_BAT.batPct);
-  const zExp = zScore(stats.matches, POP_BAT.experience);
+  const zAvg = zScore(battingAvg, popBat.average);
+  const zSR = zScore(strikeRate, popBat.strikeRate);
+  const zBPO = zScore(ballsPerOut, popBat.ballsPerOut);
+  const zBdryPB = zScore(boundariesPerBall, popBat.boundariesPerBall);
+  const zSixPB = zScore(sixesPerBall, popBat.sixesPerBall);
+  const zSRnb = zScore(srNoBoundaries, popBat.srNoBoundaries);
+  const zBatPct = zScore(batPct, popBat.batPct);
+  const zExp = zScore(stats.matches, popBat.experience);
 
   // ── Batting ratings (spreadsheet formulas) ──
   // IQ = f(EXP*0.2 + AVG*0.25 + BallsPerOut*0.2 + BatPct*0.15 + SR_NoBoundaries*0.2)
@@ -169,13 +227,13 @@ export function calculateRatings(stats: RawPlayerStats): CalculatedRatings {
   const dotBallPct = hasBowling ? Math.max(0, 1 - runsPerBall / 1.8) : 0;
 
   // ── Z-scores for bowling ──
-  const zWPB = zScore(wicketsPerBall, POP_BOWL.wicketsPerBall);
+  const zWPB = zScore(wicketsPerBall, popBowl.wicketsPerBall);
   // Economy: invert (negate) so lower econ = higher z-score
-  const zEcon = -zScore(runsPerBall, POP_BOWL.runsPerBall);
-  const zDotPct = zScore(dotBallPct, POP_BOWL.dotBallPct);
-  const zBowlPct = zScore(stats.matches > 0 ? stats.bowlingInnings / stats.matches : 0, POP_BOWL.bowlPct);
-  const zBPI = zScore(ballsPerInnings, POP_BOWL.ballsPerInnings);
-  const zBowlExp = zScore(stats.matches, POP_BAT.experience);
+  const zEcon = -zScore(runsPerBall, popBowl.runsPerBall);
+  const zDotPct = zScore(dotBallPct, popBowl.dotBallPct);
+  const zBowlPct = zScore(stats.matches > 0 ? stats.bowlingInnings / stats.matches : 0, popBowl.bowlPct);
+  const zBPI = zScore(ballsPerInnings, popBowl.ballsPerInnings);
+  const zBowlExp = zScore(stats.matches, popBat.experience);
 
   // ── Bowling ratings ──
   // WicketTaking: primarily wickets per ball + some economy context
