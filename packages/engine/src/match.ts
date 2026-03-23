@@ -8,11 +8,15 @@
  *   3. Chase context (required run rate in 2nd innings)
  *   4. Pressure/clutch factors
  *   5. Stadium bowling rating (home advantage)
+ *
+ * Supports IPL rule sets including the Impact Player substitution rule.
  */
 
 import { Player } from "./player.js";
 import { Team } from "./team.js";
 import { clamp, weightedRandom } from "./math.js";
+import { DEFAULT_RULES, type RuleSet } from "./rules.js";
+import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
 
 export type BallOutcome = "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
 
@@ -28,6 +32,13 @@ export interface BallEvent {
   commentary: string;
 }
 
+export interface ImpactSubEvent {
+  subIn: string;    // player ID brought in
+  subOut: string;   // player ID replaced
+  overUsed: number; // over at which substitution happened
+  side: "batting" | "bowling"; // which side used it
+}
+
 export interface InningsScore {
   teamId: string;
   runs: number;
@@ -41,6 +52,88 @@ export interface InningsScore {
   ballLog: BallEvent[];
   batterStats: Map<string, { runs: number; balls: number; fours: number; sixes: number; isOut: boolean }>;
   bowlerStats: Map<string, { overs: number; balls: number; runs: number; wickets: number; wides: number; noballs: number }>;
+  impactSub?: ImpactSubEvent;
+}
+
+export interface MatchInjuryEvent {
+  playerId: string;
+  playerName: string;
+  teamId: string;
+  injury: InjuryStatus;
+}
+
+/* ───── Detailed scorecard types (from WT2) ───── */
+
+export interface DetailedBallEvent {
+  over: number;        // 0-19
+  ball: number;        // 1-6 (legal deliveries)
+  innings: 1 | 2;
+  batterName: string;
+  bowlerName: string;
+  runs: number;
+  extras: number;
+  eventType: "dot" | "single" | "double" | "triple" | "four" | "six" | "wicket" | "wide" | "noball" | "legbye";
+  wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped";
+  fielderName?: string;
+  commentary: string;
+  scoreSoFar: number;
+  wicketsSoFar: number;
+}
+
+export interface BatterInnings {
+  playerId: string;
+  playerName: string;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  strikeRate: number;
+  howOut: string;       // "c Jadeja b Bumrah" or "not out"
+  fallOfWicket?: string; // "45/3 (8.2 ov)"
+}
+
+export interface BowlerFigures {
+  playerId: string;
+  playerName: string;
+  overs: string;       // "4.0" or "3.2"
+  maidens: number;
+  runs: number;
+  wickets: number;
+  economy: number;
+  dots: number;
+  wides: number;
+  noBalls: number;
+}
+
+export interface InningsScorecard {
+  battingTeamId: string;
+  battingTeamName: string;
+  bowlingTeamId: string;
+  bowlingTeamName: string;
+  totalRuns: number;
+  totalWickets: number;
+  totalOvers: string;
+  batters: BatterInnings[];
+  bowlers: BowlerFigures[];
+  extras: { wides: number; noBalls: number; legByes: number; total: number };
+  fallOfWickets: string[];
+}
+
+export interface DetailedMatchResult {
+  matchId: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  tossWinner: string;
+  tossWinnerName: string;
+  tossDecision: "bat" | "bowl";
+  innings1: InningsScorecard;
+  innings2: InningsScorecard;
+  ballLog: DetailedBallEvent[];
+  result: string;
+  manOfTheMatch: { playerId: string; playerName: string; reason: string };
+  venue: string;
 }
 
 export interface MatchResult {
@@ -54,6 +147,8 @@ export interface MatchResult {
   winnerId: string | null; // null for tie/no result
   margin: string;    // "5 wickets", "23 runs", "Super Over"
   motm: string;      // man of the match player id
+  injuries: MatchInjuryEvent[];  // players injured during this match
+  detailed?: DetailedMatchResult; // full scorecard data
 }
 
 /** Phase of the innings based on over number */
@@ -63,11 +158,21 @@ function getPhase(over: number): "powerplay" | "middle" | "death" {
   return "death";
 }
 
-/** Phase multipliers for outcome probabilities */
+/** Phase multipliers for outcome probabilities
+ * Tuned to match IPL 2025 real-world benchmarks:
+ *   - Avg innings score ~200-210, RR ~10.0-10.4
+ *   - Powerplay: more boundaries, fewer dots
+ *   - Middle: more dots, fewer boundaries (spin-dominant)
+ *   - Death: big sixes, more wickets, more wides
+ */
 const PHASE_MULTIPLIERS: Record<string, Record<string, number>> = {
-  powerplay: { dot: 0.85, "1": 1.0, "2": 0.9, "3": 1.0, "4": 1.3, "6": 1.1, wicket: 0.9, wide: 1.1, noball: 1.0 },
-  middle:    { dot: 1.1,  "1": 1.1, "2": 1.0, "3": 1.0, "4": 0.9, "6": 0.85, wicket: 1.0, wide: 0.9, noball: 1.0 },
-  death:     { dot: 0.8,  "1": 0.9, "2": 1.1, "3": 1.1, "4": 1.2, "6": 1.4, wicket: 1.2, wide: 1.2, noball: 1.1 },
+  // Real IPL 2025 phase patterns:
+  // PP (1-6): RR ~9.5, more 4s (fielding restrictions), fewer wickets
+  // Mid (7-15): RR ~8.5, spin-dominant, fewer boundaries, more dots
+  // Death (16-20): RR ~12+, big sixes, more wickets/wides, aggressive batting
+  powerplay: { dot: 0.90, "1": 1.05, "2": 0.85, "3": 0.8, "4": 1.25, "6": 0.90, wicket: 0.80, wide: 1.05, noball: 1.0 },
+  middle:    { dot: 1.10, "1": 1.05, "2": 1.05, "3": 1.0, "4": 0.82, "6": 0.75, wicket: 1.05, wide: 0.85, noball: 0.9 },
+  death:     { dot: 0.85, "1": 0.85, "2": 1.15, "3": 1.3, "4": 1.05, "6": 1.40, wicket: 1.15, wide: 1.20, noball: 1.2 },
 };
 
 /** Generate base outcome probabilities from batter and bowler ratings */
@@ -81,16 +186,19 @@ function baseOutcomeProbabilities(
   // Balance between batter and bowler determines distribution
   const balance = batRating - bowlRating; // -1 to 1, positive favors batter
 
+  // Tuned to match real IPL 2025 ball-outcome distributions:
+  //   dots ~38-40%, singles ~30-33%, 2s/3s ~5-7%, 4s ~8-10%, 6s ~5-7%, wickets ~4-5%, wides ~3-4%
+  //   Target avg innings score: ~200-210 (combined ~400-420)
   return {
-    dot:    clamp(0.35 - balance * 0.15, 0.15, 0.55),
-    "1":    clamp(0.28 + balance * 0.03, 0.18, 0.38),
-    "2":    clamp(0.08 + balance * 0.02, 0.03, 0.15),
+    dot:    clamp(0.33 - balance * 0.10, 0.18, 0.50),
+    "1":    clamp(0.32 + balance * 0.02, 0.22, 0.40),
+    "2":    clamp(0.07 + balance * 0.02, 0.03, 0.12),
     "3":    clamp(0.015, 0.005, 0.03),
-    "4":    clamp(0.10 + balance * 0.06 + (batter.ratings.timing / 100) * 0.04, 0.04, 0.22),
-    "6":    clamp(0.05 + balance * 0.05 + (batter.ratings.power / 100) * 0.05, 0.01, 0.18),
-    wicket: clamp(0.05 - balance * 0.03 + (bowler.ratings.wicketTaking / 100) * 0.03, 0.01, 0.12),
-    wide:   clamp(0.04 - (bowler.ratings.accuracy / 100) * 0.02, 0.01, 0.08),
-    noball:  clamp(0.01 - (bowler.ratings.accuracy / 100) * 0.005, 0.002, 0.03),
+    "4":    clamp(0.085 + balance * 0.038 + (batter.ratings.timing / 100) * 0.02, 0.03, 0.16),
+    "6":    clamp(0.058 + balance * 0.034 + (batter.ratings.power / 100) * 0.027, 0.01, 0.14),
+    wicket: clamp(0.04 - balance * 0.025 + (bowler.ratings.wicketTaking / 100) * 0.02, 0.01, 0.10),
+    wide:   clamp(0.04 - (bowler.ratings.accuracy / 100) * 0.015, 0.012, 0.07),
+    noball:  clamp(0.008 - (bowler.ratings.accuracy / 100) * 0.004, 0.002, 0.025),
     legbye: 0.02,
   };
 }
@@ -107,11 +215,12 @@ function chaseAdjustment(
 
   const adjusted = { ...probs };
   if (pressure > 0) {
-    // Need to accelerate
-    adjusted["4"] *= 1 + pressure * 0.3;
-    adjusted["6"] *= 1 + pressure * 0.5;
-    adjusted.dot *= 1 - pressure * 0.2;
-    adjusted.wicket *= 1 + pressure * 0.2 + wicketPressure;
+    // Need to accelerate — capped to avoid runaway boundary inflation
+    const cappedPressure = Math.min(pressure, 1.5);
+    adjusted["4"] *= 1 + cappedPressure * 0.2;
+    adjusted["6"] *= 1 + cappedPressure * 0.3;
+    adjusted.dot *= 1 - cappedPressure * 0.15;
+    adjusted.wicket *= 1 + cappedPressure * 0.2 + wicketPressure;
   } else {
     // Comfortable position, play safe
     adjusted.dot *= 1 + Math.abs(pressure) * 0.1;
@@ -204,6 +313,44 @@ function simulateBall(
   };
 }
 
+/** Determine wicket type with realistic distribution */
+function randomWicketType(): "bowled" | "caught" | "lbw" | "run_out" | "stumped" {
+  const r = Math.random();
+  if (r < 0.55) return "caught";
+  if (r < 0.75) return "bowled";
+  if (r < 0.90) return "lbw";
+  if (r < 0.97) return "run_out";
+  return "stumped";
+}
+
+/** Pick a random fielding position name */
+function randomFielderPosition(): string {
+  const positions = [
+    "point", "cover", "mid-off", "mid-on", "midwicket", "square leg",
+    "fine leg", "third man", "long-on", "long-off", "deep midwicket",
+    "deep square leg", "deep cover", "slip", "gully", "short leg",
+  ];
+  return positions[Math.floor(Math.random() * positions.length)];
+}
+
+/** Pick a random shot description for boundaries */
+function randomBoundaryShot(runs: number): string {
+  const fourShots = [
+    "driven through covers", "cut past point", "flicked through midwicket",
+    "punched through the off side", "pulled to deep square leg",
+    "edged past the keeper", "swept fine", "driven down the ground",
+    "glanced to fine leg", "slashed over point",
+  ];
+  const sixShots = [
+    "launched over long-on", "smashed over midwicket", "slog-swept into the stands",
+    "lifted over extra cover", "hoisted over cow corner", "clubbed over long-off",
+    "deposited into the second tier", "sent sailing over the boundary",
+    "reverse-swept for six", "pulled massively over deep square",
+  ];
+  const shots = runs === 6 ? sixShots : fourShots;
+  return shots[Math.floor(Math.random() * shots.length)];
+}
+
 function generateCommentary(
   outcome: BallOutcome,
   batter: string,
@@ -213,31 +360,55 @@ function generateCommentary(
 ): string {
   const templates: Record<BallOutcome, string[]> = {
     dot: [
-      `Dot ball! ${bowler} beats ${batter}`,
-      `Good delivery, no run`,
-      `Defended back to ${bowler}`,
+      `${bowler} to ${batter}, no run. Good length outside off, left alone`,
+      `${bowler} to ${batter}, no run. Defended solidly back down the pitch`,
+      `${bowler} to ${batter}, no run. Beaten outside off! Good delivery`,
+      `${bowler} to ${batter}, no run. Plays and misses, beaten for pace`,
+      `${bowler} to ${batter}, no run. Pushed to cover, no single there`,
+      `${bowler} to ${batter}, no run. Tight line, can't get it away`,
     ],
-    "1": [`Single taken by ${batter}`, `Quick single, good running`],
-    "2": [`Two runs to ${batter}`, `Pushed into the gap, they come back for two`],
-    "3": [`Three runs! Good placement by ${batter}`],
+    "1": [
+      `${bowler} to ${batter}, 1 run. Worked away to midwicket for a single`,
+      `${bowler} to ${batter}, 1 run. Nudged to the leg side, quick single taken`,
+      `${bowler} to ${batter}, 1 run. Pushed to cover, they take the run`,
+      `${bowler} to ${batter}, 1 run. Tapped to mid-on, easy single`,
+    ],
+    "2": [
+      `${bowler} to ${batter}, 2 runs. Pushed into the gap, they come back for two`,
+      `${bowler} to ${batter}, 2 runs. Driven wide of mid-off, good running between the wickets`,
+      `${bowler} to ${batter}, 2 runs. Worked square, misfield and they get a second`,
+    ],
+    "3": [
+      `${bowler} to ${batter}, 3 runs. Driven to the deep, misfield and they get three!`,
+      `${bowler} to ${batter}, 3 runs. Placed into the gap, excellent running gets them back for the third`,
+    ],
     "4": [
-      `FOUR! ${batter} finds the boundary!`,
-      `Cracking shot! Four runs!`,
-      `Through the gap, races to the fence!`,
+      `${bowler} to ${batter}, FOUR! ${randomBoundaryShot(4)}`,
+      `${bowler} to ${batter}, FOUR! ${randomBoundaryShot(4)}`,
+      `${bowler} to ${batter}, FOUR! That races away to the boundary!`,
     ],
     "6": [
-      `SIX! ${batter} launches it into the stands!`,
-      `Massive hit! That's gone all the way!`,
-      `Into the crowd! What a strike by ${batter}!`,
+      `${bowler} to ${batter}, SIX! ${randomBoundaryShot(6)}!`,
+      `${bowler} to ${batter}, SIX! ${randomBoundaryShot(6)}!`,
+      `${bowler} to ${batter}, SIX! What a shot! That's massive!`,
     ],
     wicket: [
-      `OUT! ${bowler} strikes! ${batter} has to go!`,
-      `WICKET! Big breakthrough for the bowling side!`,
-      `Gone! ${batter} departs!`,
+      `${bowler} to ${batter}, OUT! ${batter} has to walk back!`,
+      `${bowler} to ${batter}, OUT! Big wicket! ${batter} departs!`,
+      `${bowler} to ${batter}, OUT! Breakthrough! That's the end of ${batter}!`,
     ],
-    wide: [`Wide ball from ${bowler}, extra run conceded`],
-    noball: [`No ball! Free hit coming up`],
-    legbye: [`Leg bye, single added to the total`],
+    wide: [
+      `${bowler} to ${batter}, wide. Straying down the leg side`,
+      `${bowler} to ${batter}, wide. Too far outside off, the umpire signals`,
+    ],
+    noball: [
+      `${bowler} to ${batter}, no ball! Overstepped, free hit coming up`,
+      `${bowler} to ${batter}, no ball! Front foot no ball, one extra`,
+    ],
+    legbye: [
+      `${bowler} to ${batter}, leg bye. Off the pad, they scamper through for one`,
+      `${bowler} to ${batter}, leg bye. Flicked off the thigh pad`,
+    ],
   };
 
   const options = templates[outcome];
@@ -255,6 +426,78 @@ function emptyInnings(teamId: string): InningsScore {
   };
 }
 
+// ── Impact Player Logic ──────────────────────────────────────────────────
+
+/** Check if an overseas impact sub can legally enter (max overseas on field per rules) */
+function canUseOverseasSub(sub: Player, currentXI: Player[], subOut: Player, maxOverseas = 4): boolean {
+  if (!sub.isInternational) return true;
+  const currentOverseas = currentXI.filter(p => p.isInternational).length;
+  const afterSwap = currentOverseas - (subOut.isInternational ? 1 : 0) + 1;
+  return afterSwap <= maxOverseas;
+}
+
+/** AI decides whether and how to use the batting impact sub */
+function evaluateBattingImpact(
+  over: number,
+  innings: InningsScore,
+  battingOrder: Player[],
+  subs: Player[],
+  currentXI: Player[],
+  currentBatterIdx: number,
+): { subIn: Player; subOut: Player } | null {
+  if (subs.length === 0) return null;
+
+  const bestBatSub = subs.reduce((best, s) =>
+    s.battingOvr > best.battingOvr ? s : best, subs[0]);
+  const unbatted = battingOrder.slice(currentBatterIdx);
+  if (unbatted.length === 0) return null;
+
+  const weakest = unbatted.reduce((w, p) =>
+    p.battingOvr < w.battingOvr ? p : w, unbatted[0]);
+
+  const shouldUse =
+    (over >= 14 && bestBatSub.battingOvr > weakest.battingOvr) ||
+    (innings.wickets >= 3 && over < 10) ||
+    (over >= 10 && bestBatSub.battingOvr > weakest.battingOvr + 5);
+
+  if (shouldUse && canUseOverseasSub(bestBatSub, currentXI, weakest)) {
+    return { subIn: bestBatSub, subOut: weakest };
+  }
+
+  return null;
+}
+
+/** AI decides whether and how to use the bowling impact sub */
+function evaluateBowlingImpact(
+  over: number,
+  innings: InningsScore,
+  bowlers: Player[],
+  subs: Player[],
+  currentXI: Player[],
+): { subIn: Player; subOut: Player } | null {
+  if (subs.length === 0) return null;
+
+  const bestBowlSub = subs.reduce((best, s) =>
+    s.bowlingOvr > best.bowlingOvr ? s : best, subs[0]);
+  const weakestBowler = bowlers.reduce((w, p) =>
+    p.bowlingOvr < w.bowlingOvr ? p : w, bowlers[0]);
+
+  const runRate = innings.totalBalls > 0 ? (innings.runs / innings.totalBalls) * 6 : 0;
+
+  const shouldUse =
+    (over >= 13 && bestBowlSub.bowlingOvr > weakestBowler.bowlingOvr) ||
+    (over >= 6 && runRate > 9.5 && bestBowlSub.bowlingOvr > weakestBowler.bowlingOvr) ||
+    (over >= 8 && bestBowlSub.bowlingOvr > weakestBowler.bowlingOvr + 5);
+
+  if (shouldUse && canUseOverseasSub(bestBowlSub, currentXI, weakestBowler)) {
+    return { subIn: bestBowlSub, subOut: weakestBowler };
+  }
+
+  return null;
+}
+
+// ── Innings Simulation ───────────────────────────────────────────────────
+
 /** Simulate one full innings (max 20 overs or 10 wickets) */
 function simulateInnings(
   battingTeam: Team,
@@ -265,6 +508,8 @@ function simulateInnings(
   target: number,
   stadiumBowlRating: number,
   maxOvers = 20,
+  battingSubs: Player[] = [],
+  bowlingSubs: Player[] = [],
 ): InningsScore {
   const innings = emptyInnings(battingTeam.id);
   const battingOrder = battingTeam.getBattingOrder(xi);
@@ -289,23 +534,74 @@ function simulateInnings(
   const bowlerOvers = new Map<string, number>();
   for (const b of bowlers) bowlerOvers.set(b.id, 0);
 
+  // Impact player tracking (each side gets one sub per innings)
+  let battingImpactUsed = false;
+  let bowlingImpactUsed = false;
+  const availBattingSubs = [...battingSubs];
+  const availBowlingSubs = [...bowlingSubs];
+
   for (let over = 0; over < maxOvers; over++) {
+    // ── Impact Player evaluation (between overs) ──
+    if (maxOvers > 1) { // not in super over
+      // Batting team impact sub
+      if (!battingImpactUsed && availBattingSubs.length > 0) {
+        const decision = evaluateBattingImpact(
+          over, innings, battingOrder, availBattingSubs, [...battingOrder], currentBatterIdx,
+        );
+        if (decision) {
+          const outIdx = battingOrder.indexOf(decision.subOut);
+          if (outIdx >= 0 && outIdx >= currentBatterIdx) {
+            battingOrder[outIdx] = decision.subIn;
+            innings.batterStats.set(decision.subIn.id, { runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false });
+            innings.impactSub = { subIn: decision.subIn.id, subOut: decision.subOut.id, overUsed: over, side: "batting" };
+            battingImpactUsed = true;
+            availBattingSubs.length = 0;
+          }
+        }
+      }
+
+      // Bowling team impact sub
+      if (!bowlingImpactUsed && availBowlingSubs.length > 0) {
+        const decision = evaluateBowlingImpact(
+          over, innings, bowlers, availBowlingSubs, [...bowlingXI],
+        );
+        if (decision) {
+          const outIdx = bowlers.indexOf(decision.subOut);
+          if (outIdx >= 0) {
+            bowlers[outIdx] = decision.subIn;
+            bowlerOvers.set(decision.subIn.id, 0);
+            if (!innings.impactSub) {
+              innings.impactSub = { subIn: decision.subIn.id, subOut: decision.subOut.id, overUsed: over, side: "bowling" };
+            }
+            bowlingImpactUsed = true;
+            availBowlingSubs.length = 0;
+          }
+        }
+      }
+    }
+
     // Pick bowler (can't bowl consecutive overs, max 4 each)
     const lastBowlerId = innings.ballLog.length > 0
       ? innings.ballLog[innings.ballLog.length - 1].bowler
       : null;
 
-    const eligibleBowlers = bowlers.filter(b =>
+    let eligibleBowlers = bowlers.filter(b =>
       (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler &&
       b.id !== lastBowlerId
     );
 
-    // If no eligible (shouldn't happen with 5+ bowlers), allow any
+    // If no one eligible (consecutive-over rule conflict), relax the consecutive rule
+    if (eligibleBowlers.length === 0) {
+      eligibleBowlers = bowlers.filter(b =>
+        (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler
+      );
+    }
+
     const bowler = eligibleBowlers.length > 0
       ? eligibleBowlers.sort((a, b) => b.bowlingOvr - a.bowlingOvr)[
           Math.floor(Math.random() * Math.min(3, eligibleBowlers.length))
         ]
-      : bowlers[0];
+      : bowlers[0]; // absolute fallback
 
     let ballsInOver = 0;
     let legalBalls = 0;
@@ -333,7 +629,6 @@ function simulateInnings(
       if (event.outcome === "wide" || event.outcome === "noball") {
         innings.runs += event.extras;
         innings.extras += event.extras;
-        // Don't count as legal delivery
         const bs = innings.bowlerStats.get(bowler.id) ?? { overs: 0, balls: 0, runs: 0, wickets: 0, wides: 0, noballs: 0 };
         bs.runs += event.extras;
         if (event.outcome === "wide") bs.wides++;
@@ -442,15 +737,16 @@ function updatePlayerStats(
   }
 }
 
-/** Calculate man of the match */
+/** Calculate man of the match — returns { playerId, reason } */
 function calculateMOTM(
   homeTeam: Team,
   awayTeam: Team,
   innings1: InningsScore,
   innings2: InningsScore,
-): string {
+): { playerId: string; reason: string } {
   let bestScore = -1;
   let bestPlayer = "";
+  let bestReason = "";
 
   const allPlayers = [...homeTeam.roster, ...awayTeam.roster];
 
@@ -482,10 +778,310 @@ function calculateMOTM(
     if (score > bestScore) {
       bestScore = score;
       bestPlayer = player.id;
+      // Build a reason string
+      const parts: string[] = [];
+      if (runs > 0) parts.push(`${runs}(${balls})`);
+      if (wickets > 0) parts.push(`${wickets}/${bowlRuns}`);
+      bestReason = parts.join(" & ");
     }
   }
 
-  return bestPlayer;
+  return { playerId: bestPlayer, reason: bestReason };
+}
+
+/* ───── Build detailed match result from raw innings data (from WT2) ───── */
+
+function buildInningsScorecard(
+  inningsScore: InningsScore,
+  battingTeam: Team,
+  bowlingTeam: Team,
+  battingXI: Player[],
+  bowlingXI: Player[],
+): InningsScorecard {
+  const playerMap = new Map<string, Player>();
+  for (const p of [...battingTeam.roster, ...bowlingTeam.roster]) {
+    playerMap.set(p.id, p);
+  }
+
+  const battingOrder = battingTeam.getBattingOrder(battingXI);
+  const batters: BatterInnings[] = [];
+  const fallOfWickets: string[] = [];
+
+  let runsSoFar = 0;
+  let wicketsSoFar = 0;
+  const fowMap = new Map<string, string>();
+
+  for (const ball of inningsScore.ballLog) {
+    if (ball.outcome === "wide" || ball.outcome === "noball") {
+      runsSoFar += ball.extras;
+    } else {
+      runsSoFar += ball.runs + ball.extras;
+      if (ball.isWicket) {
+        wicketsSoFar++;
+        const overBall = `${ball.over}.${ball.ball}`;
+        const fowStr = `${runsSoFar}/${wicketsSoFar} (${overBall} ov)`;
+        fowMap.set(ball.batter, fowStr);
+        fallOfWickets.push(fowStr);
+      }
+    }
+  }
+
+  let totalWides = 0;
+  let totalNoBalls = 0;
+  let totalLegByes = 0;
+  for (const ball of inningsScore.ballLog) {
+    if (ball.outcome === "wide") totalWides += ball.extras;
+    else if (ball.outcome === "noball") totalNoBalls += ball.extras;
+    else if (ball.outcome === "legbye") totalLegByes += ball.extras;
+  }
+
+  for (const batter of battingOrder) {
+    const stat = inningsScore.batterStats.get(batter.id);
+    if (!stat) continue;
+    if (stat.balls === 0 && !stat.isOut) continue;
+
+    let howOut = "not out";
+    if (stat.isOut) {
+      const dismissalBall = inningsScore.ballLog.find(
+        b => b.batter === batter.id && b.isWicket
+      );
+      if (dismissalBall) {
+        const bowlerPlayer = playerMap.get(dismissalBall.bowler);
+        const bowlerName = bowlerPlayer?.name ?? "unknown";
+        const wicketType = randomWicketType();
+        switch (wicketType) {
+          case "bowled":
+            howOut = `b ${bowlerName}`;
+            break;
+          case "caught": {
+            const fielders = bowlingXI.filter(p => p.id !== dismissalBall.bowler);
+            const fielder = fielders[Math.floor(Math.random() * fielders.length)];
+            howOut = `c ${fielder?.name ?? randomFielderPosition()} b ${bowlerName}`;
+            break;
+          }
+          case "lbw":
+            howOut = `lbw b ${bowlerName}`;
+            break;
+          case "run_out":
+            howOut = `run out`;
+            break;
+          case "stumped": {
+            const keeper = bowlingXI.find(p => p.role === "wicket-keeper");
+            howOut = `st ${keeper?.name ?? "keeper"} b ${bowlerName}`;
+            break;
+          }
+        }
+      }
+    }
+
+    batters.push({
+      playerId: batter.id,
+      playerName: batter.name,
+      runs: stat.runs,
+      balls: stat.balls,
+      fours: stat.fours,
+      sixes: stat.sixes,
+      strikeRate: stat.balls > 0 ? Math.round((stat.runs / stat.balls) * 1000) / 10 : 0,
+      howOut,
+      fallOfWicket: fowMap.get(batter.id),
+    });
+  }
+
+  const bowlers: BowlerFigures[] = [];
+  const bowlingOrder = bowlingTeam.getBowlingOrder(bowlingXI);
+
+  for (const bowler of bowlingOrder) {
+    const stat = inningsScore.bowlerStats.get(bowler.id);
+    if (!stat) continue;
+    if (stat.overs === 0 && stat.balls === 0) continue;
+
+    const oversStr = stat.balls > 0 ? `${stat.overs}.${stat.balls}` : `${stat.overs}.0`;
+
+    let dots = 0;
+    let maidens = 0;
+    const overBuckets = new Map<number, number[]>();
+
+    for (const ball of inningsScore.ballLog) {
+      if (ball.bowler !== bowler.id) continue;
+      if (ball.outcome === "wide" || ball.outcome === "noball") continue;
+      if (ball.runs === 0 && !ball.isWicket && ball.outcome !== "legbye") {
+        dots++;
+      }
+      const overIdx = ball.over;
+      if (!overBuckets.has(overIdx)) overBuckets.set(overIdx, []);
+      overBuckets.get(overIdx)!.push(ball.runs + ball.extras);
+    }
+
+    for (const [, ballRuns] of overBuckets) {
+      if (ballRuns.length === 6 && ballRuns.every(r => r === 0)) {
+        maidens++;
+      }
+    }
+
+    const effectiveOvers = stat.overs + stat.balls / 6;
+    bowlers.push({
+      playerId: bowler.id,
+      playerName: bowler.name,
+      overs: oversStr,
+      maidens,
+      runs: stat.runs,
+      wickets: stat.wickets,
+      economy: effectiveOvers > 0 ? Math.round((stat.runs / effectiveOvers) * 100) / 100 : 0,
+      dots,
+      wides: stat.wides,
+      noBalls: stat.noballs,
+    });
+  }
+
+  const lastBall = inningsScore.ballLog[inningsScore.ballLog.length - 1];
+  let oversDisplay: string;
+  if (lastBall) {
+    const legalBallsInLastOver = lastBall.ball;
+    if (legalBallsInLastOver === 6) {
+      oversDisplay = `${lastBall.over + 1}.0`;
+    } else {
+      oversDisplay = `${lastBall.over}.${legalBallsInLastOver}`;
+    }
+  } else {
+    oversDisplay = "0.0";
+  }
+
+  return {
+    battingTeamId: battingTeam.id,
+    battingTeamName: battingTeam.name,
+    bowlingTeamId: bowlingTeam.id,
+    bowlingTeamName: bowlingTeam.name,
+    totalRuns: inningsScore.runs,
+    totalWickets: inningsScore.wickets,
+    totalOvers: oversDisplay,
+    batters,
+    bowlers,
+    extras: {
+      wides: totalWides,
+      noBalls: totalNoBalls,
+      legByes: totalLegByes,
+      total: totalWides + totalNoBalls + totalLegByes,
+    },
+    fallOfWickets,
+  };
+}
+
+function buildDetailedBallLog(
+  innings: InningsScore,
+  inningsNumber: 1 | 2,
+  playerMap: Map<string, Player>,
+): DetailedBallEvent[] {
+  let runsSoFar = 0;
+  let wicketsSoFar = 0;
+
+  return innings.ballLog.map(ball => {
+    const batterPlayer = playerMap.get(ball.batter);
+    const bowlerPlayer = playerMap.get(ball.bowler);
+
+    if (ball.outcome === "wide" || ball.outcome === "noball") {
+      runsSoFar += ball.extras;
+    } else {
+      runsSoFar += ball.runs + ball.extras;
+      if (ball.isWicket) wicketsSoFar++;
+    }
+
+    let eventType: DetailedBallEvent["eventType"];
+    switch (ball.outcome) {
+      case "dot": eventType = "dot"; break;
+      case "1": eventType = "single"; break;
+      case "2": eventType = "double"; break;
+      case "3": eventType = "triple"; break;
+      case "4": eventType = "four"; break;
+      case "6": eventType = "six"; break;
+      case "wicket": eventType = "wicket"; break;
+      case "wide": eventType = "wide"; break;
+      case "noball": eventType = "noball"; break;
+      case "legbye": eventType = "legbye"; break;
+      default: eventType = "dot";
+    }
+
+    let wicketType: DetailedBallEvent["wicketType"];
+    let fielderName: string | undefined;
+    if (ball.isWicket) {
+      wicketType = randomWicketType();
+      if (wicketType === "caught") {
+        fielderName = randomFielderPosition();
+      }
+    }
+
+    return {
+      over: ball.over,
+      ball: ball.ball,
+      innings: inningsNumber,
+      batterName: batterPlayer?.name ?? ball.batter,
+      bowlerName: bowlerPlayer?.name ?? ball.bowler,
+      runs: ball.runs,
+      extras: ball.extras,
+      eventType,
+      wicketType,
+      fielderName,
+      commentary: ball.commentary,
+      scoreSoFar: runsSoFar,
+      wicketsSoFar,
+    };
+  });
+}
+
+function buildDetailedResult(
+  matchId: string,
+  homeTeam: Team,
+  awayTeam: Team,
+  battingFirst: Team,
+  bowlingFirst: Team,
+  innings1: InningsScore,
+  innings2: InningsScore,
+  firstXI: Player[],
+  firstBowlXI: Player[],
+  secondXI: Player[],
+  secondBowlXI: Player[],
+  winnerId: string | null,
+  margin: string,
+  tossWinner: Team,
+  tossDecision: "bat" | "bowl",
+  motm: { playerId: string; reason: string },
+): DetailedMatchResult {
+  const playerMap = new Map<string, Player>();
+  for (const p of [...homeTeam.roster, ...awayTeam.roster]) {
+    playerMap.set(p.id, p);
+  }
+
+  const motmPlayer = playerMap.get(motm.playerId);
+  const winnerTeam = winnerId ? (winnerId === homeTeam.id ? homeTeam : awayTeam) : null;
+  const resultText = winnerTeam
+    ? `${winnerTeam.name} won by ${margin}`
+    : `Match tied`;
+
+  const inn1Scorecard = buildInningsScorecard(innings1, battingFirst, bowlingFirst, firstXI, firstBowlXI);
+  const inn2Scorecard = buildInningsScorecard(innings2, bowlingFirst, battingFirst, secondXI, secondBowlXI);
+
+  const ballLog1 = buildDetailedBallLog(innings1, 1, playerMap);
+  const ballLog2 = buildDetailedBallLog(innings2, 2, playerMap);
+
+  return {
+    matchId,
+    homeTeamId: homeTeam.id,
+    awayTeamId: awayTeam.id,
+    homeTeamName: homeTeam.name,
+    awayTeamName: awayTeam.name,
+    tossWinner: tossWinner.id,
+    tossWinnerName: tossWinner.name,
+    tossDecision,
+    innings1: inn1Scorecard,
+    innings2: inn2Scorecard,
+    ballLog: [...ballLog1, ...ballLog2],
+    result: resultText,
+    manOfTheMatch: {
+      playerId: motm.playerId,
+      playerName: motmPlayer?.name ?? "Unknown",
+      reason: motm.reason,
+    },
+    venue: `${homeTeam.config.city}`,
+  };
 }
 
 let matchCounter = 0;
@@ -494,15 +1090,19 @@ let matchCounter = 0;
 export function simulateMatch(
   homeTeam: Team,
   awayTeam: Team,
+  rules: RuleSet = DEFAULT_RULES,
 ): MatchResult {
   const matchId = `match_${++matchCounter}`;
 
-  const homeXI = homeTeam.getPlayingXI();
-  const awayXI = awayTeam.getPlayingXI();
+  const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
+  const awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI);
+
+  // Impact player subs (empty arrays if rule is off)
+  const homeSubs = rules.impactPlayer ? homeTeam.getImpactSubs(homeXI) : [];
+  const awaySubs = rules.impactPlayer ? awayTeam.getImpactSubs(awayXI) : [];
 
   // Toss
   const tossWinner = Math.random() < 0.5 ? homeTeam : awayTeam;
-  // Winner usually chooses to bowl (chase) in T20s (~60%)
   const tossDecision: "bat" | "bowl" = Math.random() < 0.6 ? "bowl" : "bat";
 
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
@@ -510,23 +1110,35 @@ export function simulateMatch(
 
   const stadiumRating = homeTeam.config.stadiumBowlingRating ?? 1.0;
 
-  // First innings
+  // Determine XIs and subs for each side
   const firstXI = battingFirst === homeTeam ? homeXI : awayXI;
   const firstBowlXI = battingFirst === homeTeam ? awayXI : homeXI;
+  const firstBatSubs = battingFirst === homeTeam ? homeSubs : awaySubs;
+  const firstBowlSubs = battingFirst === homeTeam ? awaySubs : homeSubs;
+
+  // Adjust stadium rating for scoring multiplier (WPL = lower scoring)
+  const adjustedStadiumRating = stadiumRating * (2 - rules.scoringMultiplier);
+
+  // First innings
   const innings1 = simulateInnings(
     battingFirst, bowlingFirst,
     firstXI, firstBowlXI,
-    false, 0, stadiumRating,
+    false, 0, adjustedStadiumRating, 20,
+    firstBatSubs, firstBowlSubs,
   );
 
   // Second innings
   const target = innings1.runs + 1;
   const secondXI = bowlingFirst === homeTeam ? homeXI : awayXI;
   const secondBowlXI = bowlingFirst === homeTeam ? awayXI : homeXI;
+  const secondBatSubs = bowlingFirst === homeTeam ? homeSubs : awaySubs;
+  const secondBowlSubs = bowlingFirst === homeTeam ? awaySubs : homeSubs;
+
   const innings2 = simulateInnings(
     bowlingFirst, battingFirst,
     secondXI, secondBowlXI,
-    true, target, stadiumRating,
+    true, target, adjustedStadiumRating, 20,
+    secondBatSubs, secondBowlSubs,
   );
 
   // Determine winner
@@ -540,18 +1152,26 @@ export function simulateMatch(
     winnerId = battingFirst.id;
     margin = `${innings1.runs - innings2.runs} runs`;
   } else {
-    // Tie → Super Over
-    const so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, stadiumRating, 1);
-    const so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, stadiumRating, 1);
+    // Tie -> Super Over (no impact subs in super over)
+    let so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, adjustedStadiumRating, 1);
+    let so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, adjustedStadiumRating, 1);
 
     if (so2.runs > so1.runs) {
       winnerId = bowlingFirst.id;
     } else if (so1.runs > so2.runs) {
       winnerId = battingFirst.id;
+    } else if (rules.superOverTieBreaker === "repeated-super-over") {
+      while (so2.runs === so1.runs) {
+        so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, adjustedStadiumRating, 1);
+        so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, adjustedStadiumRating, 1);
+      }
+      winnerId = so2.runs > so1.runs ? bowlingFirst.id : battingFirst.id;
     } else {
-      // Super over tie: boundary count
-      const homeBoundaries = innings1.fours + innings1.sixes + innings2.fours + innings2.sixes;
-      const awayBoundaries = innings1.fours + innings1.sixes + innings2.fours + innings2.sixes;
+      // Boundary count-back
+      const homeBatInnings = battingFirst === homeTeam ? innings1 : innings2;
+      const awayBatInnings = battingFirst === awayTeam ? innings1 : innings2;
+      const homeBoundaries = homeBatInnings.fours + homeBatInnings.sixes;
+      const awayBoundaries = awayBatInnings.fours + awayBatInnings.sixes;
       winnerId = homeBoundaries >= awayBoundaries ? homeTeam.id : awayTeam.id;
     }
     margin = "Super Over";
@@ -586,15 +1206,41 @@ export function simulateMatch(
   updatePlayerStats(battingFirst, innings1, matchId, innings2);
   updatePlayerStats(bowlingFirst, innings2, matchId, innings1);
 
-  // Injury chance (2% per player per match)
-  for (const p of [...homeXI, ...awayXI]) {
-    if (Math.random() < 0.02) {
-      p.injured = true;
-      p.injuryGamesLeft = Math.ceil(Math.random() * 3);
-    }
+  // Run injury checks using the injury system (WT3)
+  const injuries: MatchInjuryEvent[] = [];
+  const injuriesEnabled = rules.injuriesEnabled ?? true;
+  const homeInjuries = runPostMatchInjuryChecks(homeXI, injuriesEnabled);
+  for (const { player, injury } of homeInjuries) {
+    injuries.push({
+      playerId: player.id,
+      playerName: player.name,
+      teamId: homeTeam.id,
+      injury,
+    });
+  }
+  const awayInjuries = runPostMatchInjuryChecks(awayXI, injuriesEnabled);
+  for (const { player, injury } of awayInjuries) {
+    injuries.push({
+      playerId: player.id,
+      playerName: player.name,
+      teamId: awayTeam.id,
+      injury,
+    });
   }
 
   const motm = calculateMOTM(homeTeam, awayTeam, innings1, innings2);
+
+  // Build detailed scorecard (WT2)
+  const detailed = buildDetailedResult(
+    matchId, homeTeam, awayTeam,
+    battingFirst, bowlingFirst,
+    innings1, innings2,
+    firstXI, firstBowlXI,
+    secondXI, secondBowlXI,
+    winnerId, margin,
+    tossWinner, tossDecision,
+    motm,
+  );
 
   return {
     id: matchId,
@@ -605,6 +1251,8 @@ export function simulateMatch(
     innings: [innings1, innings2],
     winnerId,
     margin,
-    motm,
+    motm: motm.playerId,
+    injuries,
+    detailed,
   };
 }

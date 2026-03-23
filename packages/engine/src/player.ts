@@ -53,6 +53,8 @@ export interface MatchPerformance {
 
 export type PlayerRole = "batsman" | "bowler" | "all-rounder" | "wicket-keeper";
 
+export type InjurySeverity = "minor" | "moderate" | "severe";
+
 export interface PlayerData {
   id: string;
   name: string;
@@ -65,6 +67,8 @@ export interface PlayerData {
   bid?: number; // auction price in crores
   injured: boolean;
   injuryGamesLeft: number;
+  injuryType?: string;          // "hamstring", "shoulder", "back", "finger", "ankle", "side strain"
+  injurySeverity?: InjurySeverity;
 }
 
 export class Player implements PlayerData {
@@ -79,6 +83,8 @@ export class Player implements PlayerData {
   bid: number;
   injured: boolean;
   injuryGamesLeft: number;
+  injuryType?: string;
+  injurySeverity?: InjurySeverity;
   stats: PlayerStats;
 
   constructor(data: PlayerData) {
@@ -93,6 +99,8 @@ export class Player implements PlayerData {
     this.bid = data.bid ?? 0;
     this.injured = data.injured ?? false;
     this.injuryGamesLeft = data.injuryGamesLeft ?? 0;
+    this.injuryType = data.injuryType;
+    this.injurySeverity = data.injurySeverity;
     this.stats = this.emptyStats();
   }
 
@@ -200,6 +208,8 @@ export class Player implements PlayerData {
       bid: this.bid,
       injured: this.injured,
       injuryGamesLeft: this.injuryGamesLeft,
+      injuryType: this.injuryType,
+      injurySeverity: this.injurySeverity,
       stats: this.stats,
     };
   }
