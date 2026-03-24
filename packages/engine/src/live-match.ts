@@ -81,6 +81,8 @@ export interface PendingDecisionOption {
   wicketsTaken?: number;
   economy?: number;
   dots?: number;
+  /** True if this is a bench player (impact sub option) */
+  isBench?: boolean;
 }
 
 export interface MatchState {
@@ -861,6 +863,29 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
               overall: p.overall,
             };
           });
+
+          // Include bench players (impact sub) if not yet used
+          const isHome = newState.battingTeamId === state.homeTeam.id;
+          const subUsed = isHome ? newState.impactSubUsed.home : newState.impactSubUsed.away;
+          if (!subUsed && ni.rules.impactPlayer) {
+            const benchIds = isHome ? ni.homeBenchIds : ni.awayBenchIds;
+            for (const benchId of benchIds) {
+              const bp = pm[benchId];
+              if (bp) {
+                options.push(benchId);
+                optionDetails.push({
+                  playerId: benchId,
+                  playerName: bp.name,
+                  role: bp.role,
+                  battingOvr: bp.battingOvr,
+                  bowlingOvr: bp.bowlingOvr,
+                  overall: bp.overall,
+                  isBench: true,
+                });
+              }
+            }
+          }
+
           newState.pendingDecision = {
             type: 'choose_batter',
             options,
@@ -1155,16 +1180,42 @@ export function applyDecision(
 
   switch (pending.type) {
     case 'choose_batter': {
-      // Re-order the batting lineup so the chosen batter comes next
       const chosenId = decision.selectedPlayerId;
       const currentIdx = newState.nextBatterIdx;
-      const chosenPosInOrder = ni.battingOrderIds.indexOf(chosenId);
+      const isHome = newState.battingTeamId === newState.homeTeam.id;
+      const benchIds = isHome ? ni.homeBenchIds : ni.awayBenchIds;
+      const isBenchPlayer = benchIds.includes(chosenId);
 
-      if (chosenPosInOrder >= currentIdx) {
-        // Swap the chosen batter to the nextBatterIdx position
-        const existingAtIdx = ni.battingOrderIds[currentIdx];
-        ni.battingOrderIds[currentIdx] = chosenId;
-        ni.battingOrderIds[chosenPosInOrder] = existingAtIdx;
+      if (isBenchPlayer) {
+        // Impact sub: bring in bench player as the new batter
+        const benchArr = isHome ? ni.homeBenchIds : ni.awayBenchIds;
+        const benchIdx = benchArr.indexOf(chosenId);
+        if (benchIdx >= 0) benchArr.splice(benchIdx, 1);
+
+        // Add to XI
+        const xiArr = isHome ? ni.homeXIIds : ni.awayXIIds;
+        xiArr.push(chosenId);
+
+        // Insert into batting order at the current position
+        ni.battingOrderIds.splice(currentIdx, 0, chosenId);
+
+        // Also add to bowling order tracking
+        if (ni.bowlerOvers[chosenId] === undefined) ni.bowlerOvers[chosenId] = 0;
+        if (!ni.bowlingOrderIds.includes(chosenId)) {
+          ni.bowlingOrderIds.push(chosenId);
+        }
+
+        // Mark impact sub as used
+        if (isHome) newState.impactSubUsed.home = true;
+        else newState.impactSubUsed.away = true;
+      } else {
+        // Regular batter selection — re-order the batting lineup
+        const chosenPosInOrder = ni.battingOrderIds.indexOf(chosenId);
+        if (chosenPosInOrder >= currentIdx) {
+          const existingAtIdx = ni.battingOrderIds[currentIdx];
+          ni.battingOrderIds[currentIdx] = chosenId;
+          ni.battingOrderIds[chosenPosInOrder] = existingAtIdx;
+        }
       }
 
       // Now bring in the batter

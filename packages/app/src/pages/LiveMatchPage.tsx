@@ -967,45 +967,81 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
       )}
 
       {/* Choose Batter Modal */}
-      {isDecisionForUser && state.pendingDecision!.type === "choose_batter" && (
-        <DecisionModal title="Who Bats Next?" subtitle={`${battingTeam.shortName} ${state.score}/${state.wickets} (${oversDisplay} ov)`}>
-          <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
-            {(state.pendingDecision!.optionDetails ?? []).map((opt, i) => {
-              const isRecommended = i === 0 || opt.battingOvr === Math.max(...(state.pendingDecision!.optionDetails ?? []).map(o => o.battingOvr));
-              return (
-                <button
-                  key={opt.playerId}
-                  onClick={() => handleDecision("choose_batter", opt.playerId)}
-                  className={`w-full text-left px-4 py-3 rounded-xl border transition-all hover:border-orange-500/50 hover:bg-orange-500/5 ${
-                    isRecommended && i === 0 ? "border-orange-500/30 bg-orange-500/5" : "border-th bg-th-body"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-display font-semibold text-th-primary text-sm">{opt.playerName}</span>
-                        <span className="text-[10px] uppercase tracking-wider text-th-faint px-1.5 py-0.5 bg-th-hover rounded">{opt.role}</span>
-                        {isRecommended && i === 0 && (
-                          <span className="text-[10px] uppercase tracking-wider text-orange-400 px-1.5 py-0.5 bg-orange-500/10 rounded">Recommended</span>
-                        )}
+      {isDecisionForUser && state.pendingDecision!.type === "choose_batter" && (() => {
+        const opts = state.pendingDecision!.optionDetails ?? [];
+        const xiOpts = opts.filter(o => !o.isBench);
+        const benchOpts = opts.filter(o => o.isBench);
+        return (
+          <DecisionModal title="Who Bats Next?" subtitle={`${battingTeam.shortName} ${state.score}/${state.wickets} (${oversDisplay} ov)`}>
+            <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
+              {xiOpts.map((opt, i) => {
+                const isRecommended = i === 0;
+                return (
+                  <button
+                    key={opt.playerId}
+                    onClick={() => handleDecision("choose_batter", opt.playerId)}
+                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all hover:border-orange-500/50 hover:bg-orange-500/5 ${
+                      isRecommended ? "border-orange-500/30 bg-orange-500/5" : "border-th bg-th-body"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-display font-semibold text-th-primary text-sm">{opt.playerName}</span>
+                          <span className="text-[10px] uppercase tracking-wider text-th-faint px-1.5 py-0.5 bg-th-hover rounded">{opt.role}</span>
+                          {isRecommended && (
+                            <span className="text-[10px] uppercase tracking-wider text-orange-400 px-1.5 py-0.5 bg-orange-500/10 rounded">Recommended</span>
+                          )}
+                        </div>
+                        <div className="flex gap-3 mt-1 text-xs text-th-muted font-mono">
+                          <span>BAT: {opt.battingOvr}</span>
+                          <span>OVR: {opt.overall}</span>
+                        </div>
                       </div>
-                      <div className="flex gap-3 mt-1 text-xs text-th-muted font-mono">
-                        <span>BAT: {opt.battingOvr}</span>
-                        <span>BOWL: {opt.bowlingOvr}</span>
-                        <span>OVR: {opt.overall}</span>
+                      <div className="text-right">
+                        <div className="text-lg font-display font-bold text-th-primary stat-num">{opt.battingOvr}</div>
+                        <div className="text-[10px] text-th-faint">BAT</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-lg font-display font-bold text-th-primary stat-num">{opt.battingOvr}</div>
-                      <div className="text-[10px] text-th-faint">BAT</div>
-                    </div>
+                  </button>
+                );
+              })}
+              {benchOpts.length > 0 && (
+                <>
+                  <div className="border-t border-th pt-2 mt-2">
+                    <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-display font-semibold">Impact Sub (from bench)</span>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        </DecisionModal>
-      )}
+                  {benchOpts.map(opt => (
+                    <button
+                      key={opt.playerId}
+                      onClick={() => handleDecision("choose_batter", opt.playerId)}
+                      className="w-full text-left px-4 py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 transition-all hover:border-emerald-500/50 hover:bg-emerald-500/10"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-display font-semibold text-th-primary text-sm">{opt.playerName}</span>
+                            <span className="text-[10px] uppercase tracking-wider text-th-faint px-1.5 py-0.5 bg-th-hover rounded">{opt.role}</span>
+                            <span className="text-[10px] uppercase tracking-wider text-emerald-400 px-1.5 py-0.5 bg-emerald-500/10 rounded">BENCH</span>
+                          </div>
+                          <div className="flex gap-3 mt-1 text-xs text-th-muted font-mono">
+                            <span>BAT: {opt.battingOvr}</span>
+                            <span>OVR: {opt.overall}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-display font-bold text-emerald-400 stat-num">{opt.battingOvr}</div>
+                          <div className="text-[10px] text-emerald-400/60">SUB</div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          </DecisionModal>
+        );
+      })()}
 
       {/* Impact Sub Modal */}
       {showImpactSubModal && state && userTeamId && (() => {
