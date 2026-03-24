@@ -18,6 +18,7 @@ import {
   setAggression,
   setFieldSetting,
   generatePostMatchNarrative,
+  calculateWinProbability,
   type NarrativeEvent,
 } from "@ipl-sim/engine";
 import {
@@ -594,6 +595,34 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
                   Need {runsNeeded} from {ballsLeft} balls
                 </div>
               )}
+              {/* Win probability bar */}
+              {state.status === "in_progress" && (() => {
+                const batTeam = state.battingTeamId === state.homeTeam.id ? state.homeTeam : state.awayTeam;
+                const bowlTeam = state.battingTeamId === state.homeTeam.id ? state.awayTeam : state.homeTeam;
+                const winProb = calculateWinProbability({
+                  score: state.score,
+                  wickets: state.wickets,
+                  overs: state.overs,
+                  balls: state.balls,
+                  innings: state.innings as 1 | 2,
+                  target: state.target,
+                  battingTeamPower: 80,
+                  bowlingTeamPower: 80,
+                });
+                const battingProb = state.innings === 1 ? winProb : winProb;
+                const fieldingProb = 100 - battingProb;
+                return (
+                  <div className="mt-2 flex items-center gap-2 text-[10px]">
+                    <span className="font-display font-semibold" style={{ color: batTeam.primaryColor }}>{batTeam.shortName} {battingProb}%</span>
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-white/[0.06] flex">
+                      <div className="h-full transition-all duration-500" style={{ width: `${battingProb}%`, background: batTeam.primaryColor }} />
+                      <div className="h-full transition-all duration-500" style={{ width: `${fieldingProb}%`, background: bowlTeam.primaryColor }} />
+                    </div>
+                    <span className="font-display font-semibold" style={{ color: bowlTeam.primaryColor }}>{fieldingProb}% {bowlTeam.shortName}</span>
+                  </div>
+                );
+              })()}
+
               {state.innings === 2 && state.target && runsNeeded <= 0 && state.status !== "completed" && (
                 <div className="text-sm font-display font-semibold text-emerald-400 mt-1">
                   Target reached!

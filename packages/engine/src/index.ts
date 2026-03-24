@@ -20,6 +20,8 @@ export type { TeamConfig, BowlingPlan } from "./team.js";
 export { getMatchupModifiers, getMatchPhase, isPaceBowler, isSpinBowler } from "./matchups.js";
 export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";
 
+export { calculateWinProbability } from "./win-probability.js";
+
 export {
   determineDismissalType, isCatchDropped, determineWideType, runsOffWide,
   determineNoBallType, runsOffNoBall, isFreeHitBall, canBeDismissedOnFreeHit,
