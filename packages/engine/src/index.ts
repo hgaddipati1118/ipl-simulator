@@ -32,6 +32,7 @@ export {
   getStandings,
   runSeason,
   simulateNextMatch,
+  applyLiveResult,
   addPlayoffMatches,
   addQualifier2,
   addFinal,

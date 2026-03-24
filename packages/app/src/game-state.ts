@@ -10,7 +10,7 @@ import {
   DEFAULT_RULES,
   generateAITradeOffers, processTradeOffer, executeTrade,
   generateSchedule, simulateNextMatch, getStandings,
-  addPlayoffMatches, addQualifier2, addFinal,
+  addPlayoffMatches, addQualifier2, addFinal, applyLiveResult,
   serializeMatchResult, healInjuries, simulateMatch,
   initAuction as engineInitAuction,
   userBid as engineUserBid,
@@ -343,6 +343,76 @@ export function playNextMatch(state: GameState): {
     },
     result: serialized,
     detailed,
+    matchIndex: currentMatchIndex,
+  };
+}
+
+/** Apply a completed live match to the game state without re-simulating.
+ *  Uses the actual ball-by-ball result from the live match viewer.
+ */
+export function applyLiveMatchToState(
+  state: GameState,
+  completedMatchState: import("@ipl-sim/engine").MatchState,
+): {
+  state: GameState;
+  result: SerializableMatchResult;
+  matchIndex: number;
+} {
+  const { schedule, currentMatchIndex, teams, matchResults } = state;
+
+  const rawResult = applyLiveResult(schedule, currentMatchIndex, teams, completedMatchState, state.rules);
+  const serialized = serializeMatchResult(rawResult);
+
+  // Strip heavy detailed field from schedule entry
+  const matchEntry = schedule[currentMatchIndex];
+  if (matchEntry?.result) {
+    delete matchEntry.result.detailed;
+  }
+
+  const newMatchResults = [...matchResults, serialized];
+  const newIndex = currentMatchIndex + 1;
+
+  let newSchedule = [...schedule];
+  let newPlayoffsStarted = state.playoffsStarted;
+  const newInjuries = rawResult.injuries || [];
+
+  const groupCount = schedule.filter(m => m.type === "group").length;
+  if (!state.playoffsStarted && newIndex === groupCount) {
+    addPlayoffMatches(newSchedule, teams);
+    newPlayoffsStarted = true;
+  }
+
+  const q1 = newSchedule.find(m => m.playoffType === "qualifier1");
+  const elim = newSchedule.find(m => m.playoffType === "eliminator");
+  const q2Exists = newSchedule.some(m => m.playoffType === "qualifier2");
+  if (q1?.result && elim?.result && !q2Exists) {
+    addQualifier2(newSchedule);
+  }
+
+  const q2 = newSchedule.find(m => m.playoffType === "qualifier2");
+  const finalExists = newSchedule.some(m => m.playoffType === "final");
+  if (q1?.result && q2?.result && !finalExists) {
+    addFinal(newSchedule);
+  }
+
+  let needsLineup = false;
+  if (newIndex < newSchedule.length) {
+    const nextMatch = newSchedule[newIndex];
+    needsLineup = !!(state.userTeamId &&
+      (nextMatch.homeTeamId === state.userTeamId || nextMatch.awayTeamId === state.userTeamId));
+  }
+
+  return {
+    state: {
+      ...state,
+      schedule: newSchedule,
+      currentMatchIndex: newIndex,
+      matchResults: newMatchResults,
+      playoffsStarted: newPlayoffsStarted,
+      needsLineup,
+      recentInjuries: newInjuries,
+    },
+    result: serialized,
     matchIndex: currentMatchIndex,
   };
 }

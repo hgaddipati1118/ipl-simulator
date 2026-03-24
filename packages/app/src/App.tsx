@@ -33,6 +33,7 @@ import {
   finishTrades,
   initSeason,
   playNextMatch,
+  applyLiveMatchToState,
   simToMatch,
   isSeasonComplete,
   isGroupStageComplete,
@@ -254,16 +255,14 @@ export default function App() {
 
   const { resolved: themeResolved, toggle: themeToggle } = useTheme();
 
-  /** Called when a live match completes. matchIdx passed from the page for refresh-safety. */
-  const handleLiveMatchComplete = useCallback((_completedMatchState: MatchState, matchIdx?: number) => {
+  /** Called when a live match completes. Uses the actual live match result (no re-simulation). */
+  const handleLiveMatchComplete = useCallback((completedMatchState: MatchState, matchIdx?: number) => {
     setState(prev => {
       if (!prev) return prev;
       const idx = matchIdx ?? liveMatchIndex.current;
       if (idx < 0) return prev;
-      const { state: newState, detailed } = playNextMatch(prev);
-      if (detailed) {
-        saveMatchDetail(prev.seasonNumber, idx, detailed);
-      }
+      // Apply the live match result directly — no re-simulation
+      const { state: newState } = applyLiveMatchToState(prev, completedMatchState);
       setLiveMatchState(null);
       liveMatchIndex.current = -1;
       // Fire-and-forget save

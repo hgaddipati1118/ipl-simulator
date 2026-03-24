@@ -7,10 +7,11 @@
  */
 
 import { Team } from "./team.js";
-import { MatchResult, simulateMatch } from "./match.js";
+import { MatchResult, simulateMatch, type InningsScore, type MatchInjuryEvent } from "./match.js";
 import { shuffle } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
-import { healInjuries } from "./injury.js";
+import { healInjuries, runPostMatchInjuryChecks } from "./injury.js";
+import type { MatchState } from "./live-match.js";
 
 export type PlayoffMatchType = "qualifier1" | "eliminator" | "qualifier2" | "semi1" | "semi2" | "final";
 export type MatchType = "group" | PlayoffMatchType;
@@ -193,6 +194,150 @@ export function simulateNextMatch(
   const result = simulateMatch(home, away, rules);
 
   match.result = result;
+
+  // Heal injuries for all teams
+  for (const t of teams) {
+    healInjuries(t);
+  }
+
+  return result;
+}
+
+/**
+ * Apply a completed live match result to the schedule and team records.
+ * Used instead of simulateNextMatch when the match was played ball-by-ball
+ * in the live match viewer. Avoids re-simulating and producing different results.
+ */
+export function applyLiveResult(
+  schedule: ScheduledMatch[],
+  matchIndex: number,
+  teams: Team[],
+  completedMatch: MatchState,
+  rules: RuleSet = DEFAULT_RULES,
+): MatchResult {
+  const teamMap = new Map(teams.map(t => [t.id, t]));
+  const match = schedule[matchIndex];
+  const home = teamMap.get(match.homeTeamId)!;
+  const away = teamMap.get(match.awayTeamId)!;
+
+  const battingFirstId = completedMatch._internal.battingFirstId;
+  const bowlingFirstId = completedMatch._internal.bowlingFirstId;
+  const inn1Raw = completedMatch._internal.innings1Raw!;
+  const inn2Raw = completedMatch._internal.currentInningsRaw;
+
+  // Build InningsScore objects
+  const toInningsScore = (raw: typeof inn1Raw): InningsScore => ({
+    teamId: raw.teamId,
+    runs: raw.runs,
+    wickets: raw.wickets,
+    overs: raw.overs,
+    balls: raw.balls,
+    totalBalls: raw.totalBalls,
+    extras: raw.extras,
+    fours: raw.fours,
+    sixes: raw.sixes,
+    ballLog: raw.ballLog ?? [],
+    batterStats: new Map(Object.entries(raw.batterStats)),
+    bowlerStats: new Map(Object.entries(raw.bowlerStats)),
+  });
+
+  const innings1 = toInningsScore(inn1Raw);
+  const innings2 = toInningsScore(inn2Raw);
+
+  const winnerId = completedMatch.winnerId ?? null;
+  const margin = completedMatch.result?.replace(/^.*won by /, "").replace(/^Match tied.*$/, "Super Over") ?? "";
+
+  // Build the MatchResult
+  const result: MatchResult = {
+    id: completedMatch._internal.matchId,
+    homeTeamId: home.id,
+    awayTeamId: away.id,
+    tossWinner: completedMatch.tossWinner === home.name ? home.id : away.id,
+    tossDecision: completedMatch.tossDecision,
+    innings: [innings1, innings2],
+    winnerId,
+    margin,
+    motm: completedMatch.manOfTheMatch?.playerId ?? "",
+    injuries: completedMatch.injuries ?? [],
+  };
+
+  // Set result on schedule
+  match.result = result;
+
+  // Update team records
+  if (winnerId) {
+    const winner = winnerId === home.id ? home : away;
+    const loser = winner === home ? away : home;
+    winner.wins++;
+    loser.losses++;
+  } else {
+    home.ties++;
+    away.ties++;
+  }
+
+  // Update NRR components
+  const homeBattingInnings = battingFirstId === home.id ? innings1 : innings2;
+  const homeBowlingInnings = battingFirstId === home.id ? innings2 : innings1;
+  const awayBattingInnings = battingFirstId === away.id ? innings1 : innings2;
+  const awayBowlingInnings = battingFirstId === away.id ? innings2 : innings1;
+
+  home.runsFor += homeBattingInnings.runs;
+  home.ballsFacedFor += homeBattingInnings.totalBalls;
+  home.runsAgainst += homeBowlingInnings.runs;
+  home.ballsFacedAgainst += homeBowlingInnings.totalBalls;
+  home.updateNRR();
+
+  away.runsFor += awayBattingInnings.runs;
+  away.ballsFacedFor += awayBattingInnings.totalBalls;
+  away.runsAgainst += awayBowlingInnings.runs;
+  away.ballsFacedAgainst += awayBowlingInnings.totalBalls;
+  away.updateNRR();
+
+  // Update player stats from ball-by-ball data
+  for (const [pid, bs] of innings1.batterStats) {
+    const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
+    if (player) {
+      player.stats.runs += bs.runs;
+      player.stats.ballsFaced += bs.balls;
+      player.stats.fours += bs.fours;
+      player.stats.sixes += bs.sixes;
+      if (bs.isOut) player.stats.innings++;
+      else player.stats.notOuts++;
+      if (bs.runs > player.stats.highScore) player.stats.highScore = bs.runs;
+    }
+  }
+  for (const [pid, bs] of innings2.batterStats) {
+    const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
+    if (player) {
+      player.stats.runs += bs.runs;
+      player.stats.ballsFaced += bs.balls;
+      player.stats.fours += bs.fours;
+      player.stats.sixes += bs.sixes;
+      if (bs.isOut) player.stats.innings++;
+      else player.stats.notOuts++;
+      if (bs.runs > player.stats.highScore) player.stats.highScore = bs.runs;
+    }
+  }
+  for (const [pid, bs] of innings1.bowlerStats) {
+    const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
+    if (player) {
+      player.stats.overs += bs.overs + (bs.balls > 0 ? 1 : 0);
+      player.stats.wickets += bs.wickets;
+      player.stats.runsConceded += bs.runs;
+    }
+  }
+  for (const [pid, bs] of innings2.bowlerStats) {
+    const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
+    if (player) {
+      player.stats.overs += bs.overs + (bs.balls > 0 ? 1 : 0);
+      player.stats.wickets += bs.wickets;
+      player.stats.runsConceded += bs.runs;
+    }
+  }
+
+  // Mark matches played
+  for (const p of home.roster) { if (completedMatch._internal.homeXIIds.includes(p.id)) p.stats.matches++; }
+  for (const p of away.roster) { if (completedMatch._internal.awayXIIds.includes(p.id)) p.stats.matches++; }
 
   // Heal injuries for all teams
   for (const t of teams) {
