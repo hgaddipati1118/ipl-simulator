@@ -148,6 +148,9 @@ export interface MatchState {
   pendingDecision?: PendingDecision;
   impactSubUsed: { home: boolean; away: boolean };
 
+  // Aggression level per team (0=defensive, 50=normal, 100=all-out attack)
+  aggression: { home: number; away: number };
+
   // Internal state (for serialization, not for UI display)
   _internal: MatchStateInternal;
 }
@@ -253,22 +256,28 @@ const PHASE_MULTIPLIERS: Record<string, Record<string, number>> = {
   death:     { dot: 0.8,  "1": 0.9, "2": 1.1, "3": 1.1, "4": 1.2, "6": 1.4, wicket: 1.2, wide: 1.2, noball: 1.1 },
 };
 
+/** Aggression: 0 = very defensive, 50 = normal, 100 = all-out attack.
+ *  Higher aggression = more boundaries + more wickets (risk/reward). */
 function baseOutcomeProbabilities(
   batter: SerializedPlayer,
   bowler: SerializedPlayer,
+  aggression: number = 50,
 ): Record<BallOutcome, number> {
   const batRating = (batter.battingOvr + batter.ratings.timing) / 2 / 100;
   const bowlRating = (bowler.bowlingOvr + bowler.ratings.accuracy) / 2 / 100;
   const balance = batRating - bowlRating;
 
+  // Aggression modifier: -0.5 (defensive) to +0.5 (aggressive)
+  const aggrMod = (aggression - 50) / 100;
+
   return {
-    dot:    clamp(0.35 - balance * 0.15, 0.15, 0.55),
-    "1":    clamp(0.28 + balance * 0.03, 0.18, 0.38),
+    dot:    clamp(0.35 - balance * 0.15 - aggrMod * 0.10, 0.15, 0.55),
+    "1":    clamp(0.28 + balance * 0.03 - aggrMod * 0.03, 0.18, 0.38),
     "2":    clamp(0.08 + balance * 0.02, 0.03, 0.15),
     "3":    clamp(0.015, 0.005, 0.03),
-    "4":    clamp(0.10 + balance * 0.06 + (batter.ratings.timing / 100) * 0.04, 0.04, 0.22),
-    "6":    clamp(0.05 + balance * 0.05 + (batter.ratings.power / 100) * 0.05, 0.01, 0.18),
-    wicket: clamp(0.05 - balance * 0.03 + (bowler.ratings.wicketTaking / 100) * 0.03, 0.01, 0.12),
+    "4":    clamp(0.10 + balance * 0.06 + (batter.ratings.timing / 100) * 0.04 + aggrMod * 0.04, 0.04, 0.22),
+    "6":    clamp(0.05 + balance * 0.05 + (batter.ratings.power / 100) * 0.05 + aggrMod * 0.05, 0.01, 0.18),
+    wicket: clamp(0.05 - balance * 0.03 + (bowler.ratings.wicketTaking / 100) * 0.03 + aggrMod * 0.03, 0.01, 0.12),
     wide:   clamp(0.04 - (bowler.ratings.accuracy / 100) * 0.02, 0.01, 0.08),
     noball:  clamp(0.01 - (bowler.ratings.accuracy / 100) * 0.005, 0.002, 0.03),
     legbye: 0.02,
@@ -399,8 +408,9 @@ function runOneBall(
   ballsRemaining: number,
   wicketsDown: number,
   stadiumBowlRating: number,
+  aggression: number = 50,
 ): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string } {
-  let probs = baseOutcomeProbabilities(batter, bowler);
+  let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
   // Phase adjustment
   const phase = getPhase(over);
@@ -636,6 +646,7 @@ export function createMatchState(
     tossDecision,
     injuries: [],
     impactSubUsed: { home: false, away: false },
+    aggression: { home: 50, away: 50 },
 
     _internal: {
       matchId,
@@ -692,6 +703,8 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   const target = state.target ?? 0;
 
   // Run the ball
+  const battingTeamAggression = state.battingTeamId === state.homeTeam.id
+    ? state.aggression.home : state.aggression.away;
   const result = runOneBall(
     striker,
     bowler,
@@ -702,6 +715,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     ballsRemaining,
     state.wickets,
     int.stadiumRating,
+    battingTeamAggression,
   );
 
   // Clone state for mutation
@@ -1370,6 +1384,15 @@ export function applyImpactSub(
     }},
     { type: 'impact_sub', selectedPlayerId: subInId, swapOutPlayerId: subOutId },
   );
+}
+
+/** Set batting aggression for a team (0=defensive, 50=normal, 100=all-out attack) */
+export function setAggression(state: MatchState, teamId: string, level: number): MatchState {
+  const newState: MatchState = JSON.parse(JSON.stringify(state));
+  const clamped = Math.max(0, Math.min(100, Math.round(level)));
+  if (teamId === newState.homeTeam.id) newState.aggression.home = clamped;
+  else newState.aggression.away = clamped;
+  return newState;
 }
 
 /**

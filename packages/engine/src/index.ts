@@ -85,6 +85,7 @@ export {
   autoResolveDecision,
   getImpactSubOptions,
   applyImpactSub,
+  setAggression,
 } from "./live-match.js";
 export type {
   MatchState,
