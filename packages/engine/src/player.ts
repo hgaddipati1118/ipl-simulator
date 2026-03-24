@@ -89,7 +89,7 @@ export function calculateBattingOverall(ratings: PlayerRatings): number {
 
 export function calculateBowlingOverall(ratings: PlayerRatings): number {
   const { wicketTaking, economy, accuracy, clutch } = ratings;
-  return Math.round(wicketTaking * 0.45 + economy * 0.30 + accuracy * 0.10 + clutch * 0.15);
+  return Math.round(wicketTaking * 0.55 + economy * 0.20 + accuracy * 0.10 + clutch * 0.15);
 }
 
 export function calculateOverallRating(battingOvr: number, bowlingOvr: number): number {

@@ -295,6 +295,30 @@ function recomputeOveralls(ratings: CalculatedRatings): void {
   ratings.overall = calculateOverallRating(ratings.battingOvr, ratings.bowlingOvr);
 }
 
+function resolveRoleFromHint(
+  hintedRole: "batsman" | "bowler" | "all-rounder" | undefined,
+  inferredRole: "batsman" | "bowler" | "all-rounder",
+  ratings: CalculatedRatings,
+): "batsman" | "bowler" | "all-rounder" {
+  if (!hintedRole) return inferredRole;
+
+  if (hintedRole === "all-rounder") {
+    const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
+    const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
+    const diff = Math.abs(ratings.battingOvr - ratings.bowlingOvr);
+    return weaker >= 60 && stronger >= 72 && diff <= 25 ? "all-rounder" : inferredRole;
+  }
+
+  if (hintedRole === "batsman") {
+    return ratings.battingOvr >= ratings.bowlingOvr ? "batsman" : inferredRole;
+  }
+
+  const bowlingCloseCall =
+    ratings.bowlingOvr >= 60 &&
+    ratings.battingOvr - ratings.bowlingOvr <= 8;
+  return ratings.bowlingOvr >= ratings.battingOvr || bowlingCloseCall ? "bowler" : inferredRole;
+}
+
 /**
  * Convert ESPN player data to the calculator input format.
  * Uses REAL fours and sixes from ESPN data (fo/si fields).
@@ -867,7 +891,7 @@ export function generateAllRatings(): RatedPlayer[] {
     const espnRoles = player.profile.playingRoles ?? [];
     applyBattingProfileAdjustment(ratings, input, espnRoles);
     const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
-    const role = getEspnRoleHint(espnRoles) ?? inferRole(ratings);
+    const role = resolveRoleFromHint(getEspnRoleHint(espnRoles), inferRole(ratings), ratings);
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
 
@@ -1176,7 +1200,7 @@ export function generateWomenRatings(): RatedPlayer[] {
     // Use ESPN's playingRoles to detect wicket-keepers (inferRole can't distinguish them)
     const espnRoles = player.profile.playingRoles ?? [];
     const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
-    const role = getEspnRoleHint(espnRoles) ?? inferRole(ratings);
+    const role = resolveRoleFromHint(getEspnRoleHint(espnRoles), inferRole(ratings), ratings);
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
 

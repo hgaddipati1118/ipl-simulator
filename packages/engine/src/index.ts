@@ -24,9 +24,10 @@ export {
   determineDismissalType, isCatchDropped, determineWideType, runsOffWide,
   determineNoBallType, runsOffNoBall, isFreeHitBall, canBeDismissedOnFreeHit,
   determineLegByes, checkRunOut, checkOverthrow, checkMidMatchInjury,
+  determineInjuryResponse, isLikeForLikeReplacement, getReplacementConstraints,
   processDRSReview,
 } from "./ball-outcomes.js";
-export type { DismissalType, WideType, NoBallType, MatchInjuryType, DRSResult } from "./ball-outcomes.js";
+export type { DismissalType, WideType, NoBallType, MatchInjuryType, InjuryResponse, DRSResult } from "./ball-outcomes.js";
 
 export { simulateMatch } from "./match.js";
 export type {

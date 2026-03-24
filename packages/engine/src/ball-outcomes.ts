@@ -281,6 +281,85 @@ export function checkMidMatchInjury(params: {
   return null;
 }
 
+// ── Injury Responses ────────────────────────────────────────────────────
+
+export type InjuryResponse =
+  | "retired-hurt"       // Batter walks off, can potentially return later
+  | "concussion-sub"     // Like-for-like replacement from bench
+  | "bowling-breakdown"  // Bowler can't continue, another bowler finishes over
+  | "continues";         // Minor, player plays on
+
+/** Determine the response to a mid-match injury */
+export function determineInjuryResponse(injuryType: MatchInjuryType, isBatting: boolean): InjuryResponse {
+  if (injuryType === "concussion") return "concussion-sub";
+
+  if (isBatting) {
+    // Batters: most injuries = retired hurt
+    switch (injuryType) {
+      case "hamstring":
+      case "groin":
+      case "ankle":
+        return "retired-hurt";
+      case "side-strain":
+        return Math.random() < 0.5 ? "retired-hurt" : "continues";
+      case "finger":
+        return Math.random() < 0.3 ? "retired-hurt" : "continues";
+      default:
+        return "continues";
+    }
+  } else {
+    // Bowlers: can't bowl = breakdown
+    switch (injuryType) {
+      case "hamstring":
+      case "groin":
+      case "side-strain":
+        return "bowling-breakdown";
+      case "ankle":
+        return Math.random() < 0.7 ? "bowling-breakdown" : "continues";
+      case "finger":
+        return Math.random() < 0.4 ? "bowling-breakdown" : "continues";
+      default:
+        return "continues";
+    }
+  }
+}
+
+/** Check if a concussion sub is a valid like-for-like replacement.
+ *  In IPL: batter replaced by batter, bowler by bowler, AR by AR. */
+export function isLikeForLikeReplacement(
+  injuredRole: string,
+  replacementRole: string,
+): boolean {
+  // Strict like-for-like (IPL rules)
+  if (injuredRole === replacementRole) return true;
+  // Slight flexibility: AR can replace batter or bowler
+  if (replacementRole === "all-rounder") return true;
+  if (injuredRole === "all-rounder") return true;
+  return false;
+}
+
+// ── Season Injury Replacement ───────────────────────────────────────────
+
+/** When a player is ruled out for multiple games, determine replacement eligibility.
+ *  Returns constraints for the replacement player. */
+export function getReplacementConstraints(injuredPlayer: {
+  isInternational: boolean;
+  role: string;
+  bid: number;
+}): {
+  mustBeInternational: boolean | null; // null = either is fine
+  maxPrice: number; // replacement must be at or below this price
+  preferredRole: string;
+} {
+  return {
+    // Overseas replaced by overseas, domestic by domestic
+    mustBeInternational: injuredPlayer.isInternational ? true : false,
+    // Replacement in same price bracket (or lower)
+    maxPrice: injuredPlayer.bid,
+    preferredRole: injuredPlayer.role,
+  };
+}
+
 // ── DRS System ──────────────────────────────────────────────────────────
 
 export interface DRSResult {

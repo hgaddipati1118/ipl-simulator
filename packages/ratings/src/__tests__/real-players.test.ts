@@ -96,6 +96,18 @@ describe("getRealPlayers", () => {
     expect(bumrah.bowlingStyle).toBe("right-arm-fast");
     expect(narine.bowlingStyle).toBe("off-spin");
   });
+
+  it("does not overtrust batting-allrounder labels for pure batting exports", () => {
+    const players = getRealPlayers();
+    const tilak = players.find(p => p.name === "Tilak Varma")!;
+    expect(tilak.role).toBe("batsman");
+  });
+
+  it("keeps bowling-primary profiles like Pat Cummins exported as bowlers", () => {
+    const players = getRealPlayers();
+    const cummins = players.find(p => p.name === "Pat Cummins")!;
+    expect(cummins.role).toBe("bowler");
+  });
 });
 
 describe("runtime realism integration", () => {
@@ -114,6 +126,12 @@ describe("runtime realism integration", () => {
     expect(hardik.bowlingOvr).toBeGreaterThanOrEqual(60);
   });
 
+  it("keeps Pat Cummins from collapsing into a batting specialist at runtime", () => {
+    const cummins = runtimePlayers.find((p) => p.name === "Pat Cummins")!;
+    expect(cummins.role).toBe("bowler");
+    expect(cummins.bowlingOvr).toBeGreaterThan(cummins.battingOvr);
+  });
+
   it("does not leave Nicholas Pooran in a manually underrated tier", () => {
     const pooran = runtimePlayers.find((p) => p.name === "Nicholas Pooran")!;
     expect(pooran.role).toBe("batsman");
@@ -124,6 +142,12 @@ describe("runtime realism integration", () => {
     const urvil = runtimePlayers.find((p) => p.name === "Urvil Patel")!;
     const buttler = runtimePlayers.find((p) => p.name === "Jos Buttler")!;
     expect(urvil.overall).toBeLessThan(buttler.overall);
+  });
+
+  it("keeps finisher profiles from outranking complete elite batters by default", () => {
+    const tim = runtimePlayers.find((p) => p.name === "Tim David")!;
+    const buttler = runtimePlayers.find((p) => p.name === "Jos Buttler")!;
+    expect(tim.overall).toBeLessThanOrEqual(buttler.overall);
   });
 
   it("keeps high-level batting specialists above the clutch floor", () => {

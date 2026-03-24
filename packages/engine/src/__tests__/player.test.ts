@@ -64,9 +64,9 @@ describe("Player computed ratings", () => {
 
   it("calculates bowlingOvr correctly", () => {
     const p = new Player(makePlayerData());
-    // wicketTaking*0.45 + economy*0.30 + accuracy*0.10 + clutch*0.15
-    // 30*0.45 + 25*0.30 + 35*0.10 + 65*0.15 = 34.25 → 34
-    expect(p.bowlingOvr).toBe(34);
+    // wicketTaking*0.55 + economy*0.20 + accuracy*0.10 + clutch*0.15
+    // 30*0.55 + 25*0.20 + 35*0.10 + 65*0.15 = 34.75 → 35
+    expect(p.bowlingOvr).toBe(35);
   });
 
   it("calculates overall rating using specialist formula", () => {
