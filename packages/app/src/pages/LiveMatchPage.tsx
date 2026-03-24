@@ -113,17 +113,22 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
     ballsSinceLastSave.current = 0;
   }, [seasonNumber, matchIndex]);
 
-  // Save on tab visibility change (user switching away)
+  // Save on tab visibility change (user switching away) and before page unload (refresh)
   useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden && stateRef.current && matchIndex >= 0 &&
-          stateRef.current.status !== "completed") {
+    const saveNow = () => {
+      if (stateRef.current && matchIndex >= 0 && stateRef.current.status !== "completed") {
         const serialized = serializeMatchState(stateRef.current);
         saveInProgressMatch(seasonNumber, matchIndex, serialized);
       }
     };
+    const handleVisibility = () => { if (document.hidden) saveNow(); };
+    const handleUnload = () => saveNow();
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("beforeunload", handleUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("beforeunload", handleUnload);
+    };
   }, [seasonNumber, matchIndex]);
 
   // Scroll ball feed to bottom
