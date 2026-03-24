@@ -79,19 +79,17 @@ export interface PlayerData {
   injuryGamesLeft: number;
   injuryType?: string;          // "hamstring", "shoulder", "back", "finger", "ankle", "side strain"
   injurySeverity?: InjurySeverity;
+  formHistory?: number[];       // last 5 match performance scores (0-100)
 }
 
 export function calculateBattingOverall(ratings: PlayerRatings): number {
   const { battingIQ, timing, power, running } = ratings;
-  return Math.round(battingIQ * 0.35 + timing * 0.30 + power * 0.30 + running * 0.05);
+  return Math.round(battingIQ * 0.30 + timing * 0.30 + power * 0.35 + running * 0.05);
 }
 
 export function calculateBowlingOverall(ratings: PlayerRatings): number {
   const { wicketTaking, economy, accuracy, clutch } = ratings;
-  const base = wicketTaking * 0.35 + economy * 0.25 + accuracy * 0.15 + clutch * 0.25;
-  const strikeFactor = (wicketTaking + clutch) / 2;
-  const floor = strikeFactor * 0.85;
-  return Math.round(Math.max(base, floor));
+  return Math.round(wicketTaking * 0.45 + economy * 0.30 + accuracy * 0.10 + clutch * 0.15);
 }
 
 export function calculateOverallRating(battingOvr: number, bowlingOvr: number): number {
@@ -150,6 +148,7 @@ export class Player implements PlayerData {
   injuryGamesLeft: number;
   injuryType?: string;
   injurySeverity?: InjurySeverity;
+  formHistory: number[];
   stats: PlayerStats;
 
   constructor(data: PlayerData) {
@@ -169,6 +168,7 @@ export class Player implements PlayerData {
     this.injuryGamesLeft = data.injuryGamesLeft ?? 0;
     this.injuryType = data.injuryType;
     this.injurySeverity = data.injurySeverity;
+    this.formHistory = data.formHistory ? [...data.formHistory] : [];
     this.stats = this.emptyStats();
   }
 
@@ -233,6 +233,36 @@ export class Player implements PlayerData {
       : 999;
   }
 
+  /** Rolling form from last 5 matches (0-100, 50 = neutral) */
+  get form(): number {
+    if (this.formHistory.length === 0) return 50;
+    const sum = this.formHistory.reduce((a, b) => a + b, 0);
+    return sum / this.formHistory.length;
+  }
+
+  /** Record a match performance and update rolling form (keeps last 5) */
+  recordMatchPerformance(score: number): void {
+    this.formHistory.push(clamp(score, 0, 100));
+    if (this.formHistory.length > 5) {
+      this.formHistory = this.formHistory.slice(-5);
+    }
+  }
+
+  /** Calculate form score from match stats */
+  static calculateFormScore(stats: {
+    runs: number;
+    wickets: number;
+    strikeRate: number;
+    economy: number;
+  }): number {
+    const score =
+      (stats.runs / 30) * 25 +
+      stats.wickets * 15 +
+      (stats.strikeRate > 150 ? 10 : 0) +
+      (stats.economy < 7 ? 10 : 0);
+    return clamp(Math.round(score), 0, 100);
+  }
+
   /** Season-to-season progression: attributes shift based on age */
   progress(): void {
     this.age++;
@@ -276,6 +306,7 @@ export class Player implements PlayerData {
       injuryGamesLeft: this.injuryGamesLeft,
       injuryType: this.injuryType,
       injurySeverity: this.injurySeverity,
+      formHistory: [...this.formHistory],
       stats: this.stats,
     };
   }
@@ -284,6 +315,7 @@ export class Player implements PlayerData {
   static fromJSON(data: PlayerData & { stats?: PlayerStats }): Player {
     const player = new Player(data);
     if (data.stats) player.stats = data.stats;
+    if (data.formHistory) player.formHistory = [...data.formHistory];
     return player;
   }
 }

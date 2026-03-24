@@ -1,10 +1,11 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Team, Player } from "@ipl-sim/engine";
+import { Team, Player, type BowlingPlan } from "@ipl-sim/engine";
+import { bowlingStyleLabel } from "../ui-utils";
 
 interface Props {
   team: Team;
-  onConfirm: (xi: string[], battingOrder: string[], bowlingOrder: string[]) => void;
+  onConfirm: (xi: string[], battingOrder: string[], bowlingOrder: string[], bowlingPlan?: BowlingPlan) => void;
 }
 
 export function LineupPage({ team, onConfirm }: Props) {
@@ -39,7 +40,14 @@ export function LineupPage({ team, onConfirm }: Props) {
     return team.autoBowlingOrder(xi).map(p => p.id);
   });
 
-  const [activeTab, setActiveTab] = useState<"xi" | "batting" | "bowling">("xi");
+  const [activeTab, setActiveTab] = useState<"xi" | "batting" | "bowling" | "bowlingPlan">("xi");
+
+  // Bowling plan state: phase-specific bowler assignments
+  const [bowlingPlanState, setBowlingPlanState] = useState<BowlingPlan>(() => {
+    const existing = team.getBowlingPlan();
+    if (existing) return existing;
+    return { powerplay: [], middle: [], death: [] };
+  });
 
   // Derive selected players
   const selectedPlayers = useMemo(
@@ -149,8 +157,10 @@ export function LineupPage({ team, onConfirm }: Props) {
     // Ensure bowling order only contains selected bowlers
     const finalBowling = bowlingOrder.filter(id => selectedIds.has(id));
 
-    onConfirm(xiIds, fullBatting, finalBowling);
-  }, [selectedIds, battingOrder, bowlingOrder, onConfirm]);
+    // Pass bowling plan only if any phase has bowlers assigned
+    const hasPlan = bowlingPlanState.powerplay.length > 0 || bowlingPlanState.middle.length > 0 || bowlingPlanState.death.length > 0;
+    onConfirm(xiIds, fullBatting, finalBowling, hasPlan ? bowlingPlanState : undefined);
+  }, [selectedIds, battingOrder, bowlingOrder, bowlingPlanState, onConfirm]);
 
   const findPlayer = (id: string) => team.roster.find(p => p.id === id);
 
@@ -208,7 +218,7 @@ export function LineupPage({ team, onConfirm }: Props) {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-th-surface rounded-lg p-1 w-fit">
-        {(["xi", "batting", "bowling"] as const).map(tab => (
+        {(["xi", "batting", "bowling", "bowlingPlan"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -218,7 +228,7 @@ export function LineupPage({ team, onConfirm }: Props) {
                 : "text-th-secondary hover:text-th-primary hover:bg-th-hover"
             }`}
           >
-            {tab === "xi" ? "Playing XI" : tab === "batting" ? "Batting Order" : "Bowling Order"}
+            {tab === "xi" ? "Playing XI" : tab === "batting" ? "Batting Order" : tab === "bowling" ? "Bowling Order" : "Bowling Plan"}
           </button>
         ))}
       </div>
@@ -286,6 +296,15 @@ export function LineupPage({ team, onConfirm }: Props) {
             dir
           )}
           onAutoGenerate={handleAutoSortBowling}
+        />
+      )}
+
+      {activeTab === "bowlingPlan" && (
+        <BowlingPlanTab
+          bowlingOrder={bowlingOrder.filter(id => selectedIds.has(id))}
+          findPlayer={findPlayer}
+          bowlingPlan={bowlingPlanState}
+          onUpdatePlan={setBowlingPlanState}
         />
       )}
 
@@ -380,11 +399,15 @@ function PlayingXITab({
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <span className="text-th-primary font-medium">{p.name}</span>
+                      <FormIndicator player={p} />
                       {p.isInternational && (
                         <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
                       )}
                       {p.isWicketKeeper && (
                         <span className="text-cyan-400 text-[10px] bg-cyan-400/10 px-1.5 py-0.5 rounded">WK</span>
+                      )}
+                      {p.bowlingStyle && bowlingStyleLabel(p.bowlingStyle) && (
+                        <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(p.bowlingStyle)}</span>
                       )}
                     </div>
                     <span className="text-th-faint text-xs">{p.country}</span>
@@ -497,12 +520,16 @@ function BattingOrderTab({
               <span className="text-th-muted font-mono text-sm w-6 text-right">{idx + 1}</span>
               <div className="flex-1 flex items-center gap-3">
                 <span className="text-th-primary font-medium">{player.name}</span>
+                <FormIndicator player={player} />
                 <RoleBadge role={player.role} />
                 {player.isInternational && (
                   <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
                 )}
                 {player.isWicketKeeper && (
                   <span className="text-cyan-400 text-[10px] bg-cyan-400/10 px-1.5 py-0.5 rounded">WK</span>
+                )}
+                {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
+                  <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
                 )}
               </div>
               <span className="text-th-faint text-xs w-24 text-right">{posLabel}</span>
@@ -631,7 +658,11 @@ function BowlingOrderTab({
               <span className="text-th-muted font-mono text-sm w-6 text-right">{idx + 1}</span>
               <div className="flex-1 flex items-center gap-3">
                 <span className="text-th-primary font-medium">{player.name}</span>
+                <FormIndicator player={player} />
                 <RoleBadge role={player.role} />
+                {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
+                  <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
+                )}
               </div>
               <span className={`${ovrColor(player.bowlingOvr)} font-bold text-sm w-8 text-right`}>
                 {player.bowlingOvr}
@@ -736,4 +767,133 @@ function roleColor(role: string): string {
     case "all-rounder": return "bg-green-900/30 text-green-400";
     default: return "bg-th-raised text-th-secondary";
   }
+}
+
+/** Form indicator: shows hot/cold form based on rolling average */
+export function FormIndicator({ player }: { player: Player }) {
+  const form = player.form;
+  if (form > 65) {
+    return <span className="text-green-400 text-xs ml-1" title={`Form: ${Math.round(form)}`}>&#9650;</span>;
+  }
+  if (form < 35) {
+    return <span className="text-red-400 text-xs ml-1" title={`Form: ${Math.round(form)}`}>&#9660;</span>;
+  }
+  return null; // Neutral form: no indicator
+}
+
+function BowlingPlanTab({
+  bowlingOrder,
+  findPlayer,
+  bowlingPlan,
+  onUpdatePlan,
+}: {
+  bowlingOrder: string[];
+  findPlayer: (id: string) => Player | undefined;
+  bowlingPlan: BowlingPlan;
+  onUpdatePlan: (plan: BowlingPlan) => void;
+}) {
+  const phases = [
+    { key: "powerplay" as const, label: "Powerplay (Overs 1-6)", color: "border-blue-600/40", bgColor: "bg-blue-950/20" },
+    { key: "middle" as const, label: "Middle Overs (7-15)", color: "border-green-600/40", bgColor: "bg-green-950/20" },
+    { key: "death" as const, label: "Death Overs (16-20)", color: "border-orange-600/40", bgColor: "bg-orange-950/20" },
+  ];
+
+  const toggleBowlerInPhase = (phase: "powerplay" | "middle" | "death", playerId: string) => {
+    const current = bowlingPlan[phase];
+    const updated = current.includes(playerId)
+      ? current.filter(id => id !== playerId)
+      : current.length < 3 ? [...current, playerId] : current;
+    onUpdatePlan({ ...bowlingPlan, [phase]: updated });
+  };
+
+  const autoAssign = () => {
+    const paceIds: string[] = [];
+    const spinIds: string[] = [];
+    for (const id of bowlingOrder) {
+      const p = findPlayer(id);
+      if (!p) continue;
+      const style = p.bowlingStyle;
+      if (["right-arm-fast", "right-arm-medium", "left-arm-fast", "left-arm-medium"].includes(style)) {
+        paceIds.push(id);
+      } else if (["off-spin", "left-arm-orthodox", "leg-spin", "left-arm-wrist-spin"].includes(style)) {
+        spinIds.push(id);
+      } else {
+        paceIds.push(id);
+      }
+    }
+    onUpdatePlan({
+      powerplay: paceIds.slice(0, 3),
+      middle: spinIds.length > 0 ? spinIds.slice(0, 3) : paceIds.slice(0, 2),
+      death: paceIds.slice(0, 3),
+    });
+  };
+
+  if (bowlingOrder.length === 0) {
+    return (
+      <div className="text-th-muted text-center py-12">
+        Set your bowling order first to create a bowling plan
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-th-primary font-semibold text-sm uppercase tracking-wider">
+          Phase-Specific Bowling Plan
+        </h3>
+        <button
+          onClick={autoAssign}
+          className="px-3 py-1.5 bg-th-raised hover:bg-th-hover text-th-secondary text-xs rounded-md transition-colors"
+        >
+          Auto Assign
+        </button>
+      </div>
+      <p className="text-th-muted text-xs mb-4">
+        Select 2-3 preferred bowlers for each phase. The engine will prioritize these bowlers during the corresponding overs.
+      </p>
+
+      <div className="space-y-6">
+        {phases.map(({ key, label, color, bgColor }) => (
+          <div key={key} className={`rounded-xl border ${color} ${bgColor} p-4`}>
+            <h4 className="text-th-primary font-semibold text-sm mb-3">{label}</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {bowlingOrder.map(id => {
+                const player = findPlayer(id);
+                if (!player) return null;
+                const isSelected = bowlingPlan[key].includes(id);
+                return (
+                  <button
+                    key={id}
+                    onClick={() => toggleBowlerInPhase(key, id)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors border ${
+                      isSelected
+                        ? "bg-blue-600/20 border-blue-500 text-white"
+                        : "bg-th-surface border-th hover:bg-th-hover text-th-secondary"
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
+                      isSelected ? "bg-blue-600 border-blue-500 text-white" : "border-th-strong"
+                    }`}>
+                      {isSelected && "\u2713"}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="font-medium text-xs">{player.name}</div>
+                      <div className="text-[10px] text-th-muted">
+                        {bowlingStyleLabel(player.bowlingStyle)} | BWL {player.bowlingOvr}
+                      </div>
+                    </div>
+                    <FormIndicator player={player} />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-2 text-th-faint text-[10px]">
+              {bowlingPlan[key].length}/3 selected
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

@@ -734,6 +734,24 @@ function updatePlayerStats(
       oversBowled: bowlStat ? bowlStat.overs + bowlStat.balls / 10 : 0,
       runsConceded: bowlStat?.runs ?? 0,
     });
+
+    // Record form performance for rolling form system
+    if (batStat || bowlStat) {
+      const runs = batStat?.runs ?? 0;
+      const balls = batStat?.balls ?? 0;
+      const wickets = bowlStat?.wickets ?? 0;
+      const bowlOvers = bowlStat ? bowlStat.overs + bowlStat.balls / 6 : 0;
+      const bowlRuns = bowlStat?.runs ?? 0;
+      const sr = balls > 0 ? (runs / balls) * 100 : 0;
+      const econ = bowlOvers > 0 ? bowlRuns / bowlOvers : 99;
+      const formScore = Player.calculateFormScore({
+        runs,
+        wickets,
+        strikeRate: sr,
+        economy: econ,
+      });
+      player.recordMatchPerformance(formScore);
+    }
   }
 }
 

@@ -23,11 +23,18 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
-import { calculateRatings, inferRole, type GenderPop } from "../calculator.js";
+import { calculateRatings, inferRole, type GenderPop, type CalculatedRatings } from "../calculator.js";
 import { OUTPUT_DIR } from "./config.js";
 import { IPL_2026_ROSTERS } from "../ipl-rosters.js";
 import { WPL_2025_ROSTERS } from "../wpl-rosters.js";
-import type { BowlingStyle, BattingHand } from "@ipl-sim/engine";
+import {
+  clamp,
+  calculateBattingOverall,
+  calculateBowlingOverall,
+  calculateOverallRating,
+  type BowlingStyle,
+  type BattingHand,
+} from "@ipl-sim/engine";
 
 // ── Input / output paths ──────────────────────────────────────────────
 
@@ -245,7 +252,7 @@ function mapBattingHand(espnStyle: string): BattingHand {
  * Map ESPN bowling style string to our BowlingStyle type.
  */
 function mapBowlingStyle(espnStyle: string): BowlingStyle {
-  const s = espnStyle.toLowerCase().trim();
+  const s = espnStyle.toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ").trim();
 
   // Right-arm pace
   if (s === "right arm fast" || s === "right arm fast medium") return "right-arm-fast";
@@ -262,6 +269,30 @@ function mapBowlingStyle(espnStyle: string): BowlingStyle {
   if (s === "left arm wrist spin" || s === "slow left arm chinaman") return "left-arm-wrist-spin";
 
   return "unknown";
+}
+
+function getEspnRoleHint(espnRoles: string[]): "batsman" | "bowler" | "all-rounder" | undefined {
+  const normalized = espnRoles.map((role) => role.toLowerCase().replace(/-/g, " ").trim());
+
+  if (normalized.some((role) => role.includes("allrounder") || role.includes("all rounder"))) {
+    return "all-rounder";
+  }
+
+  if (normalized.some((role) => role.includes("bowler"))) {
+    return "bowler";
+  }
+
+  if (normalized.some((role) => role.includes("batter") || role.includes("batsman") || role.includes("keeper"))) {
+    return "batsman";
+  }
+
+  return undefined;
+}
+
+function recomputeOveralls(ratings: CalculatedRatings): void {
+  ratings.battingOvr = calculateBattingOverall(ratings);
+  ratings.bowlingOvr = calculateBowlingOverall(ratings);
+  ratings.overall = calculateOverallRating(ratings.battingOvr, ratings.bowlingOvr);
 }
 
 /**
@@ -315,13 +346,22 @@ function toCalculatorInput(player: EspnPlayer, gender: "M" | "F" = "M") {
   const bowlRuns = bowl ? safeNum(bowl.rn) : 0;
   const wickets = bowl ? safeNum(bowl.wk) : 0;
   const bowlInnings = bowl ? safeNum(bowl.in) : 0;
+  const bowlShare = matches > 0 ? bowlInnings / matches : 0;
+  const hasBowlingRoleHint = (player.profile.playingRoles ?? []).some((role) => {
+    const normalized = role.toLowerCase().replace(/-/g, " ").trim();
+    return normalized.includes("allrounder") || normalized.includes("all rounder") || normalized.includes("bowler");
+  });
 
   // Must have bowled minimum balls AND taken minimum wickets to count as a bowler.
   // Men: 300 balls (50 overs) + 15 wickets — filters out part-timers like SKY, Babar.
   // Women: 150 balls (25 overs) + 8 wickets — lower thresholds due to fewer matches.
   const minBalls = gender === "F" ? 150 : 300;
   const minWickets = gender === "F" ? 8 : 15;
-  const hasMeaningfulBowling = bowlBalls >= minBalls && wickets >= minWickets;
+  const minBowlShare = gender === "F" ? 0.2 : 0.25;
+  const hasMeaningfulBowling =
+    bowlBalls >= minBalls &&
+    wickets >= minWickets &&
+    (bowlShare >= minBowlShare || hasBowlingRoleHint);
 
   return {
     name: player.profile.longName || player.profile.name,
@@ -340,6 +380,90 @@ function toCalculatorInput(player: EspnPlayer, gender: "M" | "F" = "M") {
     wickets: hasMeaningfulBowling ? wickets : 0,
     catches: bat ? safeNum(bat.ct) : 0,
   };
+}
+
+function applyBattingProfileAdjustment(
+  ratings: CalculatedRatings,
+  input: {
+    matches: number;
+    battingInnings: number;
+    notOuts: number;
+    runs: number;
+    ballsFaced: number;
+    fours: number;
+    sixes: number;
+  },
+  espnRoles: string[],
+): void {
+  if (input.battingInnings < 20 || input.ballsFaced === 0 || input.runs === 0) return;
+
+  const normalizedRoles = espnRoles.map((role) => role.toLowerCase().replace(/-/g, " ").trim());
+  const isTopOrder = normalizedRoles.some((role) => role.includes("opening") || role.includes("top order"));
+  const isMiddleOrder = normalizedRoles.some((role) => role.includes("middle order"));
+
+  const runsPerInnings = input.runs / input.battingInnings;
+  const ballsPerInnings = input.ballsFaced / input.battingInnings;
+  const notOutRate = input.notOuts / input.battingInnings;
+  const boundaryRuns = input.fours * 4 + input.sixes * 6;
+  const boundaryRunPct = boundaryRuns / Math.max(1, input.runs);
+
+  let battingIQDelta = 0;
+  let timingDelta = 0;
+  let powerDelta = 0;
+  let clutchDelta = 0;
+
+  const finisherInflationProfile =
+    isMiddleOrder &&
+    notOutRate >= 0.22 &&
+    ballsPerInnings <= 15.5 &&
+    boundaryRunPct >= 0.62;
+
+  if (finisherInflationProfile) {
+    battingIQDelta -= 4;
+    timingDelta -= 4;
+    powerDelta += 1;
+    clutchDelta -= 2;
+  }
+
+  const smallSamplePowerSpike =
+    input.matches < 80 &&
+    boundaryRunPct >= 0.74 &&
+    ballsPerInnings <= 17.5;
+
+  if (smallSamplePowerSpike) {
+    battingIQDelta -= 3;
+    timingDelta -= 2;
+    clutchDelta -= 2;
+  }
+
+  const stableVolumeProfile =
+    input.matches >= 80 &&
+    runsPerInnings >= 28 &&
+    ballsPerInnings >= 20 &&
+    boundaryRunPct <= 0.63;
+
+  if (stableVolumeProfile) {
+    battingIQDelta += 1;
+    timingDelta += 1;
+    clutchDelta += 1;
+  }
+
+  const topOrderAnchorProfile =
+    isTopOrder &&
+    runsPerInnings >= 30 &&
+    ballsPerInnings >= 22 &&
+    boundaryRunPct <= 0.60;
+
+  if (topOrderAnchorProfile) {
+    battingIQDelta += 1;
+    timingDelta += 1;
+  }
+
+  ratings.battingIQ = clamp(ratings.battingIQ + battingIQDelta, 15, 99);
+  ratings.timing = clamp(ratings.timing + timingDelta, 15, 99);
+  ratings.power = clamp(ratings.power + powerDelta, 15, 99);
+  ratings.clutch = clamp(ratings.clutch + clutchDelta, 15, 99);
+  recomputeOveralls(ratings);
 }
 
 // ── Retirement detection ─────────────────────────────────────────────
@@ -634,8 +758,8 @@ function getManualPlayers(): RatedPlayer[] {
       bowlingStyle: "unknown",
       role: "batsman",
       isInternational: true,
-      ratings: { battingIQ: 72, timing: 70, power: 92, running: 60, wicketTaking: 10, economy: 8, accuracy: 12, clutch: 68 },
-      overalls: { battingOvr: 78, bowlingOvr: 10, overall: 78 },
+      ratings: { battingIQ: 80, timing: 81, power: 93, running: 62, wicketTaking: 10, economy: 8, accuracy: 12, clutch: 82 },
+      overalls: { battingOvr: 84, bowlingOvr: 14, overall: 84 },
       sourceStats: { t20Matches: 310, t20Runs: 5800, t20Average: 26.8, t20StrikeRate: 155, t20Fours: 380, t20Sixes: 340, t20Wickets: 0, t20Economy: 0, statClass: 6 },
       espnId: 0,
     },
@@ -736,19 +860,14 @@ export function generateAllRatings(): RatedPlayer[] {
       ratings.clutch = Math.round(50 + (ratings.clutch - 50) * qualityFactor);
 
       // Recompute overalls from adjusted attributes (must stay consistent with Player class getters)
-      ratings.battingOvr = Math.round(ratings.battingIQ * 0.35 + ratings.timing * 0.30 + ratings.power * 0.30 + ratings.running * 0.05);
-      const bowlBase = ratings.wicketTaking * 0.35 + ratings.economy * 0.25 + ratings.accuracy * 0.15 + ratings.clutch * 0.25;
-      const strikeFactor = (ratings.wicketTaking + ratings.clutch) / 2;
-      ratings.bowlingOvr = Math.round(Math.max(bowlBase, strikeFactor * 0.85));
-      const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
-      const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
-      ratings.overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
+      recomputeOveralls(ratings);
     }
 
     // Use ESPN's playingRoles to detect wicket-keepers (inferRole can't distinguish them)
     const espnRoles = player.profile.playingRoles ?? [];
+    applyBattingProfileAdjustment(ratings, input, espnRoles);
     const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
-    const role = inferRole(ratings);
+    const role = getEspnRoleHint(espnRoles) ?? inferRole(ratings);
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
 
@@ -1051,19 +1170,13 @@ export function generateWomenRatings(): RatedPlayer[] {
       ratings.clutch = Math.round(50 + (ratings.clutch - 50) * qualityFactor);
 
       // Recompute overalls
-      ratings.battingOvr = Math.round(ratings.battingIQ * 0.35 + ratings.timing * 0.30 + ratings.power * 0.30 + ratings.running * 0.05);
-      const bowlBase = ratings.wicketTaking * 0.35 + ratings.economy * 0.25 + ratings.accuracy * 0.15 + ratings.clutch * 0.25;
-      const strikeFactor = (ratings.wicketTaking + ratings.clutch) / 2;
-      ratings.bowlingOvr = Math.round(Math.max(bowlBase, strikeFactor * 0.85));
-      const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
-      const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
-      ratings.overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
+      recomputeOveralls(ratings);
     }
 
     // Use ESPN's playingRoles to detect wicket-keepers (inferRole can't distinguish them)
     const espnRoles = player.profile.playingRoles ?? [];
     const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
-    const role = inferRole(ratings);
+    const role = getEspnRoleHint(espnRoles) ?? inferRole(ratings);
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
 

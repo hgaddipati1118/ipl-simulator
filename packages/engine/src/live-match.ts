@@ -6,10 +6,12 @@
  */
 
 import { Player } from "./player.js";
-import { Team, type TeamConfig } from "./team.js";
+import { Team, type TeamConfig, type BowlingPlan } from "./team.js";
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
+import { getMatchPhase, isPaceBowler, isSpinBowler, type MatchPhase } from "./matchups.js";
+import { generateBallCommentary } from "./commentary.js";
 import type {
   BallOutcome,
   BallEvent,
@@ -252,6 +254,10 @@ interface MatchStateInternal {
   pitchType: "flat" | "seaming" | "turning" | "balanced";
   boundarySize: "small" | "medium" | "large";
   dewFactor: "none" | "moderate" | "heavy";
+
+  // Phase-specific bowling plans per team
+  homeBowlingPlan?: BowlingPlan;
+  awayBowlingPlan?: BowlingPlan;
 }
 
 interface InningsScoreRaw {
@@ -280,6 +286,7 @@ interface SerializedPlayer {
   battingOvr: number;
   bowlingOvr: number;
   overall: number;
+  form: number; // rolling form 0-100, 50 = neutral
   ratings: {
     battingIQ: number;
     timing: number;
@@ -320,7 +327,10 @@ function baseOutcomeProbabilities(
   // Aggression modifier: -0.5 (defensive) to +0.5 (aggressive)
   const aggrMod = (aggression - 50) / 100;
 
-  return {
+  // Form modifier: ranges from -0.10 (cold) to +0.10 (hot)
+  const formMod = (batter.form - 50) / 500;
+
+  const probs: Record<BallOutcome, number> = {
     dot:    clamp(0.35 - balance * 0.15 - aggrMod * 0.10, 0.15, 0.55),
     "1":    clamp(0.28 + balance * 0.03 - aggrMod * 0.03, 0.18, 0.38),
     "2":    clamp(0.08 + balance * 0.02, 0.03, 0.15),
@@ -332,6 +342,13 @@ function baseOutcomeProbabilities(
     noball:  clamp(0.01 - (bowler.ratings.accuracy / 100) * 0.005, 0.002, 0.03),
     legbye: 0.02,
   };
+
+  // Apply form modifier to boundary and wicket probabilities
+  probs["4"] *= (1 + formMod);
+  probs["6"] *= (1 + formMod);
+  probs.wicket *= (1 - formMod); // hot form = fewer wickets, cold form = more
+
+  return probs;
 }
 
 function chaseAdjustment(
@@ -375,69 +392,7 @@ function randomBoundaryShot(runs: number): string {
   return shots[Math.floor(Math.random() * shots.length)];
 }
 
-function generateCommentary(
-  outcome: BallOutcome,
-  batter: string,
-  bowler: string,
-  _over: number,
-  _runs: number,
-): string {
-  const templates: Record<BallOutcome, string[]> = {
-    dot: [
-      `${bowler} to ${batter}, no run. Good length outside off, left alone`,
-      `${bowler} to ${batter}, no run. Defended solidly back down the pitch`,
-      `${bowler} to ${batter}, no run. Beaten outside off! Good delivery`,
-      `${bowler} to ${batter}, no run. Plays and misses, beaten for pace`,
-      `${bowler} to ${batter}, no run. Pushed to cover, no single there`,
-      `${bowler} to ${batter}, no run. Tight line, can't get it away`,
-    ],
-    "1": [
-      `${bowler} to ${batter}, 1 run. Worked away to midwicket for a single`,
-      `${bowler} to ${batter}, 1 run. Nudged to the leg side, quick single taken`,
-      `${bowler} to ${batter}, 1 run. Pushed to cover, they take the run`,
-      `${bowler} to ${batter}, 1 run. Tapped to mid-on, easy single`,
-    ],
-    "2": [
-      `${bowler} to ${batter}, 2 runs. Pushed into the gap, they come back for two`,
-      `${bowler} to ${batter}, 2 runs. Driven wide of mid-off, good running between the wickets`,
-      `${bowler} to ${batter}, 2 runs. Worked square, misfield and they get a second`,
-    ],
-    "3": [
-      `${bowler} to ${batter}, 3 runs. Driven to the deep, misfield and they get three!`,
-      `${bowler} to ${batter}, 3 runs. Placed into the gap, excellent running gets them back for the third`,
-    ],
-    "4": [
-      `${bowler} to ${batter}, FOUR! ${randomBoundaryShot(4)}`,
-      `${bowler} to ${batter}, FOUR! ${randomBoundaryShot(4)}`,
-      `${bowler} to ${batter}, FOUR! That races away to the boundary!`,
-    ],
-    "6": [
-      `${bowler} to ${batter}, SIX! ${randomBoundaryShot(6)}!`,
-      `${bowler} to ${batter}, SIX! ${randomBoundaryShot(6)}!`,
-      `${bowler} to ${batter}, SIX! What a shot! That's massive!`,
-    ],
-    wicket: [
-      `${bowler} to ${batter}, OUT! ${batter} has to walk back!`,
-      `${bowler} to ${batter}, OUT! Big wicket! ${batter} departs!`,
-      `${bowler} to ${batter}, OUT! Breakthrough! That's the end of ${batter}!`,
-    ],
-    wide: [
-      `${bowler} to ${batter}, wide. Straying down the leg side`,
-      `${bowler} to ${batter}, wide. Too far outside off, the umpire signals`,
-    ],
-    noball: [
-      `${bowler} to ${batter}, no ball! Overstepped, free hit coming up`,
-      `${bowler} to ${batter}, no ball! Front foot no ball, one extra`,
-    ],
-    legbye: [
-      `${bowler} to ${batter}, leg bye. Off the pad, they scamper through for one`,
-      `${bowler} to ${batter}, leg bye. Flicked off the thigh pad`,
-    ],
-  };
-
-  const options = templates[outcome];
-  return options[Math.floor(Math.random() * options.length)];
-}
+// generateCommentary removed -- replaced by imported generateBallCommentary from commentary.ts
 
 function randomWicketType(): "bowled" | "caught" | "lbw" | "run_out" | "stumped" {
   const r = Math.random();
@@ -463,6 +418,9 @@ function runOneBall(
   pitchType: "flat" | "seaming" | "turning" | "balanced" = "balanced",
   boundarySize: "small" | "medium" | "large" = "medium",
   dewFactor: "none" | "moderate" | "heavy" = "none",
+  batterRuns: number = 0,
+  batterBalls: number = 0,
+  legalBallInOver: number = 0,
 ): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped" } {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
@@ -544,10 +502,27 @@ function runOneBall(
     case "legbye": extras = 1; break;
   }
 
-  const commentary = generateCommentary(outcome, batter.name, bowler.name, over, runs);
-
   // Determine wicket type upfront (used for DRS logic)
   const wicketType = isWicket ? randomWicketType() : undefined;
+
+  // Generate rich contextual commentary
+  const commentary = generateBallCommentary({
+    bowlerName: bowler.name,
+    batterName: batter.name,
+    outcome,
+    runs,
+    over,
+    ball: legalBallInOver + 1,
+    score: currentScore,
+    wickets: wicketsDown,
+    isSecondInnings,
+    target: isSecondInnings ? target : undefined,
+    bowlingStyle: bowler.bowlingStyle,
+    batterRuns,
+    batterBalls,
+    wicketType,
+    boundaryShot: (outcome === "4" || outcome === "6") ? randomBoundaryShot(runs || (outcome === "4" ? 4 : 6)) : undefined,
+  });
 
   return { outcome, runs, extras, isWicket, commentary, wicketType };
 }
@@ -566,6 +541,7 @@ function serializePlayer(p: Player): SerializedPlayer {
     battingOvr: p.battingOvr,
     bowlingOvr: p.bowlingOvr,
     overall: p.overall,
+    form: p.form,
     ratings: { ...p.ratings },
   };
 }
@@ -698,6 +674,10 @@ export function createMatchState(
   const inn2BattingOrder = bowlingFirst.getBattingOrder(secondXI);
   const inn2BowlingOrder = battingFirst.getBowlingOrder(secondBowlXI);
 
+  // Build bowling plans: use user's plan if set, otherwise auto-generate based on bowling style
+  const homeBowlingPlan = homeTeam.getBowlingPlan() ?? autoGenerateBowlingPlan(homeXI, playerDataMap);
+  const awayBowlingPlan = awayTeam.getBowlingPlan() ?? autoGenerateBowlingPlan(awayXI, playerDataMap);
+
   // If user wins the toss, pause for their decision
   const initialStatus: MatchState["status"] = isUserTossWinner ? "waiting_for_decision" : "in_progress";
   const pendingDecision: PendingDecision | undefined = isUserTossWinner ? {
@@ -788,7 +768,38 @@ export function createMatchState(
       pitchType,
       boundarySize,
       dewFactor,
+      homeBowlingPlan,
+      awayBowlingPlan,
     },
+  };
+}
+
+/** Auto-generate a bowling plan for CPU teams based on bowling styles.
+ *  Pace bowlers assigned to powerplay + death, spinners to middle overs. */
+function autoGenerateBowlingPlan(
+  xi: Player[],
+  pm: Record<string, SerializedPlayer>,
+): BowlingPlan {
+  const bowlers = xi.filter(p => p.role === "bowler" || p.role === "all-rounder");
+  const paceIds: string[] = [];
+  const spinIds: string[] = [];
+
+  for (const b of bowlers) {
+    const sp = pm[b.id];
+    if (sp && isPaceBowler(sp.bowlingStyle as any)) {
+      paceIds.push(b.id);
+    } else if (sp && isSpinBowler(sp.bowlingStyle as any)) {
+      spinIds.push(b.id);
+    } else {
+      // Unknown style: assign to pace by default
+      paceIds.push(b.id);
+    }
+  }
+
+  return {
+    powerplay: paceIds.length > 0 ? paceIds : spinIds.slice(0, 2),
+    middle: spinIds.length > 0 ? spinIds : paceIds.slice(0, 2),
+    death: paceIds.length > 0 ? paceIds : spinIds.slice(0, 2),
   };
 }
 
@@ -824,6 +835,11 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     ? state.aggression.home : state.aggression.away;
   const bowlingTeamFieldSetting = state.bowlingTeamId === state.homeTeam.id
     ? state.fieldSetting.home : state.fieldSetting.away;
+  // Look up current batter stats for commentary milestones
+  const liveBatterPre = state.batterStats.find(b => b.playerId === strikerId);
+  const batterRunsPre = liveBatterPre?.runs ?? 0;
+  const batterBallsPre = liveBatterPre?.balls ?? 0;
+
   const result = runOneBall(
     striker,
     bowler,
@@ -839,6 +855,9 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     int.pitchType,
     int.boundarySize,
     int.dewFactor,
+    batterRunsPre,
+    batterBallsPre,
+    int.currentOverLegalBalls,
   );
 
   // Clone state for mutation
@@ -1228,8 +1247,10 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         };
         newState.status = "waiting_for_decision";
       } else {
-        // CPU auto-picks or only one option
-        const nextBowlerIdx = pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm);
+        // CPU auto-picks or only one option — use phase-specific bowling plan
+        const currentBowlingPlan = newState.bowlingTeamId === newState.homeTeam.id
+          ? ni.homeBowlingPlan : ni.awayBowlingPlan;
+        const nextBowlerIdx = pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm, currentBowlingPlan, newState.overs);
         assignNextBowler(newState, ni, pm, nextBowlerIdx);
       }
     }
@@ -2177,6 +2198,8 @@ function pickNextBowler(
   maxOversPerBowler: number,
   lastBowlerId: string | null,
   pm: Record<string, SerializedPlayer>,
+  bowlingPlan?: BowlingPlan,
+  currentOver?: number,
 ): number {
   let eligibleIndices = bowlingOrderIds
     .map((id, idx) => ({ id, idx }))
@@ -2192,9 +2215,22 @@ function pickNextBowler(
     return 0; // fallback
   }
 
-  // Prefer specialist bowlers over all-rounders over batsmen
+  // If a bowling plan is set, prefer bowlers assigned to the current phase
+  const phase = currentOver !== undefined ? getMatchPhase(currentOver) : undefined;
+  let planIds: string[] = [];
+  if (bowlingPlan && phase) {
+    planIds = bowlingPlan[phase] ?? [];
+  }
+  const planSet = new Set(planIds);
+
+  // Prefer phase-plan bowlers > specialist bowlers > all-rounders > batsmen
   // Within each tier, sort by bowling OVR descending
   eligibleIndices.sort((a, b) => {
+    // Phase plan preference (bowlers in the plan for this phase come first)
+    const aInPlan = planSet.has(a.id) ? 0 : 1;
+    const bInPlan = planSet.has(b.id) ? 0 : 1;
+    if (aInPlan !== bInPlan) return aInPlan - bInPlan;
+
     const roleA = pm[a.id]?.role ?? "batsman";
     const roleB = pm[b.id]?.role ?? "batsman";
     const tierA = roleA === "bowler" ? 0 : roleA === "all-rounder" ? 1 : 2;

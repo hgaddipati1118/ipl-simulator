@@ -236,9 +236,10 @@ function inferRuntimeRole(
   const weaker = Math.min(batOvr, bowlOvr);
   const stronger = Math.max(batOvr, bowlOvr);
   const canBeAllRounder = weaker >= 62 && stronger >= 70 && Math.abs(diff) <= 12;
+  const explicitAllRounderThreshold = weaker >= 60 && stronger >= 72 && Math.abs(diff) <= 25;
 
   if (explicitRole === "all-rounder") {
-    return canBeAllRounder ? "all-rounder" : diff >= 0 ? "batsman" : "bowler";
+    return explicitAllRounderThreshold ? "all-rounder" : diff >= 0 ? "batsman" : "bowler";
   }
 
   if (explicitRole === "batsman") {

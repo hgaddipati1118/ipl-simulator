@@ -4,6 +4,7 @@ import {
   type MatchState,
   type DetailedBallEvent,
   type PendingDecisionOption,
+  type FieldSetting,
   stepBall,
   startSecondInnings,
   simulateRemaining,
@@ -15,6 +16,9 @@ import {
   getImpactSubOptions,
   applyImpactSub,
   setAggression,
+  setFieldSetting,
+  generatePostMatchNarrative,
+  type NarrativeEvent,
 } from "@ipl-sim/engine";
 import {
   saveInProgressMatch,
@@ -66,11 +70,15 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
   const [matchComplete, setMatchComplete] = useState(false);
   const [scorecardTab, setScorecardTab] = useState<ScorecardTab>("batting");
   const [scorecardOpen, setScorecardOpen] = useState(false);
+  const [narrativeEvents, setNarrativeEvents] = useState<NarrativeEvent[]>([]);
 
   // Impact sub state
   const [showImpactSubModal, setShowImpactSubModal] = useState(false);
   const [impactSubIn, setImpactSubIn] = useState<string | null>(null);
   const [impactSubOut, setImpactSubOut] = useState<string | null>(null);
+
+  // DRS result flash
+  const [drsResult, setDrsResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const playingRef = useRef(playing);
   const speedRef = useRef(speed);
@@ -315,7 +323,20 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
   // Handle tactical decisions
   const handleDecision = useCallback((type: string, selectedPlayerId: string, swapOutPlayerId?: string) => {
     if (!state || state.status !== "waiting_for_decision") return;
+
+    // For DRS review, capture the result before and after to show flash
+    const preDrsWickets = state.wickets;
     const newState = applyDecision(state, { type, selectedPlayerId, swapOutPlayerId });
+
+    if (type === "drs_review" && selectedPlayerId === "review") {
+      const overturned = newState.wickets > preDrsWickets;
+      setDrsResult({
+        success: overturned,
+        message: overturned ? "OVERTURNED! Batter is OUT!" : "Umpire's Call -- Review Lost",
+      });
+      setTimeout(() => setDrsResult(null), 2500);
+    }
+
     setState(newState);
     autoSave(newState);
   }, [state, autoSave]);
@@ -372,6 +393,54 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
     } catch (err) {
       console.warn("[LiveMatch] Failed to save detailed result:", err);
     }
+
+    // Generate post-match narrative events
+    try {
+      const winnerId = completedState.winnerId;
+      const winnerTeam = winnerId === completedState.homeTeam.id ? completedState.homeTeam : completedState.awayTeam;
+      const loserTeam = winnerId === completedState.homeTeam.id ? completedState.awayTeam : completedState.homeTeam;
+      const userTeamWon = winnerId === userTeamId;
+
+      // Compute season position from teams prop
+      let seasonPosition = 0;
+      if (teams && userTeamId) {
+        const sorted = [...teams].sort((a, b) => b.points !== a.points ? b.points - a.points : b.nrr - a.nrr);
+        seasonPosition = sorted.findIndex(t => t.id === userTeamId) + 1;
+      }
+
+      const userTeamData = teams?.find(t => t.id === userTeamId);
+      const matchesPlayed = userTeamData?.matchesPlayed ?? 0;
+
+      // Parse MoM info
+      let momInfo: { name: string; runs?: number; wickets?: number } | undefined;
+      if (completedState.manOfTheMatch) {
+        const momReason = completedState.manOfTheMatch.reason;
+        const runsMatch = momReason.match(/(\d+)\s*(?:runs|\()/);
+        const wicketsMatch = momReason.match(/(\d+)\s*\/|(\d+)\s*wickets/);
+        momInfo = {
+          name: completedState.manOfTheMatch.playerName,
+          runs: runsMatch ? parseInt(runsMatch[1]) : undefined,
+          wickets: wicketsMatch ? parseInt(wicketsMatch[1] || wicketsMatch[2]) : undefined,
+        };
+      }
+
+      const events = generatePostMatchNarrative({
+        winnerName: winnerTeam.name,
+        loserName: loserTeam.name,
+        margin: completedState.result?.replace(/^.*by /, "") ?? "",
+        manOfMatch: momInfo,
+        userTeamId,
+        userTeamWon,
+        seasonPosition,
+        matchesPlayed,
+        consecutiveLosses: 0,
+        consecutiveWins: 0,
+      });
+      setNarrativeEvents(events);
+    } catch (err) {
+      console.warn("[LiveMatch] Failed to generate narrative:", err);
+    }
+
     await clearInProgressMatch(seasonNumber, matchIndex);
     onMatchComplete(completedState, matchIndex);
   };
@@ -1044,6 +1113,99 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
         );
       })()}
 
+      {/* Toss Decision Modal */}
+      {isDecisionForUser && state.pendingDecision!.type === "toss_decision" && (() => {
+        const homeTeamFull = teams?.find(t => t.id === state.homeTeam.id);
+        const pitchType = state._internal.pitchType ?? "balanced";
+        const dewFactor = state._internal.dewFactor ?? "none";
+        const stadiumName = homeTeamFull?.config.stadiumName ?? `${homeTeamFull?.config.city ?? "Unknown"} Stadium`;
+        return (
+          <DecisionModal title="You Won the Toss!" subtitle="Choose to bat or bowl first">
+            <div className="space-y-4">
+              <div className="rounded-xl bg-th-body border border-th p-3 text-center">
+                <div className="text-xs text-th-muted font-display">
+                  <span className="text-th-secondary font-semibold">{stadiumName}</span>
+                  {" "}&mdash;{" "}
+                  <span className="capitalize">{pitchType}</span> pitch, {dewFactor} dew
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleDecision("toss_decision", "bat")}
+                  className="flex-1 px-5 py-4 rounded-xl border border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/15 hover:border-orange-500/50 transition-all text-center"
+                >
+                  <div className="text-2xl mb-1">🏏</div>
+                  <div className="font-display font-bold text-th-primary text-sm">Bat First</div>
+                  <div className="text-[10px] text-th-muted mt-1">Set a target</div>
+                </button>
+                <button
+                  onClick={() => handleDecision("toss_decision", "bowl")}
+                  className="flex-1 px-5 py-4 rounded-xl border border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/50 transition-all text-center"
+                >
+                  <div className="text-2xl mb-1">⚾</div>
+                  <div className="font-display font-bold text-th-primary text-sm">Bowl First</div>
+                  <div className="text-[10px] text-th-muted mt-1">Chase it down</div>
+                </button>
+              </div>
+            </div>
+          </DecisionModal>
+        );
+      })()}
+
+      {/* DRS Review Modal */}
+      {isDecisionForUser && state.pendingDecision!.type === "drs_review" && (() => {
+        const drsCtx = state.pendingDecision!.drsContext;
+        const bowlingTeamIsHome = state.bowlingTeamId === state.homeTeam.id;
+        const reviewsLeft = bowlingTeamIsHome ? state.drsRemaining.home : state.drsRemaining.away;
+        const currentBowler = state.currentBowlerName;
+        return (
+          <DecisionModal title="LBW Appeal!" subtitle="The umpire says NOT OUT. Do you want to review?">
+            <div className="space-y-4">
+              <div className="rounded-xl bg-th-body border border-th p-4 text-center space-y-2">
+                <div className="text-sm text-th-secondary font-display">
+                  <span className="text-th-primary font-semibold">{currentBowler}</span> to{" "}
+                  <span className="text-th-primary font-semibold">{drsCtx?.batterName ?? "batter"}</span>
+                </div>
+                <div className="text-xs text-th-muted font-display">
+                  {reviewsLeft} review{reviewsLeft !== 1 ? "s" : ""} remaining
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleDecision("drs_review", "review")}
+                  className="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-display font-semibold text-sm transition-all shadow-lg shadow-blue-500/20"
+                >
+                  Review (DRS)
+                </button>
+                <button
+                  onClick={() => handleDecision("drs_review", "accept")}
+                  className="flex-1 px-5 py-3 rounded-xl bg-th-raised hover:bg-th-hover text-th-secondary font-display font-semibold text-sm border border-th transition-colors"
+                >
+                  Accept Decision
+                </button>
+              </div>
+            </div>
+          </DecisionModal>
+        );
+      })()}
+
+      {/* DRS Result Flash */}
+      {drsResult && (
+        <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center animate-fade-in">
+          <div className={`px-8 py-5 rounded-2xl border text-center ${
+            drsResult.success
+              ? "bg-red-950/90 border-red-500/40 backdrop-blur-sm"
+              : "bg-gray-900/90 border-gray-600/40 backdrop-blur-sm"
+          }`}>
+            <div className={`text-lg font-display font-extrabold ${
+              drsResult.success ? "text-red-400" : "text-th-muted"
+            }`}>
+              {drsResult.message}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Impact Sub Modal */}
       {showImpactSubModal && state && userTeamId && (() => {
         const impactOpts = getImpactSubOptions(state, userTeamId);
@@ -1197,6 +1359,33 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
               </div>
             </div>
 
+            {/* Narrative events */}
+            {narrativeEvents.length > 0 && (
+              <div className="mb-5 space-y-2 text-left max-h-[30vh] overflow-y-auto">
+                {narrativeEvents.map((evt, i) => (
+                  <div
+                    key={i}
+                    className={`px-3 py-2.5 rounded-lg border text-xs ${
+                      evt.type === "praise" ? "border-emerald-800/40 bg-emerald-950/20" :
+                      evt.type === "criticism" || evt.type === "board" ? "border-red-800/40 bg-red-950/20" :
+                      evt.type === "milestone" ? "border-amber-800/40 bg-amber-950/20" :
+                      "border-th bg-th-body"
+                    }`}
+                  >
+                    <div className={`font-display font-semibold text-sm mb-0.5 ${
+                      evt.type === "praise" ? "text-emerald-400" :
+                      evt.type === "criticism" || evt.type === "board" ? "text-red-400" :
+                      evt.type === "milestone" ? "text-amber-400" :
+                      "text-blue-400"
+                    }`}>
+                      {evt.headline}
+                    </div>
+                    <div className="text-th-muted leading-relaxed">{evt.body}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 onClick={() => navigate(`/match/${matchIndex}`)}
@@ -1287,6 +1476,40 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
               </span>
             </div>
           )}
+
+          {/* Field setting selector — only for user's bowling team */}
+          {isUserMatch && state.bowlingTeamId === userTeamId && (() => {
+            const side = state.bowlingTeamId === state.homeTeam.id ? "home" : "away";
+            const currentField = state.fieldSetting[side as "home" | "away"];
+            const FIELD_OPTIONS: { value: FieldSetting; label: string; color: string }[] = [
+              { value: "aggressive", label: "AGG", color: "text-red-400 bg-red-500/10 border-red-500/30" },
+              { value: "standard", label: "STD", color: "text-th-secondary bg-th-body border-th" },
+              { value: "defensive", label: "DEF", color: "text-blue-400 bg-blue-500/10 border-blue-500/30" },
+              { value: "spin-attack", label: "SPN", color: "text-purple-400 bg-purple-500/10 border-purple-500/30" },
+              { value: "boundary-save", label: "BDY", color: "text-amber-400 bg-amber-500/10 border-amber-500/30" },
+            ];
+            return (
+              <div className="flex items-center gap-1.5 ml-2">
+                <span className="text-[10px] text-th-muted font-display hidden sm:inline">Field:</span>
+                <div className="flex rounded-lg overflow-hidden border border-th">
+                  {FIELD_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setState(prev => prev ? setFieldSetting(prev, userTeamId!, opt.value) : prev)}
+                      title={opt.value.replace(/-/g, " ")}
+                      className={`px-1.5 sm:px-2 py-1 text-[10px] font-display font-semibold transition-colors ${
+                        currentField === opt.value
+                          ? opt.color
+                          : "bg-th-raised text-th-faint hover:text-th-muted"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="flex-1" />
 

@@ -378,8 +378,8 @@ export default function App() {
     navigate("/results");
   };
 
-  const handleConfirmLineup = (xiIds: string[], battingOrder: string[], bowlingOrder: string[]) => {
-    const afterLineup = setUserLineup(state, xiIds, battingOrder, bowlingOrder);
+  const handleConfirmLineup = (xiIds: string[], battingOrder: string[], bowlingOrder: string[], bowlingPlan?: import("@ipl-sim/engine").BowlingPlan) => {
+    const afterLineup = setUserLineup(state, xiIds, battingOrder, bowlingOrder, bowlingPlan);
     update(afterLineup);
 
     // Navigate to live match for user's team match

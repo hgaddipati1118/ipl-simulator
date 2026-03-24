@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Team, type RuleSet, DEFAULT_RULES } from "@ipl-sim/engine";
-import { ovrBgClass, roleLabel } from "../ui-utils";
+import { ovrBgClass, roleLabel, bowlingStyleLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
 
@@ -91,6 +91,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES }: Props) {
                 <th className="text-center px-2 py-3">BAT</th>
                 <th className="text-center px-2 py-3">BWL</th>
                 <th className="text-center px-2 py-3">Role</th>
+                <th className="text-center px-2 py-3 hidden sm:table-cell">Style</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Age</th>
                 <th className="text-center px-2 py-3 hidden md:table-cell">M</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Runs</th>
@@ -104,6 +105,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES }: Props) {
                   <td className="px-3 sm:px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <PlayerLink playerId={p.id} className="text-th-primary font-display font-medium">{p.name}</PlayerLink>
+                      <FormBadge form={p.form} />
                       {p.isInternational && <span className="text-blue-400/70 text-[10px] font-display font-semibold bg-blue-500/10 px-1 rounded">OS</span>}
                       {p.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] font-display font-semibold bg-cyan-500/10 px-1 rounded">WK</span>}
                       {p.injured && <span className="text-red-400 text-[10px] font-display font-semibold bg-red-500/10 px-1 rounded" aria-label="Player is injured">INJ</span>}
@@ -117,6 +119,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES }: Props) {
                   <td className="text-center px-2 py-2.5 stat-num text-orange-300/70 text-sm">{p.battingOvr}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-purple-300/70 text-sm">{p.bowlingOvr}</td>
                   <td className="text-center px-2 py-2.5 text-th-muted text-xs font-display">{roleLabel(p.role)}</td>
+                  <td className="text-center px-2 py-2.5 text-purple-400/60 text-[10px] font-display font-semibold hidden sm:table-cell">{bowlingStyleLabel(p.bowlingStyle)}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden sm:table-cell">{p.age}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden md:table-cell">{p.stats.matches}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.runs}</td>
@@ -150,6 +153,16 @@ const ROLE_COLORS: Record<string, { bg: string; text: string; label: string }> =
   "all-rounder":    { bg: "bg-emerald-500", text: "text-emerald-300", label: "AR" },
   "wicket-keeper":  { bg: "bg-cyan-500",    text: "text-cyan-300",    label: "WK" },
 };
+
+function FormBadge({ form }: { form: number }) {
+  if (form > 65) {
+    return <span className="text-green-400 text-xs" title={`Form: ${Math.round(form)}`}>&#9650;</span>;
+  }
+  if (form < 35) {
+    return <span className="text-red-400 text-xs" title={`Form: ${Math.round(form)}`}>&#9660;</span>;
+  }
+  return null;
+}
 
 function RoleBar({ roster, teamColor }: { roster: Player[]; teamColor: string }) {
   const counts: Record<string, number> = {};

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { type Player, type AuctionState, getBidIncrement, getBasePrice } from "@ipl-sim/engine";
 import { GameState } from "../game-state";
-import { ovrColorClass, roleLabel } from "../ui-utils";
+import { ovrColorClass, roleLabel, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 
 interface Props {
@@ -234,6 +234,16 @@ export function AuctionPage({
                   <div className="flex items-center gap-3 mt-1">
                     <span className={`text-sm font-bold ${ovrColorClass(currentPlayer.overall)}`}>{currentPlayer.overall} OVR</span>
                     <span className="text-xs text-th-muted font-display">{roleLabel(currentPlayer.role)}</span>
+                    {currentPlayer.battingHand && (
+                      <span className="text-[10px] text-th-muted font-display font-semibold bg-th-body px-1.5 py-0.5 rounded border border-th">
+                        {battingHandLabel(currentPlayer.battingHand)}
+                      </span>
+                    )}
+                    {currentPlayer.bowlingStyle && bowlingStyleLabel(currentPlayer.bowlingStyle) && (
+                      <span className="text-[10px] text-purple-400/70 font-display font-semibold bg-purple-500/10 px-1.5 py-0.5 rounded">
+                        {bowlingStyleLabel(currentPlayer.bowlingStyle)}
+                      </span>
+                    )}
                     <span className="text-xs text-th-muted font-display">Age {currentPlayer.age}</span>
                     <span className="text-xs text-th-muted font-display">{currentPlayer.country}</span>
                     {currentPlayer.isInternational && (

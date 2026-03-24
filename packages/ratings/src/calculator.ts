@@ -12,7 +12,12 @@
  * Rating scale: 15-99
  */
 
-import { clamp } from "@ipl-sim/engine";
+import {
+  clamp,
+  calculateBattingOverall,
+  calculateBowlingOverall,
+  calculateOverallRating,
+} from "@ipl-sim/engine";
 
 export interface RawPlayerStats {
   name: string;
@@ -200,12 +205,12 @@ export function calculateRatings(stats: RawPlayerStats, gender: GenderPop = "men
   // ── Batting ratings (spreadsheet formulas) ──
   // IQ = f(EXP*0.2 + AVG*0.25 + BallsPerOut*0.2 + BatPct*0.15 + SR_NoBoundaries*0.2)
   const battingIQ = hasBatting
-    ? clamp(Math.round(zToRating(zExp*0.2 + zAvg*0.25 + zBPO*0.2 + zBatPct*0.15 + zSRnb*0.2)), 15, 99)
+    ? clamp(Math.round(zToRating(zExp*0.05 + zAvg*0.40 + zBPO*0.25 + zBatPct*0.10 + zSRnb*0.20)), 15, 99)
     : 20;
 
   // Technique = f(SR*0.3 + AVG*0.2 + SR_NoBoundaries*0.2 + BdryPerBall*0.2 + BatPct*0.1)
   const timing = hasBatting
-    ? clamp(Math.round(zToRating(zSR*0.3 + zAvg*0.2 + zSRnb*0.2 + zBdryPB*0.2 + zBatPct*0.1)), 15, 99)
+    ? clamp(Math.round(zToRating(zAvg*0.25 + zBPO*0.20 + zSRnb*0.20 + zSR*0.20 + zBdryPB*0.15)), 15, 99)
     : 20;
 
   // Power = f(SR*0.2 + BdryPerBall*0.4 + SixesPerBall*0.4)
@@ -256,7 +261,7 @@ export function calculateRatings(stats: RawPlayerStats, gender: GenderPop = "men
     : 25;
 
   const battingClutch = hasBatting
-    ? clamp(Math.round(zToRating(zExp*0.25 + zAvg*0.25 + zSR*0.2 + zBPO*0.15 + zSRnb*0.15)), 15, 99)
+    ? clamp(Math.round(zToRating(zExp*0.10 + zAvg*0.35 + zSR*0.20 + zBPO*0.20 + zSRnb*0.15)), 15, 99)
     : 30;
   const bowlingClutch = hasBowling
     ? clamp(Math.round(zToRating((zBowlExp*0.3 + zBowlPct*0.3 + zWPB*0.2 + zEcon*0.2) * BOWL_Z_SCALE)), 15, 99)
@@ -270,22 +275,21 @@ export function calculateRatings(stats: RawPlayerStats, gender: GenderPop = "men
 
   // ── Experience penalty (small sample regression) ──
   // Aggressive for very small samples: 10 matches → 0.5, 20 → 0.67, 30 → 0.83, 50 → 1.0
-  const matchPenalty = stats.matches < 50
-    ? 0.33 + 0.67 * (stats.matches / 50)
+  const matchPenalty = stats.matches < 80
+    ? 0.45 + 0.55 * (stats.matches / 80)
     : 1.0;
 
   // ── Age curve adjustment ──
   const age = stats.age;
   let ageFactor: number;
-  if (age <= 20)      ageFactor = 1.08;
-  else if (age <= 22) ageFactor = 1.05;
-  else if (age <= 25) ageFactor = 1.03;
-  else if (age <= 27) ageFactor = 1.01;
-  else if (age <= 32) ageFactor = 1.0;
-  else if (age <= 34) ageFactor = 0.96;
-  else if (age <= 36) ageFactor = 0.92;
-  else if (age <= 38) ageFactor = 0.87;
-  else                ageFactor = 0.80;
+  if (age <= 20)      ageFactor = 1.04;
+  else if (age <= 22) ageFactor = 1.03;
+  else if (age <= 25) ageFactor = 1.01;
+  else if (age <= 29) ageFactor = 1.0;
+  else if (age <= 33) ageFactor = 0.99;
+  else if (age <= 35) ageFactor = 0.96;
+  else if (age <= 37) ageFactor = 0.92;
+  else                ageFactor = 0.87;
 
   // ── Apply experience penalty and age curve to individual attributes ──
   // This is critical: the Player class recomputes overalls from individual attributes,
@@ -302,26 +306,47 @@ export function calculateRatings(stats: RawPlayerStats, gender: GenderPop = "men
   let adjClutch = clutch;
 
   if (combinedFactor !== 1.0) {
-    adjBattingIQ = clamp(Math.round(50 + (battingIQ - 50) * combinedFactor), 15, 99);
-    adjTiming = clamp(Math.round(50 + (timing - 50) * combinedFactor), 15, 99);
-    adjPower = clamp(Math.round(50 + (power - 50) * combinedFactor), 15, 99);
-    adjRunning = clamp(Math.round(50 + (running - 50) * combinedFactor), 15, 99);
-    adjWicketTaking = clamp(Math.round(50 + (wicketTaking - 50) * combinedFactor), 15, 99);
-    adjEconomy = clamp(Math.round(50 + (economy - 50) * combinedFactor), 15, 99);
-    adjAccuracy = clamp(Math.round(50 + (accuracy - 50) * combinedFactor), 15, 99);
-    adjClutch = clamp(Math.round(50 + (clutch - 50) * combinedFactor), 15, 99);
+    if (hasBatting) {
+      adjBattingIQ = clamp(Math.round(50 + (battingIQ - 50) * combinedFactor), 15, 99);
+      adjTiming = clamp(Math.round(50 + (timing - 50) * combinedFactor), 15, 99);
+      adjPower = clamp(Math.round(50 + (power - 50) * combinedFactor), 15, 99);
+      adjRunning = clamp(Math.round(50 + (running - 50) * combinedFactor), 15, 99);
+    }
+
+    if (hasBowling) {
+      adjWicketTaking = clamp(Math.round(50 + (wicketTaking - 50) * combinedFactor), 15, 99);
+      adjEconomy = clamp(Math.round(50 + (economy - 50) * combinedFactor), 15, 99);
+      adjAccuracy = clamp(Math.round(50 + (accuracy - 50) * combinedFactor), 15, 99);
+    }
+
+    if (hasBatting || hasBowling) {
+      adjClutch = clamp(Math.round(50 + (clutch - 50) * combinedFactor), 15, 99);
+    }
   }
 
   // ── Overall composites (from adjusted attributes) ──
   // Batting: IQ 30%, Technique 30%, Power 35%, Running 5% (from spreadsheet)
-  const batOvr = clamp(Math.round(adjBattingIQ * 0.30 + adjTiming * 0.30 + adjPower * 0.35 + adjRunning * 0.05), 15, 99);
-  // Bowling: WT 45%, Economy 30%, Accuracy 10%, Clutch 15%
-  // Wicket-taking is king in T20 — taking wickets wins matches
-  const bowlOvr = clamp(Math.round(adjWicketTaking * 0.45 + adjEconomy * 0.30 + adjAccuracy * 0.10 + adjClutch * 0.15), 15, 99);
-
-  const stronger = Math.max(batOvr, bowlOvr);
-  const weaker = Math.min(batOvr, bowlOvr);
-  const overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
+  const batOvr = clamp(calculateBattingOverall({
+    battingIQ: adjBattingIQ,
+    timing: adjTiming,
+    power: adjPower,
+    running: adjRunning,
+    wicketTaking: adjWicketTaking,
+    economy: adjEconomy,
+    accuracy: adjAccuracy,
+    clutch: adjClutch,
+  }), 15, 99);
+  const bowlOvr = clamp(calculateBowlingOverall({
+    battingIQ: adjBattingIQ,
+    timing: adjTiming,
+    power: adjPower,
+    running: adjRunning,
+    wicketTaking: adjWicketTaking,
+    economy: adjEconomy,
+    accuracy: adjAccuracy,
+    clutch: adjClutch,
+  }), 15, 99);
+  const overall = calculateOverallRating(batOvr, bowlOvr);
 
   return {
     battingIQ: adjBattingIQ, timing: adjTiming, power: adjPower, running: adjRunning,
@@ -337,7 +362,7 @@ export function inferRole(ratings: CalculatedRatings): "batsman" | "bowler" | "a
   const diff = ratings.battingOvr - ratings.bowlingOvr;
   const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
   const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
-  const genuineAllRounder = weaker >= 58 && stronger >= 64 && Math.abs(diff) <= 18;
+  const genuineAllRounder = weaker >= 62 && stronger >= 72 && Math.abs(diff) <= 12;
   if (!genuineAllRounder) return diff >= 0 ? "batsman" : "bowler";
   return "all-rounder";
 }

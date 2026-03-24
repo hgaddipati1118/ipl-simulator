@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getRealPlayers, REAL_PLAYERS } from "../real-players.js";
+import { createPlayerFromData } from "@ipl-sim/engine";
 
 describe("REAL_PLAYERS data", () => {
   it("has at least 40 players", () => {
@@ -85,5 +86,50 @@ describe("getRealPlayers", () => {
     expect(bumrah.accuracy).toBeGreaterThan(85);
     expect(bumrah.role).toBe("bowler");
     expect(bumrah.teamId).toBe("mi");
+  });
+
+  it("preserves bowling style metadata for known bowlers and all-rounders", () => {
+    const players = getRealPlayers();
+    const bumrah = players.find(p => p.name === "Jasprit Bumrah")!;
+    const narine = players.find(p => p.name === "Sunil Narine")!;
+
+    expect(bumrah.bowlingStyle).toBe("right-arm-fast");
+    expect(narine.bowlingStyle).toBe("off-spin");
+  });
+});
+
+describe("runtime realism integration", () => {
+  const runtimePlayers = getRealPlayers().map(createPlayerFromData);
+
+  it("keeps Rohit Sharma as a batting specialist at runtime", () => {
+    const rohit = runtimePlayers.find((p) => p.name === "Rohit Sharma")!;
+    expect(rohit.role).toBe("batsman");
+    expect(rohit.battingOvr).toBeGreaterThan(rohit.bowlingOvr);
+  });
+
+  it("keeps Hardik Pandya as an all-rounder at runtime", () => {
+    const hardik = runtimePlayers.find((p) => p.name === "Hardik Pandya")!;
+    expect(hardik.role).toBe("all-rounder");
+    expect(hardik.battingOvr).toBeGreaterThanOrEqual(80);
+    expect(hardik.bowlingOvr).toBeGreaterThanOrEqual(60);
+  });
+
+  it("does not leave Nicholas Pooran in a manually underrated tier", () => {
+    const pooran = runtimePlayers.find((p) => p.name === "Nicholas Pooran")!;
+    expect(pooran.role).toBe("batsman");
+    expect(pooran.battingOvr).toBeGreaterThanOrEqual(84);
+  });
+
+  it("does not leave obvious low-sample breakouts above established star keepers", () => {
+    const urvil = runtimePlayers.find((p) => p.name === "Urvil Patel")!;
+    const buttler = runtimePlayers.find((p) => p.name === "Jos Buttler")!;
+    expect(urvil.overall).toBeLessThan(buttler.overall);
+  });
+
+  it("keeps high-level batting specialists above the clutch floor", () => {
+    const lowClutchBatters = runtimePlayers.filter(
+      (p) => p.role === "batsman" && p.battingOvr >= 75 && p.ratings.clutch < 55,
+    );
+    expect(lowClutchBatters).toHaveLength(0);
   });
 });

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { GameState } from "../game-state";
-import { ovrBgClass, roleLabel, teamLabelColor } from "../ui-utils";
+import { ovrBgClass, roleLabel, teamLabelColor, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { RadarChart } from "../components/RadarChart";
 
@@ -287,6 +287,22 @@ export function PlayerPage({ state }: Props) {
               )}
               {player.isWicketKeeper && (
                 <span className="text-cyan-400/70 text-[10px] font-display font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">WK</span>
+              )}
+              {player.battingHand && (
+                <>
+                  <span className="text-th-faint">|</span>
+                  <span className="text-th-muted/70 text-[10px] font-display font-semibold bg-th-surface px-1.5 py-0.5 rounded border border-th">
+                    {battingHandLabel(player.battingHand)}
+                  </span>
+                </>
+              )}
+              {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
+                <>
+                  <span className="text-th-faint">|</span>
+                  <span className="text-purple-400/70 text-[10px] font-display font-semibold bg-purple-500/10 px-1.5 py-0.5 rounded">
+                    {bowlingStyleLabel(player.bowlingStyle)}
+                  </span>
+                </>
               )}
             </div>
           </div>

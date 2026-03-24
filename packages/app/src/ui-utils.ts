@@ -66,3 +66,24 @@ export function roleLabel(role: string): string {
     default: return role;
   }
 }
+
+/** Short bowling style abbreviation */
+export function bowlingStyleLabel(style: string): string {
+  const labels: Record<string, string> = {
+    "right-arm-fast": "RAF",
+    "right-arm-medium": "RAM",
+    "left-arm-fast": "LAF",
+    "left-arm-medium": "LAM",
+    "off-spin": "OFS",
+    "left-arm-orthodox": "LAS",
+    "leg-spin": "LEG",
+    "left-arm-wrist-spin": "LWS",
+    "unknown": "",
+  };
+  return labels[style] || "";
+}
+
+/** Short batting hand label */
+export function battingHandLabel(hand: string): string {
+  return hand === "left" ? "LHB" : "RHB";
+}

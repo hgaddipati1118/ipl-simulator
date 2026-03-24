@@ -5,6 +5,12 @@
 
 import { Player } from "./player.js";
 
+export interface BowlingPlan {
+  powerplay: string[]; // player IDs preferred for overs 1-6
+  middle: string[];    // player IDs preferred for overs 7-15
+  death: string[];     // player IDs preferred for overs 16-20
+}
+
 export interface TeamConfig {
   id: string;
   name: string;
@@ -64,6 +70,7 @@ export class Team {
   userPlayingXI?: string[];      // player IDs for playing 11
   userBattingOrder?: string[];   // player IDs in batting order
   userBowlingOrder?: string[];   // player IDs for bowling rotation
+  bowlingPlan?: BowlingPlan;     // phase-specific bowling preferences
 
   constructor(config: TeamConfig, salaryCap = 120) {
     this.config = config;
@@ -242,6 +249,16 @@ export class Team {
     return bowlers;
   }
 
+  /** Set phase-specific bowling plan */
+  setBowlingPlan(plan: BowlingPlan): void {
+    this.bowlingPlan = plan;
+  }
+
+  /** Get bowling plan (returns undefined if not set) */
+  getBowlingPlan(): BowlingPlan | undefined {
+    return this.bowlingPlan;
+  }
+
   /** Update net run rate after a match */
   updateNRR(): void {
     if (this.ballsFacedFor === 0 || this.ballsFacedAgainst === 0) {
@@ -267,6 +284,7 @@ export class Team {
     this.userPlayingXI = undefined;
     this.userBattingOrder = undefined;
     this.userBowlingOrder = undefined;
+    this.bowlingPlan = undefined;
     for (const p of this.roster) {
       p.resetSeasonStats();
       // Clear injuries at season start

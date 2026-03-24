@@ -15,10 +15,18 @@ export {
 export type { PlayerData, PlayerRatings, PlayerRole, PlayerStats, MatchPerformance, InjurySeverity, BowlingStyle, BattingHand } from "./player.js";
 
 export { Team, IPL_TEAMS, WPL_TEAMS } from "./team.js";
-export type { TeamConfig } from "./team.js";
+export type { TeamConfig, BowlingPlan } from "./team.js";
 
 export { getMatchupModifiers, getMatchPhase, isPaceBowler, isSpinBowler } from "./matchups.js";
 export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";
+
+export {
+  determineDismissalType, isCatchDropped, determineWideType, runsOffWide,
+  determineNoBallType, runsOffNoBall, isFreeHitBall, canBeDismissedOnFreeHit,
+  determineLegByes, checkRunOut, checkOverthrow, checkMidMatchInjury,
+  processDRSReview,
+} from "./ball-outcomes.js";
+export type { DismissalType, WideType, NoBallType, MatchInjuryType, DRSResult } from "./ball-outcomes.js";
 
 export { simulateMatch } from "./match.js";
 export type {
@@ -118,3 +126,9 @@ export type {
   PendingDecisionOption,
   FieldSetting,
 } from "./live-match.js";
+
+export { generateBallCommentary } from "./commentary.js";
+export type { BallCommentaryParams } from "./commentary.js";
+
+export { generatePostMatchNarrative } from "./narrative.js";
+export type { NarrativeEvent, PostMatchNarrativeParams } from "./narrative.js";

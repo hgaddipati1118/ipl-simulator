@@ -26,6 +26,7 @@ import {
   type ScheduledMatch, type MatchResult,
   type SerializableMatchResult, type MatchInjuryEvent,
   type AuctionState,
+  type NarrativeEvent,
 } from "@ipl-sim/engine";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
 import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
@@ -81,6 +82,9 @@ export interface GameState {
   // Lineup / injuries
   needsLineup: boolean;
   recentInjuries: MatchInjuryEvent[];
+
+  // Post-match narrative events (news feed)
+  narrativeEvents: NarrativeEvent[];
 
   // Retention state
   retentionState?: RetentionState;
@@ -172,6 +176,7 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     playoffsStarted: false,
     needsLineup: false,
     recentInjuries: [],
+    narrativeEvents: [],
   };
 }
 
@@ -250,6 +255,7 @@ export function initSeason(state: GameState): GameState {
     playoffsStarted: false,
     needsLineup: !!userPlays,
     recentInjuries: [],
+    narrativeEvents: [],
   };
 }
 
@@ -266,12 +272,16 @@ export function setUserLineup(
   xiIds: string[],
   battingOrder: string[],
   bowlingOrder: string[],
+  bowlingPlan?: import("@ipl-sim/engine").BowlingPlan,
 ): GameState {
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
   if (userTeam) {
     userTeam.userPlayingXI = xiIds;
     userTeam.userBattingOrder = battingOrder;
     userTeam.userBowlingOrder = bowlingOrder;
+    if (bowlingPlan) {
+      userTeam.setBowlingPlan(bowlingPlan);
+    }
   }
   return { ...state, needsLineup: false };
 }
