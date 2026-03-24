@@ -704,7 +704,9 @@ export function generateAllRatings(): RatedPlayer[] {
 
       // Recompute overalls from adjusted attributes (must stay consistent with Player class getters)
       ratings.battingOvr = Math.round(ratings.battingIQ * 0.35 + ratings.timing * 0.30 + ratings.power * 0.30 + ratings.running * 0.05);
-      ratings.bowlingOvr = Math.round(ratings.wicketTaking * 0.35 + ratings.economy * 0.25 + ratings.accuracy * 0.15 + ratings.clutch * 0.25);
+      const bowlBase = ratings.wicketTaking * 0.35 + ratings.economy * 0.25 + ratings.accuracy * 0.15 + ratings.clutch * 0.25;
+      const strikeFactor = (ratings.wicketTaking + ratings.clutch) / 2;
+      ratings.bowlingOvr = Math.round(Math.max(bowlBase, strikeFactor * 0.85));
       const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
       const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
       ratings.overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
@@ -1015,7 +1017,9 @@ export function generateWomenRatings(): RatedPlayer[] {
 
       // Recompute overalls
       ratings.battingOvr = Math.round(ratings.battingIQ * 0.35 + ratings.timing * 0.30 + ratings.power * 0.30 + ratings.running * 0.05);
-      ratings.bowlingOvr = Math.round(ratings.wicketTaking * 0.35 + ratings.economy * 0.25 + ratings.accuracy * 0.15 + ratings.clutch * 0.25);
+      const bowlBase = ratings.wicketTaking * 0.35 + ratings.economy * 0.25 + ratings.accuracy * 0.15 + ratings.clutch * 0.25;
+      const strikeFactor = (ratings.wicketTaking + ratings.clutch) / 2;
+      ratings.bowlingOvr = Math.round(Math.max(bowlBase, strikeFactor * 0.85));
       const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
       const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
       ratings.overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));

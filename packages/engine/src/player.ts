@@ -125,7 +125,12 @@ export class Player implements PlayerData {
   /** Bowling overall: weighted composite of bowling attributes */
   get bowlingOvr(): number {
     const { wicketTaking, economy, accuracy, clutch } = this.ratings;
-    return Math.round(wicketTaking * 0.35 + economy * 0.25 + accuracy * 0.15 + clutch * 0.25);
+    const base = wicketTaking * 0.35 + economy * 0.25 + accuracy * 0.15 + clutch * 0.25;
+    // Strike bowler floor: elite wicket-takers + clutch performers get a minimum
+    // This prevents expensive-but-lethal bowlers (Cummins, Starc) from being rated too low
+    const strikeFactor = (wicketTaking + clutch) / 2;
+    const floor = strikeFactor * 0.85; // e.g. WKT 74 + CLT 89 → avg 81.5 → floor 69
+    return Math.round(Math.max(base, floor));
   }
 
   /** Overall rating: stronger discipline as base, weaker adds diminishing bonus */

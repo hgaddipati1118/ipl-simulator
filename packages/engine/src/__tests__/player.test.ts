@@ -58,15 +58,16 @@ describe("Player computed ratings", () => {
 
   it("calculates bowlingOvr correctly", () => {
     const p = new Player(makePlayerData());
-    // wicketTaking*0.35 + economy*0.25 + accuracy*0.15 + clutch*0.25
-    // 30*0.35 + 25*0.25 + 35*0.15 + 65*0.25 = 10.5 + 6.25 + 5.25 + 16.25 = 38
-    expect(p.bowlingOvr).toBe(38);
+    // base: wicketTaking*0.35 + economy*0.25 + accuracy*0.15 + clutch*0.25 = 38.25
+    // strike floor: (wicketTaking + clutch)/2 * 0.85 = (30+65)/2 * 0.85 = 40.375
+    // max(38.25, 40.375) = 40
+    expect(p.bowlingOvr).toBe(40);
   });
 
   it("calculates overall rating using specialist formula", () => {
     const p = new Player(makePlayerData());
     const bat = p.battingOvr; // 75
-    const bowl = p.bowlingOvr; // 38
+    const bowl = p.bowlingOvr; // 40
     const stronger = Math.max(bat, bowl);
     const weaker = Math.min(bat, bowl);
     const expected = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
