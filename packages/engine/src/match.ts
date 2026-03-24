@@ -17,6 +17,14 @@ import { Team } from "./team.js";
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
+import {
+  decideTossChoice,
+  getMatchPhase,
+  getMatchupModifiers,
+  type BoundarySize,
+  type DewFactor,
+  type PitchType,
+} from "./matchups.js";
 
 export type BallOutcome = "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
 
@@ -60,6 +68,13 @@ export interface MatchInjuryEvent {
   playerName: string;
   teamId: string;
   injury: InjuryStatus;
+}
+
+interface VenueContext {
+  stadiumBowlRating: number;
+  pitchType: PitchType;
+  boundarySize: BoundarySize;
+  dewFactor: DewFactor;
 }
 
 /* ───── Detailed scorecard types (from WT2) ───── */
@@ -151,13 +166,6 @@ export interface MatchResult {
   detailed?: DetailedMatchResult; // full scorecard data
 }
 
-/** Phase of the innings based on over number */
-function getPhase(over: number): "powerplay" | "middle" | "death" {
-  if (over < 6) return "powerplay";
-  if (over < 15) return "middle";
-  return "death";
-}
-
 /** Phase multipliers for outcome probabilities
  * Tuned to match IPL 2025 real-world benchmarks:
  *   - Avg innings score ~200-210, RR ~10.0-10.4
@@ -165,7 +173,7 @@ function getPhase(over: number): "powerplay" | "middle" | "death" {
  *   - Middle: more dots, fewer boundaries (spin-dominant)
  *   - Death: big sixes, more wickets, more wides
  */
-const PHASE_MULTIPLIERS: Record<string, Record<string, number>> = {
+const PHASE_MULTIPLIERS: Record<"powerplay" | "middle" | "death", Partial<Record<BallOutcome, number>>> = {
   // Real IPL 2025 phase patterns:
   // PP (1-6): RR ~9.5, more 4s (fielding restrictions), fewer wickets
   // Mid (7-15): RR ~8.5, spin-dominant, fewer boundaries, more dots
@@ -241,20 +249,35 @@ function simulateBall(
   currentScore: number,
   ballsRemaining: number,
   wicketsDown: number,
-  stadiumBowlRating: number,
+  venue: VenueContext,
 ): BallEvent {
   let probs = baseOutcomeProbabilities(batter, bowler);
 
   // Phase adjustment
-  const phase = getPhase(over);
+  const phase = getMatchPhase(over);
   const phaseMult = PHASE_MULTIPLIERS[phase];
   for (const key of Object.keys(probs) as BallOutcome[]) {
     probs[key] *= phaseMult[key] ?? 1;
   }
 
   // Stadium bowling adjustment
-  probs.wicket *= stadiumBowlRating;
-  probs.dot *= stadiumBowlRating;
+  probs.wicket *= venue.stadiumBowlRating;
+  probs.dot *= venue.stadiumBowlRating;
+
+  // Style, handedness, and venue context
+  const matchupMods = getMatchupModifiers({
+    bowlingStyle: bowler.bowlingStyle,
+    battingHand: batter.battingHand,
+    over,
+    pitchType: venue.pitchType,
+    boundarySize: venue.boundarySize,
+    dewFactor: venue.dewFactor,
+    isSecondInnings,
+  });
+  probs.wicket *= matchupMods.wicketMod;
+  probs["4"] *= matchupMods.fourMod;
+  probs["6"] *= matchupMods.sixMod;
+  probs.dot *= matchupMods.dotMod;
 
   // Chase context
   if (isSecondInnings && ballsRemaining > 0) {
@@ -506,7 +529,7 @@ function simulateInnings(
   bowlingXI: Player[],
   isSecondInnings: boolean,
   target: number,
-  stadiumBowlRating: number,
+  venue: VenueContext,
   maxOvers = 20,
   battingSubs: Player[] = [],
   bowlingSubs: Player[] = [],
@@ -619,7 +642,7 @@ function simulateInnings(
         innings.runs,
         ballsRemaining,
         innings.wickets,
-        stadiumBowlRating,
+        venue,
       );
 
       event.ball = legalBalls + 1;
@@ -1121,12 +1144,16 @@ export function simulateMatch(
 
   // Toss
   const tossWinner = Math.random() < 0.5 ? homeTeam : awayTeam;
-  const tossDecision: "bat" | "bowl" = Math.random() < 0.6 ? "bowl" : "bat";
+  const venue: VenueContext = {
+    stadiumBowlRating: (homeTeam.config.stadiumBowlingRating ?? 1.0) * (2 - rules.scoringMultiplier),
+    pitchType: homeTeam.config.pitchType ?? "balanced",
+    boundarySize: homeTeam.config.boundarySize ?? "medium",
+    dewFactor: homeTeam.config.dewFactor ?? "none",
+  };
+  const tossDecision = decideTossChoice(venue);
 
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
   const bowlingFirst = battingFirst === homeTeam ? awayTeam : homeTeam;
-
-  const stadiumRating = homeTeam.config.stadiumBowlingRating ?? 1.0;
 
   // Determine XIs and subs for each side
   const firstXI = battingFirst === homeTeam ? homeXI : awayXI;
@@ -1134,14 +1161,11 @@ export function simulateMatch(
   const firstBatSubs = battingFirst === homeTeam ? homeSubs : awaySubs;
   const firstBowlSubs = battingFirst === homeTeam ? awaySubs : homeSubs;
 
-  // Adjust stadium rating for scoring multiplier (WPL = lower scoring)
-  const adjustedStadiumRating = stadiumRating * (2 - rules.scoringMultiplier);
-
   // First innings
   const innings1 = simulateInnings(
     battingFirst, bowlingFirst,
     firstXI, firstBowlXI,
-    false, 0, adjustedStadiumRating, 20,
+    false, 0, venue, 20,
     firstBatSubs, firstBowlSubs,
   );
 
@@ -1155,7 +1179,7 @@ export function simulateMatch(
   const innings2 = simulateInnings(
     bowlingFirst, battingFirst,
     secondXI, secondBowlXI,
-    true, target, adjustedStadiumRating, 20,
+    true, target, venue, 20,
     secondBatSubs, secondBowlSubs,
   );
 
@@ -1171,8 +1195,8 @@ export function simulateMatch(
     margin = `${innings1.runs - innings2.runs} runs`;
   } else {
     // Tie -> Super Over (no impact subs in super over)
-    let so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, adjustedStadiumRating, 1);
-    let so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, adjustedStadiumRating, 1);
+    let so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1);
+    let so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1);
 
     if (so2.runs > so1.runs) {
       winnerId = bowlingFirst.id;
@@ -1180,8 +1204,8 @@ export function simulateMatch(
       winnerId = battingFirst.id;
     } else if (rules.superOverTieBreaker === "repeated-super-over") {
       while (so2.runs === so1.runs) {
-        so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, adjustedStadiumRating, 1);
-        so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, adjustedStadiumRating, 1);
+        so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1);
+        so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1);
       }
       winnerId = so2.runs > so1.runs ? bowlingFirst.id : battingFirst.id;
     } else {

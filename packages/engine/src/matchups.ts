@@ -38,6 +38,19 @@ export function getMatchPhase(over: number): MatchPhase {
   return "death";
 }
 
+/** Venue-aware toss choice heuristic used by CPU-controlled sims. */
+export function decideTossChoice(params: {
+  pitchType?: PitchType;
+  dewFactor?: DewFactor;
+}): "bat" | "bowl" {
+  const { pitchType = "balanced", dewFactor = "none" } = params;
+
+  if (dewFactor === "heavy") return "bowl";
+  if (dewFactor === "moderate") return Math.random() < 0.65 ? "bowl" : "bat";
+  if (pitchType === "seaming") return "bat";
+  return Math.random() < 0.6 ? "bowl" : "bat";
+}
+
 /**
  * Bowling style vs batting hand matchup modifier.
  * Returns a multiplier for wicket probability (>1 = advantage to bowler, <1 = advantage to batter).

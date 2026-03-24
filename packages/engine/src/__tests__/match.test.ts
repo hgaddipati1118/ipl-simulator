@@ -1,37 +1,53 @@
 import { describe, it, expect } from "vitest";
-import { Team, IPL_TEAMS } from "../team.js";
-import { Player } from "../player.js";
+import { Team, IPL_TEAMS, type TeamConfig } from "../team.js";
+import { Player, type PlayerData } from "../player.js";
 import { simulateMatch } from "../match.js";
 import { RULE_PRESETS } from "../rules.js";
 
-function makePlayer(id: string, role: "batsman" | "bowler" | "all-rounder", isIntl = false, isWicketKeeper = false): Player {
+type TestPlayerOptions = {
+  battingHand?: PlayerData["battingHand"];
+  bowlingStyle?: PlayerData["bowlingStyle"];
+  ratings?: Partial<PlayerData["ratings"]>;
+};
+
+function makePlayer(
+  id: string,
+  role: "batsman" | "bowler" | "all-rounder",
+  isIntl = false,
+  isWicketKeeper = false,
+  options: TestPlayerOptions = {},
+): Player {
   const batHeavy = role === "batsman";
   const bowlHeavy = role === "bowler";
+  const ratings: PlayerData["ratings"] = {
+    battingIQ: batHeavy ? 70 : bowlHeavy ? 25 : 55,
+    timing: batHeavy ? 68 : bowlHeavy ? 25 : 50,
+    power: batHeavy ? 65 : bowlHeavy ? 20 : 50,
+    running: batHeavy ? 60 : 40,
+    wicketTaking: bowlHeavy ? 70 : batHeavy ? 20 : 55,
+    economy: bowlHeavy ? 68 : batHeavy ? 20 : 55,
+    accuracy: bowlHeavy ? 65 : batHeavy ? 20 : 50,
+    clutch: 55,
+    ...options.ratings,
+  };
   return new Player({
     id,
     name: `Player ${id}`,
     age: 25,
     country: isIntl ? "Australia" : "India",
     role,
-    ratings: {
-      battingIQ: batHeavy ? 70 : bowlHeavy ? 25 : 55,
-      timing: batHeavy ? 68 : bowlHeavy ? 25 : 50,
-      power: batHeavy ? 65 : bowlHeavy ? 20 : 50,
-      running: batHeavy ? 60 : 40,
-      wicketTaking: bowlHeavy ? 70 : batHeavy ? 20 : 55,
-      economy: bowlHeavy ? 68 : batHeavy ? 20 : 55,
-      accuracy: bowlHeavy ? 65 : batHeavy ? 20 : 50,
-      clutch: 55,
-    },
+    ratings,
     isInternational: isIntl,
     isWicketKeeper,
+    bowlingStyle: options.bowlingStyle,
+    battingHand: options.battingHand,
     injured: false,
     injuryGamesLeft: 0,
   });
 }
 
-function buildTeam(configIdx: number): Team {
-  const team = new Team(IPL_TEAMS[configIdx]);
+function buildTeam(configIdx: number, configOverride: Partial<TeamConfig> = {}): Team {
+  const team = new Team({ ...IPL_TEAMS[configIdx], ...configOverride });
   // 5 batsmen (1 WK) + 3 all-rounders + 4 bowlers = 12
   let id = configIdx * 100;
   for (let i = 0; i < 4; i++) team.addPlayer(makePlayer(`bat_${++id}`, "batsman"), 5);
@@ -39,6 +55,52 @@ function buildTeam(configIdx: number): Team {
   for (let i = 0; i < 3; i++) team.addPlayer(makePlayer(`ar_${++id}`, "all-rounder"), 5);
   for (let i = 0; i < 4; i++) team.addPlayer(makePlayer(`bow_${++id}`, "bowler"), 5);
   return team;
+}
+
+function buildSpinHeavyTeam(configIdx: number, configOverride: Partial<TeamConfig> = {}): Team {
+  const team = new Team({ ...IPL_TEAMS[configIdx], ...configOverride });
+  let id = configIdx * 1000;
+  const bowlingStyles = ["off-spin", "leg-spin", "left-arm-orthodox", "left-arm-wrist-spin"] as const;
+
+  for (let i = 0; i < 4; i++) {
+    team.addPlayer(makePlayer(`bat_${++id}`, "batsman", false, false, { battingHand: "right" }), 5);
+  }
+
+  team.addPlayer(makePlayer(`wk_${++id}`, "batsman", false, true, { battingHand: "right" }), 5);
+
+  for (let i = 0; i < 3; i++) {
+    team.addPlayer(makePlayer(`ar_${++id}`, "all-rounder", false, false, {
+      battingHand: "right",
+      bowlingStyle: bowlingStyles[i],
+      ratings: { wicketTaking: 62, economy: 61, accuracy: 58 },
+    }), 5);
+  }
+
+  for (let i = 0; i < 4; i++) {
+    team.addPlayer(makePlayer(`bow_${++id}`, "bowler", false, false, {
+      battingHand: "right",
+      bowlingStyle: bowlingStyles[i],
+      ratings: { wicketTaking: 74, economy: 72, accuracy: 69, clutch: 60 },
+    }), 5);
+  }
+
+  return team;
+}
+
+function averageFirstInnings(matches: number, homeFactory: () => Team, awayFactory: () => Team): {
+  runs: number;
+  wickets: number;
+} {
+  let runs = 0;
+  let wickets = 0;
+
+  for (let i = 0; i < matches; i++) {
+    const result = simulateMatch(homeFactory(), awayFactory());
+    runs += result.innings[0].runs;
+    wickets += result.innings[0].wickets;
+  }
+
+  return { runs: runs / matches, wickets: wickets / matches };
 }
 
 describe("simulateMatch", () => {
@@ -210,6 +272,68 @@ describe("simulateMatch", () => {
     for (const inn of result.innings) {
       expect(inn.bowlerStats.size).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it("uses venue-aware toss logic for heavy dew and seaming pitches", () => {
+    for (let i = 0; i < 5; i++) {
+      const dewResult = simulateMatch(
+        buildTeam(0, { dewFactor: "heavy", pitchType: "balanced" }),
+        buildTeam(1),
+      );
+      expect(dewResult.tossDecision).toBe("bowl");
+
+      const seamResult = simulateMatch(
+        buildTeam(2, { dewFactor: "none", pitchType: "seaming" }),
+        buildTeam(3),
+      );
+      expect(seamResult.tossDecision).toBe("bat");
+    }
+  });
+
+  it("preserves innings bookkeeping with venue modifiers enabled", () => {
+    const result = simulateMatch(
+      buildSpinHeavyTeam(0, { pitchType: "turning", boundarySize: "large", dewFactor: "moderate" }),
+      buildSpinHeavyTeam(1),
+    );
+
+    for (const inn of result.innings) {
+      const legalBalls = inn.ballLog.filter(ball => ball.outcome !== "wide" && ball.outcome !== "noball").length;
+      const fours = inn.ballLog.filter(ball => ball.outcome === "4").length;
+      const sixes = inn.ballLog.filter(ball => ball.outcome === "6").length;
+      const extras = inn.ballLog.reduce((sum, ball) => sum + ball.extras, 0);
+
+      expect(legalBalls).toBe(inn.totalBalls);
+      expect(fours).toBe(inn.fours);
+      expect(sixes).toBe(inn.sixes);
+      expect(extras).toBe(inn.extras);
+    }
+  });
+
+  it("falls back cleanly when venue metadata is missing", () => {
+    const home = buildTeam(0, { pitchType: undefined, boundarySize: undefined, dewFactor: undefined });
+    const away = buildTeam(1, { pitchType: undefined, boundarySize: undefined, dewFactor: undefined });
+    const result = simulateMatch(home, away);
+
+    expect(result.winnerId).toBeTruthy();
+    expect(result.innings[0].ballLog.length).toBeGreaterThan(0);
+    expect(result.innings[1].ballLog.length).toBeGreaterThan(0);
+  });
+
+  it("turning pitches reward spin-heavy bowling more than flat pitches in aggregate", () => {
+    const matches = 90;
+    const flat = averageFirstInnings(
+      matches,
+      () => buildSpinHeavyTeam(0, { pitchType: "flat", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
+      () => buildSpinHeavyTeam(1),
+    );
+    const turning = averageFirstInnings(
+      matches,
+      () => buildSpinHeavyTeam(0, { pitchType: "turning", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
+      () => buildSpinHeavyTeam(1),
+    );
+
+    expect(turning.wickets).toBeGreaterThan(flat.wickets);
+    expect(turning.runs).toBeLessThan(flat.runs);
   });
 });
 

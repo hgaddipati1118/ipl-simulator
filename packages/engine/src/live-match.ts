@@ -6,11 +6,23 @@
  */
 
 import { Player } from "./player.js";
-import { Team, type TeamConfig, type BowlingPlan } from "./team.js";
+import { Team, type BowlingPlan } from "./team.js";
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
-import { getMatchPhase, isPaceBowler, isSpinBowler, type MatchPhase } from "./matchups.js";
+import {
+  type BattingHand,
+  type BowlingStyle,
+  decideTossChoice,
+  getMatchPhase,
+  getMatchupModifiers,
+  isPaceBowler,
+  isSpinBowler,
+  type BoundarySize,
+  type DewFactor,
+  type MatchPhase,
+  type PitchType,
+} from "./matchups.js";
 import { generateBallCommentary } from "./commentary.js";
 import type {
   BallOutcome,
@@ -41,26 +53,19 @@ const FIELD_MODIFIERS: Record<FieldSetting, Partial<Record<BallOutcome, number>>
   "boundary-save": { "6": 0.75, "4": 0.80, "1": 1.15, "2": 1.15 },
 };
 
-/* ─────────────────── Pitch Condition Modifiers ─────────────────── */
+/* ─────────────────── Live-only Venue Nuance ─────────────────── */
 
-const PITCH_MODIFIERS: Record<NonNullable<TeamConfig["pitchType"]>, Partial<Record<BallOutcome, number>>> = {
-  flat:     { "4": 1.10, "6": 1.10, dot: 0.90, wicket: 0.90 },
-  seaming:  { wicket: 1.15, dot: 1.10, "4": 0.90, "6": 0.85 },
-  turning:  { wicket: 1.10, dot: 1.05, "6": 0.90 },
-  balanced: {},  // no modifiers
+const BOUNDARY_RUNNING_MODIFIERS: Record<BoundarySize, Partial<Record<BallOutcome, number>>> = {
+  small: {},
+  medium: {},
+  large: { "2": 1.15, "3": 1.20 },
 };
 
-const BOUNDARY_SIZE_MODIFIERS: Record<NonNullable<TeamConfig["boundarySize"]>, Partial<Record<BallOutcome, number>>> = {
-  small:  { "4": 1.15, "6": 1.20 },
-  medium: {},  // no modifiers
-  large:  { "4": 0.90, "6": 0.80, "2": 1.15, "3": 1.20 },
-};
-
-/** Dew makes bowling harder in the 2nd innings: more extras, fewer wickets */
-const DEW_MODIFIERS: Record<NonNullable<TeamConfig["dewFactor"]>, Partial<Record<BallOutcome, number>>> = {
-  none:     {},
-  moderate: { wicket: 0.92, wide: 1.10, "4": 1.05 },
-  heavy:    { wicket: 0.85, wide: 1.20, "4": 1.10, "6": 1.05, dot: 0.90 },
+/** Dew mostly leaks into extras on top of the shared core matchup modifiers. */
+const DEW_EXTRA_MODIFIERS: Record<DewFactor, Partial<Record<BallOutcome, number>>> = {
+  none: {},
+  moderate: { wide: 1.10 },
+  heavy: { wide: 1.20 },
 };
 
 /* ─────────────────── MatchState ─────────────────── */
@@ -281,8 +286,8 @@ interface SerializedPlayer {
   role: string;
   isInternational: boolean;
   isWicketKeeper: boolean;
-  bowlingStyle: string;
-  battingHand: string;
+  bowlingStyle: BowlingStyle;
+  battingHand: BattingHand;
   battingOvr: number;
   bowlingOvr: number;
   overall: number;
@@ -301,13 +306,7 @@ interface SerializedPlayer {
 
 /* ─────────────────── Simulation helpers (extracted from match.ts) ─────────────────── */
 
-function getPhase(over: number): "powerplay" | "middle" | "death" {
-  if (over < 6) return "powerplay";
-  if (over < 15) return "middle";
-  return "death";
-}
-
-const PHASE_MULTIPLIERS: Record<string, Record<string, number>> = {
+const PHASE_MULTIPLIERS: Record<"powerplay" | "middle" | "death", Partial<Record<BallOutcome, number>>> = {
   powerplay: { dot: 0.85, "1": 1.0, "2": 0.9, "3": 1.0, "4": 1.3, "6": 1.1, wicket: 0.9, wide: 1.1, noball: 1.0 },
   middle:    { dot: 1.1,  "1": 1.1, "2": 1.0, "3": 1.0, "4": 0.9, "6": 0.85, wicket: 1.0, wide: 0.9, noball: 1.0 },
   death:     { dot: 0.8,  "1": 0.9, "2": 1.1, "3": 1.1, "4": 1.2, "6": 1.4, wicket: 1.2, wide: 1.2, noball: 1.1 },
@@ -415,9 +414,9 @@ function runOneBall(
   stadiumBowlRating: number,
   aggression: number = 50,
   fieldSetting: FieldSetting = "standard",
-  pitchType: "flat" | "seaming" | "turning" | "balanced" = "balanced",
-  boundarySize: "small" | "medium" | "large" = "medium",
-  dewFactor: "none" | "moderate" | "heavy" = "none",
+  pitchType: PitchType = "balanced",
+  boundarySize: BoundarySize = "medium",
+  dewFactor: DewFactor = "none",
   batterRuns: number = 0,
   batterBalls: number = 0,
   legalBallInOver: number = 0,
@@ -425,7 +424,7 @@ function runOneBall(
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
   // Phase adjustment
-  const phase = getPhase(over);
+  const phase = getMatchPhase(over);
   const phaseMult = PHASE_MULTIPLIERS[phase];
   for (const key of Object.keys(probs) as BallOutcome[]) {
     probs[key] *= phaseMult[key] ?? 1;
@@ -435,23 +434,31 @@ function runOneBall(
   probs.wicket *= stadiumBowlRating;
   probs.dot *= stadiumBowlRating;
 
-  // Pitch condition adjustment
-  const pitchMod = PITCH_MODIFIERS[pitchType];
-  for (const key of Object.keys(pitchMod) as BallOutcome[]) {
-    probs[key] *= pitchMod[key] ?? 1;
+  // Shared core matchup + venue adjustment
+  const matchupMods = getMatchupModifiers({
+    bowlingStyle: bowler.bowlingStyle,
+    battingHand: batter.battingHand,
+    over,
+    pitchType,
+    boundarySize,
+    dewFactor,
+    isSecondInnings,
+  });
+  probs.wicket *= matchupMods.wicketMod;
+  probs["4"] *= matchupMods.fourMod;
+  probs["6"] *= matchupMods.sixMod;
+  probs.dot *= matchupMods.dotMod;
+
+  // Live mode keeps a little extra venue nuance for running and wides.
+  const boundaryRunningMod = BOUNDARY_RUNNING_MODIFIERS[boundarySize];
+  for (const key of Object.keys(boundaryRunningMod) as BallOutcome[]) {
+    probs[key] *= boundaryRunningMod[key] ?? 1;
   }
 
-  // Boundary size adjustment
-  const boundaryMod = BOUNDARY_SIZE_MODIFIERS[boundarySize];
-  for (const key of Object.keys(boundaryMod) as BallOutcome[]) {
-    probs[key] *= boundaryMod[key] ?? 1;
-  }
-
-  // Dew adjustment (only in 2nd innings)
   if (isSecondInnings) {
-    const dewMod = DEW_MODIFIERS[dewFactor];
-    for (const key of Object.keys(dewMod) as BallOutcome[]) {
-      probs[key] *= dewMod[key] ?? 1;
+    const dewExtraMod = DEW_EXTRA_MODIFIERS[dewFactor];
+    for (const key of Object.keys(dewExtraMod) as BallOutcome[]) {
+      probs[key] *= dewExtraMod[key] ?? 1;
     }
   }
 
@@ -593,17 +600,9 @@ export function createMatchState(
   const isUserTossWinner = userTeamId !== null && tossWinner.id === userTeamId;
 
   // CPU toss decision logic: dew → prefer chasing (bowl first), seaming → prefer batting first
-  let tossDecision: "bat" | "bowl";
-  if (isUserTossWinner) {
-    // Placeholder — will be overridden by user decision; default to bowl for initial state setup
-    tossDecision = "bowl";
-  } else {
-    // CPU decides based on conditions
-    if (dewFactor === "heavy") tossDecision = "bowl";
-    else if (dewFactor === "moderate") tossDecision = Math.random() < 0.65 ? "bowl" : "bat";
-    else if (pitchType === "seaming") tossDecision = "bat";
-    else tossDecision = Math.random() < 0.6 ? "bowl" : "bat";
-  }
+  const tossDecision: "bat" | "bowl" = isUserTossWinner
+    ? "bowl"
+    : decideTossChoice({ pitchType, dewFactor });
 
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
   const bowlingFirst = battingFirst === homeTeam ? awayTeam : homeTeam;
@@ -1901,15 +1900,8 @@ export function autoResolveDecision(state: MatchState): MatchState {
 
     case 'toss_decision': {
       // CPU auto-decides: conditions-based (already computed a default toss decision)
-      // Just use the existing tossDecision (which was set during createMatchState for CPU)
       const ni = state._internal;
-      const dewFactor = ni.dewFactor;
-      const pitchType = ni.pitchType;
-      let choice: "bat" | "bowl";
-      if (dewFactor === "heavy") choice = "bowl";
-      else if (dewFactor === "moderate") choice = Math.random() < 0.65 ? "bowl" : "bat";
-      else if (pitchType === "seaming") choice = "bat";
-      else choice = Math.random() < 0.6 ? "bowl" : "bat";
+      const choice = decideTossChoice({ pitchType: ni.pitchType, dewFactor: ni.dewFactor });
       return applyDecision(state, { type: 'toss_decision', selectedPlayerId: choice });
     }
 
