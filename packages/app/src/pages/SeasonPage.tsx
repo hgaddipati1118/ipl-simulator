@@ -188,7 +188,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
                   onClick={onSimToPlayoffs}
                   className="px-4 py-2.5 bg-th-raised hover:bg-th-overlay text-th-primary font-display font-medium rounded-xl transition-colors text-sm w-full sm:w-auto"
                 >
-                  Sim to Playoffs
+                  {state.rules.playoffTeams > 0 ? "Sim to Playoffs" : "Sim All Matches"}
                 </button>
               )}
               {seasonDone && onViewResults && (
