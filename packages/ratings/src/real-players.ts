@@ -41,6 +41,7 @@ export interface RealPlayerData {
   clutch: number;
   teamId: string;
   bid?: number;  // auction/retention price in crores
+  imageUrl?: string; // ESPN player photo path
 }
 
 /**
@@ -68,6 +69,7 @@ export function getRealPlayers(): RealPlayerData[] {
       clutch: p.ratings.clutch,
       teamId: p.teamId,
       bid: p.bid,
+      imageUrl: p.imageUrl,
     }));
 }
 

@@ -87,3 +87,29 @@ export function bowlingStyleLabel(style: string): string {
 export function battingHandLabel(hand: string): string {
   return hand === "left" ? "LHB" : "RHB";
 }
+
+/** Get player photo URL from ESPN CDN. Returns null if no image available. */
+export function getPlayerImageUrl(imageUrl?: string): string | null {
+  if (!imageUrl || imageUrl.length < 5) return null;
+  // ESPN CDN with auto-format and 100px height
+  return `https://img1.hscicdn.com/image/upload/f_auto,t_h_100${imageUrl}`;
+}
+
+/** Generate a deterministic avatar color from player name (fallback when no photo) */
+export function getPlayerAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) - hash) + name.charCodeAt(i);
+    hash |= 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 50%, 40%)`;
+}
+
+/** Get player initials for avatar fallback */
+export function getPlayerInitials(name: string): string {
+  const parts = name.split(" ").filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}

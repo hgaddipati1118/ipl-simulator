@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
   type RuleSet,
   type MatchState,
+  type NarrativeEvent,
   createMatchState,
 } from "@ipl-sim/engine";
 import { SetupPage } from "./pages/SetupPage";
@@ -19,6 +20,7 @@ import { MatchDetailPage } from "./pages/MatchDetailPage";
 import { PlayerPage } from "./pages/PlayerPage";
 import { LineupPage } from "./pages/LineupPage";
 import { LiveMatchPage } from "./pages/LiveMatchPage";
+import { InboxPage } from "./pages/InboxPage";
 import { PowerRankingsPage } from "./pages/PowerRankingsPage";
 import { LobbyPage } from "./pages/LobbyPage";
 import { MultiAuctionPage } from "./pages/MultiAuctionPage";
@@ -141,6 +143,7 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
         {state.userTeamId && (
           <div className="hidden md:flex items-center gap-6">
             {navLink("/season", "Season")}
+            {navLink("/inbox", "Inbox")}
             {navLink("/ratings", "Ratings")}
             {navLink(`/team/${state.userTeamId}`, "My Team")}
             {navLink("/lineup", "Lineup")}
@@ -183,6 +186,7 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
           {state.userTeamId && (
             <>
               {navLink("/season", "Season")}
+              {navLink("/inbox", "Inbox")}
               {navLink("/ratings", "Ratings")}
               {navLink(`/team/${state.userTeamId}`, "My Team")}
             </>
@@ -258,13 +262,13 @@ export default function App() {
   const { resolved: themeResolved, toggle: themeToggle } = useTheme();
 
   /** Called when a live match completes. Uses the actual live match result (no re-simulation). */
-  const handleLiveMatchComplete = useCallback((completedMatchState: MatchState, matchIdx?: number) => {
+  const handleLiveMatchComplete = useCallback((completedMatchState: MatchState, matchIdx?: number, narrativeEvents?: NarrativeEvent[]) => {
     setState(prev => {
       if (!prev) return prev;
       const idx = matchIdx ?? liveMatchIndex.current;
       if (idx < 0) return prev;
       // Apply the live match result directly — no re-simulation
-      const { state: newState } = applyLiveMatchToState(prev, completedMatchState);
+      const { state: newState } = applyLiveMatchToState(prev, completedMatchState, narrativeEvents);
       setLiveMatchState(null);
       liveMatchIndex.current = -1;
       // Fire-and-forget save
@@ -593,6 +597,7 @@ export default function App() {
             onViewResults={handleViewResults}
           />
         } />
+        <Route path="/inbox" element={<InboxPage state={state} />} />
         <Route path="/results" element={
           <ResultsPage state={state} onNextSeason={handleNextSeason} />
         } />
@@ -645,6 +650,7 @@ export default function App() {
             onMatchComplete={handleLiveMatchComplete}
             userTeamId={state.userTeamId}
             teams={state.teams}
+            previousResults={state.matchResults}
           />
         } />
         <Route path="/power-rankings" element={

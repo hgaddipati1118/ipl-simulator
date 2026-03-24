@@ -67,6 +67,7 @@ export interface PlayerData {
   name: string;
   age: number;
   country: string;
+  imageUrl?: string;
   role: PlayerRole;
   ratings: PlayerRatings;
   isInternational: boolean; // non-Indian = international (foreign player slot)
@@ -136,6 +137,7 @@ export class Player implements PlayerData {
   name: string;
   age: number;
   country: string;
+  imageUrl?: string;
   role: PlayerRole;
   ratings: PlayerRatings;
   isInternational: boolean;
@@ -156,6 +158,7 @@ export class Player implements PlayerData {
     this.name = data.name;
     this.age = data.age;
     this.country = data.country;
+    this.imageUrl = data.imageUrl;
     this.role = data.role;
     this.ratings = { ...data.ratings };
     this.isInternational = data.isInternational;
@@ -294,6 +297,7 @@ export class Player implements PlayerData {
       name: this.name,
       age: this.age,
       country: this.country,
+      imageUrl: this.imageUrl,
       role: this.role,
       ratings: { ...this.ratings },
       isInternational: this.isInternational,

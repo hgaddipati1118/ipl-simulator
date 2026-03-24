@@ -110,6 +110,7 @@ interface RatedPlayer {
   fullName: string;
   age: number;
   country: string;
+  imageUrl?: string;
   battingHand: BattingHand;
   bowlingStyle: BowlingStyle;
   role: "batsman" | "bowler" | "all-rounder";
@@ -936,6 +937,7 @@ export function generateAllRatings(): RatedPlayer[] {
         statClass: batResult?.cl ?? bowlResult?.cl ?? 6,
       },
       espnId: player.profile.espnId,
+      imageUrl: player.profile.imageUrl || undefined,
     });
   }
 
@@ -1049,7 +1051,7 @@ function generateTypeScriptModule(players: RatedPlayer[]): void {
     ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
     isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}
     bowlingStyle: ${JSON.stringify(p.bowlingStyle)},
-    battingHand: ${JSON.stringify(p.battingHand)},${teamIdLine}${bidLine}
+    battingHand: ${JSON.stringify(p.battingHand)},${p.imageUrl ? `\n    imageUrl: ${JSON.stringify(p.imageUrl)},` : ""}${teamIdLine}${bidLine}
   }`;
   }).join(",\n");
 
@@ -1336,7 +1338,7 @@ function generateWPLTypeScriptModule(players: RatedPlayer[]): void {
     ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
     isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}
     bowlingStyle: ${JSON.stringify(p.bowlingStyle)},
-    battingHand: ${JSON.stringify(p.battingHand)},${teamIdLine}${bidLine}
+    battingHand: ${JSON.stringify(p.battingHand)},${p.imageUrl ? `\n    imageUrl: ${JSON.stringify(p.imageUrl)},` : ""}${teamIdLine}${bidLine}
   }`;
   }).join(",\n");
 

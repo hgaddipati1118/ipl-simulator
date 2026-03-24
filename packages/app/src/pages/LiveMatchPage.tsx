@@ -17,7 +17,6 @@ import {
   applyImpactSub,
   setAggression,
   setFieldSetting,
-  generatePostMatchNarrative,
   calculateWinProbability,
   type NarrativeEvent,
 } from "@ipl-sim/engine";
@@ -27,6 +26,7 @@ import {
   getInProgressMatch,
   saveMatchDetail,
 } from "../match-db";
+import { buildNarrativeEventsForLiveState, type FeedMatchResult } from "../news-feed";
 
 type Speed = "1x" | "2x" | "5x" | "instant";
 
@@ -43,9 +43,10 @@ interface Props {
   seasonNumber: number;
   matchState: MatchState | null;
   matchIndex: number;
-  onMatchComplete: (matchState: MatchState, matchIndex?: number) => void;
+  onMatchComplete: (matchState: MatchState, matchIndex?: number, narrativeEvents?: NarrativeEvent[]) => void;
   userTeamId: string | null;
   teams?: import("@ipl-sim/engine").Team[];
+  previousResults?: FeedMatchResult[];
 }
 
 function getStadiumLabel(rating: number): string {
@@ -56,7 +57,15 @@ function getStadiumLabel(rating: number): string {
   return "Bowling Paradise";
 }
 
-export function LiveMatchPage({ seasonNumber, matchState: initialState, matchIndex: matchIndexProp, onMatchComplete, userTeamId, teams }: Props) {
+export function LiveMatchPage({
+  seasonNumber,
+  matchState: initialState,
+  matchIndex: matchIndexProp,
+  onMatchComplete,
+  userTeamId,
+  teams,
+  previousResults = [],
+}: Props) {
   const navigate = useNavigate();
   const params = useParams<{ matchIndex: string }>();
   // Use prop if valid, otherwise fall back to URL param (for page refresh)
@@ -388,6 +397,8 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
 
   // Handle match completion
   const handleMatchComplete = async (completedState: MatchState) => {
+    let generatedEvents: NarrativeEvent[] | undefined;
+
     try {
       const detailed = buildDetailedResultFromState(completedState);
       await saveMatchDetail(seasonNumber, matchIndex, detailed);
@@ -397,53 +408,29 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
 
     // Generate post-match narrative events
     try {
-      const winnerId = completedState.winnerId;
-      const winnerTeam = winnerId === completedState.homeTeam.id ? completedState.homeTeam : completedState.awayTeam;
-      const loserTeam = winnerId === completedState.homeTeam.id ? completedState.awayTeam : completedState.homeTeam;
-      const userTeamWon = winnerId === userTeamId;
-
-      // Compute season position from teams prop
-      let seasonPosition = 0;
-      if (teams && userTeamId) {
-        const sorted = [...teams].sort((a, b) => b.points !== a.points ? b.points - a.points : b.nrr - a.nrr);
-        seasonPosition = sorted.findIndex(t => t.id === userTeamId) + 1;
-      }
-
-      const userTeamData = teams?.find(t => t.id === userTeamId);
-      const matchesPlayed = userTeamData?.matchesPlayed ?? 0;
-
-      // Parse MoM info
-      let momInfo: { name: string; runs?: number; wickets?: number } | undefined;
-      if (completedState.manOfTheMatch) {
-        const momReason = completedState.manOfTheMatch.reason;
-        const runsMatch = momReason.match(/(\d+)\s*(?:runs|\()/);
-        const wicketsMatch = momReason.match(/(\d+)\s*\/|(\d+)\s*wickets/);
-        momInfo = {
-          name: completedState.manOfTheMatch.playerName,
-          runs: runsMatch ? parseInt(runsMatch[1]) : undefined,
-          wickets: wicketsMatch ? parseInt(wicketsMatch[1] || wicketsMatch[2]) : undefined,
-        };
-      }
-
-      const events = generatePostMatchNarrative({
-        winnerName: winnerTeam.name,
-        loserName: loserTeam.name,
-        margin: completedState.result?.replace(/^.*by /, "") ?? "",
-        manOfMatch: momInfo,
+      const events = teams ? buildNarrativeEventsForLiveState({
+        state: completedState,
+        teams,
         userTeamId,
-        userTeamWon,
-        seasonPosition,
-        matchesPlayed,
-        consecutiveLosses: 0,
-        consecutiveWins: 0,
-      });
+        recentResults: [
+          ...previousResults,
+          {
+            winnerId: completedState.winnerId ?? null,
+            innings: [
+              { teamId: completedState.homeTeam.id },
+              { teamId: completedState.awayTeam.id },
+            ],
+          },
+        ],
+      }) : [];
       setNarrativeEvents(events);
+      generatedEvents = events;
     } catch (err) {
       console.warn("[LiveMatch] Failed to generate narrative:", err);
     }
 
     await clearInProgressMatch(seasonNumber, matchIndex);
-    onMatchComplete(completedState, matchIndex);
+    onMatchComplete(completedState, matchIndex, generatedEvents);
   };
 
   if (loading) {

@@ -31,6 +31,7 @@ import {
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
 import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
+import { buildNarrativeEventsForEngineResult, prependNarrativeEvents, type FeedMatchResult } from "./news-feed";
 
 /** Aggregated player season stats for leaderboards */
 export interface PlayerSeasonStat {
@@ -315,6 +316,15 @@ export function playNextMatch(state: GameState): {
 
   const newMatchResults = [...matchResults, serialized];
   const newIndex = currentMatchIndex + 1;
+  const newNarrativeEvents = prependNarrativeEvents(
+    state.narrativeEvents,
+    buildNarrativeEventsForEngineResult({
+      result: rawResult,
+      teams,
+      userTeamId: state.userTeamId,
+      recentResults: newMatchResults as FeedMatchResult[],
+    }),
+  );
 
   let newSchedule = [...schedule];
   let newPlayoffsStarted = state.playoffsStarted;
@@ -355,6 +365,7 @@ export function playNextMatch(state: GameState): {
       playoffsStarted: newPlayoffsStarted,
       needsLineup,
       recentInjuries: newInjuries,
+      narrativeEvents: newNarrativeEvents,
     },
     result: serialized,
     detailed,
@@ -368,6 +379,7 @@ export function playNextMatch(state: GameState): {
 export function applyLiveMatchToState(
   state: GameState,
   completedMatchState: import("@ipl-sim/engine").MatchState,
+  narrativeEvents?: NarrativeEvent[],
 ): {
   state: GameState;
   result: SerializableMatchResult;
@@ -386,6 +398,15 @@ export function applyLiveMatchToState(
 
   const newMatchResults = [...matchResults, serialized];
   const newIndex = currentMatchIndex + 1;
+  const persistedNarratives = prependNarrativeEvents(
+    state.narrativeEvents,
+    narrativeEvents ?? buildNarrativeEventsForEngineResult({
+      result: rawResult,
+      teams,
+      userTeamId: state.userTeamId,
+      recentResults: newMatchResults as FeedMatchResult[],
+    }),
+  );
 
   let newSchedule = [...schedule];
   let newPlayoffsStarted = state.playoffsStarted;
@@ -426,6 +447,7 @@ export function applyLiveMatchToState(
       playoffsStarted: newPlayoffsStarted,
       needsLineup,
       recentInjuries: newInjuries,
+      narrativeEvents: persistedNarratives,
     },
     result: serialized,
     matchIndex: currentMatchIndex,
@@ -583,6 +605,7 @@ export function nextSeason(state: GameState): GameState {
     playoffsStarted: false,
     needsLineup: false,
     recentInjuries: [],
+    narrativeEvents: [],
   };
 }
 

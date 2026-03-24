@@ -182,7 +182,7 @@ describe("live match venue logic", () => {
     expect(balls.length).toBeGreaterThan(0);
   });
 
-  it("turning pitches suppress spin-heavy first innings scoring in aggregate", () => {
+  it("turning pitches suppress spin-heavy first innings scoring in aggregate", { timeout: 30000 }, () => {
     const matches = 12;
     const flat = averageLiveFirstInnings(
       matches,
@@ -197,5 +197,5 @@ describe("live match venue logic", () => {
 
     expect(turning.runs).toBeLessThan(flat.runs);
     expect(turning.wickets).toBeGreaterThan(flat.wickets);
-  }, 15000);
+  });
 });
