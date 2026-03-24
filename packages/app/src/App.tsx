@@ -20,6 +20,8 @@ import { PlayerPage } from "./pages/PlayerPage";
 import { LineupPage } from "./pages/LineupPage";
 import { LiveMatchPage } from "./pages/LiveMatchPage";
 import { PowerRankingsPage } from "./pages/PowerRankingsPage";
+import { LobbyPage } from "./pages/LobbyPage";
+import { MultiAuctionPage } from "./pages/MultiAuctionPage";
 import { getTeamLogo } from "./team-logos";
 import { useTheme } from "./hooks/useTheme";
 import {
@@ -673,6 +675,8 @@ export default function App() {
             onNewGame={handleNewGame}
           />
         } />
+        <Route path="/multiplayer" element={<LobbyPage />} />
+        <Route path="/multiplayer/auction" element={<MultiAuctionPage />} />
       </Routes>
     </div>
   );

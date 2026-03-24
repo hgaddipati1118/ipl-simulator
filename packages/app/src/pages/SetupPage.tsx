@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Team, RULE_PRESETS, IPL_TEAMS, WPL_TEAMS, ALL_TEAM_IDS,
   type RuleSet, type PlayoffFormat, type GenderOption, type PlayerSource,
@@ -253,6 +254,7 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
 }
 
 export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, onLoadSlot }: Props) {
+  const navigate = useNavigate();
   const isWPL = rules.league === "wpl";
   const isCustom = rules.league === "custom";
   const isModern = rules.impactPlayer;
@@ -313,6 +315,12 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
           }`}
         >
           Custom
+        </button>
+        <button
+          onClick={() => navigate("/multiplayer")}
+          className="px-5 py-2.5 rounded-lg text-sm font-display font-semibold transition-all duration-200 border bg-th-surface border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
+        >
+          Multiplayer
         </button>
       </fieldset>
 

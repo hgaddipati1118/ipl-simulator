@@ -2,6 +2,14 @@ import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Team, Player, type BowlingPlan } from "@ipl-sim/engine";
 import { bowlingStyleLabel } from "../ui-utils";
+import {
+  buildLineupReport,
+  getBattingSlotFit,
+  getBestBowlingPhaseFit,
+  getBowlingPhaseFit,
+  type FitAssessment,
+  type LineupReport,
+} from "../lineup-advisor";
 
 interface Props {
   team: Team;
@@ -54,6 +62,14 @@ export function LineupPage({ team, onConfirm }: Props) {
     () => Array.from(selectedIds).map(id => team.roster.find(p => p.id === id)!).filter(Boolean),
     [selectedIds, team]
   );
+  const battingOrderPlayers = useMemo(
+    () => battingOrder.filter(id => selectedIds.has(id)).map(id => team.roster.find(p => p.id === id)!).filter(Boolean),
+    [battingOrder, selectedIds, team]
+  );
+  const bowlingOrderPlayers = useMemo(
+    () => bowlingOrder.filter(id => selectedIds.has(id)).map(id => team.roster.find(p => p.id === id)!).filter(Boolean),
+    [bowlingOrder, selectedIds, team]
+  );
 
   const overseasCount = selectedPlayers.filter(p => p.isInternational).length;
   const wkCount = selectedPlayers.filter(p => p.isWicketKeeper).length;
@@ -69,6 +85,15 @@ export function LineupPage({ team, onConfirm }: Props) {
   }, [selectedIds.size, overseasCount, wkCount]);
 
   const isValid = validationErrors.length === 0;
+
+  const lineupReport = useMemo(() => buildLineupReport({
+    team,
+    availablePlayers: available,
+    selectedPlayers,
+    battingOrder: battingOrderPlayers,
+    bowlingOrder: bowlingOrderPlayers,
+    bowlingPlan: bowlingPlanState,
+  }), [team, available, selectedPlayers, battingOrderPlayers, bowlingOrderPlayers, bowlingPlanState]);
 
   // Toggle player in XI
   const togglePlayer = useCallback((playerId: string) => {
@@ -161,8 +186,6 @@ export function LineupPage({ team, onConfirm }: Props) {
     const hasPlan = bowlingPlanState.powerplay.length > 0 || bowlingPlanState.middle.length > 0 || bowlingPlanState.death.length > 0;
     onConfirm(xiIds, fullBatting, finalBowling, hasPlan ? bowlingPlanState : undefined);
   }, [selectedIds, battingOrder, bowlingOrder, bowlingPlanState, onConfirm]);
-
-  const findPlayer = (id: string) => team.roster.find(p => p.id === id);
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
@@ -258,6 +281,8 @@ export function LineupPage({ team, onConfirm }: Props) {
         </span>
       </div>
 
+      <SelectionReport report={lineupReport} />
+
       {/* Content based on active tab */}
       {activeTab === "xi" && (
         <PlayingXITab
@@ -271,8 +296,7 @@ export function LineupPage({ team, onConfirm }: Props) {
 
       {activeTab === "batting" && (
         <BattingOrderTab
-          battingOrder={battingOrder.filter(id => selectedIds.has(id))}
-          findPlayer={findPlayer}
+          battingOrder={battingOrderPlayers}
           onMove={(idx, dir) => moveInOrder(
             battingOrder.filter(id => selectedIds.has(id)),
             (newOrder) => setBattingOrder(newOrder),
@@ -285,10 +309,7 @@ export function LineupPage({ team, onConfirm }: Props) {
 
       {activeTab === "bowling" && (
         <BowlingOrderTab
-          bowlingOrder={bowlingOrder.filter(id => selectedIds.has(id))}
-          findPlayer={findPlayer}
-          selectedIds={selectedIds}
-          team={team}
+          bowlingOrder={bowlingOrderPlayers}
           onMove={(idx, dir) => moveInOrder(
             bowlingOrder.filter(id => selectedIds.has(id)),
             (newOrder) => setBowlingOrder(newOrder),
@@ -301,8 +322,7 @@ export function LineupPage({ team, onConfirm }: Props) {
 
       {activeTab === "bowlingPlan" && (
         <BowlingPlanTab
-          bowlingOrder={bowlingOrder.filter(id => selectedIds.has(id))}
-          findPlayer={findPlayer}
+          bowlingOrder={bowlingOrderPlayers}
           bowlingPlan={bowlingPlanState}
           onUpdatePlan={setBowlingPlanState}
         />
@@ -470,12 +490,10 @@ function PlayingXITab({
 
 function BattingOrderTab({
   battingOrder,
-  findPlayer,
   onMove,
   onAutoSort,
 }: {
-  battingOrder: string[];
-  findPlayer: (id: string) => Player | undefined;
+  battingOrder: Player[];
   onMove: (idx: number, dir: -1 | 1) => void;
   onAutoSort: () => void;
 }) {
@@ -502,9 +520,9 @@ function BattingOrderTab({
       </div>
 
       <div className="bg-th-surface rounded-xl border border-th overflow-hidden">
-        {battingOrder.map((id, idx) => {
-          const player = findPlayer(id);
-          if (!player) return null;
+        {battingOrder.map((player, idx) => {
+          const slotFit = getBattingSlotFit(player, idx);
+          const fitTone = fitBadgeTone(slotFit);
 
           let posLabel = "";
           if (idx < 2) posLabel = "Opener";
@@ -514,7 +532,7 @@ function BattingOrderTab({
 
           return (
             <div
-              key={id}
+              key={player.id}
               className="flex items-center gap-3 px-4 py-3 border-t border-th first:border-t-0"
             >
               <span className="text-th-muted font-mono text-sm w-6 text-right">{idx + 1}</span>
@@ -532,7 +550,10 @@ function BattingOrderTab({
                   <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
                 )}
               </div>
-              <span className="text-th-faint text-xs w-24 text-right">{posLabel}</span>
+              <div className="w-28 text-right">
+                <div className="text-th-faint text-xs">{posLabel}</div>
+                <div className={`text-[10px] inline-flex mt-1 px-1.5 py-0.5 rounded ${fitTone}`}>{slotFit.label}</div>
+              </div>
               <span className={`${ovrColor(player.battingOvr)} font-bold text-sm w-8 text-right`}>
                 {player.battingOvr}
               </span>
@@ -568,16 +589,10 @@ function BattingOrderTab({
 
 function BowlingOrderTab({
   bowlingOrder,
-  findPlayer,
-  selectedIds,
-  team,
   onMove,
   onAutoGenerate,
 }: {
-  bowlingOrder: string[];
-  findPlayer: (id: string) => Player | undefined;
-  selectedIds: Set<string>;
-  team: Team;
+  bowlingOrder: Player[];
   onMove: (idx: number, dir: -1 | 1) => void;
   onAutoGenerate: () => void;
 }) {
@@ -589,30 +604,35 @@ function BowlingOrderTab({
     );
   }
 
+  const bowlingById = useMemo(
+    () => new Map(bowlingOrder.map(player => [player.id, player])),
+    [bowlingOrder],
+  );
+
   // Generate a simple 20-over plan
   const overPlan = useMemo(() => {
     if (bowlingOrder.length === 0) return [];
     const plan: string[] = [];
     const bowlerOversUsed = new Map<string, number>();
-    for (const id of bowlingOrder) bowlerOversUsed.set(id, 0);
+    for (const player of bowlingOrder) bowlerOversUsed.set(player.id, 0);
 
     for (let over = 0; over < 20; over++) {
       const lastBowler = plan.length > 0 ? plan[plan.length - 1] : null;
-      const eligible = bowlingOrder.filter(id =>
-        (bowlerOversUsed.get(id) ?? 0) < 4 && id !== lastBowler
+      const eligible = bowlingOrder.filter(player =>
+        (bowlerOversUsed.get(player.id) ?? 0) < 4 && player.id !== lastBowler
       );
       if (eligible.length === 0) {
         // Fallback: allow consecutive
-        const anyEligible = bowlingOrder.filter(id => (bowlerOversUsed.get(id) ?? 0) < 4);
+        const anyEligible = bowlingOrder.filter(player => (bowlerOversUsed.get(player.id) ?? 0) < 4);
         if (anyEligible.length > 0) {
-          plan.push(anyEligible[0]);
-          bowlerOversUsed.set(anyEligible[0], (bowlerOversUsed.get(anyEligible[0]) ?? 0) + 1);
+          plan.push(anyEligible[0].id);
+          bowlerOversUsed.set(anyEligible[0].id, (bowlerOversUsed.get(anyEligible[0].id) ?? 0) + 1);
         }
       } else {
         // Distribute: pick the bowler with fewest overs used so far
-        eligible.sort((a, b) => (bowlerOversUsed.get(a) ?? 0) - (bowlerOversUsed.get(b) ?? 0));
-        plan.push(eligible[0]);
-        bowlerOversUsed.set(eligible[0], (bowlerOversUsed.get(eligible[0]) ?? 0) + 1);
+        eligible.sort((a, b) => (bowlerOversUsed.get(a.id) ?? 0) - (bowlerOversUsed.get(b.id) ?? 0));
+        plan.push(eligible[0].id);
+        bowlerOversUsed.set(eligible[0].id, (bowlerOversUsed.get(eligible[0].id) ?? 0) + 1);
       }
     }
     return plan;
@@ -646,13 +666,13 @@ function BowlingOrderTab({
         <div className="px-4 py-2 bg-th-raised border-b border-th">
           <span className="text-th-muted text-xs uppercase">Bowling Priority (higher = bowls earlier)</span>
         </div>
-        {bowlingOrder.map((id, idx) => {
-          const player = findPlayer(id);
-          if (!player) return null;
-          const overs = oversPerBowler.get(id) ?? 0;
+        {bowlingOrder.map((player, idx) => {
+          const overs = oversPerBowler.get(player.id) ?? 0;
+          const bestPhase = getBestBowlingPhaseFit(player);
+          const bestPhaseLabel = bestPhase.phase === "powerplay" ? "PP" : bestPhase.phase === "middle" ? "MID" : "DTH";
           return (
             <div
-              key={id}
+              key={player.id}
               className="flex items-center gap-3 px-4 py-3 border-t border-th first:border-t-0"
             >
               <span className="text-th-muted font-mono text-sm w-6 text-right">{idx + 1}</span>
@@ -663,6 +683,9 @@ function BowlingOrderTab({
                 {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
                   <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
                 )}
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${fitBadgeTone(bestPhase)}`}>
+                  Best {bestPhaseLabel}
+                </span>
               </div>
               <span className={`${ovrColor(player.bowlingOvr)} font-bold text-sm w-8 text-right`}>
                 {player.bowlingOvr}
@@ -700,7 +723,7 @@ function BowlingOrderTab({
         <h4 className="text-th-secondary text-xs uppercase tracking-wider mb-2">Over-by-Over Plan</h4>
         <div className="grid grid-cols-10 gap-1.5">
           {overPlan.map((bowlerId, overIdx) => {
-            const player = findPlayer(bowlerId);
+            const player = bowlingById.get(bowlerId);
             const phase = overIdx < 6 ? "PP" : overIdx < 15 ? "MID" : "DTH";
             const phaseColor = overIdx < 6 ? "border-blue-600/40" : overIdx < 15 ? "border-th" : "border-orange-600/40";
             return (
@@ -715,6 +738,80 @@ function BowlingOrderTab({
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SelectionReport({ report }: { report: LineupReport }) {
+  return (
+    <div className="rounded-2xl border border-th bg-th-surface p-4 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+        <div>
+          <h3 className="text-th-primary font-semibold text-sm uppercase tracking-wider">Assistant Report</h3>
+          <p className="text-th-muted text-xs mt-1">
+            Coach-style feedback from current form, batting slots, bowling phases, and the home venue.
+          </p>
+        </div>
+        <div className="text-th-faint text-xs">{report.venueLabel}</div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <MetricCard label="Lineup Score" value={String(report.lineupScore)} accent="text-blue-400" />
+        <MetricCard label="Hot Starters" value={String(report.hotStarters)} accent="text-green-400" />
+        <MetricCard label="Bowling Options" value={String(report.bowlingOptions)} accent="text-purple-400" />
+        <MetricCard label="Venue" value={report.venueLabel.split(" • ")[0] ?? report.venueLabel} accent="text-th-secondary" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <InsightList title="Strengths" tone="good" insights={report.strengths} empty="No major strengths stand out yet." />
+        <InsightList title="Concerns" tone="warn" insights={report.concerns} empty="No major concerns flagged." />
+        <InsightList title="Next Calls" tone="info" insights={report.recommendations} empty="The current setup does not have an obvious forced move." />
+      </div>
+    </div>
+  );
+}
+
+function InsightList({
+  title,
+  tone,
+  insights,
+  empty,
+}: {
+  title: string;
+  tone: "good" | "info" | "warn";
+  insights: { title: string; detail: string }[];
+  empty: string;
+}) {
+  const toneClasses = tone === "good"
+    ? "border-green-900/40 bg-green-950/10"
+    : tone === "warn"
+      ? "border-red-900/40 bg-red-950/10"
+      : "border-blue-900/40 bg-blue-950/10";
+
+  return (
+    <div className={`rounded-xl border ${toneClasses} p-3`}>
+      <h4 className="text-th-primary text-xs font-semibold uppercase tracking-wider mb-2">{title}</h4>
+      {insights.length === 0 ? (
+        <p className="text-th-faint text-xs">{empty}</p>
+      ) : (
+        <div className="space-y-2">
+          {insights.map((insight, index) => (
+            <div key={`${title}-${index}`}>
+              <div className="text-th-primary text-sm font-medium">{insight.title}</div>
+              <div className="text-th-muted text-xs mt-0.5">{insight.detail}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, accent }: { label: string; value: string; accent: string }) {
+  return (
+    <div className="rounded-xl border border-th bg-th-raised px-3 py-2.5">
+      <div className="text-th-faint text-[10px] uppercase tracking-wider">{label}</div>
+      <div className={`text-sm font-semibold mt-1 ${accent}`}>{value}</div>
     </div>
   );
 }
@@ -769,6 +866,12 @@ function roleColor(role: string): string {
   }
 }
 
+function fitBadgeTone(fit: FitAssessment): string {
+  if (fit.tone === "good") return "bg-green-900/30 text-green-300";
+  if (fit.tone === "warn") return "bg-red-900/30 text-red-300";
+  return "bg-blue-900/30 text-blue-300";
+}
+
 /** Form indicator: shows hot/cold form based on rolling average */
 export function FormIndicator({ player }: { player: Player }) {
   const form = player.form;
@@ -783,12 +886,10 @@ export function FormIndicator({ player }: { player: Player }) {
 
 function BowlingPlanTab({
   bowlingOrder,
-  findPlayer,
   bowlingPlan,
   onUpdatePlan,
 }: {
-  bowlingOrder: string[];
-  findPlayer: (id: string) => Player | undefined;
+  bowlingOrder: Player[];
   bowlingPlan: BowlingPlan;
   onUpdatePlan: (plan: BowlingPlan) => void;
 }) {
@@ -809,16 +910,14 @@ function BowlingPlanTab({
   const autoAssign = () => {
     const paceIds: string[] = [];
     const spinIds: string[] = [];
-    for (const id of bowlingOrder) {
-      const p = findPlayer(id);
-      if (!p) continue;
-      const style = p.bowlingStyle;
+    for (const player of bowlingOrder) {
+      const style = player.bowlingStyle;
       if (["right-arm-fast", "right-arm-medium", "left-arm-fast", "left-arm-medium"].includes(style)) {
-        paceIds.push(id);
+        paceIds.push(player.id);
       } else if (["off-spin", "left-arm-orthodox", "leg-spin", "left-arm-wrist-spin"].includes(style)) {
-        spinIds.push(id);
+        spinIds.push(player.id);
       } else {
-        paceIds.push(id);
+        paceIds.push(player.id);
       }
     }
     onUpdatePlan({
@@ -858,14 +957,14 @@ function BowlingPlanTab({
           <div key={key} className={`rounded-xl border ${color} ${bgColor} p-4`}>
             <h4 className="text-th-primary font-semibold text-sm mb-3">{label}</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {bowlingOrder.map(id => {
-                const player = findPlayer(id);
-                if (!player) return null;
-                const isSelected = bowlingPlan[key].includes(id);
+              {bowlingOrder.map(player => {
+                const phaseFit = getBowlingPhaseFit(player, key);
+                const fitTone = fitBadgeTone(phaseFit);
+                const isSelected = bowlingPlan[key].includes(player.id);
                 return (
                   <button
-                    key={id}
-                    onClick={() => toggleBowlerInPhase(key, id)}
+                    key={player.id}
+                    onClick={() => toggleBowlerInPhase(key, player.id)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors border ${
                       isSelected
                         ? "bg-blue-600/20 border-blue-500 text-white"
@@ -879,8 +978,9 @@ function BowlingPlanTab({
                     </div>
                     <div className="flex-1 text-left">
                       <div className="font-medium text-xs">{player.name}</div>
-                      <div className="text-[10px] text-th-muted">
-                        {bowlingStyleLabel(player.bowlingStyle)} | BWL {player.bowlingOvr}
+                      <div className="text-[10px] text-th-muted flex flex-wrap items-center gap-1">
+                        <span>{bowlingStyleLabel(player.bowlingStyle)} | BWL {player.bowlingOvr}</span>
+                        <span className={`px-1.5 py-0.5 rounded ${fitTone}`}>{phaseFit.label}</span>
                       </div>
                     </div>
                     <FormIndicator player={player} />

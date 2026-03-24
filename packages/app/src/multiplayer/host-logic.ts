@@ -10,7 +10,8 @@ import {
   IPL_TEAMS, WPL_TEAMS,
   runSeason,
 } from "@ipl-sim/engine";
-import { getRealPlayers, getWPLPlayers } from "@ipl-sim/ratings";
+import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
+import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
 import type {
   LobbyPlayer, TeamBudgetInfo, AuctionPlayerInfo,
   MultiAuctionState, GuestMessage, HostMessage, RoomPhase,
