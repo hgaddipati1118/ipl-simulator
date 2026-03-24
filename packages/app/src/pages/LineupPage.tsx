@@ -725,7 +725,6 @@ function roleLabel(role: string): string {
     case "batsman": return "BAT";
     case "bowler": return "BWL";
     case "all-rounder": return "AR";
-    case "wicket-keeper": return "WK";
     default: return role;
   }
 }
@@ -735,7 +734,6 @@ function roleColor(role: string): string {
     case "batsman": return "bg-orange-900/30 text-orange-400";
     case "bowler": return "bg-purple-900/30 text-purple-400";
     case "all-rounder": return "bg-green-900/30 text-green-400";
-    case "wicket-keeper": return "bg-cyan-900/30 text-cyan-400";
     default: return "bg-th-raised text-th-secondary";
   }
 }
