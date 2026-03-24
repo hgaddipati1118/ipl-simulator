@@ -19,6 +19,9 @@ import {
   nextPlayer as engineNextPlayer,
   simCurrentPlayer as engineSimCurrentPlayer,
   simRemainingAuction as engineSimRemainingAuction,
+  evaluateRetentionSelection,
+  RETENTION_BUDGET,
+  MAX_RETENTIONS,
   type RuleSet, type SeasonResult, type AuctionResult, type TradeOffer,
   type ScheduledMatch, type MatchResult,
   type SerializableMatchResult, type MatchInjuryEvent,
@@ -51,6 +54,8 @@ export interface RetentionState {
   retained: string[];    // player IDs the user chose to keep
   released: string[];    // player IDs the user chose to release
   budget: number;        // remaining retention budget
+  totalCost: number;     // total cost of retained players
+  costs: Record<string, number>; // retention cost by player ID
   cpuDone: boolean;      // whether CPU teams have done retention
 }
 
@@ -664,13 +669,16 @@ export function finishTrades(state: GameState): GameState {
 
 /** Start the retention phase after trade window */
 export function startRetention(state: GameState): GameState {
+  const userTeam = state.teams.find(t => t.id === state.userTeamId);
   return {
     ...state,
     phase: "retention",
     retentionState: {
       retained: [],
-      released: [],
-      budget: 42,
+      released: userTeam?.roster.map(player => player.id) ?? [],
+      budget: RETENTION_BUDGET,
+      totalCost: 0,
+      costs: {},
       cpuDone: false,
     },
   };
@@ -686,53 +694,51 @@ export function togglePlayerRetention(state: GameState, playerId: string): GameS
   const player = userTeam.roster.find(p => p.id === playerId);
   if (!player) return state;
 
-  const cost = player.marketValue * 2;
-  const { retained, released, budget } = state.retentionState;
+  const nextRetained = state.retentionState.retained.includes(playerId)
+    ? state.retentionState.retained.filter(id => id !== playerId)
+    : [...state.retentionState.retained, playerId];
 
-  if (retained.includes(playerId)) {
-    // Un-retain: move back to released
-    return {
-      ...state,
-      retentionState: {
-        ...state.retentionState,
-        retained: retained.filter(id => id !== playerId),
-        released: [...released, playerId],
-        budget: Math.round((budget + cost) * 100) / 100,
-      },
-    };
-  } else {
-    // Retain: check budget
-    if (budget < cost) return state;
-    return {
-      ...state,
-      retentionState: {
-        ...state.retentionState,
-        retained: [...retained, playerId],
-        released: released.filter(id => id !== playerId),
-        budget: Math.round((budget - cost) * 100) / 100,
-      },
-    };
-  }
+  const retainedPlayers = nextRetained
+    .map(id => userTeam.roster.find(p => p.id === id))
+    .filter((p): p is Player => p !== undefined);
+  const evaluation = evaluateRetentionSelection(retainedPlayers, RETENTION_BUDGET, MAX_RETENTIONS);
+  if (!evaluation.valid) return state;
+
+  const costs = Object.fromEntries(
+    evaluation.retentionCosts.map(entry => [entry.player.id, entry.cost]),
+  );
+  const released = userTeam.roster
+    .filter(teamPlayer => !nextRetained.includes(teamPlayer.id))
+    .map(teamPlayer => teamPlayer.id);
+
+  return {
+    ...state,
+    retentionState: {
+      ...state.retentionState,
+      retained: nextRetained,
+      released,
+      budget: evaluation.remainingBudget,
+      totalCost: evaluation.totalCost,
+      costs,
+    },
+  };
 }
 
 /** Run CPU team retentions */
 export function runCPURetentions(state: GameState): GameState {
-  if (!state.retentionState) return state;
+  if (!state.retentionState || state.retentionState.cpuDone) return state;
 
-  for (const team of state.teams) {
-    if (team.id === state.userTeamId) continue;
-    retainPlayers(team, 75, 6);
-  }
-
-  // Released players go to the auction pool
   const releasedToPool: Player[] = [];
+
   for (const team of state.teams) {
     if (team.id === state.userTeamId) continue;
-    // retainPlayers already updated team.roster, released players have teamId=undefined
+    const { released } = retainPlayers(team, RETENTION_BUDGET, MAX_RETENTIONS);
+    releasedToPool.push(...released);
   }
 
   return {
     ...state,
+    playerPool: [...state.playerPool, ...releasedToPool],
     retentionState: {
       ...state.retentionState,
       cpuDone: true,
@@ -747,12 +753,21 @@ export function finishRetention(state: GameState): GameState {
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
   if (userTeam) {
     const { retained } = state.retentionState;
+    const retainedPlayers = retained
+      .map(id => userTeam.roster.find(player => player.id === id))
+      .filter((player): player is Player => player !== undefined);
+    const evaluation = evaluateRetentionSelection(retainedPlayers, RETENTION_BUDGET, MAX_RETENTIONS);
+    if (!evaluation.valid) return state;
+
     const retainedSet = new Set(retained);
+    const costByPlayerId = new Map(evaluation.retentionCosts.map(entry => [entry.player.id, entry.cost]));
     const released: Player[] = [];
     const kept: Player[] = [];
 
     for (const p of userTeam.roster) {
       if (retainedSet.has(p.id)) {
+        p.teamId = userTeam.id;
+        p.bid = costByPlayerId.get(p.id) ?? 0;
         kept.push(p);
       } else {
         p.teamId = undefined;
@@ -762,32 +777,19 @@ export function finishRetention(state: GameState): GameState {
     }
 
     userTeam.roster = kept;
-    // Calculate spent on retained players
-    let retentionSpent = 0;
-    for (const p of kept) {
-      retentionSpent += p.marketValue * 2;
-    }
-    userTeam.totalSpent = Math.round(retentionSpent * 100) / 100;
+    userTeam.totalSpent = evaluation.totalCost;
 
-    // Add released players to pool
     state = {
       ...state,
       playerPool: [...state.playerPool, ...released],
     };
   }
 
-  // Now run auction
-  const auctionConfig = {
-    maxRosterSize: state.rules.maxSquadSize,
-    maxInternational: state.rules.maxOverseasInSquad,
-  };
-  const auctionResult = runAuction(state.playerPool, state.teams, auctionConfig);
-
   return {
     ...state,
-    phase: "season",
-    auctionResult,
-    playerPool: auctionResult.unsold,
+    phase: "auction",
+    auctionResult: null,
+    auctionLiveState: undefined,
     retentionState: undefined,
   };
 }

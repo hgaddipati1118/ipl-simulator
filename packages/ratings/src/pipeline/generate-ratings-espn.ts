@@ -27,6 +27,7 @@ import { calculateRatings, inferRole, type GenderPop } from "../calculator.js";
 import { OUTPUT_DIR } from "./config.js";
 import { IPL_2026_ROSTERS } from "../ipl-rosters.js";
 import { WPL_2025_ROSTERS } from "../wpl-rosters.js";
+import type { BowlingStyle, BattingHand } from "@ipl-sim/engine";
 
 // ── Input / output paths ──────────────────────────────────────────────
 
@@ -102,8 +103,8 @@ interface RatedPlayer {
   fullName: string;
   age: number;
   country: string;
-  battingHand: string;
-  bowlingStyle: string;
+  battingHand: BattingHand;
+  bowlingStyle: BowlingStyle;
   role: "batsman" | "bowler" | "all-rounder";
   isWicketKeeper?: boolean;
   isInternational: boolean;
@@ -229,6 +230,38 @@ function safeNum(val: number | string | null | undefined, fallback: number = 0):
   if (val === null || val === undefined || val === "-" || val === "") return fallback;
   const n = typeof val === "string" ? parseFloat(val) : val;
   return isNaN(n) ? fallback : n;
+}
+
+/**
+ * Map ESPN batting style string to our BattingHand type.
+ */
+function mapBattingHand(espnStyle: string): BattingHand {
+  const s = espnStyle.toLowerCase().trim();
+  if (s.includes("left")) return "left";
+  return "right"; // default to right for "Right hand bat", unknown, etc.
+}
+
+/**
+ * Map ESPN bowling style string to our BowlingStyle type.
+ */
+function mapBowlingStyle(espnStyle: string): BowlingStyle {
+  const s = espnStyle.toLowerCase().trim();
+
+  // Right-arm pace
+  if (s === "right arm fast" || s === "right arm fast medium") return "right-arm-fast";
+  if (s === "right arm medium" || s === "right arm medium fast") return "right-arm-medium";
+
+  // Left-arm pace
+  if (s === "left arm fast" || s === "left arm fast medium") return "left-arm-fast";
+  if (s === "left arm medium" || s === "left arm medium fast") return "left-arm-medium";
+
+  // Spin
+  if (s === "right arm offbreak" || s === "right arm off break") return "off-spin";
+  if (s === "slow left arm orthodox") return "left-arm-orthodox";
+  if (s === "legbreak" || s === "legbreak googly" || s === "leg break" || s === "leg break googly") return "leg-spin";
+  if (s === "left arm wrist spin" || s === "slow left arm chinaman") return "left-arm-wrist-spin";
+
+  return "unknown";
 }
 
 /**
@@ -552,8 +585,8 @@ function getManualPlayers(): RatedPlayer[] {
       fullName: "Mahendra Singh Dhoni",
       age: 43,
       country: "India",
-      battingHand: "right-hand bat",
-      bowlingStyle: "right-arm medium",
+      battingHand: "right",
+      bowlingStyle: "right-arm-medium",
       role: "batsman",
       isInternational: false,
       ratings: { battingIQ: 80, timing: 78, power: 82, running: 50, wicketTaking: 15, economy: 12, accuracy: 18, clutch: 95 },
@@ -567,8 +600,8 @@ function getManualPlayers(): RatedPlayer[] {
       fullName: "Trent Alexander Boult",
       age: 35,
       country: "New Zealand",
-      battingHand: "right-hand bat",
-      bowlingStyle: "left-arm fast-medium",
+      battingHand: "right",
+      bowlingStyle: "left-arm-fast",
       role: "bowler",
       isInternational: true,
       ratings: { battingIQ: 22, timing: 20, power: 18, running: 25, wicketTaking: 82, economy: 78, accuracy: 80, clutch: 75 },
@@ -582,8 +615,8 @@ function getManualPlayers(): RatedPlayer[] {
       fullName: "Andre Dwayne Russell",
       age: 36,
       country: "West Indies",
-      battingHand: "right-hand bat",
-      bowlingStyle: "right-arm fast-medium",
+      battingHand: "right",
+      bowlingStyle: "right-arm-fast",
       role: "all-rounder",
       isInternational: true,
       ratings: { battingIQ: 65, timing: 60, power: 95, running: 50, wicketTaking: 65, economy: 55, accuracy: 52, clutch: 78 },
@@ -597,7 +630,7 @@ function getManualPlayers(): RatedPlayer[] {
       fullName: "Nicholas Pooran",
       age: 29,
       country: "West Indies",
-      battingHand: "left-hand bat",
+      battingHand: "left",
       bowlingStyle: "unknown",
       role: "batsman",
       isInternational: true,
@@ -612,8 +645,8 @@ function getManualPlayers(): RatedPlayer[] {
       fullName: "Rovman Powell",
       age: 31,
       country: "West Indies",
-      battingHand: "right-hand bat",
-      bowlingStyle: "right-arm medium",
+      battingHand: "right",
+      bowlingStyle: "right-arm-medium",
       role: "batsman",
       isInternational: true,
       ratings: { battingIQ: 60, timing: 58, power: 90, running: 55, wicketTaking: 20, economy: 18, accuracy: 22, clutch: 62 },
@@ -627,8 +660,8 @@ function getManualPlayers(): RatedPlayer[] {
       fullName: "Sherfane Rutherford",
       age: 27,
       country: "West Indies",
-      battingHand: "left-hand bat",
-      bowlingStyle: "right-arm medium",
+      battingHand: "left",
+      bowlingStyle: "right-arm-medium",
       role: "batsman",
       isInternational: true,
       ratings: { battingIQ: 62, timing: 60, power: 85, running: 58, wicketTaking: 18, economy: 15, accuracy: 20, clutch: 60 },
@@ -642,8 +675,8 @@ function getManualPlayers(): RatedPlayer[] {
       fullName: "Romario Shepherd",
       age: 30,
       country: "West Indies",
-      battingHand: "right-hand bat",
-      bowlingStyle: "right-arm fast-medium",
+      battingHand: "right",
+      bowlingStyle: "right-arm-fast",
       role: "all-rounder",
       isInternational: true,
       ratings: { battingIQ: 55, timing: 52, power: 78, running: 50, wicketTaking: 68, economy: 60, accuracy: 58, clutch: 62 },
@@ -719,8 +752,8 @@ export function generateAllRatings(): RatedPlayer[] {
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
 
-    const battingHand = player.profile.battingStyles?.[0] ?? "unknown";
-    const bowlingStyle = player.profile.bowlingStyles?.[0] ?? "unknown";
+    const battingHand = mapBattingHand(player.profile.battingStyles?.[0] ?? "unknown");
+    const bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
 
     rated.push({
       id: `espn_${player.profile.espnId}`,
@@ -871,7 +904,9 @@ function generateTypeScriptModule(players: RatedPlayer[]): void {
     country: ${JSON.stringify(p.country)},
     role: ${JSON.stringify(p.role)},
     ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
-    isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}${teamIdLine}${bidLine}
+    isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}
+    bowlingStyle: ${JSON.stringify(p.bowlingStyle)},
+    battingHand: ${JSON.stringify(p.battingHand)},${teamIdLine}${bidLine}
   }`;
   }).join(",\n");
 
@@ -1032,8 +1067,8 @@ export function generateWomenRatings(): RatedPlayer[] {
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
 
-    const battingHand = player.profile.battingStyles?.[0] ?? "unknown";
-    const bowlingStyle = player.profile.bowlingStyles?.[0] ?? "unknown";
+    const battingHand = mapBattingHand(player.profile.battingStyles?.[0] ?? "unknown");
+    const bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
 
     rated.push({
       id: `espn_${player.profile.espnId}`,
@@ -1162,7 +1197,9 @@ function generateWPLTypeScriptModule(players: RatedPlayer[]): void {
     country: ${JSON.stringify(p.country)},
     role: ${JSON.stringify(p.role)},
     ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
-    isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}${teamIdLine}${bidLine}
+    isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}
+    bowlingStyle: ${JSON.stringify(p.bowlingStyle)},
+    battingHand: ${JSON.stringify(p.battingHand)},${teamIdLine}${bidLine}
   }`;
   }).join(",\n");
 
@@ -1175,6 +1212,7 @@ function generateWPLTypeScriptModule(players: RatedPlayer[]): void {
  */
 
 import type { PlayerData } from "@ipl-sim/engine";
+import type { BowlingStyle, BattingHand } from "@ipl-sim/engine";
 
 export const WPL_PLAYERS: Omit<PlayerData, "injured" | "injuryGamesLeft">[] = [
 ${entries}
@@ -1187,6 +1225,8 @@ export interface WPLPlayerData {
   age: number;
   country: string;
   role: string;
+  bowlingStyle?: BowlingStyle;
+  battingHand?: BattingHand;
   battingIQ: number;
   timing: number;
   power: number;
@@ -1207,6 +1247,8 @@ export function getWPLPlayers(): WPLPlayerData[] {
       age: p.age,
       country: p.country,
       role: p.isWicketKeeper ? p.role : p.role,
+      bowlingStyle: p.bowlingStyle,
+      battingHand: p.battingHand,
       battingIQ: p.ratings.battingIQ,
       timing: p.ratings.timing,
       power: p.ratings.power,

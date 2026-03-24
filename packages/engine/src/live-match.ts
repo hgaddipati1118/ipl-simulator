@@ -6,7 +6,7 @@
  */
 
 import { Player } from "./player.js";
-import { Team } from "./team.js";
+import { Team, type TeamConfig } from "./team.js";
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
@@ -26,6 +26,40 @@ import type {
 
 // Re-export the types the UI needs (PendingDecision/PendingDecisionOption defined locally below)
 export type { BatterInnings, BowlerFigures, DetailedBallEvent };
+
+/* ─────────────────── Field Settings ─────────────────── */
+
+export type FieldSetting = "aggressive" | "standard" | "defensive" | "spin-attack" | "boundary-save";
+
+const FIELD_MODIFIERS: Record<FieldSetting, Partial<Record<BallOutcome, number>>> = {
+  aggressive:      { wicket: 1.20, "4": 1.15, "6": 1.10, dot: 0.90 },
+  standard:        {},  // no modifiers
+  defensive:       { wicket: 0.85, "4": 0.85, "6": 0.85, dot: 1.10, "1": 1.10 },
+  "spin-attack":   { wicket: 1.25, "4": 1.10, dot: 0.95 },
+  "boundary-save": { "6": 0.75, "4": 0.80, "1": 1.15, "2": 1.15 },
+};
+
+/* ─────────────────── Pitch Condition Modifiers ─────────────────── */
+
+const PITCH_MODIFIERS: Record<NonNullable<TeamConfig["pitchType"]>, Partial<Record<BallOutcome, number>>> = {
+  flat:     { "4": 1.10, "6": 1.10, dot: 0.90, wicket: 0.90 },
+  seaming:  { wicket: 1.15, dot: 1.10, "4": 0.90, "6": 0.85 },
+  turning:  { wicket: 1.10, dot: 1.05, "6": 0.90 },
+  balanced: {},  // no modifiers
+};
+
+const BOUNDARY_SIZE_MODIFIERS: Record<NonNullable<TeamConfig["boundarySize"]>, Partial<Record<BallOutcome, number>>> = {
+  small:  { "4": 1.15, "6": 1.20 },
+  medium: {},  // no modifiers
+  large:  { "4": 0.90, "6": 0.80, "2": 1.15, "3": 1.20 },
+};
+
+/** Dew makes bowling harder in the 2nd innings: more extras, fewer wickets */
+const DEW_MODIFIERS: Record<NonNullable<TeamConfig["dewFactor"]>, Partial<Record<BallOutcome, number>>> = {
+  none:     {},
+  moderate: { wicket: 0.92, wide: 1.10, "4": 1.05 },
+  heavy:    { wicket: 0.85, wide: 1.20, "4": 1.10, "6": 1.05, dot: 0.90 },
+};
 
 /* ─────────────────── MatchState ─────────────────── */
 
@@ -56,8 +90,9 @@ export interface LiveBowlerStats {
 
 /** A pending tactical decision the user must resolve before the match continues. */
 export interface PendingDecision {
-  type: 'choose_bowler' | 'choose_batter' | 'impact_sub';
-  /** Player IDs the user can pick from. For impact_sub, these are bench players who can come in. */
+  type: 'choose_bowler' | 'choose_batter' | 'impact_sub' | 'toss_decision' | 'drs_review';
+  /** Player IDs the user can pick from. For impact_sub, these are bench players who can come in.
+   *  For toss_decision, options are ["bat", "bowl"]. For drs_review, options are ["review", "accept"]. */
   options: string[];
   /** For impact_sub, the playing XI player IDs who could be swapped out. */
   swapOutOptions?: string[];
@@ -65,6 +100,8 @@ export interface PendingDecision {
   optionDetails?: PendingDecisionOption[];
   /** Which team the decision is for (so UI can label it). */
   teamId: string;
+  /** For drs_review: the batter who was given out / not out */
+  drsContext?: { batterName: string; isGivenOut: boolean };
 }
 
 export interface PendingDecisionOption {
@@ -151,6 +188,12 @@ export interface MatchState {
   // Aggression level per team (0=defensive, 50=normal, 100=all-out attack)
   aggression: { home: number; away: number };
 
+  // Field placement setting per team
+  fieldSetting: { home: FieldSetting; away: FieldSetting };
+
+  // DRS reviews remaining per team (start at 1 each)
+  drsRemaining: { home: number; away: number };
+
   // Internal state (for serialization, not for UI display)
   _internal: MatchStateInternal;
 }
@@ -204,6 +247,11 @@ interface MatchStateInternal {
   // Bench (impact sub) player IDs per team
   homeBenchIds: string[];
   awayBenchIds: string[];
+
+  // Pitch conditions (from home team config)
+  pitchType: "flat" | "seaming" | "turning" | "balanced";
+  boundarySize: "small" | "medium" | "large";
+  dewFactor: "none" | "moderate" | "heavy";
 }
 
 interface InningsScoreRaw {
@@ -227,6 +275,8 @@ interface SerializedPlayer {
   role: string;
   isInternational: boolean;
   isWicketKeeper: boolean;
+  bowlingStyle: string;
+  battingHand: string;
   battingOvr: number;
   bowlingOvr: number;
   overall: number;
@@ -409,7 +459,11 @@ function runOneBall(
   wicketsDown: number,
   stadiumBowlRating: number,
   aggression: number = 50,
-): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string } {
+  fieldSetting: FieldSetting = "standard",
+  pitchType: "flat" | "seaming" | "turning" | "balanced" = "balanced",
+  boundarySize: "small" | "medium" | "large" = "medium",
+  dewFactor: "none" | "moderate" | "heavy" = "none",
+): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped" } {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
   // Phase adjustment
@@ -422,6 +476,32 @@ function runOneBall(
   // Stadium bowling adjustment
   probs.wicket *= stadiumBowlRating;
   probs.dot *= stadiumBowlRating;
+
+  // Pitch condition adjustment
+  const pitchMod = PITCH_MODIFIERS[pitchType];
+  for (const key of Object.keys(pitchMod) as BallOutcome[]) {
+    probs[key] *= pitchMod[key] ?? 1;
+  }
+
+  // Boundary size adjustment
+  const boundaryMod = BOUNDARY_SIZE_MODIFIERS[boundarySize];
+  for (const key of Object.keys(boundaryMod) as BallOutcome[]) {
+    probs[key] *= boundaryMod[key] ?? 1;
+  }
+
+  // Dew adjustment (only in 2nd innings)
+  if (isSecondInnings) {
+    const dewMod = DEW_MODIFIERS[dewFactor];
+    for (const key of Object.keys(dewMod) as BallOutcome[]) {
+      probs[key] *= dewMod[key] ?? 1;
+    }
+  }
+
+  // Field placement adjustment
+  const fieldMod = FIELD_MODIFIERS[fieldSetting];
+  for (const key of Object.keys(fieldMod) as BallOutcome[]) {
+    probs[key] *= fieldMod[key] ?? 1;
+  }
 
   // Chase context
   if (isSecondInnings && ballsRemaining > 0) {
@@ -466,7 +546,10 @@ function runOneBall(
 
   const commentary = generateCommentary(outcome, batter.name, bowler.name, over, runs);
 
-  return { outcome, runs, extras, isWicket, commentary };
+  // Determine wicket type upfront (used for DRS logic)
+  const wicketType = isWicket ? randomWicketType() : undefined;
+
+  return { outcome, runs, extras, isWicket, commentary, wicketType };
 }
 
 /* ─────────────────── Serialization helpers ─────────────────── */
@@ -478,6 +561,8 @@ function serializePlayer(p: Player): SerializedPlayer {
     role: p.role,
     isInternational: p.isInternational,
     isWicketKeeper: p.isWicketKeeper,
+    bowlingStyle: p.bowlingStyle,
+    battingHand: p.battingHand,
     battingOvr: p.battingOvr,
     bowlingOvr: p.bowlingOvr,
     overall: p.overall,
@@ -522,9 +607,27 @@ export function createMatchState(
   const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
   const awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI);
 
+  // Pitch conditions from home team
+  const pitchType = homeTeam.config.pitchType ?? "balanced";
+  const boundarySize = homeTeam.config.boundarySize ?? "medium";
+  const dewFactor = homeTeam.config.dewFactor ?? "none";
+
   // Toss
   const tossWinner = Math.random() < 0.5 ? homeTeam : awayTeam;
-  const tossDecision: "bat" | "bowl" = Math.random() < 0.6 ? "bowl" : "bat";
+  const isUserTossWinner = userTeamId !== null && tossWinner.id === userTeamId;
+
+  // CPU toss decision logic: dew → prefer chasing (bowl first), seaming → prefer batting first
+  let tossDecision: "bat" | "bowl";
+  if (isUserTossWinner) {
+    // Placeholder — will be overridden by user decision; default to bowl for initial state setup
+    tossDecision = "bowl";
+  } else {
+    // CPU decides based on conditions
+    if (dewFactor === "heavy") tossDecision = "bowl";
+    else if (dewFactor === "moderate") tossDecision = Math.random() < 0.65 ? "bowl" : "bat";
+    else if (pitchType === "seaming") tossDecision = "bat";
+    else tossDecision = Math.random() < 0.6 ? "bowl" : "bat";
+  }
 
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
   const bowlingFirst = battingFirst === homeTeam ? awayTeam : homeTeam;
@@ -595,6 +698,14 @@ export function createMatchState(
   const inn2BattingOrder = bowlingFirst.getBattingOrder(secondXI);
   const inn2BowlingOrder = battingFirst.getBowlingOrder(secondBowlXI);
 
+  // If user wins the toss, pause for their decision
+  const initialStatus: MatchState["status"] = isUserTossWinner ? "waiting_for_decision" : "in_progress";
+  const pendingDecision: PendingDecision | undefined = isUserTossWinner ? {
+    type: "toss_decision",
+    options: ["bat", "bowl"],
+    teamId: tossWinner.id,
+  } : undefined;
+
   return {
     homeTeam: {
       id: homeTeam.id,
@@ -641,12 +752,15 @@ export function createMatchState(
 
     fallOfWickets: [],
 
-    status: "in_progress",
+    status: initialStatus,
     tossWinner: tossWinner.name,
     tossDecision,
     injuries: [],
+    pendingDecision,
     impactSubUsed: { home: false, away: false },
     aggression: { home: 50, away: 50 },
+    fieldSetting: { home: "standard", away: "standard" },
+    drsRemaining: { home: 1, away: 1 },
 
     _internal: {
       matchId,
@@ -671,6 +785,9 @@ export function createMatchState(
       userTeamId,
       homeBenchIds,
       awayBenchIds,
+      pitchType,
+      boundarySize,
+      dewFactor,
     },
   };
 }
@@ -705,6 +822,8 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   // Run the ball
   const battingTeamAggression = state.battingTeamId === state.homeTeam.id
     ? state.aggression.home : state.aggression.away;
+  const bowlingTeamFieldSetting = state.bowlingTeamId === state.homeTeam.id
+    ? state.fieldSetting.home : state.fieldSetting.away;
   const result = runOneBall(
     striker,
     bowler,
@@ -716,28 +835,16 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     state.wickets,
     int.stadiumRating,
     battingTeamAggression,
+    bowlingTeamFieldSetting,
+    int.pitchType,
+    int.boundarySize,
+    int.dewFactor,
   );
 
   // Clone state for mutation
   const newState: MatchState = JSON.parse(JSON.stringify(state));
   const ni = newState._internal;
   const rawInnings = ni.currentInningsRaw;
-
-  const isExtra = result.outcome === "wide" || result.outcome === "noball";
-
-  // Build the ball event for the raw log
-  const rawBall: BallEvent = {
-    over: newState.overs,
-    ball: isExtra ? ni.currentOverLegalBalls : ni.currentOverLegalBalls + 1,
-    bowler: bowlerId,
-    batter: strikerId,
-    outcome: result.outcome,
-    runs: result.runs,
-    extras: result.extras,
-    isWicket: result.isWicket,
-    commentary: result.commentary,
-  };
-  rawInnings.ballLog.push(rawBall);
 
   // Build the detailed ball event for the UI
   let eventType: DetailedBallEvent["eventType"];
@@ -755,10 +862,13 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     default: eventType = "dot";
   }
 
-  let wicketType: DetailedBallEvent["wicketType"];
+  let wicketType: DetailedBallEvent["wicketType"] = result.wicketType;
   let fielderName: string | undefined;
+  let drsOverturned = false;
+  // For DRS user review: store whether it was actually out
+  let _drsActuallyOut: boolean | undefined;
+
   if (result.isWicket) {
-    wicketType = randomWicketType();
     if (wicketType === "caught") {
       // Pick a random bowler-side player name
       const bowlingTeamIds = isSecondInnings
@@ -768,7 +878,88 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       const fielderId = fielders[Math.floor(Math.random() * fielders.length)];
       fielderName = pm[fielderId]?.name ?? "fielder";
     }
+
+    // DRS logic for LBW decisions
+    if (wicketType === "lbw") {
+      // 20% of LBW decisions are incorrect (umpire's call — should be not out)
+      const isIncorrectDecision = Math.random() < 0.20;
+      if (isIncorrectDecision) {
+        // Batting team auto-reviews incorrectly given LBW
+        const battingTeamIsHome = newState.battingTeamId === newState.homeTeam.id;
+        const drsAvailable = battingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
+        if (drsAvailable > 0) {
+          // DRS overturns the incorrect LBW — not out
+          drsOverturned = true;
+          result.isWicket = false;
+          result.outcome = "dot";
+          result.runs = 0;
+          result.commentary = `${bowler.name} to ${striker.name}, given OUT lbw! DRS review... OVERTURNED! Not out. Umpire's call, impact outside off.`;
+          eventType = "dot";
+          wicketType = undefined;
+          // DRS retained on successful review
+        }
+      }
+    }
+  } else if (result.outcome === "dot") {
+    // DRS review opportunity: ~8% of dots could be close LBW appeals (not given out)
+    const isCloseLbwAppeal = Math.random() < 0.08;
+    if (isCloseLbwAppeal) {
+      // 25% of these close calls were actually out (umpire missed it)
+      const wasActuallyOut = Math.random() < 0.25;
+      const bowlingTeamIsHome = newState.bowlingTeamId === newState.homeTeam.id;
+      const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
+      const drsAvailable = bowlingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
+
+      if (drsAvailable > 0 && isUserBowling) {
+        // Offer DRS review to user
+        _drsActuallyOut = wasActuallyOut;
+        newState.pendingDecision = {
+          type: "drs_review",
+          options: ["review", "accept"],
+          teamId: newState.bowlingTeamId,
+          drsContext: { batterName: striker.name, isGivenOut: false },
+        };
+        newState.status = "waiting_for_decision";
+      } else if (drsAvailable > 0 && !isUserBowling) {
+        // CPU auto-reviews close calls 40% of the time
+        if (Math.random() < 0.40) {
+          if (wasActuallyOut) {
+            // Successful review: overturn to wicket
+            result.isWicket = true;
+            result.outcome = "wicket";
+            result.runs = 0;
+            result.commentary = `${bowler.name} to ${striker.name}, not out says the umpire. DRS review... OVERTURNED! That's OUT! LBW!`;
+            eventType = "wicket";
+            wicketType = "lbw";
+            // DRS retained on successful review
+          } else {
+            // Failed review: stays not out, lose DRS
+            if (bowlingTeamIsHome) newState.drsRemaining.home--;
+            else newState.drsRemaining.away--;
+            result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... stays NOT OUT. ${bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName} lose their review.`;
+          }
+        }
+      }
+    }
   }
+
+  // Determine if the ball is an extra (after DRS may have changed outcome)
+  const isExtra = result.outcome === "wide" || result.outcome === "noball";
+
+  // Build the ball event for the raw log (after DRS adjustments)
+  const rawBall: BallEvent = {
+    over: newState.overs,
+    ball: isExtra ? ni.currentOverLegalBalls : ni.currentOverLegalBalls + 1,
+    bowler: bowlerId,
+    batter: strikerId,
+    outcome: result.outcome,
+    runs: result.runs,
+    extras: result.extras,
+    isWicket: result.isWicket,
+    commentary: result.commentary,
+  };
+  if (_drsActuallyOut !== undefined) (rawBall as any)._drsActuallyOut = _drsActuallyOut;
+  rawInnings.ballLog.push(rawBall);
 
   if (isExtra) {
     // Extra: no legal delivery count, just add runs
@@ -1302,6 +1493,159 @@ export function applyDecision(
 
       break;
     }
+
+    case 'toss_decision': {
+      const chosen = decision.selectedPlayerId as "bat" | "bowl";
+      newState.tossDecision = chosen;
+
+      // Recalculate batting/bowling first based on user's toss choice
+      // The toss winner is the user's team (pending.teamId)
+      const tossWinnerId = pending.teamId;
+      const tossLoserId = tossWinnerId === newState.homeTeam.id ? newState.awayTeam.id : newState.homeTeam.id;
+
+      const battingFirstId = chosen === "bat" ? tossWinnerId : tossLoserId;
+      const bowlingFirstId = battingFirstId === newState.homeTeam.id ? newState.awayTeam.id : newState.homeTeam.id;
+
+      newState.battingTeamId = battingFirstId;
+      newState.bowlingTeamId = bowlingFirstId;
+      ni.battingFirstId = battingFirstId;
+      ni.bowlingFirstId = bowlingFirstId;
+
+      // Recompute batting/bowling orders
+      const battingXIIds = battingFirstId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
+      const bowlingXIIds = bowlingFirstId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
+      ni.battingOrderIds = computeBattingOrder(battingXIIds, pm);
+      ni.bowlingOrderIds = computeBowlingOrder(bowlingXIIds, pm);
+
+      // Recompute 2nd innings orders
+      ni.innings2BattingOrderIds = computeBattingOrder(bowlingXIIds, pm);
+      ni.innings2BowlingOrderIds = computeBowlingOrder(battingXIIds, pm);
+
+      // Reset bowler overs
+      ni.bowlerOvers = {};
+      for (const id of ni.bowlingOrderIds) ni.bowlerOvers[id] = 0;
+
+      // Re-initialize openers
+      const openerId1 = ni.battingOrderIds[0];
+      const openerId2 = ni.battingOrderIds[1];
+      newState.strikerIdx = 0;
+      newState.nonStrikerIdx = 1;
+      newState.nextBatterIdx = 2;
+      newState.strikerName = pm[openerId1].name;
+      newState.nonStrikerName = pm[openerId2].name;
+
+      // Re-initialize batter stats
+      newState.batterStats = [
+        { playerId: openerId1, playerName: pm[openerId1].name, runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false, howOut: "not out" },
+        { playerId: openerId2, playerName: pm[openerId2].name, runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false, howOut: "not out" },
+      ];
+
+      // Re-initialize first bowler
+      const firstBowlerId = ni.bowlingOrderIds[0];
+      newState.currentBowlerIdx = 0;
+      newState.currentBowlerName = pm[firstBowlerId].name;
+      newState.bowlerStats = [{
+        playerId: firstBowlerId, playerName: pm[firstBowlerId].name,
+        overs: 0, balls: 0, runs: 0, wickets: 0, wides: 0, noBalls: 0, dots: 0, maidens: 0,
+      }];
+
+      // Re-initialize raw innings
+      ni.currentInningsRaw = emptyInningsRaw(battingFirstId);
+      for (const id of ni.battingOrderIds) {
+        ni.currentInningsRaw.batterStats[id] = { runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false };
+      }
+
+      break;
+    }
+
+    case 'drs_review': {
+      const choice = decision.selectedPlayerId; // "review" or "accept"
+      const bowlingTeamIsHome = newState.bowlingTeamId === newState.homeTeam.id;
+
+      if (choice === "accept") {
+        // User accepts the umpire's decision (not out) — no DRS used
+        break;
+      }
+
+      // User reviews: find whether it was actually out from the last ball in the log
+      const lastBall = rawInnings.ballLog[rawInnings.ballLog.length - 1];
+      const wasActuallyOut = (lastBall as any)?._drsActuallyOut === true;
+
+      if (wasActuallyOut) {
+        // Successful review: overturn to wicket
+        // Update the last ball in the log
+        lastBall.isWicket = true;
+        lastBall.outcome = "wicket";
+        lastBall.commentary += " DRS review... OVERTURNED! That's OUT! LBW!";
+
+        // Update match state
+        newState.wickets++;
+        rawInnings.wickets++;
+
+        // Find the batter who was on strike for this ball
+        const strikerId = lastBall.batter;
+        const rawBat = rawInnings.batterStats[strikerId];
+        if (rawBat) rawBat.isOut = true;
+
+        const liveBatter = newState.batterStats.find(b => b.playerId === strikerId);
+        if (liveBatter) {
+          liveBatter.isOut = true;
+          const bowlerName = pm[lastBall.bowler]?.name ?? "unknown";
+          liveBatter.howOut = `lbw b ${bowlerName}`;
+        }
+
+        // Fall of wicket
+        const overBall = `${newState.overs}.${ni.currentOverLegalBalls}`;
+        const fow = `${newState.score}/${newState.wickets} (${overBall} ov)`;
+        newState.fallOfWickets.push(fow);
+        if (liveBatter) liveBatter.fallOfWicket = fow;
+
+        // Update bowler wickets
+        const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
+        if (liveBowler) liveBowler.wickets++;
+
+        // Bring in next batter if wickets < 10
+        if (newState.nextBatterIdx < ni.battingOrderIds.length) {
+          bringInNextBatter(newState, ni, pm, rawInnings);
+        }
+
+        // DRS retained on successful review
+
+        // Update the last detailed ball event
+        const lastDetailed = newState.innings === 1
+          ? newState.innings1BallLog[newState.innings1BallLog.length - 1]
+          : newState.innings2BallLog[newState.innings2BallLog.length - 1];
+        if (lastDetailed) {
+          lastDetailed.eventType = "wicket";
+          lastDetailed.wicketType = "lbw";
+          lastDetailed.commentary = lastBall.commentary;
+          lastDetailed.wicketsSoFar = newState.wickets;
+        }
+        const lastLogBall = newState.ballLog[newState.ballLog.length - 1];
+        if (lastLogBall) {
+          lastLogBall.eventType = "wicket";
+          lastLogBall.wicketType = "lbw";
+          lastLogBall.commentary = lastBall.commentary;
+          lastLogBall.wicketsSoFar = newState.wickets;
+        }
+      } else {
+        // Failed review: stays not out, lose DRS
+        if (bowlingTeamIsHome) newState.drsRemaining.home--;
+        else newState.drsRemaining.away--;
+
+        // Update commentary on the last ball
+        const shortName = bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+        lastBall.commentary += ` DRS review... stays NOT OUT. ${shortName} lose their review.`;
+        const lastDetailed = newState.innings === 1
+          ? newState.innings1BallLog[newState.innings1BallLog.length - 1]
+          : newState.innings2BallLog[newState.innings2BallLog.length - 1];
+        if (lastDetailed) lastDetailed.commentary = lastBall.commentary;
+        const lastLogBall = newState.ballLog[newState.ballLog.length - 1];
+        if (lastLogBall) lastLogBall.commentary = lastBall.commentary;
+      }
+
+      break;
+    }
   }
 
   // Clear the pending decision and resume
@@ -1392,6 +1736,14 @@ export function setAggression(state: MatchState, teamId: string, level: number):
   const clamped = Math.max(0, Math.min(100, Math.round(level)));
   if (teamId === newState.homeTeam.id) newState.aggression.home = clamped;
   else newState.aggression.away = clamped;
+  return newState;
+}
+
+/** Set field placement for a team's bowling. */
+export function setFieldSetting(state: MatchState, teamId: string, setting: FieldSetting): MatchState {
+  const newState: MatchState = JSON.parse(JSON.stringify(state));
+  if (teamId === newState.homeTeam.id) newState.fieldSetting.home = setting;
+  else newState.fieldSetting.away = setting;
   return newState;
 }
 
@@ -1524,6 +1876,25 @@ export function autoResolveDecision(state: MatchState): MatchState {
       newState.pendingDecision = undefined;
       newState.status = "in_progress";
       return newState;
+    }
+
+    case 'toss_decision': {
+      // CPU auto-decides: conditions-based (already computed a default toss decision)
+      // Just use the existing tossDecision (which was set during createMatchState for CPU)
+      const ni = state._internal;
+      const dewFactor = ni.dewFactor;
+      const pitchType = ni.pitchType;
+      let choice: "bat" | "bowl";
+      if (dewFactor === "heavy") choice = "bowl";
+      else if (dewFactor === "moderate") choice = Math.random() < 0.65 ? "bowl" : "bat";
+      else if (pitchType === "seaming") choice = "bat";
+      else choice = Math.random() < 0.6 ? "bowl" : "bat";
+      return applyDecision(state, { type: 'toss_decision', selectedPlayerId: choice });
+    }
+
+    case 'drs_review': {
+      // CPU auto-accepts (no review when auto-resolving)
+      return applyDecision(state, { type: 'drs_review', selectedPlayerId: "accept" });
     }
   }
 

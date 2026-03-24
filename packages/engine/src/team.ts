@@ -14,22 +14,25 @@ export interface TeamConfig {
   secondaryColor: string;
   stadiumBowlingRating?: number; // 0.7 - 1.5, affects home bowling
   stadiumName?: string;          // Real-life home ground name
+  pitchType?: "flat" | "seaming" | "turning" | "balanced";
+  boundarySize?: "small" | "medium" | "large";
+  dewFactor?: "none" | "moderate" | "heavy";
 }
 
 // Stadium bowling ratings based on real IPL venue averages (2022-2025 seasons):
 //   < 0.85 = batting paradise (high-scoring), 0.85-0.95 = batting-friendly,
 //   0.95-1.05 = balanced, 1.05-1.15 = bowling-friendly, > 1.15 = bowling paradise
 export const IPL_TEAMS: TeamConfig[] = [
-  { id: "srh", name: "Sunrisers Hyderabad", shortName: "SRH", city: "Hyderabad", primaryColor: "#FF822A", secondaryColor: "#000000", stadiumBowlingRating: 0.92, stadiumName: "Rajiv Gandhi Intl. Cricket Stadium" },
-  { id: "dc",  name: "Delhi Capitals", shortName: "DC",  city: "Delhi", primaryColor: "#004C93", secondaryColor: "#EF1B23", stadiumBowlingRating: 0.88, stadiumName: "Arun Jaitley Stadium" },
-  { id: "rcb", name: "Royal Challengers Bengaluru", shortName: "RCB", city: "Bengaluru", primaryColor: "#EC1C24", secondaryColor: "#2B2A29", stadiumBowlingRating: 0.78, stadiumName: "M. Chinnaswamy Stadium" },
-  { id: "kkr", name: "Kolkata Knight Riders", shortName: "KKR", city: "Kolkata", primaryColor: "#3A225D", secondaryColor: "#B3A123", stadiumBowlingRating: 0.98, stadiumName: "Eden Gardens" },
-  { id: "rr",  name: "Rajasthan Royals", shortName: "RR",  city: "Jaipur", primaryColor: "#EA1A85", secondaryColor: "#254AA5", stadiumBowlingRating: 1.03, stadiumName: "Sawai Mansingh Stadium" },
-  { id: "csk", name: "Chennai Super Kings", shortName: "CSK", city: "Chennai", primaryColor: "#FFFF3C", secondaryColor: "#0081E9", stadiumBowlingRating: 1.12, stadiumName: "MA Chidambaram Stadium" },
-  { id: "mi",  name: "Mumbai Indians", shortName: "MI",  city: "Mumbai", primaryColor: "#004BA0", secondaryColor: "#D1AB3E", stadiumBowlingRating: 0.85, stadiumName: "Wankhede Stadium" },
-  { id: "pbks",name: "Punjab Kings", shortName: "PBKS", city: "Mohali", primaryColor: "#ED1B24", secondaryColor: "#A7A9AC", stadiumBowlingRating: 0.87, stadiumName: "IS Bindra Stadium" },
-  { id: "gt",  name: "Gujarat Titans", shortName: "GT",  city: "Ahmedabad", primaryColor: "#1C1C1C", secondaryColor: "#0B4973", stadiumBowlingRating: 0.97, stadiumName: "Narendra Modi Stadium" },
-  { id: "lsg", name: "Lucknow Super Giants", shortName: "LSG", city: "Lucknow", primaryColor: "#A72056", secondaryColor: "#FFCC00", stadiumBowlingRating: 0.96, stadiumName: "BRSABV Ekana Stadium" },
+  { id: "srh", name: "Sunrisers Hyderabad", shortName: "SRH", city: "Hyderabad", primaryColor: "#FF822A", secondaryColor: "#000000", stadiumBowlingRating: 0.92, stadiumName: "Rajiv Gandhi Intl. Cricket Stadium", pitchType: "balanced", boundarySize: "large", dewFactor: "moderate" },
+  { id: "dc",  name: "Delhi Capitals", shortName: "DC",  city: "Delhi", primaryColor: "#004C93", secondaryColor: "#EF1B23", stadiumBowlingRating: 0.88, stadiumName: "Arun Jaitley Stadium", pitchType: "flat", boundarySize: "medium", dewFactor: "moderate" },
+  { id: "rcb", name: "Royal Challengers Bengaluru", shortName: "RCB", city: "Bengaluru", primaryColor: "#EC1C24", secondaryColor: "#2B2A29", stadiumBowlingRating: 0.78, stadiumName: "M. Chinnaswamy Stadium", pitchType: "flat", boundarySize: "small", dewFactor: "moderate" },
+  { id: "kkr", name: "Kolkata Knight Riders", shortName: "KKR", city: "Kolkata", primaryColor: "#3A225D", secondaryColor: "#B3A123", stadiumBowlingRating: 0.98, stadiumName: "Eden Gardens", pitchType: "turning", boundarySize: "medium", dewFactor: "heavy" },
+  { id: "rr",  name: "Rajasthan Royals", shortName: "RR",  city: "Jaipur", primaryColor: "#EA1A85", secondaryColor: "#254AA5", stadiumBowlingRating: 1.03, stadiumName: "Sawai Mansingh Stadium", pitchType: "balanced", boundarySize: "medium", dewFactor: "none" },
+  { id: "csk", name: "Chennai Super Kings", shortName: "CSK", city: "Chennai", primaryColor: "#FFFF3C", secondaryColor: "#0081E9", stadiumBowlingRating: 1.12, stadiumName: "MA Chidambaram Stadium", pitchType: "turning", boundarySize: "medium", dewFactor: "moderate" },
+  { id: "mi",  name: "Mumbai Indians", shortName: "MI",  city: "Mumbai", primaryColor: "#004BA0", secondaryColor: "#D1AB3E", stadiumBowlingRating: 0.85, stadiumName: "Wankhede Stadium", pitchType: "flat", boundarySize: "small", dewFactor: "heavy" },
+  { id: "pbks",name: "Punjab Kings", shortName: "PBKS", city: "Mohali", primaryColor: "#ED1B24", secondaryColor: "#A7A9AC", stadiumBowlingRating: 0.87, stadiumName: "IS Bindra Stadium", pitchType: "flat", boundarySize: "large", dewFactor: "none" },
+  { id: "gt",  name: "Gujarat Titans", shortName: "GT",  city: "Ahmedabad", primaryColor: "#1C1C1C", secondaryColor: "#0B4973", stadiumBowlingRating: 0.97, stadiumName: "Narendra Modi Stadium", pitchType: "balanced", boundarySize: "large", dewFactor: "moderate" },
+  { id: "lsg", name: "Lucknow Super Giants", shortName: "LSG", city: "Lucknow", primaryColor: "#A72056", secondaryColor: "#FFCC00", stadiumBowlingRating: 0.96, stadiumName: "BRSABV Ekana Stadium", pitchType: "balanced", boundarySize: "medium", dewFactor: "none" },
 ];
 
 export const WPL_TEAMS: TeamConfig[] = [

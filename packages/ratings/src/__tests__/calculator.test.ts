@@ -104,6 +104,23 @@ describe("calculateRatings", () => {
     expect(ratings.battingIQ).toBeGreaterThan(30);
   });
 
+  it("does not collapse pure batters to low clutch by default", () => {
+    const ratings = calculateRatings(makeStats({
+      battingInnings: 90,
+      runs: 3200,
+      ballsFaced: 2300,
+      fours: 300,
+      sixes: 95,
+      notOuts: 10,
+      bowlingInnings: 0,
+      ballsBowled: 0,
+      runsConceded: 0,
+      wickets: 0,
+    }));
+
+    expect(ratings.clutch).toBeGreaterThan(45);
+  });
+
   it("overall is consistent with formula", () => {
     const ratings = calculateRatings(makeStats());
     const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);

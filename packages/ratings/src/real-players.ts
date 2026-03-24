@@ -6,6 +6,7 @@
  */
 
 import { ALL_PLAYERS } from "./all-players.js";
+import type { BowlingStyle, BattingHand } from "@ipl-sim/engine";
 
 /**
  * Known wicket-keepers. The ESPN pipeline classifies them as "batsman"
@@ -28,6 +29,8 @@ export interface RealPlayerData {
   country: string;
   role: string;
   isWicketKeeper?: boolean;
+  bowlingStyle?: BowlingStyle;
+  battingHand?: BattingHand;
   battingIQ: number;
   timing: number;
   power: number;
@@ -53,6 +56,8 @@ export function getRealPlayers(): RealPlayerData[] {
       country: p.country,
       role: p.role,
       isWicketKeeper: KNOWN_WICKET_KEEPERS.has(p.name),
+      bowlingStyle: p.bowlingStyle,
+      battingHand: p.battingHand,
       battingIQ: p.ratings.battingIQ,
       timing: p.ratings.timing,
       power: p.ratings.power,

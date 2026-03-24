@@ -6,10 +6,19 @@
  */
 
 export { Player } from "./player.js";
-export type { PlayerData, PlayerRatings, PlayerRole, PlayerStats, MatchPerformance, InjurySeverity } from "./player.js";
+export {
+  calculateBattingOverall,
+  calculateBowlingOverall,
+  calculateOverallRating,
+  calculateMarketValue,
+} from "./player.js";
+export type { PlayerData, PlayerRatings, PlayerRole, PlayerStats, MatchPerformance, InjurySeverity, BowlingStyle, BattingHand } from "./player.js";
 
 export { Team, IPL_TEAMS, WPL_TEAMS } from "./team.js";
 export type { TeamConfig } from "./team.js";
+
+export { getMatchupModifiers, getMatchPhase, isPaceBowler, isSpinBowler } from "./matchups.js";
+export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";
 
 export { simulateMatch } from "./match.js";
 export type {
@@ -23,8 +32,21 @@ export {
   initAuction, userBid, userDropBid, cpuBidRound,
   nextPlayer, simCurrentPlayer, simRemainingAuction,
   getBasePrice, getBidIncrement,
+  evaluateRetentionSelection,
+  isCappedRetentionPlayer,
+  RETENTION_BUDGET,
+  MAX_RETENTIONS,
+  MAX_CAPPED_RETENTIONS,
+  MAX_UNCAPPED_RETENTIONS,
 } from "./auction.js";
-export type { AuctionConfig, AuctionBid, AuctionResult, AuctionState } from "./auction.js";
+export type {
+  AuctionConfig,
+  AuctionBid,
+  AuctionResult,
+  AuctionState,
+  RetentionCost,
+  RetentionEvaluation,
+} from "./auction.js";
 
 export {
   generateIPLSchedule,
@@ -86,6 +108,7 @@ export {
   getImpactSubOptions,
   applyImpactSub,
   setAggression,
+  setFieldSetting,
 } from "./live-match.js";
 export type {
   MatchState,
@@ -93,4 +116,5 @@ export type {
   LiveBowlerStats,
   PendingDecision,
   PendingDecisionOption,
+  FieldSetting,
 } from "./live-match.js";

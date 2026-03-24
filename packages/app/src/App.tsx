@@ -434,44 +434,10 @@ export default function App() {
   };
 
   const handleFinishRetention = () => {
-    // Apply user retention choices, release non-retained to pool, then start live auction
-    if (!state.retentionState) return;
-
-    const userTeam = state.teams.find(t => t.id === state.userTeamId);
-    if (userTeam) {
-      const { retained } = state.retentionState;
-      const retainedSet = new Set(retained);
-      const released: any[] = [];
-      const kept: any[] = [];
-
-      for (const p of userTeam.roster) {
-        if (retainedSet.has(p.id)) {
-          kept.push(p);
-        } else {
-          p.teamId = undefined;
-          p.bid = 0;
-          released.push(p);
-        }
-      }
-
-      userTeam.roster = kept;
-      let retentionSpent = 0;
-      for (const p of kept) {
-        retentionSpent += p.marketValue * 2;
-      }
-      userTeam.totalSpent = Math.round(retentionSpent * 100) / 100;
-
-      const withPool: GameState = {
-        ...state,
-        playerPool: [...state.playerPool, ...released],
-        retentionState: undefined,
-      };
-
-      // Initialize live auction
-      const withAuction = initLiveAuction(withPool);
-      update(withAuction);
-      navigate("/auction-live");
-    }
+    const retainedState = finishRetention(state);
+    const withAuction = initLiveAuction(retainedState);
+    update(withAuction);
+    navigate("/auction-live");
   };
 
   // ── Live Auction handlers ──

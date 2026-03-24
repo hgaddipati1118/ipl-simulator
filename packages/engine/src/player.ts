@@ -53,6 +53,13 @@ export interface MatchPerformance {
 
 export type PlayerRole = "batsman" | "bowler" | "all-rounder" | "wicket-keeper";
 
+export type BowlingStyle =
+  | "right-arm-fast" | "right-arm-medium" | "left-arm-fast" | "left-arm-medium"
+  | "off-spin" | "left-arm-orthodox" | "leg-spin" | "left-arm-wrist-spin"
+  | "unknown";
+
+export type BattingHand = "right" | "left";
+
 export type InjurySeverity = "minor" | "moderate" | "severe";
 
 export interface PlayerData {
@@ -64,12 +71,66 @@ export interface PlayerData {
   ratings: PlayerRatings;
   isInternational: boolean; // non-Indian = international (foreign player slot)
   isWicketKeeper?: boolean; // WK is a tag, not a role
+  bowlingStyle?: BowlingStyle;
+  battingHand?: BattingHand;
   teamId?: string;
   bid?: number; // auction price in crores
   injured: boolean;
   injuryGamesLeft: number;
   injuryType?: string;          // "hamstring", "shoulder", "back", "finger", "ankle", "side strain"
   injurySeverity?: InjurySeverity;
+}
+
+export function calculateBattingOverall(ratings: PlayerRatings): number {
+  const { battingIQ, timing, power, running } = ratings;
+  return Math.round(battingIQ * 0.35 + timing * 0.30 + power * 0.30 + running * 0.05);
+}
+
+export function calculateBowlingOverall(ratings: PlayerRatings): number {
+  const { wicketTaking, economy, accuracy, clutch } = ratings;
+  const base = wicketTaking * 0.35 + economy * 0.25 + accuracy * 0.15 + clutch * 0.25;
+  const strikeFactor = (wicketTaking + clutch) / 2;
+  const floor = strikeFactor * 0.85;
+  return Math.round(Math.max(base, floor));
+}
+
+export function calculateOverallRating(battingOvr: number, bowlingOvr: number): number {
+  const stronger = Math.max(battingOvr, bowlingOvr);
+  const weaker = Math.min(battingOvr, bowlingOvr);
+  return Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
+}
+
+export function calculateMarketValue(input: {
+  age: number;
+  role: PlayerRole;
+  isInternational: boolean;
+  isWicketKeeper: boolean;
+  battingOvr: number;
+  bowlingOvr: number;
+}): number {
+  const ovr = calculateOverallRating(input.battingOvr, input.bowlingOvr);
+  if (ovr <= 50) return 0.2;
+
+  const normalized = Math.max(0, (ovr - 50) / 40);
+  const qualityValue = 0.2 + Math.pow(normalized, 1.7) * 18;
+
+  let ageFactor = 1;
+  if (input.age <= 21) ageFactor = 1.18;
+  else if (input.age <= 24) ageFactor = 1.12;
+  else if (input.age <= 27) ageFactor = 1.05;
+  else if (input.age <= 31) ageFactor = 1.0;
+  else if (input.age <= 34) ageFactor = 0.94;
+  else ageFactor = 0.84;
+
+  const roleFactor = input.role === "all-rounder"
+    ? 1.10
+    : input.isWicketKeeper
+      ? 1.06
+      : 1.0;
+  const domesticFactor = input.isInternational ? 0.92 : 1.08;
+  const value = qualityValue * ageFactor * roleFactor * domesticFactor;
+
+  return Math.max(0.2, Math.min(20, Math.round(value * 100) / 100));
 }
 
 export class Player implements PlayerData {
@@ -81,6 +142,8 @@ export class Player implements PlayerData {
   ratings: PlayerRatings;
   isInternational: boolean;
   isWicketKeeper: boolean;
+  bowlingStyle: BowlingStyle;
+  battingHand: BattingHand;
   teamId?: string;
   bid: number;
   injured: boolean;
@@ -98,6 +161,8 @@ export class Player implements PlayerData {
     this.ratings = { ...data.ratings };
     this.isInternational = data.isInternational;
     this.isWicketKeeper = data.isWicketKeeper ?? false;
+    this.bowlingStyle = data.bowlingStyle ?? "unknown";
+    this.battingHand = data.battingHand ?? "right";
     this.teamId = data.teamId;
     this.bid = data.bid ?? 0;
     this.injured = data.injured ?? false;
@@ -118,39 +183,29 @@ export class Player implements PlayerData {
 
   /** Batting overall: weighted composite of batting attributes */
   get battingOvr(): number {
-    const { battingIQ, timing, power, running } = this.ratings;
-    return Math.round(battingIQ * 0.35 + timing * 0.30 + power * 0.30 + running * 0.05);
+    return calculateBattingOverall(this.ratings);
   }
 
   /** Bowling overall: weighted composite of bowling attributes */
   get bowlingOvr(): number {
-    const { wicketTaking, economy, accuracy, clutch } = this.ratings;
-    const base = wicketTaking * 0.35 + economy * 0.25 + accuracy * 0.15 + clutch * 0.25;
-    // Strike bowler floor: elite wicket-takers + clutch performers get a minimum
-    // This prevents expensive-but-lethal bowlers (Cummins, Starc) from being rated too low
-    const strikeFactor = (wicketTaking + clutch) / 2;
-    const floor = strikeFactor * 0.85; // e.g. WKT 74 + CLT 89 → avg 81.5 → floor 69
-    return Math.round(Math.max(base, floor));
+    return calculateBowlingOverall(this.ratings);
   }
 
   /** Overall rating: stronger discipline as base, weaker adds diminishing bonus */
   get overall(): number {
-    const bat = this.battingOvr;
-    const bowl = this.bowlingOvr;
-    const stronger = Math.max(bat, bowl);
-    const weaker = Math.min(bat, bowl);
-    return Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
+    return calculateOverallRating(this.battingOvr, this.bowlingOvr);
   }
 
   /** Market value in crores, used for auction AI */
   get marketValue(): number {
-    const ovr = this.overall;
-    if (ovr <= 50) return 0.2;
-    const base = Math.pow((ovr - 50) / 50, 1.8);
-    const ageFactor = Math.pow(30 / this.age, 0.5);
-    let value = Math.pow(base * ageFactor, 4) * 150;
-    if (this.isInternational) value *= 0.5;
-    return Math.max(0.2, Math.round(value * 100) / 100);
+    return calculateMarketValue({
+      age: this.age,
+      role: this.role,
+      isInternational: this.isInternational,
+      isWicketKeeper: this.isWicketKeeper,
+      battingOvr: this.battingOvr,
+      bowlingOvr: this.bowlingOvr,
+    });
   }
 
   /** Batting average */
@@ -213,6 +268,8 @@ export class Player implements PlayerData {
       ratings: { ...this.ratings },
       isInternational: this.isInternational,
       isWicketKeeper: this.isWicketKeeper,
+      bowlingStyle: this.bowlingStyle,
+      battingHand: this.battingHand,
       teamId: this.teamId,
       bid: this.bid,
       injured: this.injured,

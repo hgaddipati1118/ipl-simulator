@@ -255,10 +255,18 @@ export function calculateRatings(stats: RawPlayerStats, gender: GenderPop = "men
     ? clamp(Math.round(zToRating((zBowlExp*0.4 + zEcon*0.2 + zDotPct*0.3 + zBowlPct*0.1) * BOWL_Z_SCALE)), 15, 99)
     : 25;
 
-  // Clutch: bowling under pressure — experience + bowling workload
-  const clutch = hasBowling
+  const battingClutch = hasBatting
+    ? clamp(Math.round(zToRating(zExp*0.25 + zAvg*0.25 + zSR*0.2 + zBPO*0.15 + zSRnb*0.15)), 15, 99)
+    : 30;
+  const bowlingClutch = hasBowling
     ? clamp(Math.round(zToRating((zBowlExp*0.3 + zBowlPct*0.3 + zWPB*0.2 + zEcon*0.2) * BOWL_Z_SCALE)), 15, 99)
     : 30;
+  const battingWeight = Math.max(0.35, Math.min(0.7, batPct));
+  const clutch = hasBatting && hasBowling
+    ? clamp(Math.round(battingClutch * battingWeight + bowlingClutch * (1 - battingWeight)), 15, 99)
+    : hasBatting
+      ? battingClutch
+      : bowlingClutch;
 
   // ── Experience penalty (small sample regression) ──
   // Aggressive for very small samples: 10 matches → 0.5, 20 → 0.67, 30 → 0.83, 50 → 1.0
@@ -327,11 +335,9 @@ export function calculateRatings(stats: RawPlayerStats, gender: GenderPop = "men
  */
 export function inferRole(ratings: CalculatedRatings): "batsman" | "bowler" | "all-rounder" {
   const diff = ratings.battingOvr - ratings.bowlingOvr;
-  // Batting 55+ and bowling 60+ (or vice versa) to be a genuine all-rounder
-  const bothCompetent = Math.min(ratings.battingOvr, ratings.bowlingOvr) >= 55
-    && Math.max(ratings.battingOvr, ratings.bowlingOvr) >= 60;
-  if (!bothCompetent) return diff >= 0 ? "batsman" : "bowler";
-  if (diff > 25) return "batsman";
-  if (diff < -25) return "bowler";
+  const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
+  const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
+  const genuineAllRounder = weaker >= 58 && stronger >= 64 && Math.abs(diff) <= 18;
+  if (!genuineAllRounder) return diff >= 0 ? "batsman" : "bowler";
   return "all-rounder";
 }

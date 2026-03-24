@@ -3,7 +3,16 @@
  * Ported from IndianCricketLeague/createPlayer.js
  */
 
-import { Player, PlayerData, PlayerRatings, PlayerRole } from "./player.js";
+import {
+  Player,
+  PlayerData,
+  PlayerRatings,
+  PlayerRole,
+  BowlingStyle,
+  BattingHand,
+  calculateBattingOverall,
+  calculateBowlingOverall,
+} from "./player.js";
 import { clamp, randomNormal } from "./math.js";
 
 let playerIdCounter = 0;
@@ -59,6 +68,40 @@ const LAST_NAMES = [
   "Starc","Cummins","Warner","Head","Marsh","Maxwell","Zampa","Hazlewood","Lyon","Carey",
 ];
 
+/** Pick a random bowling style based on role */
+function randomBowlingStyle(role: PlayerRole): BowlingStyle {
+  const r = Math.random() * 100;
+  if (role === "bowler") {
+    // 40% right-arm-fast, 15% left-arm-fast, 15% off-spin, 10% leg-spin, 10% left-arm-orthodox, 5% right-arm-medium, 5% left-arm-medium
+    if (r < 40) return "right-arm-fast";
+    if (r < 55) return "left-arm-fast";
+    if (r < 70) return "off-spin";
+    if (r < 80) return "leg-spin";
+    if (r < 90) return "left-arm-orthodox";
+    if (r < 95) return "right-arm-medium";
+    return "left-arm-medium";
+  }
+  if (role === "all-rounder") {
+    // 30% right-arm-medium, 20% off-spin, 15% right-arm-fast, 15% leg-spin, 10% left-arm-orthodox, 10% left-arm-fast
+    if (r < 30) return "right-arm-medium";
+    if (r < 50) return "off-spin";
+    if (r < 65) return "right-arm-fast";
+    if (r < 80) return "leg-spin";
+    if (r < 90) return "left-arm-orthodox";
+    return "left-arm-fast";
+  }
+  // batsman (and wicket-keeper): 80% unknown, 10% off-spin, 5% right-arm-medium, 5% leg-spin
+  if (r < 80) return "unknown";
+  if (r < 90) return "off-spin";
+  if (r < 95) return "right-arm-medium";
+  return "leg-spin";
+}
+
+/** Pick a random batting hand — 70% right, 30% left (matches real cricket distribution) */
+function randomBattingHand(): BattingHand {
+  return Math.random() < 0.70 ? "right" : "left";
+}
+
 /** Generate a random player */
 export function generateRandomPlayer(overrides?: Partial<PlayerData>): Player {
   // Pick country
@@ -102,6 +145,8 @@ export function generateRandomPlayer(overrides?: Partial<PlayerData>): Player {
     ratings,
     isInternational,
     isWicketKeeper,
+    bowlingStyle: randomBowlingStyle(role),
+    battingHand: randomBattingHand(),
     injured: false,
     injuryGamesLeft: 0,
     ...overrides,
@@ -178,6 +223,88 @@ export function generatePlayerPool(count: number): Player[] {
   return players;
 }
 
+function inferRuntimeRole(
+  ratings: PlayerRatings,
+  explicitRole?: string,
+  isWicketKeeper = false,
+): PlayerRole {
+  if (isWicketKeeper) return "batsman";
+
+  const batOvr = calculateBattingOverall(ratings);
+  const bowlOvr = calculateBowlingOverall(ratings);
+  const diff = batOvr - bowlOvr;
+  const weaker = Math.min(batOvr, bowlOvr);
+  const stronger = Math.max(batOvr, bowlOvr);
+  const canBeAllRounder = weaker >= 62 && stronger >= 70 && Math.abs(diff) <= 12;
+
+  if (explicitRole === "all-rounder") {
+    return canBeAllRounder ? "all-rounder" : diff >= 0 ? "batsman" : "bowler";
+  }
+
+  if (explicitRole === "batsman") {
+    return diff <= -28 && bowlOvr >= 65 ? "bowler" : "batsman";
+  }
+
+  if (explicitRole === "bowler") {
+    return diff >= 28 && batOvr >= 65 ? "batsman" : "bowler";
+  }
+
+  if (canBeAllRounder) return "all-rounder";
+  return diff >= 0 ? "batsman" : "bowler";
+}
+
+function squashTowardBaseline(value: number, scale: number, baseline = 20): number {
+  return clamp(Math.round(baseline + (value - baseline) * scale), 10, 99);
+}
+
+function normalizeSecondaryDiscipline(ratings: PlayerRatings, role: PlayerRole): PlayerRatings {
+  const normalized = { ...ratings };
+
+  if (role === "batsman") {
+    const batOvr = calculateBattingOverall(normalized);
+    const bowlOvr = calculateBowlingOverall(normalized);
+    const maxBowlingOvr = Math.max(30, Math.min(44, batOvr - 30));
+
+    if (bowlOvr > maxBowlingOvr) {
+      const scale = (maxBowlingOvr - 20) / Math.max(1, bowlOvr - 20);
+      normalized.wicketTaking = squashTowardBaseline(normalized.wicketTaking, scale);
+      normalized.economy = squashTowardBaseline(normalized.economy, scale);
+      normalized.accuracy = squashTowardBaseline(normalized.accuracy, scale);
+    }
+  }
+
+  if (role === "bowler") {
+    const batOvr = calculateBattingOverall(normalized);
+    const bowlOvr = calculateBowlingOverall(normalized);
+    const maxBattingOvr = Math.max(30, Math.min(54, bowlOvr - 24));
+
+    if (batOvr > maxBattingOvr) {
+      const scale = (maxBattingOvr - 20) / Math.max(1, batOvr - 20);
+      normalized.battingIQ = squashTowardBaseline(normalized.battingIQ, scale);
+      normalized.timing = squashTowardBaseline(normalized.timing, scale);
+      normalized.power = squashTowardBaseline(normalized.power, scale);
+      normalized.running = squashTowardBaseline(normalized.running, scale);
+    }
+  }
+
+  return normalized;
+}
+
+function normalizeClutch(ratings: PlayerRatings, role: PlayerRole, isWicketKeeper = false): number {
+  const batOvr = calculateBattingOverall(ratings);
+  const bowlOvr = calculateBowlingOverall(ratings);
+
+  if (role === "batsman" || isWicketKeeper) {
+    return Math.max(ratings.clutch, clamp(Math.round(batOvr - 8), 35, 90));
+  }
+
+  if (role === "all-rounder") {
+    return Math.max(ratings.clutch, clamp(Math.round(Math.max(batOvr, bowlOvr) - 10), 40, 92));
+  }
+
+  return Math.max(ratings.clutch, clamp(Math.round(bowlOvr - 8), 35, 95));
+}
+
 /** Create a player from raw rating data (for importing real players) */
 export function createPlayerFromData(data: {
   name: string;
@@ -185,6 +312,8 @@ export function createPlayerFromData(data: {
   country: string;
   role?: string;
   isWicketKeeper?: boolean;
+  bowlingStyle?: BowlingStyle;
+  battingHand?: BattingHand;
   battingIQ: number;
   timing: number;
   power: number;
@@ -198,21 +327,21 @@ export function createPlayerFromData(data: {
 }): Player {
   const indianCountries = ["India"];
   const isInternational = !indianCountries.includes(data.country);
-
-  let role: PlayerRole;
-  if (data.role && data.role !== "wicket-keeper") {
-    role = data.role as PlayerRole;
-  } else if (data.role === "wicket-keeper") {
-    // Legacy: treat "wicket-keeper" role as batsman with isWicketKeeper flag
-    role = "batsman";
-  } else {
-    // Infer from ratings
-    const batOvr = data.battingIQ * 0.35 + data.timing * 0.30 + data.power * 0.30 + data.running * 0.05;
-    const bowlOvr = data.wicketTaking * 0.40 + data.economy * 0.40 + data.accuracy * 0.10 + data.clutch * 0.10;
-    if (batOvr > bowlOvr + 15) role = "batsman";
-    else if (bowlOvr > batOvr + 15) role = "bowler";
-    else role = "all-rounder";
-  }
+  const isWicketKeeper = data.isWicketKeeper ?? data.role === "wicket-keeper";
+  const rawRatings: PlayerRatings = {
+    battingIQ: data.battingIQ,
+    timing: data.timing,
+    power: data.power,
+    running: data.running,
+    wicketTaking: data.wicketTaking,
+    economy: data.economy,
+    accuracy: data.accuracy,
+    clutch: data.clutch,
+  };
+  const role = inferRuntimeRole(rawRatings, data.role, isWicketKeeper);
+  let ratings = normalizeSecondaryDiscipline(rawRatings, role);
+  ratings.clutch = normalizeClutch(ratings, role, isWicketKeeper);
+  ratings = normalizeSecondaryDiscipline(ratings, role);
 
   return new Player({
     id: nextPlayerId(),
@@ -220,18 +349,11 @@ export function createPlayerFromData(data: {
     age: data.age,
     country: data.country,
     role,
-    ratings: {
-      battingIQ: data.battingIQ,
-      timing: data.timing,
-      power: data.power,
-      running: data.running,
-      wicketTaking: data.wicketTaking,
-      economy: data.economy,
-      accuracy: data.accuracy,
-      clutch: data.clutch,
-    },
+    ratings,
     isInternational,
-    isWicketKeeper: data.isWicketKeeper ?? data.role === "wicket-keeper",
+    isWicketKeeper,
+    bowlingStyle: data.bowlingStyle,
+    battingHand: data.battingHand,
     teamId: data.teamId,
     bid: data.bid,
     injured: false,

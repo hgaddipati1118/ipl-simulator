@@ -71,6 +71,8 @@ describe("createPlayerFromData", () => {
       age: 36,
       country: "India",
       role: "batsman",
+      bowlingStyle: "leg-spin",
+      battingHand: "right",
       battingIQ: 95,
       timing: 92,
       power: 82,
@@ -86,6 +88,8 @@ describe("createPlayerFromData", () => {
     expect(p.isInternational).toBe(false);
     expect(p.role).toBe("batsman");
     expect(p.ratings.battingIQ).toBe(95);
+    expect(p.bowlingStyle).toBe("leg-spin");
+    expect(p.battingHand).toBe("right");
   });
 
   it("marks non-Indian players as international", () => {
@@ -125,9 +129,50 @@ describe("createPlayerFromData", () => {
       name: "Allrounder",
       age: 25,
       country: "India",
-      battingIQ: 60, timing: 55, power: 55, running: 50,
-      wicketTaking: 60, economy: 55, accuracy: 50, clutch: 50,
+      battingIQ: 78, timing: 72, power: 70, running: 62,
+      wicketTaking: 76, economy: 72, accuracy: 70, clutch: 74,
     });
     expect(allrounder.role).toBe("all-rounder");
+  });
+
+  it("downgrades fake all-rounders to specialists at runtime", () => {
+    // Player labeled "all-rounder" but with very weak bowling — should be batsman
+    const p = createPlayerFromData({
+      name: "Fake AR",
+      age: 30,
+      country: "India",
+      role: "all-rounder",
+      battingIQ: 90,
+      timing: 85,
+      power: 80,
+      running: 50,
+      wicketTaking: 25,
+      economy: 20,
+      accuracy: 20,
+      clutch: 30,
+    });
+
+    expect(p.role).toBe("batsman");
+    expect(p.battingOvr).toBeGreaterThan(p.bowlingOvr);
+  });
+
+  it("raises clutch floor for elite batting specialists", () => {
+    const p = createPlayerFromData({
+      name: "Virat-ish",
+      age: 37,
+      country: "India",
+      role: "batsman",
+      battingIQ: 93,
+      timing: 85,
+      power: 67,
+      running: 57,
+      wicketTaking: 24,
+      economy: 24,
+      accuracy: 28,
+      clutch: 33,
+    });
+
+    expect(p.role).toBe("batsman");
+    expect(p.ratings.clutch).toBeGreaterThanOrEqual(70);
   });
 });

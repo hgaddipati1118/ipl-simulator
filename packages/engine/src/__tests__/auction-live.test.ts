@@ -4,7 +4,7 @@ import { Player } from "../player.js";
 import {
   initAuction, userBid, userDropBid, cpuBidRound,
   nextPlayer, simCurrentPlayer, simRemainingAuction,
-  retainPlayers,
+  retainPlayers, evaluateRetentionSelection,
   type AuctionState,
 } from "../auction.js";
 
@@ -245,6 +245,33 @@ describe("simRemainingAuction", () => {
 // ── retainPlayers ────────────────────────────────────────────────────────
 
 describe("retainPlayers", () => {
+  it("evaluates user retention selections with fixed slot costs", () => {
+    const players = [
+      makePlayer("ret_a", "batsman", 82),
+      makePlayer("ret_b", "bowler", 78),
+      makePlayer("ret_c", "all-rounder", 74),
+      makePlayer("ret_d", "batsman", 52),
+    ];
+
+    const evaluation = evaluateRetentionSelection(players, 75, 6);
+
+    expect(evaluation.valid).toBe(true);
+    expect(evaluation.retentionCosts.map(entry => entry.cost)).toEqual([18, 14, 11, 4]);
+    expect(evaluation.totalCost).toBe(47);
+    expect(evaluation.remainingBudget).toBe(28);
+  });
+
+  it("treats internationals as capped even when their overall is modest", () => {
+    const overseas = makePlayer("ret_os", "bowler", 52);
+    overseas.isInternational = true;
+
+    const evaluation = evaluateRetentionSelection([overseas], 75, 6);
+
+    expect(evaluation.valid).toBe(true);
+    expect(evaluation.retentionCosts[0]?.isCapped).toBe(true);
+    expect(evaluation.retentionCosts[0]?.cost).toBe(18);
+  });
+
   it("retains top players within budget using IPL cost slabs", () => {
     const team = new Team(IPL_TEAMS[0]);
     // Add 8 players: some capped (ovr >= 60), some uncapped (ovr < 60)
@@ -296,6 +323,20 @@ describe("retainPlayers", () => {
     expect(team.roster.length).toBe(retained.length);
   });
 
+  it("stores the fixed retention cost on retained players", () => {
+    const team = new Team(IPL_TEAMS[0]);
+    for (let i = 0; i < 3; i++) {
+      team.addPlayer(makePlayer(`ret_${i}`, "batsman", 80 - i * 3), 3);
+    }
+
+    const { retained, retentionCosts } = retainPlayers(team, 75, 6);
+    const costByPlayerId = new Map(retentionCosts.map(entry => [entry.player.id, entry.cost]));
+
+    for (const player of retained) {
+      expect(player.bid).toBe(costByPlayerId.get(player.id));
+    }
+  });
+
   it("released players have teamId cleared", () => {
     const team = new Team(IPL_TEAMS[0]);
     for (let i = 0; i < 6; i++) {
@@ -305,6 +346,20 @@ describe("retainPlayers", () => {
     const { released } = retainPlayers(team, 75, 6);
     for (const p of released) {
       expect(p.teamId).toBeUndefined();
+    }
+  });
+
+  it("replaces retained player bids with retention slot costs", () => {
+    const team = new Team(IPL_TEAMS[0]);
+    team.addPlayer(makePlayer("ret_1", "batsman", 84), 12);
+    team.addPlayer(makePlayer("ret_2", "bowler", 78), 10);
+    team.addPlayer(makePlayer("ret_3", "all-rounder", 72), 8);
+
+    const { retained, retentionCosts } = retainPlayers(team, 75, 6);
+    const costByPlayerId = new Map(retentionCosts.map(entry => [entry.player.id, entry.cost]));
+
+    for (const player of retained) {
+      expect(player.bid).toBe(costByPlayerId.get(player.id));
     }
   });
 });

@@ -32,6 +32,12 @@ describe("Player constructor", () => {
     expect(p.injured).toBe(false);
   });
 
+  it("defaults style metadata when missing", () => {
+    const p = new Player(makePlayerData());
+    expect(p.bowlingStyle).toBe("unknown");
+    expect(p.battingHand).toBe("right");
+  });
+
   it("copies ratings (not reference)", () => {
     const data = makePlayerData();
     const p = new Player(data);
@@ -58,9 +64,8 @@ describe("Player computed ratings", () => {
 
   it("calculates bowlingOvr correctly", () => {
     const p = new Player(makePlayerData());
-    // base: wicketTaking*0.35 + economy*0.25 + accuracy*0.15 + clutch*0.25 = 38.25
-    // strike floor: (wicketTaking + clutch)/2 * 0.85 = (30+65)/2 * 0.85 = 40.375
-    // max(38.25, 40.375) = 40
+    // base: wkt*0.35 + econ*0.25 + acc*0.15 + clutch*0.25 = 38.25
+    // floor: (30+65)/2 * 0.85 = 40.375. max(38.25, 40.375) = 40
     expect(p.bowlingOvr).toBe(40);
   });
 
@@ -100,6 +105,19 @@ describe("Player market value", () => {
   it("is always at least 0.2", () => {
     const p = new Player(makePlayerData());
     expect(p.marketValue).toBeGreaterThanOrEqual(0.2);
+  });
+
+  it("keeps elite player valuation within a sane auction range", () => {
+    const p = new Player(makePlayerData({
+      age: 25,
+      role: "all-rounder",
+      isWicketKeeper: true,
+      ratings: {
+        battingIQ: 94, timing: 92, power: 93, running: 82,
+        wicketTaking: 88, economy: 84, accuracy: 86, clutch: 90,
+      },
+    }));
+    expect(p.marketValue).toBeLessThanOrEqual(24);
   });
 });
 
@@ -212,6 +230,8 @@ describe("Player serialization", () => {
 
   it("serializes injury fields correctly", () => {
     const p = new Player(makePlayerData({
+      bowlingStyle: "leg-spin",
+      battingHand: "left",
       injured: true,
       injuryGamesLeft: 4,
       injuryType: "shoulder",
@@ -223,6 +243,8 @@ describe("Player serialization", () => {
     expect(json.injuryGamesLeft).toBe(4);
     expect(json.injuryType).toBe("shoulder");
     expect(json.injurySeverity).toBe("moderate");
+    expect(json.bowlingStyle).toBe("leg-spin");
+    expect(json.battingHand).toBe("left");
   });
 
   it("deserializes injury fields correctly", () => {

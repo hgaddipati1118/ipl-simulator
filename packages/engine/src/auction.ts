@@ -58,11 +58,113 @@ export interface AuctionResult {
   unsold: Player[];
 }
 
+export interface RetentionCost {
+  player: Player;
+  cost: number;
+  slot: number;
+  isCapped: boolean;
+}
+
+export interface RetentionPlan {
+  valid: boolean;
+  reason?: string;
+  retentionCosts: RetentionCost[];
+  totalCost: number;
+  remainingBudget: number;
+  cappedCount: number;
+  uncappedCount: number;
+}
+
 const DEFAULT_CONFIG: AuctionConfig = {
   maxRosterSize: 25,
   maxInternational: 8,
   minSquadSize: 18,
 };
+
+export const RETENTION_BUDGET = 75;
+export const MAX_RETENTIONS = 6;
+export const MAX_CAPPED_RETENTIONS = 5;
+export const MAX_UNCAPPED_RETENTIONS = 2;
+
+/** IPL 2025 retention cost slabs (in crores).
+ *  Slots 1-5 are for capped players, slot 6 must be uncapped. */
+const CAPPED_RETENTION_COSTS = [18, 14, 11, 18, 14];
+const UNCAPPED_RETENTION_COST = 4;
+const CAPPED_RETENTION_THRESHOLD = 60;
+
+export interface RetentionEvaluation {
+  valid: boolean;
+  errors: string[];
+  retentionCosts: RetentionCost[];
+  totalCost: number;
+  remainingBudget: number;
+  cappedCount: number;
+  uncappedCount: number;
+}
+
+export function isCappedRetentionPlayer(player: Player): boolean {
+  return player.isInternational || player.overall >= CAPPED_RETENTION_THRESHOLD;
+}
+
+export function evaluateRetentionSelection(
+  players: Player[],
+  retentionBudget: number = RETENTION_BUDGET,
+  maxRetentions: number = MAX_RETENTIONS,
+): RetentionEvaluation {
+  const errors: string[] = [];
+  const retentionCosts: RetentionCost[] = [];
+  const sorted = [...players].sort((a, b) => b.overall - a.overall);
+  let totalCost = 0;
+  let cappedCount = 0;
+  let uncappedCount = 0;
+
+  if (sorted.length > maxRetentions) {
+    errors.push(`Can only retain ${maxRetentions} players.`);
+  }
+
+  for (const player of sorted) {
+    const isCapped = isCappedRetentionPlayer(player);
+
+    if (isCapped) {
+      if (cappedCount >= MAX_CAPPED_RETENTIONS) {
+        errors.push("Can only retain 5 capped players.");
+        break;
+      }
+      const cost = CAPPED_RETENTION_COSTS[cappedCount];
+      totalCost += cost;
+      retentionCosts.push({ player, cost, slot: cappedCount + 1, isCapped: true });
+      cappedCount++;
+      continue;
+    }
+
+    if (uncappedCount >= MAX_UNCAPPED_RETENTIONS) {
+      errors.push("Can only retain 2 uncapped players.");
+      break;
+    }
+    totalCost += UNCAPPED_RETENTION_COST;
+    retentionCosts.push({
+      player,
+      cost: UNCAPPED_RETENTION_COST,
+      slot: uncappedCount + 1,
+      isCapped: false,
+    });
+    uncappedCount++;
+  }
+
+  if (totalCost > retentionBudget) {
+    errors.push(`Retention plan exceeds the ${retentionBudget} Cr budget.`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    retentionCosts,
+    totalCost: Math.round(totalCost * 100) / 100,
+    remainingBudget: Math.round((retentionBudget - totalCost) * 100) / 100,
+    cappedCount,
+    uncappedCount,
+  };
+}
 
 // ── Full automated auction ──────────────────────────────────────────────
 
@@ -135,6 +237,7 @@ function auctionPlayer(
   playerIndex: number,
 ): AuctionBid | null {
   const basePrice = getBasePrice(player);
+  const value = Math.max(player.marketValue, basePrice);
 
   // Filter eligible teams
   const eligible = teams.filter(t => {
@@ -153,7 +256,6 @@ function auctionPlayer(
   let currentBid = basePrice;
   let currentBidder: Team | null = null;
   let round = 0;
-  const value = player.marketValue;
 
   // Bidding rounds
   while (round < 50) { // safety limit
@@ -167,9 +269,9 @@ function auctionPlayer(
       if (team.roster.length >= config.maxRosterSize) continue;
 
       // CPU bidding probability
-      const valueRatio = currentBid / (value * 10 + 0.1);
+      const valueRatio = currentBid / (value + 0.1);
       const positionFactor = 1 - 0.1 * (playerIndex / 100);
-      let bidProb = (1 - valueRatio) * positionFactor;
+      let bidProb = Math.max(0, 1 - valueRatio) * positionFactor;
 
       // Age adjustment: prefer younger players
       if (player.age < 25) bidProb *= 1.2;
@@ -182,7 +284,8 @@ function auctionPlayer(
       if (team.roster.length < 12) bidProb *= 1.3;
 
       // Don't overbid dramatically
-      if (currentBid > value * 15) bidProb *= 0.3;
+      if (currentBid > value * 1.25) bidProb *= 0.55;
+      if (currentBid > value * 1.5) bidProb *= 0.25;
 
       // Budget discipline: save money for remaining squad slots
       const slotsNeeded = Math.max(0, config.minSquadSize - team.roster.length);
@@ -305,7 +408,7 @@ export function cpuBidRound(
   const player = state.players[state.currentPlayerIndex];
   if (!player) return { ...state, phase: "complete" };
 
-  const value = player.marketValue;
+  const value = Math.max(player.marketValue, getBasePrice(player));
   let currentBid = state.currentBid;
   let currentBidderId = state.currentBidderId;
   let anyBid = false;
@@ -323,15 +426,16 @@ export function cpuBidRound(
     if (player.isInternational && team.internationalCount >= cfg.maxInternational) continue;
 
     // CPU bidding probability (same logic as full auction)
-    const valueRatio = currentBid / (value * 10 + 0.1);
+    const valueRatio = currentBid / (value + 0.1);
     const positionFactor = 1 - 0.1 * (state.currentPlayerIndex / 100);
-    let bidProb = (1 - valueRatio) * positionFactor;
+    let bidProb = Math.max(0, 1 - valueRatio) * positionFactor;
 
     if (player.age < 25) bidProb *= 1.2;
     if (player.age > 34) bidProb *= 0.7;
     if (!player.isInternational) bidProb *= 1.15;
     if (team.roster.length < 12) bidProb *= 1.3;
-    if (currentBid > value * 15) bidProb *= 0.3;
+    if (currentBid > value * 1.25) bidProb *= 0.55;
+    if (currentBid > value * 1.5) bidProb *= 0.25;
 
     // Budget discipline: save money for remaining squad slots
     const slotsNeeded = Math.max(0, (cfg.minSquadSize || 18) - team.roster.length);
@@ -455,70 +559,46 @@ export function simRemainingAuction(
 
 // ── Retention ───────────────────────────────────────────────────────────
 
-/** IPL 2025 retention cost slabs (in crores).
- *  Slots 1-5 are for capped players, slot 6 must be uncapped. */
-const CAPPED_RETENTION_COSTS = [18, 14, 11, 18, 14]; // slots 1-5
-const UNCAPPED_RETENTION_COST = 4; // per uncapped slot
-
 /** Simulate player retention between seasons using real IPL cost slabs.
  *  Max 6 retentions: up to 5 capped + up to 2 uncapped. */
 export function retainPlayers(
   team: Team,
-  retentionBudget: number = 75, // total purse spent on retentions (max 79 Cr for 5+1)
-  maxRetentions: number = 6,
+  retentionBudget: number = RETENTION_BUDGET,
+  maxRetentions: number = MAX_RETENTIONS,
 ): { retained: Player[]; released: Player[]; retentionCosts: { player: Player; cost: number }[] } {
   const sorted = [...team.roster].sort((a, b) => b.overall - a.overall);
   const retained: Player[] = [];
   const released: Player[] = [];
-  const retentionCosts: { player: Player; cost: number }[] = [];
-  let spent = 0;
-  let cappedCount = 0;
-  let uncappedCount = 0;
 
   for (const player of sorted) {
-    if (retained.length >= maxRetentions) {
+    const evaluation = evaluateRetentionSelection([...retained, player], retentionBudget, maxRetentions);
+    if (!evaluation.valid) {
       released.push(player);
       continue;
     }
-
-    // Determine if capped (overall >= 60 as proxy) or uncapped
-    const isCapped = player.overall >= 60;
-
-    let cost: number;
-    if (isCapped) {
-      if (cappedCount >= 5) {
-        // Can't retain more capped players
-        released.push(player);
-        continue;
-      }
-      cost = CAPPED_RETENTION_COSTS[cappedCount];
-    } else {
-      if (uncappedCount >= 2) {
-        released.push(player);
-        continue;
-      }
-      cost = UNCAPPED_RETENTION_COST;
-    }
-
-    if (spent + cost <= retentionBudget) {
-      retained.push(player);
-      retentionCosts.push({ player, cost });
-      spent += cost;
-      if (isCapped) cappedCount++;
-      else uncappedCount++;
-    } else {
-      released.push(player);
-    }
+    retained.push(player);
   }
+
+  const evaluation = evaluateRetentionSelection(retained, retentionBudget, maxRetentions);
+  const costByPlayerId = new Map(evaluation.retentionCosts.map(entry => [entry.player.id, entry.cost]));
 
   // Update team roster
   team.roster = retained;
-  team.totalSpent = spent;
+  team.totalSpent = evaluation.totalCost;
+
+  for (const player of retained) {
+    player.teamId = team.id;
+    player.bid = costByPlayerId.get(player.id) ?? 0;
+  }
 
   for (const p of released) {
     p.teamId = undefined;
     p.bid = 0;
   }
 
-  return { retained, released, retentionCosts };
+  return {
+    retained,
+    released,
+    retentionCosts: evaluation.retentionCosts.map(({ player, cost }) => ({ player, cost })),
+  };
 }

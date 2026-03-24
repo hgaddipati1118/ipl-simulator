@@ -1,4 +1,9 @@
-import { type Player } from "@ipl-sim/engine";
+import {
+  MAX_RETENTIONS,
+  RETENTION_BUDGET,
+  evaluateRetentionSelection,
+  type Player,
+} from "@ipl-sim/engine";
 import { GameState } from "../game-state";
 import { ovrColorClass, roleLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
@@ -12,15 +17,17 @@ interface Props {
 
 function PlayerRetentionRow({
   player,
+  cost,
   isRetained,
+  disabled,
   onToggle,
 }: {
   player: Player;
+  cost: number | null;
   isRetained: boolean;
+  disabled: boolean;
   onToggle: () => void;
 }) {
-  const cost = Math.round(player.marketValue * 2 * 100) / 100;
-
   return (
     <div
       className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200 ${
@@ -44,16 +51,21 @@ function PlayerRetentionRow({
         <div className="flex items-center gap-3 mt-0.5 text-xs text-th-muted font-display">
           <span>Age {player.age}</span>
           <span>{player.country}</span>
-          <span className="text-amber-400/80 font-semibold">{cost} Cr</span>
+          <span className={`font-semibold ${cost === null ? "text-th-faint" : "text-amber-400/80"}`}>
+            {cost === null ? "No slot" : `${cost.toFixed(1)} Cr`}
+          </span>
         </div>
       </div>
 
       <button
         onClick={onToggle}
+        disabled={disabled}
         className={`px-4 py-2 rounded-lg text-xs font-display font-semibold transition-all duration-200 min-w-[80px] ${
           isRetained
             ? "bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20"
-            : "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20"
+            : disabled
+              ? "bg-th-hover text-th-faint border border-th cursor-not-allowed"
+              : "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20"
         }`}
       >
         {isRetained ? "Release" : "Retain"}
@@ -76,6 +88,25 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
 
   const retainedSet = new Set(retention.retained);
   const sortedRoster = [...userTeam.roster].sort((a, b) => b.overall - a.overall);
+  const retainedPlayers = retention.retained
+    .map(id => userTeam.roster.find(player => player.id === id))
+    .filter((player): player is Player => player !== undefined);
+  const projectedCostByPlayerId = new Map<string, number | null>();
+
+  for (const player of sortedRoster) {
+    if (retainedSet.has(player.id)) {
+      projectedCostByPlayerId.set(player.id, retention.costs[player.id] ?? null);
+      continue;
+    }
+
+    const evaluation = evaluateRetentionSelection(
+      [...retainedPlayers, player],
+      RETENTION_BUDGET,
+      MAX_RETENTIONS,
+    );
+    const cost = evaluation.retentionCosts.find(entry => entry.player.id === player.id)?.cost ?? null;
+    projectedCostByPlayerId.set(player.id, evaluation.valid ? cost : null);
+  }
 
   const retainedCount = retention.retained.length;
   const releasedCount = userTeam.roster.length - retainedCount;
@@ -89,7 +120,7 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
             Player Retention
           </h2>
           <p className="text-th-muted mt-1 font-display">
-            Season <span className="stat-num">{state.seasonNumber}</span> — Choose which players to retain
+            Season <span className="stat-num">{state.seasonNumber}</span> — Choose up to {MAX_RETENTIONS} players using IPL fixed retention slabs
           </p>
         </div>
         <button
@@ -106,18 +137,18 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
         <div className="rounded-2xl border border-th bg-th-surface p-4 text-center">
           <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Budget</div>
           <div className="text-2xl font-display font-bold text-th-primary stat-num">
-            {retention.budget.toFixed(1)} <span className="text-sm text-th-muted font-normal">/ 42 Cr</span>
+            {retention.budget.toFixed(1)} <span className="text-sm text-th-muted font-normal">/ {RETENTION_BUDGET} Cr</span>
           </div>
         </div>
 
         <div className="rounded-2xl border border-th bg-th-surface p-4 text-center">
-          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Retained</div>
-          <div className="text-2xl font-display font-bold text-emerald-400 stat-num">{retainedCount}</div>
+          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Spent</div>
+          <div className="text-2xl font-display font-bold text-amber-400 stat-num">{retention.totalCost.toFixed(1)}</div>
         </div>
 
         <div className="rounded-2xl border border-th bg-th-surface p-4 text-center">
-          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Released</div>
-          <div className="text-2xl font-display font-bold text-red-400 stat-num">{releasedCount}</div>
+          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Retained / Released</div>
+          <div className="text-2xl font-display font-bold text-th-primary stat-num">{retainedCount} / {releasedCount}</div>
         </div>
       </div>
 
@@ -158,7 +189,9 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
             <PlayerRetentionRow
               key={player.id}
               player={player}
+              cost={projectedCostByPlayerId.get(player.id) ?? null}
               isRetained={retainedSet.has(player.id)}
+              disabled={!retainedSet.has(player.id) && projectedCostByPlayerId.get(player.id) === null}
               onToggle={() => onToggleRetention(player.id)}
             />
           ))}
