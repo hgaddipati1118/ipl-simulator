@@ -127,6 +127,7 @@ export function AuctionPage({
                             <span className={`text-[10px] font-display font-semibold px-1.5 py-0.5 rounded ${
                               player.role === "bowler" ? "bg-purple-500/15 text-purple-400" :
                               player.role === "all-rounder" ? "bg-emerald-500/15 text-emerald-400" :
+                              player.role === "wicket-keeper" ? "bg-cyan-500/15 text-cyan-400" :
                               "bg-orange-500/15 text-orange-400"
                             }`}>{roleLabel(player.role)}</span>
                             <span className={`${ovrColorClass(player.overall)} text-xs font-bold stat-num w-6 text-right`}>{player.overall}</span>

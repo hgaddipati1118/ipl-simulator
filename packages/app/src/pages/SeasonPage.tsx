@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { GameState, getPlayerSeasonStats, isSeasonComplete, isGroupStageComplete, type PlayerSeasonStat } from "../game-state";
 import { useNavigate } from "react-router-dom";
 import { TeamBadge } from "../components/TeamBadge";
@@ -65,6 +65,14 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
 
   // Hovered schedule match for "sim to here"
   const [hoveredMatchIdx, setHoveredMatchIdx] = useState<number | null>(null);
+
+  // Auto-scroll schedule to current match
+  const nextMatchRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (nextMatchRef.current) {
+      nextMatchRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [state.currentMatchIndex]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -278,6 +286,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
               return (
                 <div
                   key={idx}
+                  ref={isNext ? nextMatchRef : undefined}
                   className={`px-4 py-2 border-b border-th flex items-center gap-3 text-sm transition-colors ${
                     isNext ? "bg-orange-500/10 border-l-2 border-l-orange-500"
                       : isPlayed ? "hover:bg-th-hover cursor-pointer"

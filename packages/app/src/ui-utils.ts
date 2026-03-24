@@ -62,6 +62,7 @@ export function roleLabel(role: string): string {
     case "batsman": return "BAT";
     case "bowler": return "BWL";
     case "all-rounder": return "AR";
+    case "wicket-keeper": return "WK";
     default: return role;
   }
 }

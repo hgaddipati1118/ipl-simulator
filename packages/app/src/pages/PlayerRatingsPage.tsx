@@ -79,6 +79,7 @@ export function PlayerRatingsPage({ teams }: Props) {
           <option value="batsman">Batsman</option>
           <option value="bowler">Bowler</option>
           <option value="all-rounder">All-Rounder</option>
+          <option value="wicket-keeper">Wicket-Keeper</option>
         </select>
         <select
           value={filterTeam}
@@ -129,7 +130,7 @@ export function PlayerRatingsPage({ teams }: Props) {
                     {/* Show team + role inline on mobile (hidden in dedicated columns) */}
                     <span className="sm:hidden block text-[10px] text-th-muted mt-0.5">
                       <span style={{ color: teamLabelColor(team.config.primaryColor) }}>{team.shortName}</span>
-                      {" "}<span className={p.role === "bowler" ? "text-purple-400/70" : p.role === "all-rounder" ? "text-emerald-400/70" : "text-orange-400/70"}>{roleLabel(p.role)}</span>
+                      {" "}<span className={p.role === "bowler" ? "text-purple-400/70" : p.role === "all-rounder" ? "text-emerald-400/70" : p.role === "wicket-keeper" ? "text-cyan-400/70" : "text-orange-400/70"}>{roleLabel(p.role)}</span>
                     </span>
                   </td>
                   <td className="text-center px-2 py-2.5 hidden sm:table-cell">
@@ -144,6 +145,7 @@ export function PlayerRatingsPage({ teams }: Props) {
                     <span className={`text-[10px] font-display font-semibold px-1.5 py-0.5 rounded ${
                       p.role === "bowler" ? "bg-purple-500/15 text-purple-400" :
                       p.role === "all-rounder" ? "bg-emerald-500/15 text-emerald-400" :
+                      p.role === "wicket-keeper" ? "bg-cyan-500/15 text-cyan-400" :
                       "bg-orange-500/15 text-orange-400"
                     }`}>{roleLabel(p.role)}</span>
                   </td>

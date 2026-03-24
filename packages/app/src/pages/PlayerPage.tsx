@@ -28,6 +28,7 @@ const ROLE_BADGE: Record<string, { bg: string; text: string }> = {
   batsman: { bg: "bg-orange-500/15 border-orange-500/30", text: "text-orange-400" },
   bowler: { bg: "bg-purple-500/15 border-purple-500/30", text: "text-purple-400" },
   "all-rounder": { bg: "bg-emerald-500/15 border-emerald-500/30", text: "text-emerald-400" },
+  "wicket-keeper": { bg: "bg-cyan-500/15 border-cyan-500/30", text: "text-cyan-400" },
 };
 
 export function PlayerPage({ state }: Props) {

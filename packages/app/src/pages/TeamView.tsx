@@ -145,9 +145,10 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
 import type { Player } from "@ipl-sim/engine";
 
 const ROLE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  batsman:        { bg: "bg-orange-500",  text: "text-orange-300", label: "BAT" },
-  bowler:         { bg: "bg-purple-500",  text: "text-purple-300", label: "BWL" },
-  "all-rounder":  { bg: "bg-emerald-500", text: "text-emerald-300", label: "AR" },
+  batsman:          { bg: "bg-orange-500",  text: "text-orange-300",  label: "BAT" },
+  bowler:           { bg: "bg-purple-500",  text: "text-purple-300",  label: "BWL" },
+  "all-rounder":    { bg: "bg-emerald-500", text: "text-emerald-300", label: "AR" },
+  "wicket-keeper":  { bg: "bg-cyan-500",    text: "text-cyan-300",    label: "WK" },
 };
 
 function RoleBar({ roster, teamColor }: { roster: Player[]; teamColor: string }) {
