@@ -293,51 +293,41 @@ export function applyLiveResult(
   away.ballsFacedAgainst += awayBowlingInnings.totalBalls;
   away.updateNRR();
 
-  // Update player stats from ball-by-ball data
-  for (const [pid, bs] of innings1.batterStats) {
-    const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
-    if (player) {
+  // Update player stats — mirrors updatePlayerStats() in match.ts
+  const updateBatterStats = (inn: typeof innings1) => {
+    for (const [pid, bs] of inn.batterStats) {
+      const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
+      if (!player || bs.balls === 0) continue;
+      player.stats.innings++;
       player.stats.runs += bs.runs;
       player.stats.ballsFaced += bs.balls;
       player.stats.fours += bs.fours;
       player.stats.sixes += bs.sixes;
-      if (bs.isOut) player.stats.innings++;
-      else player.stats.notOuts++;
+      if (!bs.isOut) player.stats.notOuts++;
       if (bs.runs > player.stats.highScore) player.stats.highScore = bs.runs;
+      if (bs.runs >= 100) player.stats.hundreds++;
+      else if (bs.runs >= 50) player.stats.fifties++;
     }
-  }
-  for (const [pid, bs] of innings2.batterStats) {
-    const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
-    if (player) {
-      player.stats.runs += bs.runs;
-      player.stats.ballsFaced += bs.balls;
-      player.stats.fours += bs.fours;
-      player.stats.sixes += bs.sixes;
-      if (bs.isOut) player.stats.innings++;
-      else player.stats.notOuts++;
-      if (bs.runs > player.stats.highScore) player.stats.highScore = bs.runs;
-    }
-  }
-  for (const [pid, bs] of innings1.bowlerStats) {
-    const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
-    if (player) {
-      player.stats.overs += bs.overs + (bs.balls > 0 ? 1 : 0);
+  };
+  const updateBowlerStats = (inn: typeof innings1) => {
+    for (const [pid, bs] of inn.bowlerStats) {
+      const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
+      if (!player || (bs.overs === 0 && bs.balls === 0)) continue;
+      player.stats.overs += bs.overs + bs.balls / 10; // display format (e.g. 3.4)
       player.stats.wickets += bs.wickets;
       player.stats.runsConceded += bs.runs;
     }
-  }
-  for (const [pid, bs] of innings2.bowlerStats) {
-    const player = home.roster.find(p => p.id === pid) ?? away.roster.find(p => p.id === pid);
-    if (player) {
-      player.stats.overs += bs.overs + (bs.balls > 0 ? 1 : 0);
-      player.stats.wickets += bs.wickets;
-      player.stats.runsConceded += bs.runs;
-    }
-  }
+  };
+  updateBatterStats(innings1);
+  updateBatterStats(innings2);
+  updateBowlerStats(innings1);
+  updateBowlerStats(innings2);
 
-  // Mark matches played
-  for (const p of home.roster) { if (completedMatch._internal.homeXIIds.includes(p.id)) p.stats.matches++; }
-  for (const p of away.roster) { if (completedMatch._internal.awayXIIds.includes(p.id)) p.stats.matches++; }
+  // Mark matches played for all XI players
+  const homeXISet = new Set(completedMatch._internal.homeXIIds);
+  const awayXISet = new Set(completedMatch._internal.awayXIIds);
+  for (const p of home.roster) { if (homeXISet.has(p.id)) p.stats.matches++; }
+  for (const p of away.roster) { if (awayXISet.has(p.id)) p.stats.matches++; }
 
   // Heal injuries for all teams
   for (const t of teams) {

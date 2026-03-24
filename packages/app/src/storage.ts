@@ -90,6 +90,10 @@ function serializeTeams(teams: Team[]) {
     wins: t.wins, losses: t.losses, ties: t.ties,
     nrr: t.nrr, runsFor: t.runsFor, ballsFacedFor: t.ballsFacedFor,
     runsAgainst: t.runsAgainst, ballsFacedAgainst: t.ballsFacedAgainst,
+    isUserControlled: t.isUserControlled,
+    userPlayingXI: t.userPlayingXI,
+    userBattingOrder: t.userBattingOrder,
+    userBowlingOrder: t.userBowlingOrder,
   }));
 }
 
@@ -106,6 +110,10 @@ function deserializeTeams(data: any[]): Team[] {
     team.ballsFacedFor = t.ballsFacedFor ?? 0;
     team.runsAgainst = t.runsAgainst ?? 0;
     team.ballsFacedAgainst = t.ballsFacedAgainst ?? 0;
+    team.isUserControlled = t.isUserControlled ?? false;
+    team.userPlayingXI = t.userPlayingXI;
+    team.userBattingOrder = t.userBattingOrder;
+    team.userBowlingOrder = t.userBowlingOrder;
     return team;
   });
 }
