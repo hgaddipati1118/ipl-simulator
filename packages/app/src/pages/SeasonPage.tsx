@@ -52,6 +52,20 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
     ? state.schedule[state.currentMatchIndex]
     : null;
 
+  // Find next user match index (for "Sim to My Match" button)
+  const nextUserMatchIndex = useMemo(() => {
+    if (!state.userTeamId || !matchBasedActive) return -1;
+    for (let i = state.currentMatchIndex; i < state.schedule.length; i++) {
+      const m = state.schedule[i];
+      if (m.homeTeamId === state.userTeamId || m.awayTeamId === state.userTeamId) return i;
+    }
+    return -1;
+  }, [state.schedule, state.currentMatchIndex, state.userTeamId, matchBasedActive]);
+  const canSimToUserMatch = nextUserMatchIndex > state.currentMatchIndex;
+
+  // Hovered schedule match for "sim to here"
+  const [hoveredMatchIdx, setHoveredMatchIdx] = useState<number | null>(null);
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* User team hero card */}
@@ -143,6 +157,14 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
                   className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-display font-semibold rounded-xl transition-all text-sm w-full sm:w-auto"
                 >
                   Play Next Match
+                </button>
+              )}
+              {canSimToUserMatch && onSimBatch && (
+                <button
+                  onClick={() => onSimBatch(nextUserMatchIndex - state.currentMatchIndex)}
+                  className="px-4 py-2.5 bg-th-raised hover:bg-th-overlay text-orange-400 font-display font-medium rounded-xl transition-colors text-sm w-full sm:w-auto border border-orange-500/20"
+                >
+                  Sim to My Match
                 </button>
               )}
               {!groupDone && onSimBatch && (
@@ -248,15 +270,22 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
               const isPlayed = !!match.result;
               const isNext = idx === state.currentMatchIndex && !seasonDone;
               const isPlayoff = match.isPlayoff;
+              const isUpcoming = !isPlayed && !isNext && idx > state.currentMatchIndex;
+              const isUserMatch = state.userTeamId && (match.homeTeamId === state.userTeamId || match.awayTeamId === state.userTeamId);
               const matchLabel = match.type === "group" ? `#${match.matchNumber}` : ({ qualifier1: "Q1", eliminator: "Elim", qualifier2: "Q2", semi1: "SF1", semi2: "SF2", final: "FINAL" } as Record<string, string>)[match.type] ?? match.type;
+              const isHovered = hoveredMatchIdx === idx;
 
               return (
                 <div
                   key={idx}
                   className={`px-4 py-2 border-b border-th flex items-center gap-3 text-sm transition-colors ${
-                    isNext ? "bg-orange-500/10 border-l-2 border-l-orange-500" : isPlayed ? "hover:bg-th-hover cursor-pointer" : "opacity-40"
-                  } ${isPlayoff ? "bg-yellow-500/[0.03]" : ""}`}
+                    isNext ? "bg-orange-500/10 border-l-2 border-l-orange-500"
+                      : isPlayed ? "hover:bg-th-hover cursor-pointer"
+                      : isUpcoming ? "hover:bg-th-hover/50 opacity-60 hover:opacity-100 cursor-pointer" : "opacity-40"
+                  } ${isPlayoff ? "bg-yellow-500/[0.03]" : ""} ${isUserMatch && !isPlayed ? "border-l-2 border-l-orange-500/30" : ""}`}
                   onClick={() => { if (isPlayed) navigate(`/match/${idx}`); }}
+                  onMouseEnter={() => { if (isUpcoming) setHoveredMatchIdx(idx); }}
+                  onMouseLeave={() => setHoveredMatchIdx(null)}
                 >
                   <span className={`text-xs w-12 flex-shrink-0 ${isPlayoff ? "text-yellow-400 font-semibold" : "text-th-muted"}`}>
                     {matchLabel}
@@ -273,6 +302,15 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
                       <span className="text-th-muted text-xs">{match.result?.margin}</span>
                     ) : isNext ? (
                       <span className="text-orange-400 text-xs font-medium">NEXT</span>
+                    ) : isHovered && isUpcoming && onSimBatch ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onSimBatch(idx - state.currentMatchIndex); setHoveredMatchIdx(null); }}
+                        className="text-[11px] font-display font-medium text-orange-400 hover:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 px-2 py-0.5 rounded transition-colors"
+                      >
+                        Sim to here
+                      </button>
+                    ) : isUserMatch && !isPlayed ? (
+                      <span className="text-orange-400/50 text-[10px]">YOUR MATCH</span>
                     ) : null}
                   </div>
                 </div>
