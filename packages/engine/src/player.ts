@@ -125,7 +125,7 @@ export class Player implements PlayerData {
   /** Bowling overall: weighted composite of bowling attributes */
   get bowlingOvr(): number {
     const { wicketTaking, economy, accuracy, clutch } = this.ratings;
-    return Math.round(wicketTaking * 0.40 + economy * 0.40 + accuracy * 0.10 + clutch * 0.10);
+    return Math.round(wicketTaking * 0.35 + economy * 0.25 + accuracy * 0.15 + clutch * 0.25);
   }
 
   /** Overall rating: stronger discipline as base, weaker adds diminishing bonus */

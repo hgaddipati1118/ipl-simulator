@@ -952,8 +952,24 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       const eligibleBowlerIds = getEligibleBowlerIds(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId);
 
       if (isUserBowling && eligibleBowlerIds.length > 1) {
-        // User picks the bowler
-        const optionDetails: PendingDecisionOption[] = eligibleBowlerIds.map(id => {
+        // User can pick ANY XI player (not just bowling order) — like real cricket
+        const bowlingXIIds = newState.battingTeamId === state.homeTeam.id
+          ? ni.awayXIIds ?? ni.bowlingOrderIds
+          : ni.homeXIIds ?? ni.bowlingOrderIds;
+        const allEligible = getEligibleBowlerIds(
+          [...new Set([...ni.bowlingOrderIds, ...bowlingXIIds])],
+          ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId
+        );
+        // Sort: preferred bowlers first, then others
+        const preferredSet = new Set(ni.bowlingOrderIds);
+        allEligible.sort((a, b) => {
+          const aPreferred = preferredSet.has(a) ? 0 : 1;
+          const bPreferred = preferredSet.has(b) ? 0 : 1;
+          if (aPreferred !== bPreferred) return aPreferred - bPreferred;
+          return (pm[b]?.bowlingOvr ?? 0) - (pm[a]?.bowlingOvr ?? 0);
+        });
+
+        const optionDetails: PendingDecisionOption[] = allEligible.map(id => {
           const p = pm[id];
           const oversBowled = ni.bowlerOvers[id] ?? 0;
           const liveStat = newState.bowlerStats.find(b => b.playerId === id);
@@ -1157,11 +1173,13 @@ export function applyDecision(
     }
 
     case 'choose_bowler': {
-      // Find the index of the chosen bowler in the bowling order
       const chosenId = decision.selectedPlayerId;
-      const idx = ni.bowlingOrderIds.indexOf(chosenId);
+      let idx = ni.bowlingOrderIds.indexOf(chosenId);
+      // If player isn't in the bowling order (part-timer from XI), add them
       if (idx < 0) {
-        throw new Error(`Bowler ${chosenId} not found in bowling order`);
+        ni.bowlingOrderIds.push(chosenId);
+        if (ni.bowlerOvers[chosenId] === undefined) ni.bowlerOvers[chosenId] = 0;
+        idx = ni.bowlingOrderIds.length - 1;
       }
       assignNextBowler(newState, ni, pm, idx);
       break;
@@ -1729,9 +1747,18 @@ function pickNextBowler(
     return 0; // fallback
   }
 
-  // Sort by bowling OVR descending and pick randomly from top 3
-  eligibleIndices.sort((a, b) => (pm[b.id]?.bowlingOvr ?? 0) - (pm[a.id]?.bowlingOvr ?? 0));
-  const pick = eligibleIndices[Math.floor(Math.random() * Math.min(3, eligibleIndices.length))];
+  // Prefer specialist bowlers over all-rounders over batsmen
+  // Within each tier, sort by bowling OVR descending
+  eligibleIndices.sort((a, b) => {
+    const roleA = pm[a.id]?.role ?? "batsman";
+    const roleB = pm[b.id]?.role ?? "batsman";
+    const tierA = roleA === "bowler" ? 0 : roleA === "all-rounder" ? 1 : 2;
+    const tierB = roleB === "bowler" ? 0 : roleB === "all-rounder" ? 1 : 2;
+    if (tierA !== tierB) return tierA - tierB;
+    return (pm[b.id]?.bowlingOvr ?? 0) - (pm[a.id]?.bowlingOvr ?? 0);
+  });
+  // Pick randomly from top 2 of the best tier available
+  const pick = eligibleIndices[Math.floor(Math.random() * Math.min(2, eligibleIndices.length))];
   return pick.idx;
 }
 

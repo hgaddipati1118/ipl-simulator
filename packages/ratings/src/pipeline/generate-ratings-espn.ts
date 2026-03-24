@@ -703,8 +703,8 @@ export function generateAllRatings(): RatedPlayer[] {
       ratings.clutch = Math.round(50 + (ratings.clutch - 50) * qualityFactor);
 
       // Recompute overalls from adjusted attributes (must stay consistent with Player class getters)
-      ratings.battingOvr = Math.round(ratings.battingIQ * 0.30 + ratings.timing * 0.30 + ratings.power * 0.35 + ratings.running * 0.05);
-      ratings.bowlingOvr = Math.round(ratings.wicketTaking * 0.45 + ratings.economy * 0.30 + ratings.accuracy * 0.10 + ratings.clutch * 0.15);
+      ratings.battingOvr = Math.round(ratings.battingIQ * 0.35 + ratings.timing * 0.30 + ratings.power * 0.30 + ratings.running * 0.05);
+      ratings.bowlingOvr = Math.round(ratings.wicketTaking * 0.35 + ratings.economy * 0.25 + ratings.accuracy * 0.15 + ratings.clutch * 0.25);
       const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
       const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
       ratings.overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
@@ -1014,8 +1014,8 @@ export function generateWomenRatings(): RatedPlayer[] {
       ratings.clutch = Math.round(50 + (ratings.clutch - 50) * qualityFactor);
 
       // Recompute overalls
-      ratings.battingOvr = Math.round(ratings.battingIQ * 0.30 + ratings.timing * 0.30 + ratings.power * 0.35 + ratings.running * 0.05);
-      ratings.bowlingOvr = Math.round(ratings.wicketTaking * 0.45 + ratings.economy * 0.30 + ratings.accuracy * 0.10 + ratings.clutch * 0.15);
+      ratings.battingOvr = Math.round(ratings.battingIQ * 0.35 + ratings.timing * 0.30 + ratings.power * 0.30 + ratings.running * 0.05);
+      ratings.bowlingOvr = Math.round(ratings.wicketTaking * 0.35 + ratings.economy * 0.25 + ratings.accuracy * 0.15 + ratings.clutch * 0.25);
       const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
       const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
       ratings.overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
