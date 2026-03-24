@@ -165,12 +165,27 @@ export function LineupPage({ team, onConfirm }: Props) {
             <span style={{ color: team.config.primaryColor }} className="font-semibold">{team.name}</span>
           </p>
         </div>
-        <button
-          onClick={() => navigate("/season")}
-          className="text-th-secondary hover:text-th-primary text-sm"
-        >
-          Cancel
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              // Auto-select best XI and immediately confirm
+              const autoXI = team.autoSelectPlayingXI(4);
+              const autoIds = autoXI.map(p => p.id);
+              const autoBat = team.autoBattingOrder(autoXI).map(p => p.id);
+              const autoBowl = team.autoBowlingOrder(autoXI).map(p => p.id);
+              onConfirm(autoIds, autoBat, autoBowl);
+            }}
+            className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-display font-semibold rounded-lg text-sm transition-all"
+          >
+            Quick Start
+          </button>
+          <button
+            onClick={() => navigate("/season")}
+            className="text-th-secondary hover:text-th-primary text-sm"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
 
       {/* Injury alerts */}

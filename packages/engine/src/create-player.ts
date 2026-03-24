@@ -82,8 +82,8 @@ export function generateRandomPlayer(overrides?: Partial<PlayerData>): Player {
   else if (roleRoll < 0.60) role = "bowler";
   else role = "all-rounder";
 
-  // ~15% of batsmen are wicket-keepers
-  const isWicketKeeper = role === "batsman" && Math.random() < 0.15;
+  // ~30% of batsmen are wicket-keepers (ensures enough WKs for 2 per team in auction)
+  const isWicketKeeper = role === "batsman" && Math.random() < 0.30;
 
   // Generate ratings based on role (WK uses batsman-style ratings with higher running)
   const ratings = generateRatings(role, isWicketKeeper);

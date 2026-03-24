@@ -95,16 +95,16 @@ export function PlayerRatingsPage({ teams }: Props) {
       {/* Table */}
       <div className="rounded-2xl border border-th overflow-hidden bg-th-surface">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[600px]">
+          <table className="w-full text-sm min-w-[540px]">
             <thead>
               <tr className="text-th-muted text-[11px] uppercase font-display tracking-wider border-b border-th">
-                <th className="text-left px-3 sm:px-4 py-3">#</th>
+                <th className="text-left px-2 sm:px-4 py-3">#</th>
                 <SortHeader label="Player" field="name" />
-                <th className="text-center px-2 py-3">Team</th>
-                <th className="text-center px-2 py-3">Role</th>
+                <th className="text-center px-2 py-3 hidden sm:table-cell">Team</th>
+                <th className="text-center px-2 py-3 hidden sm:table-cell">Role</th>
                 <SortHeader label="OVR" field="overall" />
-                <SortHeader label="BAT" field="battingOvr" />
-                <SortHeader label="BWL" field="bowlingOvr" />
+                <SortHeader label="BAT" field="battingOvr" className="hidden md:table-cell" />
+                <SortHeader label="BWL" field="bowlingOvr" className="hidden md:table-cell" />
                 <th className="text-center px-2 py-3 hidden lg:table-cell text-orange-500/40">IQ</th>
                 <th className="text-center px-2 py-3 hidden lg:table-cell text-orange-500/40">TIM</th>
                 <th className="text-center px-2 py-3 hidden lg:table-cell text-orange-500/40">PWR</th>
@@ -113,7 +113,7 @@ export function PlayerRatingsPage({ teams }: Props) {
                 <th className="text-center px-2 py-3 hidden lg:table-cell text-purple-500/40">ECN</th>
                 <th className="text-center px-2 py-3 hidden lg:table-cell text-purple-500/40">ACC</th>
                 <th className="text-center px-2 py-3 hidden lg:table-cell text-cyan-500/40">CLT</th>
-                <SortHeader label="Age" field="age" />
+                <SortHeader label="Age" field="age" className="hidden md:table-cell" />
                 <SortHeader label="Runs" field="runs" className="hidden sm:table-cell" />
                 <SortHeader label="Wkts" field="wickets" className="hidden sm:table-cell" />
               </tr>
@@ -121,13 +121,18 @@ export function PlayerRatingsPage({ teams }: Props) {
             <tbody>
               {allPlayers.slice(0, 100).map(({ player: p, team }, i) => (
                 <tr key={p.id} className="border-t border-th hover:bg-th-hover transition-colors">
-                  <td className="px-3 sm:px-4 py-2.5 text-th-faint text-xs stat-num">{i + 1}</td>
+                  <td className="px-2 sm:px-4 py-2.5 text-th-faint text-xs stat-num">{i + 1}</td>
                   <td className="text-left px-2 py-2.5">
-                    <PlayerLink playerId={p.id} className="text-th-primary font-display">{p.name}</PlayerLink>
+                    <PlayerLink playerId={p.id} className="text-th-primary font-display text-xs sm:text-sm">{p.name}</PlayerLink>
                     {p.isInternational && <span className="text-blue-400/60 text-[10px] ml-1 font-semibold">OS</span>}
                     {p.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] ml-1 font-semibold">WK</span>}
+                    {/* Show team + role inline on mobile (hidden in dedicated columns) */}
+                    <span className="sm:hidden block text-[10px] text-th-muted mt-0.5">
+                      <span style={{ color: teamLabelColor(team.config.primaryColor) }}>{team.shortName}</span>
+                      {" "}<span className={p.role === "bowler" ? "text-purple-400/70" : p.role === "all-rounder" ? "text-emerald-400/70" : "text-orange-400/70"}>{roleLabel(p.role)}</span>
+                    </span>
                   </td>
-                  <td className="text-center px-2 py-2.5">
+                  <td className="text-center px-2 py-2.5 hidden sm:table-cell">
                     <span
                       className="text-xs font-display font-medium"
                       style={{ color: teamLabelColor(team.config.primaryColor) }}
@@ -135,7 +140,7 @@ export function PlayerRatingsPage({ teams }: Props) {
                       {team.shortName}
                     </span>
                   </td>
-                  <td className="text-center px-2 py-2.5">
+                  <td className="text-center px-2 py-2.5 hidden sm:table-cell">
                     <span className={`text-[10px] font-display font-semibold px-1.5 py-0.5 rounded ${
                       p.role === "bowler" ? "bg-purple-500/15 text-purple-400" :
                       p.role === "all-rounder" ? "bg-emerald-500/15 text-emerald-400" :
@@ -145,8 +150,8 @@ export function PlayerRatingsPage({ teams }: Props) {
                   <td className="text-center px-2 py-2.5">
                     <span className={`ovr-badge text-sm inline-block min-w-[28px] rounded-md px-1 py-0.5 ${ovrBgClass(p.overall)}`}>{p.overall}</span>
                   </td>
-                  <td className="text-center px-2 py-2.5 stat-num text-orange-300/60 text-sm">{p.battingOvr}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-purple-300/60 text-sm">{p.bowlingOvr}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-orange-300/60 text-sm hidden md:table-cell">{p.battingOvr}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-purple-300/60 text-sm hidden md:table-cell">{p.bowlingOvr}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{p.ratings.battingIQ}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{p.ratings.timing}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{p.ratings.power}</td>
@@ -155,7 +160,7 @@ export function PlayerRatingsPage({ teams }: Props) {
                   <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{p.ratings.economy}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{p.ratings.accuracy}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-cyan-400/40 text-sm hidden lg:table-cell">{p.ratings.clutch}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm">{p.age}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden md:table-cell">{p.age}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.runs}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.wickets}</td>
                 </tr>

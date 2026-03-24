@@ -88,6 +88,22 @@ export function runAuction(
     }
   }
 
+  // Ensure every team has at least 2 WKs (injury backup) before filling remaining spots
+  for (const team of teams) {
+    let wkCount = team.roster.filter(p => p.isWicketKeeper).length;
+    while (wkCount < 2 && team.roster.length < cfg.maxRosterSize) {
+      const wkIdx = unsold.findIndex(p =>
+        p.isWicketKeeper &&
+        (!p.isInternational || team.internationalCount < cfg.maxInternational)
+      );
+      if (wkIdx === -1) break;
+      const [wk] = unsold.splice(wkIdx, 1);
+      team.addPlayer(wk, getBasePrice(wk));
+      bids.push({ playerId: wk.id, playerName: wk.name, teamId: team.id, amount: getBasePrice(wk), round: 0 });
+      wkCount++;
+    }
+  }
+
   // Fill up teams that have fewer than minSquadSize players with unsold players at base price
   for (const team of teams) {
     while (team.roster.length < cfg.minSquadSize && unsold.length > 0) {
@@ -125,6 +141,10 @@ function auctionPlayer(
     if (t.roster.length >= config.maxRosterSize) return false;
     if (player.isInternational && t.internationalCount >= config.maxInternational) return false;
     if (t.remainingBudget < basePrice) return false;
+    // If team is nearly full and still needs WKs, only allow bidding on WKs
+    const slotsLeft = config.maxRosterSize - t.roster.length;
+    const wkCount = t.roster.filter(p => p.isWicketKeeper).length;
+    if (wkCount < 2 && slotsLeft <= (2 - wkCount) && !player.isWicketKeeper) return false;
     return true;
   });
 

@@ -117,12 +117,25 @@ export function AuctionPage({
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {auction.completedBids
                   .filter(b => b.teamId === state.userTeamId)
-                  .map(b => (
-                    <div key={b.playerId} className="flex items-center justify-between px-3 py-2 rounded-lg bg-th-raised text-sm">
-                      <span className="font-display text-th-primary">{b.playerName}</span>
-                      <span className="font-mono text-amber-400 stat-num">{b.amount.toFixed(2)} Cr</span>
-                    </div>
-                  ))}
+                  .map(b => {
+                    const player = auction.players.find(p => p.id === b.playerId);
+                    return (
+                      <div key={b.playerId} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-th-raised text-sm">
+                        <span className="font-display text-th-primary flex-1">{b.playerName}</span>
+                        {player && (
+                          <>
+                            <span className={`text-[10px] font-display font-semibold px-1.5 py-0.5 rounded ${
+                              player.role === "bowler" ? "bg-purple-500/15 text-purple-400" :
+                              player.role === "all-rounder" ? "bg-emerald-500/15 text-emerald-400" :
+                              "bg-orange-500/15 text-orange-400"
+                            }`}>{roleLabel(player.role)}</span>
+                            <span className={`${ovrColorClass(player.overall)} text-xs font-bold stat-num w-6 text-right`}>{player.overall}</span>
+                          </>
+                        )}
+                        <span className="font-mono text-amber-400 stat-num text-xs">{b.amount.toFixed(2)} Cr</span>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
