@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Royal Challengers Women - Crown/Shield with W marker -->
+  <defs>
+    <linearGradient id="rcbw-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF2A2A"/>
+      <stop offset="100%" stop-color="#EC1C24"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield body -->
+  <path d="M10,12 L10,32 Q10,48 32,54 Q54,48 54,32 L54,12 Z" fill="url(#rcbw-grad)"/>
+  <!-- Shield inner border -->
+  <path d="M14,15 L14,32 Q14,45 32,50 Q50,45 50,32 L50,15 Z" fill="none" stroke="#FFF" stroke-width="1.5" opacity="0.4"/>
+  <!-- Crown -->
+  <g transform="translate(32,26)">
+    <!-- Crown base -->
+    <rect x="-11" y="2" width="22" height="4" rx="1" fill="#FFD700"/>
+    <!-- Crown points -->
+    <polygon points="-11,2 -11,-5 -7,-1" fill="#FFD700"/>
+    <polygon points="-3,2 -1,-9 1,2" fill="#FFD700"/>
+    <polygon points="1,2 3,-9 5,2" fill="#FFD700"/>
+    <polygon points="7,-1 11,-5 11,2" fill="#FFD700"/>
+    <!-- Crown jewels -->
+    <circle cx="-9" cy="-2" r="1.3" fill="#EC1C24"/>
+    <circle cx="0" cy="-6" r="1.5" fill="#EC1C24"/>
+    <circle cx="9" cy="-2" r="1.3" fill="#EC1C24"/>
+    <!-- Crown band -->
+    <rect x="-11" y="2" width="22" height="1.5" fill="#DAA520"/>
+  </g>
+  <!-- W badge at bottom of shield -->
+  <circle cx="32" cy="42" r="6" fill="#FFD700"/>
+  <path d="M28,40 L29.5,44.5 L32,41 L34.5,44.5 L36,40" fill="none" stroke="#EC1C24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

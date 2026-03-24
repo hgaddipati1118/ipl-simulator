@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Punjab Kings - Lion/Shield motif -->
+  <defs>
+    <linearGradient id="pbks-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF3333"/>
+      <stop offset="100%" stop-color="#ED1B24"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield -->
+  <path d="M8,10 L32,6 L56,10 L56,38 Q56,54 32,60 Q8,54 8,38 Z" fill="url(#pbks-grad)"/>
+  <path d="M8,10 L32,6 L56,10 L56,38 Q56,54 32,60 Q8,54 8,38 Z" fill="none" stroke="#FFF" stroke-width="1.5" opacity="0.4"/>
+  <!-- Inner shield line -->
+  <path d="M13,13 L32,10 L51,13 L51,37 Q51,50 32,55 Q13,50 13,37 Z" fill="none" stroke="#FFF" stroke-width="1" opacity="0.2"/>
+  <!-- Stylized lion face -->
+  <g transform="translate(32,32)">
+    <!-- Mane outline -->
+    <circle cx="0" cy="0" r="14" fill="#CC0000" opacity="0.5"/>
+    <!-- Face -->
+    <ellipse cx="0" cy="1" rx="10" ry="11" fill="#FFD700"/>
+    <!-- Eyes -->
+    <ellipse cx="-4" cy="-3" rx="2" ry="2.5" fill="#1A0000"/>
+    <ellipse cx="4" cy="-3" rx="2" ry="2.5" fill="#1A0000"/>
+    <circle cx="-3.5" cy="-3.5" r="0.7" fill="#FFF"/>
+    <circle cx="4.5" cy="-3.5" r="0.7" fill="#FFF"/>
+    <!-- Nose -->
+    <path d="M-1.5,1 Q0,3 1.5,1 Q0,2 -1.5,1" fill="#B8860B"/>
+    <!-- Mouth -->
+    <path d="M-4,4 Q0,8 4,4" fill="none" stroke="#B8860B" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="0" y1="3" x2="0" y2="5" stroke="#B8860B" stroke-width="1"/>
+    <!-- Mane tufts -->
+    <path d="M-10,-8 Q-8,-14 -4,-12" fill="#DAA520" opacity="0.8"/>
+    <path d="M10,-8 Q8,-14 4,-12" fill="#DAA520" opacity="0.8"/>
+    <path d="M-12,0 Q-16,-2 -14,-6" fill="#DAA520" opacity="0.8"/>
+    <path d="M12,0 Q16,-2 14,-6" fill="#DAA520" opacity="0.8"/>
+    <path d="M0,-12 Q-2,-16 2,-16 Q4,-16 0,-12" fill="#DAA520" opacity="0.8"/>
+  </g>
+</svg>

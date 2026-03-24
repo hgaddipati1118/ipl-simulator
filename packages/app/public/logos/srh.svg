@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Sunrisers Hyderabad - Sun/Sunrise motif -->
+  <defs>
+    <linearGradient id="srh-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#CC6820"/>
+      <stop offset="100%" stop-color="#FF822A"/>
+    </linearGradient>
+  </defs>
+  <!-- Sun rays -->
+  <g transform="translate(32,38)">
+    <line x1="0" y1="-14" x2="0" y2="-26" stroke="#FF822A" stroke-width="3" stroke-linecap="round"/>
+    <line x1="12" y1="-7" x2="20" y2="-13" stroke="#FF822A" stroke-width="3" stroke-linecap="round"/>
+    <line x1="-12" y1="-7" x2="-20" y2="-13" stroke="#FF822A" stroke-width="3" stroke-linecap="round"/>
+    <line x1="8" y1="-12" x2="14" y2="-22" stroke="#FF822A" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="-8" y1="-12" x2="-14" y2="-22" stroke="#FF822A" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="16" y1="0" x2="24" y2="-4" stroke="#FF822A" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="-16" y1="0" x2="-24" y2="-4" stroke="#FF822A" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <!-- Horizon line -->
+  <rect x="4" y="38" width="56" height="2" rx="1" fill="#FFF" opacity="0.9"/>
+  <!-- Sun semicircle -->
+  <path d="M14,38 A18,18 0 0,1 50,38" fill="url(#srh-grad)"/>
+  <!-- Inner sun detail -->
+  <path d="M20,38 A12,12 0 0,1 44,38" fill="#FFB366" opacity="0.5"/>
+  <!-- Ground reflection -->
+  <rect x="8" y="42" width="48" height="3" rx="1.5" fill="#FF822A" opacity="0.3"/>
+  <rect x="14" y="47" width="36" height="2" rx="1" fill="#FF822A" opacity="0.15"/>
+</svg>

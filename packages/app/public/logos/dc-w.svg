@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Delhi Capitals Women - Dome with W marker -->
+  <defs>
+    <linearGradient id="dcw-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0066BB"/>
+      <stop offset="100%" stop-color="#004C93"/>
+    </linearGradient>
+  </defs>
+  <!-- Main dome -->
+  <path d="M12,40 L12,33 Q12,15 32,7 Q52,15 52,33 L52,40 Z" fill="url(#dcw-grad)"/>
+  <!-- Dome highlight -->
+  <path d="M18,38 L18,33 Q18,19 32,12 Q46,19 46,33 L46,38 Z" fill="#0066BB" opacity="0.6"/>
+  <!-- Dome top finial -->
+  <circle cx="32" cy="7" r="2.5" fill="#FFF"/>
+  <rect x="31" y="5" width="2" height="3" fill="#FFF"/>
+  <!-- Dome arches -->
+  <path d="M24,40 L24,33 Q24,28 28,26 Q30,25 30,28 L30,40 Z" fill="#002D5C" opacity="0.5"/>
+  <path d="M34,40 L34,28 Q34,25 36,26 Q40,28 40,33 L40,40 Z" fill="#002D5C" opacity="0.5"/>
+  <!-- Center arch -->
+  <path d="M28,40 L28,30 Q28,24 32,22 Q36,24 36,30 L36,40 Z" fill="#002D5C" opacity="0.6"/>
+  <!-- Base platform -->
+  <rect x="8" y="40" width="48" height="4" rx="1" fill="#004C93"/>
+  <!-- W badge at bottom -->
+  <circle cx="32" cy="52" r="7" fill="#FFF"/>
+  <path d="M27,49 L29,55 L32,51 L35,55 L37,49" fill="none" stroke="#004C93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

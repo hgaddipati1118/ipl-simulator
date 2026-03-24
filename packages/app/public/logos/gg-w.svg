@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Gujarat Giants Women - Giant motif -->
+  <defs>
+    <linearGradient id="ggw-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E04F16"/>
+      <stop offset="100%" stop-color="#1C1C1C"/>
+    </linearGradient>
+  </defs>
+  <!-- Background hexagon -->
+  <polygon points="32,4 56,18 56,46 32,60 8,46 8,18" fill="#1C1C1C"/>
+  <polygon points="32,4 56,18 56,46 32,60 8,46 8,18" fill="none" stroke="#E04F16" stroke-width="2"/>
+  <!-- Inner hex accent -->
+  <polygon points="32,9 51,21 51,43 32,55 13,43 13,21" fill="none" stroke="#E04F16" stroke-width="0.5" opacity="0.4"/>
+  <!-- Giant figure - bold and powerful -->
+  <g transform="translate(32,30)">
+    <!-- Head -->
+    <circle cx="0" cy="-16" r="6" fill="#E04F16"/>
+    <!-- Eyes - fierce -->
+    <rect x="-4" y="-18" width="3" height="1.5" rx="0.5" fill="#1C1C1C"/>
+    <rect x="1" y="-18" width="3" height="1.5" rx="0.5" fill="#1C1C1C"/>
+    <!-- Broad body/torso -->
+    <path d="M-16,2 L-12,-8 L0,-10 L12,-8 L16,2 L10,4 L0,2 L-10,4 Z" fill="#E04F16"/>
+    <!-- Arms raised - power pose -->
+    <path d="M-12,-8 L-20,-14 L-18,-10 L-14,-4 Z" fill="#E04F16"/>
+    <path d="M12,-8 L20,-14 L18,-10 L14,-4 Z" fill="#E04F16"/>
+    <!-- Fists -->
+    <circle cx="-20" cy="-14" r="3" fill="#E04F16"/>
+    <circle cx="20" cy="-14" r="3" fill="#E04F16"/>
+    <!-- Legs -->
+    <path d="M-6,2 L-8,18 L-4,18 L-2,6 Z" fill="#E04F16" opacity="0.8"/>
+    <path d="M6,2 L8,18 L4,18 L2,6 Z" fill="#E04F16" opacity="0.8"/>
+    <!-- Belt -->
+    <rect x="-10" y="1" width="20" height="3" rx="1" fill="#FFF" opacity="0.3"/>
+    <!-- Chest emblem - W -->
+    <path d="M-5,-4 L-3,0 L0,-3 L3,0 L5,-4" fill="none" stroke="#FFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

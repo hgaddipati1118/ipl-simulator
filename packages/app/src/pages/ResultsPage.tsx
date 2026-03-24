@@ -1,4 +1,7 @@
+import { useMemo } from "react";
 import { GameState } from "../game-state";
+import { TeamBadge } from "../components/TeamBadge";
+import { PlayerLink } from "../components/PlayerLink";
 
 interface Props {
   state: GameState;
@@ -7,69 +10,92 @@ interface Props {
 
 export function ResultsPage({ state, onNextSeason }: Props) {
   const { seasonResult, teams, history } = state;
-  if (!seasonResult) return <div className="p-8 text-gray-400">No results yet</div>;
+  if (!seasonResult) return <div className="p-8 text-th-secondary">No results yet</div>;
 
-  const champion = teams.find(t => t.id === seasonResult.champion);
-  const allPlayers = teams.flatMap(t => t.roster);
+  const teamMap = useMemo(() => new Map(teams.map(t => [t.id, t])), [teams]);
+  const champion = teamMap.get(seasonResult.champion);
+  const allPlayers = useMemo(() => teams.flatMap(t => t.roster), [teams]);
   const orangePlayer = allPlayers.find(p => p.id === seasonResult.orangeCap.playerId);
   const purplePlayer = allPlayers.find(p => p.id === seasonResult.purpleCap.playerId);
 
-  // Top run scorers
   const topScorers = [...allPlayers]
     .sort((a, b) => b.stats.runs - a.stats.runs)
     .slice(0, 10);
 
-  // Top wicket takers
   const topWicketTakers = [...allPlayers]
     .sort((a, b) => b.stats.wickets - a.stats.wickets)
     .slice(0, 10);
 
-  // Standings
   const standings = seasonResult.standings;
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-fade-in">
       {/* Champion banner */}
       <div
-        className="rounded-xl p-8 mb-8 text-center border-2"
+        className="rounded-2xl p-8 sm:p-10 mb-8 text-center relative overflow-hidden border border-th-strong"
         style={{
-          borderColor: champion?.config.primaryColor,
-          background: `linear-gradient(135deg, ${champion?.config.primaryColor}20, ${champion?.config.secondaryColor}10)`,
+          background: `linear-gradient(160deg, ${champion?.config.primaryColor}18, ${champion?.config.secondaryColor}08, transparent)`,
         }}
       >
-        <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Season {state.seasonNumber} Champions</p>
-        <h2 className="text-3xl font-bold text-white mb-4">{champion?.name}</h2>
-        <div className="flex justify-center gap-8 text-sm">
-          <div>
-            <span className="text-orange-400 font-semibold">Orange Cap</span>
-            <p className="text-white">{orangePlayer?.name} ({seasonResult.orangeCap.runs} runs)</p>
-          </div>
-          <div>
-            <span className="text-purple-400 font-semibold">Purple Cap</span>
-            <p className="text-white">{purplePlayer?.name} ({seasonResult.purpleCap.wickets} wkts)</p>
+        {/* Radial glow */}
+        <div
+          className="absolute inset-0 opacity-20 -z-0"
+          style={{ background: `radial-gradient(circle at 50% 0%, ${champion?.config.primaryColor}40, transparent 70%)` }}
+        />
+        <div className="relative z-10">
+          <p className="text-th-muted text-xs uppercase tracking-[0.2em] font-display font-medium mb-4">Season {state.seasonNumber} Champions</p>
+          {champion && (
+            <div className="mx-auto mb-4 w-20 h-20 animate-slide-up">
+              <TeamBadge teamId={champion.id} shortName={champion.shortName} primaryColor={champion.config.primaryColor} size="lg" />
+            </div>
+          )}
+          <h2 className="text-3xl sm:text-4xl font-display font-extrabold text-th-primary mb-1 tracking-tight">{champion?.name}</h2>
+          <div
+            className="w-16 h-1 rounded-full mx-auto mt-3 mb-6"
+            style={{ background: `linear-gradient(to right, ${champion?.config.primaryColor}, ${champion?.config.secondaryColor})` }}
+          />
+          <div className="flex flex-col sm:flex-row justify-center gap-6 sm:gap-10">
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center">
+                <span className="text-orange-400 text-sm">🧢</span>
+              </div>
+              <div className="text-left">
+                <div className="text-[10px] text-orange-400/70 uppercase tracking-wider font-display font-semibold">Orange Cap</div>
+                <div className="text-th-primary text-sm font-display">{orangePlayer ? <PlayerLink playerId={orangePlayer.id}>{orangePlayer.name}</PlayerLink> : "Unknown"} <span className="stat-num text-orange-300">{seasonResult.orangeCap.runs}r</span></div>
+              </div>
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
+                <span className="text-purple-400 text-sm">🧢</span>
+              </div>
+              <div className="text-left">
+                <div className="text-[10px] text-purple-400/70 uppercase tracking-wider font-display font-semibold">Purple Cap</div>
+                <div className="text-th-primary text-sm font-display">{purplePlayer ? <PlayerLink playerId={purplePlayer.id}>{purplePlayer.name}</PlayerLink> : "Unknown"} <span className="stat-num text-purple-300">{seasonResult.purpleCap.wickets}w</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
         {/* Top scorers */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 bg-orange-500/10 border-b border-gray-800">
-            <h3 className="text-sm font-semibold text-orange-400 uppercase tracking-wider">Top Run Scorers</h3>
+        <div className="rounded-2xl border border-th overflow-hidden bg-th-surface">
+          <div className="px-4 py-3 border-b border-th bg-orange-500/[0.04]">
+            <h3 className="text-xs font-display font-semibold text-orange-400 uppercase tracking-wider">Top Run Scorers</h3>
           </div>
-          <div className="divide-y divide-gray-800/50">
+          <div className="divide-y divide-th">
             {topScorers.map((p, i) => (
-              <div key={p.id} className="px-4 py-2 flex items-center justify-between">
+              <div key={p.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-th-hover transition-colors">
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-600 text-xs w-4">{i + 1}</span>
+                  <span className={`stat-num text-xs w-4 ${i < 3 ? "text-orange-400" : "text-th-faint"}`}>{i + 1}</span>
                   <div>
-                    <span className="text-white text-sm">{p.name}</span>
-                    <span className="text-gray-600 text-xs ml-2">{teams.find(t => t.roster.includes(p))?.shortName}</span>
+                    <PlayerLink playerId={p.id} className="text-th-primary text-sm font-display">{p.name}</PlayerLink>
+                    <span className="text-th-faint text-xs ml-2">{teams.find(t => t.id === p.teamId)?.shortName}</span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-white font-semibold text-sm">{p.stats.runs}</span>
-                  <span className="text-gray-500 text-xs ml-2">SR {p.strikeRate.toFixed(1)}</span>
+                <div className="text-right flex items-baseline gap-2">
+                  <span className="text-th-primary font-semibold text-sm stat-num">{p.stats.runs}</span>
+                  <span className="text-th-muted text-[10px] stat-num">SR {p.strikeRate.toFixed(1)}</span>
                 </div>
               </div>
             ))}
@@ -77,23 +103,23 @@ export function ResultsPage({ state, onNextSeason }: Props) {
         </div>
 
         {/* Top wicket takers */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 bg-purple-500/10 border-b border-gray-800">
-            <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider">Top Wicket Takers</h3>
+        <div className="rounded-2xl border border-th overflow-hidden bg-th-surface">
+          <div className="px-4 py-3 border-b border-th bg-purple-500/[0.04]">
+            <h3 className="text-xs font-display font-semibold text-purple-400 uppercase tracking-wider">Top Wicket Takers</h3>
           </div>
-          <div className="divide-y divide-gray-800/50">
+          <div className="divide-y divide-th">
             {topWicketTakers.map((p, i) => (
-              <div key={p.id} className="px-4 py-2 flex items-center justify-between">
+              <div key={p.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-th-hover transition-colors">
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-600 text-xs w-4">{i + 1}</span>
+                  <span className={`stat-num text-xs w-4 ${i < 3 ? "text-purple-400" : "text-th-faint"}`}>{i + 1}</span>
                   <div>
-                    <span className="text-white text-sm">{p.name}</span>
-                    <span className="text-gray-600 text-xs ml-2">{teams.find(t => t.roster.includes(p))?.shortName}</span>
+                    <PlayerLink playerId={p.id} className="text-th-primary text-sm font-display">{p.name}</PlayerLink>
+                    <span className="text-th-faint text-xs ml-2">{teams.find(t => t.id === p.teamId)?.shortName}</span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-white font-semibold text-sm">{p.stats.wickets}</span>
-                  <span className="text-gray-500 text-xs ml-2">Econ {p.economyRate.toFixed(1)}</span>
+                <div className="text-right flex items-baseline gap-2">
+                  <span className="text-th-primary font-semibold text-sm stat-num">{p.stats.wickets}</span>
+                  <span className="text-th-muted text-[10px] stat-num">Econ {p.economyRate.toFixed(1)}</span>
                 </div>
               </div>
             ))}
@@ -102,52 +128,59 @@ export function ResultsPage({ state, onNextSeason }: Props) {
       </div>
 
       {/* Final standings */}
-      <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden mb-8">
-        <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800">
-          <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Final Standings</h3>
+      <div className="rounded-2xl border border-th overflow-hidden mb-8 bg-th-surface">
+        <div className="px-4 py-3 border-b border-th">
+          <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Final Standings</h3>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-gray-500 text-xs uppercase">
-              <th className="text-left px-4 py-2">#</th>
-              <th className="text-left px-4 py-2">Team</th>
-              <th className="text-center px-4 py-2">P</th>
-              <th className="text-center px-4 py-2">W</th>
-              <th className="text-center px-4 py-2">L</th>
-              <th className="text-center px-4 py-2">Pts</th>
-              <th className="text-center px-4 py-2">NRR</th>
-            </tr>
-          </thead>
-          <tbody>
-            {standings.map((s, i) => {
-              const team = teams.find(t => t.id === s.teamId)!;
-              return (
-                <tr key={s.teamId} className={`border-t border-gray-800/50 ${i < 4 ? "bg-green-500/5" : ""}`}>
-                  <td className="px-4 py-2 text-gray-500">{i + 1}</td>
-                  <td className="px-4 py-2 text-white font-medium">{team.shortName}</td>
-                  <td className="text-center px-4 py-2 text-gray-300">{s.played}</td>
-                  <td className="text-center px-4 py-2 text-green-400">{s.wins}</td>
-                  <td className="text-center px-4 py-2 text-red-400">{s.losses}</td>
-                  <td className="text-center px-4 py-2 text-white font-semibold">{s.points}</td>
-                  <td className="text-center px-4 py-2 text-gray-400">{s.nrr >= 0 ? "+" : ""}{s.nrr.toFixed(3)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[420px]">
+            <thead>
+              <tr className="text-th-muted text-[11px] uppercase font-display tracking-wider">
+                <th className="text-left px-4 py-2">#</th>
+                <th className="text-left px-4 py-2">Team</th>
+                <th className="text-center px-3 py-2">P</th>
+                <th className="text-center px-3 py-2">W</th>
+                <th className="text-center px-3 py-2">L</th>
+                <th className="text-center px-3 py-2">Pts</th>
+                <th className="text-center px-3 py-2">NRR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {standings.map((s, i) => {
+                const team = teamMap.get(s.teamId)!;
+                return (
+                  <tr key={s.teamId} className={`border-t border-th ${i < 4 ? "bg-emerald-500/[0.03]" : ""}`}>
+                    <td className="px-4 py-2 text-th-muted stat-num">{i + 1}</td>
+                    <td className="px-4 py-2 text-th-primary font-display font-medium">{team.shortName}</td>
+                    <td className="text-center px-3 py-2 text-th-secondary stat-num">{s.played}</td>
+                    <td className="text-center px-3 py-2 text-emerald-400 stat-num">{s.wins}</td>
+                    <td className="text-center px-3 py-2 text-red-400/80 stat-num">{s.losses}</td>
+                    <td className="text-center px-3 py-2 text-th-primary font-bold stat-num">{s.points}</td>
+                    <td className="text-center px-3 py-2 text-th-muted stat-num">{s.nrr >= 0 ? "+" : ""}{s.nrr.toFixed(3)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Season history */}
       {history.length > 0 && (
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-8">
-          <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">History</h3>
+        <div className="rounded-2xl border border-th bg-th-surface p-4 mb-8">
+          <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-3">History</h3>
           <div className="space-y-2">
             {history.map(h => (
-              <div key={h.seasonNumber} className="flex items-center gap-4 text-sm">
-                <span className="text-gray-500">S{h.seasonNumber}</span>
-                <span className="text-white font-medium">{h.champion}</span>
-                <span className="text-orange-400">{h.orangeCap.name} ({h.orangeCap.runs}r)</span>
-                <span className="text-purple-400">{h.purpleCap.name} ({h.purpleCap.wickets}w)</span>
+              <div key={h.seasonNumber} className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm">
+                <span className="text-th-muted stat-num text-xs">S{h.seasonNumber}</span>
+                <span className="text-th-primary font-display font-medium">{h.champion}</span>
+                <span className="text-orange-400/80 text-xs">{h.orangeCap.name} <span className="stat-num">{h.orangeCap.runs}r</span></span>
+                <span className="text-purple-400/80 text-xs">{h.purpleCap.name} <span className="stat-num">{h.purpleCap.wickets}w</span></span>
+                {h.stadiumRating != null && (
+                  <span className="text-th-muted text-[10px] font-mono" title="Your stadium rating">
+                    Stadium {h.stadiumRating.toFixed(2)}
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -157,7 +190,7 @@ export function ResultsPage({ state, onNextSeason }: Props) {
       <div className="text-center">
         <button
           onClick={onNextSeason}
-          className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors"
+          className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
         >
           Next Season
         </button>

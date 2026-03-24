@@ -651,7 +651,7 @@ export function runCPURetentions(state: GameState): GameState {
 
   for (const team of state.teams) {
     if (team.id === state.userTeamId) continue;
-    retainPlayers(team, 42, 5);
+    retainPlayers(team, 75, 6);
   }
 
   // Released players go to the auction pool

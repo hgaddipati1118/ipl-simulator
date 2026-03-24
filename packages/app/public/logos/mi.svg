@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Mumbai Indians - Trident motif -->
+  <defs>
+    <linearGradient id="mi-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0066CC"/>
+      <stop offset="100%" stop-color="#004BA0"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="28" fill="url(#mi-grad)"/>
+  <circle cx="32" cy="32" r="26" fill="none" stroke="#D4AF37" stroke-width="1.5"/>
+  <!-- Trident -->
+  <g transform="translate(32,32)">
+    <!-- Main shaft -->
+    <rect x="-2" y="-8" width="4" height="26" rx="1" fill="#D4AF37"/>
+    <!-- Center prong -->
+    <path d="M-2,-8 L-3,-16 L0,-22 L3,-16 L2,-8 Z" fill="#D4AF37"/>
+    <!-- Left prong -->
+    <path d="M-2,-8 L-6,-10 L-12,-20 L-8,-18 L-5,-10 Z" fill="#D4AF37"/>
+    <!-- Right prong -->
+    <path d="M2,-8 L6,-10 L12,-20 L8,-18 L5,-10 Z" fill="#D4AF37"/>
+    <!-- Prong tips -->
+    <circle cx="0" cy="-22" r="2" fill="#FFD700"/>
+    <circle cx="-12" cy="-20" r="1.8" fill="#FFD700"/>
+    <circle cx="12" cy="-20" r="1.8" fill="#FFD700"/>
+    <!-- Cross guard -->
+    <rect x="-8" y="-8" width="16" height="3" rx="1.5" fill="#D4AF37"/>
+    <!-- Shaft detail -->
+    <rect x="-1" y="0" width="2" height="16" fill="#FFD700" opacity="0.3"/>
+  </g>
+</svg>

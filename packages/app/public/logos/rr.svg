@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Rajasthan Royals - Royal Crown motif -->
+  <defs>
+    <linearGradient id="rr-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF2DA0"/>
+      <stop offset="100%" stop-color="#EA1A85"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="28" fill="url(#rr-grad)"/>
+  <circle cx="32" cy="32" r="26" fill="none" stroke="#FFF" stroke-width="1" opacity="0.3"/>
+  <!-- Grand crown -->
+  <g transform="translate(32,34)">
+    <!-- Crown base band -->
+    <rect x="-18" y="2" width="36" height="6" rx="2" fill="#FFD700"/>
+    <rect x="-18" y="2" width="36" height="3" fill="#DAA520" rx="1"/>
+    <!-- Crown body -->
+    <path d="M-18,2 L-18,-4 L-12,-8 L-6,-2 L0,-12 L6,-2 L12,-8 L18,-4 L18,2 Z" fill="#FFD700"/>
+    <!-- Crown jewels at tips -->
+    <circle cx="-12" cy="-8" r="2.5" fill="#FFF"/>
+    <circle cx="0" cy="-12" r="3" fill="#FFF"/>
+    <circle cx="12" cy="-8" r="2.5" fill="#FFF"/>
+    <!-- Crown inner jewels -->
+    <circle cx="-12" cy="-8" r="1.2" fill="#EA1A85"/>
+    <circle cx="0" cy="-12" r="1.5" fill="#EA1A85"/>
+    <circle cx="12" cy="-8" r="1.2" fill="#EA1A85"/>
+    <!-- Band jewels -->
+    <circle cx="-9" cy="5" r="1.5" fill="#FFF" opacity="0.8"/>
+    <circle cx="0" cy="5" r="1.5" fill="#FFF" opacity="0.8"/>
+    <circle cx="9" cy="5" r="1.5" fill="#FFF" opacity="0.8"/>
+    <!-- Crown velvet -->
+    <path d="M-16,-2 Q-8,-6 0,-2 Q8,-6 16,-2 L16,2 L-16,2 Z" fill="#EA1A85" opacity="0.4"/>
+  </g>
+</svg>

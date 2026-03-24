@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Royal Challengers Bengaluru - Crown/Royal motif -->
+  <defs>
+    <linearGradient id="rcb-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF2A2A"/>
+      <stop offset="100%" stop-color="#EC1C24"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield body -->
+  <path d="M10,14 L10,34 Q10,52 32,58 Q54,52 54,34 L54,14 Z" fill="url(#rcb-grad)"/>
+  <!-- Shield inner border -->
+  <path d="M14,17 L14,34 Q14,49 32,54 Q50,49 50,34 L50,17 Z" fill="none" stroke="#FFF" stroke-width="1.5" opacity="0.4"/>
+  <!-- Crown -->
+  <g transform="translate(32,28)">
+    <!-- Crown base -->
+    <rect x="-12" y="2" width="24" height="5" rx="1" fill="#FFD700"/>
+    <!-- Crown points -->
+    <polygon points="-12,2 -12,-6 -7,-1" fill="#FFD700"/>
+    <polygon points="-4,2 -2,-10 0,2" fill="#FFD700"/>
+    <polygon points="0,2 2,-10 4,2" fill="#FFD700"/>
+    <polygon points="7,-1 12,-6 12,2" fill="#FFD700"/>
+    <!-- Crown jewels -->
+    <circle cx="-10" cy="-3" r="1.5" fill="#EC1C24"/>
+    <circle cx="0" cy="-7" r="1.8" fill="#EC1C24"/>
+    <circle cx="10" cy="-3" r="1.5" fill="#EC1C24"/>
+    <!-- Crown band detail -->
+    <rect x="-12" y="2" width="24" height="2" fill="#DAA520"/>
+  </g>
+  <!-- Shield top edge -->
+  <path d="M10,14 L54,14" stroke="#FFF" stroke-width="2" opacity="0.3"/>
+</svg>

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Kolkata Knight Riders - Knight/Shield motif -->
+  <defs>
+    <linearGradient id="kkr-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4A2D6F"/>
+      <stop offset="100%" stop-color="#3A225D"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield shape -->
+  <path d="M8,8 L32,4 L56,8 L56,40 Q56,54 32,60 Q8,54 8,40 Z" fill="url(#kkr-grad)"/>
+  <!-- Shield border -->
+  <path d="M8,8 L32,4 L56,8 L56,40 Q56,54 32,60 Q8,54 8,40 Z" fill="none" stroke="#D4AF37" stroke-width="2"/>
+  <!-- Knight helmet visor -->
+  <g transform="translate(32,30)">
+    <!-- Helmet body -->
+    <path d="M-12,2 Q-14,-8 -10,-14 Q-4,-20 0,-20 Q4,-20 10,-14 Q14,-8 12,2 Z" fill="#D4AF37"/>
+    <!-- Visor slit -->
+    <path d="M-10,-2 Q-6,-4 0,-4 Q6,-4 10,-2 L8,0 Q4,-1 0,-1 Q-4,-1 -8,0 Z" fill="#1A0F2E"/>
+    <!-- Helmet crest -->
+    <path d="M0,-20 Q0,-26 -2,-28 L0,-26 L2,-28 Q0,-26 0,-20" fill="#D4AF37" stroke="#D4AF37" stroke-width="1"/>
+    <path d="M-2,-28 Q0,-30 2,-28" fill="none" stroke="#D4AF37" stroke-width="2" stroke-linecap="round"/>
+    <!-- Helmet plume -->
+    <path d="M0,-28 C4,-32 6,-28 8,-32 C10,-36 6,-38 2,-34 Q0,-30 0,-28" fill="#D4AF37" opacity="0.8"/>
+    <!-- Chin guard -->
+    <path d="M-10,2 Q-8,8 0,10 Q8,8 10,2" fill="#B8962E" stroke="#D4AF37" stroke-width="0.5"/>
+    <!-- Helmet highlight -->
+    <path d="M-6,-16 Q-2,-18 2,-16 Q0,-14 -6,-16" fill="#FFF" opacity="0.2"/>
+  </g>
+  <!-- Shield cross details -->
+  <line x1="32" y1="8" x2="32" y2="56" stroke="#D4AF37" stroke-width="0.5" opacity="0.3"/>
+  <line x1="12" y1="30" x2="52" y2="30" stroke="#D4AF37" stroke-width="0.5" opacity="0.3"/>
+</svg>

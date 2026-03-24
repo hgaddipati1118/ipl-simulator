@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Chennai Super Kings - Lion Head motif -->
+  <defs>
+    <linearGradient id="csk-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFF3C"/>
+      <stop offset="100%" stop-color="#E6CC00"/>
+    </linearGradient>
+  </defs>
+  <!-- Mane - outer ring of pointed shapes -->
+  <g transform="translate(32,34)">
+    <!-- Mane points -->
+    <polygon points="0,-28 4,-20 -4,-20" fill="#E6CC00"/>
+    <polygon points="14,-24 14,-16 6,-18" fill="#E6CC00"/>
+    <polygon points="-14,-24 -14,-16 -6,-18" fill="#E6CC00"/>
+    <polygon points="24,-14 18,-10 16,-16" fill="#E6CC00"/>
+    <polygon points="-24,-14 -18,-10 -16,-16" fill="#E6CC00"/>
+    <polygon points="28,0 20,0 20,-6" fill="#E6CC00"/>
+    <polygon points="-28,0 -20,0 -20,-6" fill="#E6CC00"/>
+    <polygon points="24,14 18,10 20,4" fill="#E6CC00"/>
+    <polygon points="-24,14 -18,10 -20,4" fill="#E6CC00"/>
+    <!-- Full mane circle -->
+    <circle cx="0" cy="0" r="18" fill="url(#csk-grad)"/>
+    <!-- Face -->
+    <circle cx="0" cy="0" r="14" fill="#FFFF3C"/>
+    <!-- Eyes -->
+    <ellipse cx="-5" cy="-4" rx="2.5" ry="3" fill="#1A1A00"/>
+    <ellipse cx="5" cy="-4" rx="2.5" ry="3" fill="#1A1A00"/>
+    <!-- Eye gleam -->
+    <circle cx="-4" cy="-5" r="0.8" fill="#FFF"/>
+    <circle cx="6" cy="-5" r="0.8" fill="#FFF"/>
+    <!-- Nose -->
+    <path d="M-2,1 Q0,3 2,1 Q1,2 0,2 Q-1,2 -2,1" fill="#CC9900"/>
+    <!-- Mouth/jaw -->
+    <path d="M-6,4 Q-3,6 0,5 Q3,6 6,4" fill="none" stroke="#CC9900" stroke-width="1.5" stroke-linecap="round"/>
+    <!-- Whisker dots -->
+    <circle cx="-8" cy="2" r="0.7" fill="#CC9900"/>
+    <circle cx="-9" cy="4" r="0.7" fill="#CC9900"/>
+    <circle cx="8" cy="2" r="0.7" fill="#CC9900"/>
+    <circle cx="9" cy="4" r="0.7" fill="#CC9900"/>
+    <!-- Brow lines -->
+    <path d="M-8,-6 Q-5,-8 -3,-6" fill="none" stroke="#CC9900" stroke-width="1" stroke-linecap="round"/>
+    <path d="M3,-6 Q5,-8 8,-6" fill="none" stroke="#CC9900" stroke-width="1" stroke-linecap="round"/>
+  </g>
+</svg>

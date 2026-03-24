@@ -13,27 +13,31 @@ export interface TeamConfig {
   primaryColor: string;
   secondaryColor: string;
   stadiumBowlingRating?: number; // 0.7 - 1.5, affects home bowling
+  stadiumName?: string;          // Real-life home ground name
 }
 
+// Stadium bowling ratings based on real IPL venue averages (2022-2025 seasons):
+//   < 0.85 = batting paradise (high-scoring), 0.85-0.95 = batting-friendly,
+//   0.95-1.05 = balanced, 1.05-1.15 = bowling-friendly, > 1.15 = bowling paradise
 export const IPL_TEAMS: TeamConfig[] = [
-  { id: "srh", name: "Sunrisers Hyderabad", shortName: "SRH", city: "Hyderabad", primaryColor: "#FF822A", secondaryColor: "#000000", stadiumBowlingRating: 0.95 },
-  { id: "dc",  name: "Delhi Capitals", shortName: "DC",  city: "Delhi", primaryColor: "#004C93", secondaryColor: "#EF1B23", stadiumBowlingRating: 0.90 },
-  { id: "rcb", name: "Royal Challengers Bengaluru", shortName: "RCB", city: "Bengaluru", primaryColor: "#EC1C24", secondaryColor: "#2B2A29", stadiumBowlingRating: 0.80 },
-  { id: "kkr", name: "Kolkata Knight Riders", shortName: "KKR", city: "Kolkata", primaryColor: "#3A225D", secondaryColor: "#B3A123", stadiumBowlingRating: 1.00 },
-  { id: "rr",  name: "Rajasthan Royals", shortName: "RR",  city: "Jaipur", primaryColor: "#EA1A85", secondaryColor: "#254AA5", stadiumBowlingRating: 1.05 },
-  { id: "csk", name: "Chennai Super Kings", shortName: "CSK", city: "Chennai", primaryColor: "#FFFF3C", secondaryColor: "#0081E9", stadiumBowlingRating: 1.10 },
-  { id: "mi",  name: "Mumbai Indians", shortName: "MI",  city: "Mumbai", primaryColor: "#004BA0", secondaryColor: "#D1AB3E", stadiumBowlingRating: 0.85 },
-  { id: "pbks",name: "Punjab Kings", shortName: "PBKS", city: "Mohali", primaryColor: "#ED1B24", secondaryColor: "#A7A9AC", stadiumBowlingRating: 0.85 },
-  { id: "gt",  name: "Gujarat Titans", shortName: "GT",  city: "Ahmedabad", primaryColor: "#1C1C1C", secondaryColor: "#0B4973", stadiumBowlingRating: 1.00 },
-  { id: "lsg", name: "Lucknow Super Giants", shortName: "LSG", city: "Lucknow", primaryColor: "#A72056", secondaryColor: "#FFCC00", stadiumBowlingRating: 0.95 },
+  { id: "srh", name: "Sunrisers Hyderabad", shortName: "SRH", city: "Hyderabad", primaryColor: "#FF822A", secondaryColor: "#000000", stadiumBowlingRating: 0.92, stadiumName: "Rajiv Gandhi Intl. Cricket Stadium" },
+  { id: "dc",  name: "Delhi Capitals", shortName: "DC",  city: "Delhi", primaryColor: "#004C93", secondaryColor: "#EF1B23", stadiumBowlingRating: 0.88, stadiumName: "Arun Jaitley Stadium" },
+  { id: "rcb", name: "Royal Challengers Bengaluru", shortName: "RCB", city: "Bengaluru", primaryColor: "#EC1C24", secondaryColor: "#2B2A29", stadiumBowlingRating: 0.78, stadiumName: "M. Chinnaswamy Stadium" },
+  { id: "kkr", name: "Kolkata Knight Riders", shortName: "KKR", city: "Kolkata", primaryColor: "#3A225D", secondaryColor: "#B3A123", stadiumBowlingRating: 0.98, stadiumName: "Eden Gardens" },
+  { id: "rr",  name: "Rajasthan Royals", shortName: "RR",  city: "Jaipur", primaryColor: "#EA1A85", secondaryColor: "#254AA5", stadiumBowlingRating: 1.03, stadiumName: "Sawai Mansingh Stadium" },
+  { id: "csk", name: "Chennai Super Kings", shortName: "CSK", city: "Chennai", primaryColor: "#FFFF3C", secondaryColor: "#0081E9", stadiumBowlingRating: 1.12, stadiumName: "MA Chidambaram Stadium" },
+  { id: "mi",  name: "Mumbai Indians", shortName: "MI",  city: "Mumbai", primaryColor: "#004BA0", secondaryColor: "#D1AB3E", stadiumBowlingRating: 0.85, stadiumName: "Wankhede Stadium" },
+  { id: "pbks",name: "Punjab Kings", shortName: "PBKS", city: "Mohali", primaryColor: "#ED1B24", secondaryColor: "#A7A9AC", stadiumBowlingRating: 0.87, stadiumName: "IS Bindra Stadium" },
+  { id: "gt",  name: "Gujarat Titans", shortName: "GT",  city: "Ahmedabad", primaryColor: "#1C1C1C", secondaryColor: "#0B4973", stadiumBowlingRating: 0.97, stadiumName: "Narendra Modi Stadium" },
+  { id: "lsg", name: "Lucknow Super Giants", shortName: "LSG", city: "Lucknow", primaryColor: "#A72056", secondaryColor: "#FFCC00", stadiumBowlingRating: 0.96, stadiumName: "BRSABV Ekana Stadium" },
 ];
 
 export const WPL_TEAMS: TeamConfig[] = [
-  { id: "mi-w",  name: "Mumbai Indians",               shortName: "MI",  city: "Mumbai",    primaryColor: "#004BA0", secondaryColor: "#D1AB3E", stadiumBowlingRating: 0.90 },
-  { id: "dc-w",  name: "Delhi Capitals",               shortName: "DC",  city: "Delhi",     primaryColor: "#004C93", secondaryColor: "#EF1B23", stadiumBowlingRating: 0.95 },
-  { id: "rcb-w", name: "Royal Challengers Bengaluru",   shortName: "RCB", city: "Bengaluru", primaryColor: "#EC1C24", secondaryColor: "#2B2A29", stadiumBowlingRating: 0.85 },
-  { id: "gg-w",  name: "Gujarat Giants",               shortName: "GG",  city: "Ahmedabad", primaryColor: "#1C1C1C", secondaryColor: "#E04F16", stadiumBowlingRating: 1.00 },
-  { id: "upw",   name: "UP Warriorz",                  shortName: "UPW", city: "Lucknow",   primaryColor: "#6B3FA0", secondaryColor: "#F5C518", stadiumBowlingRating: 0.95 },
+  { id: "mi-w",  name: "Mumbai Indians",               shortName: "MI",  city: "Mumbai",    primaryColor: "#004BA0", secondaryColor: "#D1AB3E", stadiumBowlingRating: 0.90, stadiumName: "DY Patil Stadium" },
+  { id: "dc-w",  name: "Delhi Capitals",               shortName: "DC",  city: "Delhi",     primaryColor: "#004C93", secondaryColor: "#EF1B23", stadiumBowlingRating: 0.93, stadiumName: "Arun Jaitley Stadium" },
+  { id: "rcb-w", name: "Royal Challengers Bengaluru",   shortName: "RCB", city: "Bengaluru", primaryColor: "#EC1C24", secondaryColor: "#2B2A29", stadiumBowlingRating: 0.82, stadiumName: "M. Chinnaswamy Stadium" },
+  { id: "gg-w",  name: "Gujarat Giants",               shortName: "GG",  city: "Ahmedabad", primaryColor: "#1C1C1C", secondaryColor: "#E04F16", stadiumBowlingRating: 0.97, stadiumName: "Narendra Modi Stadium" },
+  { id: "upw",   name: "UP Warriorz",                  shortName: "UPW", city: "Lucknow",   primaryColor: "#6B3FA0", secondaryColor: "#F5C518", stadiumBowlingRating: 0.95, stadiumName: "BRSABV Ekana Stadium" },
 ];
 
 export class Team {
@@ -113,9 +117,10 @@ export class Team {
         .map(id => this.roster.find(p => p.id === id))
         .filter((p): p is Player => p !== undefined && !p.injured);
 
-      // Validate: exactly 11, max overseas, all available
+      // Validate: exactly 11, max overseas, at least 1 WK, all available
       const intCount = userXI.filter(p => p.isInternational).length;
-      if (userXI.length === 11 && intCount <= maxOverseas) {
+      const hasWK = userXI.some(p => p.isWicketKeeper);
+      if (userXI.length === 11 && intCount <= maxOverseas && hasWK) {
         return userXI;
       }
       // Invalid user XI — fall through to auto selection
@@ -124,7 +129,7 @@ export class Team {
     return this.autoSelectPlayingXI(maxOverseas);
   }
 
-  /** Auto-select best playing XI */
+  /** Auto-select best playing XI (guarantees at least 1 wicket-keeper) */
   autoSelectPlayingXI(maxOverseas = 4): Player[] {
     const available = this.roster.filter(p => !p.injured);
     const sorted = [...available].sort((a, b) => b.overall - a.overall);
@@ -132,6 +137,7 @@ export class Team {
     const xi: Player[] = [];
     let intCount = 0;
 
+    // First pass: pick best 11 by overall
     for (const player of sorted) {
       if (xi.length >= 11) break;
       if (player.isInternational) {
@@ -139,6 +145,31 @@ export class Team {
         intCount++;
       }
       xi.push(player);
+    }
+
+    // Ensure at least 1 wicket-keeper
+    const hasWK = xi.some(p => p.isWicketKeeper);
+    if (!hasWK && xi.length === 11) {
+      const bestWK = sorted.find(p =>
+        p.isWicketKeeper && !xi.includes(p) &&
+        (!p.isInternational || intCount < maxOverseas ||
+          xi.some(x => x.isInternational && !x.isWicketKeeper))
+      );
+      if (bestWK) {
+        // Replace the weakest non-WK player that satisfies overseas constraints
+        for (let i = xi.length - 1; i >= 0; i--) {
+          const candidate = xi[i];
+          if (candidate.isWicketKeeper) continue;
+          // Check overseas balance: if swapping out a domestic for an intl WK, need room
+          const outIsIntl = candidate.isInternational;
+          const inIsIntl = bestWK.isInternational;
+          const newIntlCount = intCount - (outIsIntl ? 1 : 0) + (inIsIntl ? 1 : 0);
+          if (newIntlCount <= maxOverseas) {
+            xi[i] = bestWK;
+            break;
+          }
+        }
+      }
     }
 
     return xi;
@@ -162,11 +193,11 @@ export class Team {
   autoBattingOrder(xi: Player[]): Player[] {
     return [...xi].sort((a, b) => {
       // Wicket-keeper bats 1-3
-      if (a.role === "wicket-keeper" && b.role !== "wicket-keeper") return -1;
-      if (b.role === "wicket-keeper" && a.role !== "wicket-keeper") return 1;
+      if (a.isWicketKeeper && !b.isWicketKeeper) return -1;
+      if (b.isWicketKeeper && !a.isWicketKeeper) return 1;
       // Batsmen first, then all-rounders, then bowlers
-      const roleOrder = { batsman: 0, "all-rounder": 1, "wicket-keeper": 0, bowler: 2 };
-      const diff = roleOrder[a.role] - roleOrder[b.role];
+      const roleOrder: Record<string, number> = { batsman: 0, "all-rounder": 1, bowler: 2 };
+      const diff = (roleOrder[a.role] ?? 2) - (roleOrder[b.role] ?? 2);
       if (diff !== 0) return diff;
       // Within same role, higher batting OVR first
       return b.battingOvr - a.battingOvr;
@@ -198,7 +229,7 @@ export class Team {
     // If fewer than 5 role-based bowlers, add best part-timers
     if (bowlers.length < 5) {
       const partTimers = xi
-        .filter(p => p.role === "batsman" || p.role === "wicket-keeper")
+        .filter(p => p.role === "batsman")
         .sort((a, b) => b.bowlingOvr - a.bowlingOvr);
       while (bowlers.length < 5 && partTimers.length > 0) {
         bowlers.push(partTimers.shift()!);

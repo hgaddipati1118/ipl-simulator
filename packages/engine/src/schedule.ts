@@ -1,11 +1,19 @@
 /**
  * Season schedule generator and standings management.
  * Ported from IndianCricketLeague/ScheduleClass.js
+ *
+ * Supports both full-season simulation (runSeason) and
+ * match-by-match progression (generateSchedule + simulateNextMatch).
  */
 
 import { Team } from "./team.js";
 import { MatchResult, simulateMatch } from "./match.js";
 import { shuffle } from "./math.js";
+import { DEFAULT_RULES, type RuleSet } from "./rules.js";
+import { healInjuries } from "./injury.js";
+
+export type PlayoffMatchType = "qualifier1" | "eliminator" | "qualifier2" | "semi1" | "semi2" | "final";
+export type MatchType = "group" | PlayoffMatchType;
 
 export interface ScheduledMatch {
   matchNumber: number;
@@ -13,7 +21,8 @@ export interface ScheduledMatch {
   awayTeamId: string;
   result?: MatchResult;
   isPlayoff: boolean;
-  playoffType?: "qualifier1" | "eliminator" | "qualifier2" | "final";
+  playoffType?: PlayoffMatchType;
+  type: MatchType;
 }
 
 export interface StandingsEntry {
@@ -34,11 +43,81 @@ export interface SeasonResult {
   purpleCap: { playerId: string; wickets: number };
 }
 
+/** Serializable version of MatchResult for storage (Maps converted to plain objects) */
+export interface SerializableMatchResult {
+  id: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  tossWinner: string;
+  tossDecision: "bat" | "bowl";
+  innings: [SerializableInningsScore, SerializableInningsScore];
+  superOver?: [SerializableInningsScore, SerializableInningsScore];
+  winnerId: string | null;
+  margin: string;
+  motm: string;
+}
+
+export interface SerializableInningsScore {
+  teamId: string;
+  runs: number;
+  wickets: number;
+  overs: number;
+  balls: number;
+  totalBalls: number;
+  extras: number;
+  fours: number;
+  sixes: number;
+  batterStats: Record<string, { runs: number; balls: number; fours: number; sixes: number; isOut: boolean }>;
+  bowlerStats: Record<string, { overs: number; balls: number; runs: number; wickets: number; wides: number; noballs: number }>;
+}
+
+/** Convert a MatchResult (with Maps) to a serializable form (with plain objects) */
+export function serializeMatchResult(result: MatchResult): SerializableMatchResult {
+  const serializeInnings = (inn: MatchResult["innings"][0]): SerializableInningsScore => ({
+    teamId: inn.teamId,
+    runs: inn.runs,
+    wickets: inn.wickets,
+    overs: inn.overs,
+    balls: inn.balls,
+    totalBalls: inn.totalBalls,
+    extras: inn.extras,
+    fours: inn.fours,
+    sixes: inn.sixes,
+    batterStats: Object.fromEntries(inn.batterStats),
+    bowlerStats: Object.fromEntries(inn.bowlerStats),
+  });
+
+  return {
+    id: result.id,
+    homeTeamId: result.homeTeamId,
+    awayTeamId: result.awayTeamId,
+    tossWinner: result.tossWinner,
+    tossDecision: result.tossDecision,
+    innings: [serializeInnings(result.innings[0]), serializeInnings(result.innings[1])],
+    superOver: result.superOver
+      ? [serializeInnings(result.superOver[0]), serializeInnings(result.superOver[1])]
+      : undefined,
+    winnerId: result.winnerId,
+    margin: result.margin,
+    motm: result.motm,
+  };
+}
+
 /**
  * Generate IPL-style schedule (70 group matches for 10 teams).
  * Each team plays 14 matches: 7 home, 7 away.
+ * Returns the schedule array without any results — ready for match-by-match simulation.
  */
-export function generateIPLSchedule(teams: Team[]): ScheduledMatch[] {
+export function generateSchedule(teams: Team[], matchesPerTeam = 14): ScheduledMatch[] {
+  return generateIPLSchedule(teams, matchesPerTeam);
+}
+
+/**
+ * Generate league schedule.
+ * IPL: ~70 group matches for 10 teams (14 per team)
+ * WPL: 20 group matches for 5 teams (8 per team, full double round-robin)
+ */
+export function generateIPLSchedule(teams: Team[], matchesPerTeam = 14): ScheduledMatch[] {
   const schedule: ScheduledMatch[] = [];
   const matchups: [string, string][] = [];
 
@@ -50,11 +129,12 @@ export function generateIPLSchedule(teams: Team[]): ScheduledMatch[] {
     }
   }
 
-  // For 10 teams that's 90 matchups, but IPL only has 70 games
-  // Randomly select 70 (each team plays ~14)
+  // For small leagues (WPL: 5 teams, 8 matches each = 20 total)
+  // all matchups fit naturally in a double round-robin
+  const totalTarget = Math.floor((teams.length * matchesPerTeam) / 2);
+
   shuffle(matchups);
 
-  // Count per team, ensure roughly balanced
   const teamMatchCount = new Map<string, number>();
   for (const t of teams) teamMatchCount.set(t.id, 0);
 
@@ -63,17 +143,17 @@ export function generateIPLSchedule(teams: Team[]): ScheduledMatch[] {
   for (const [home, away] of matchups) {
     const homeCount = teamMatchCount.get(home) ?? 0;
     const awayCount = teamMatchCount.get(away) ?? 0;
-    if (homeCount < 14 && awayCount < 14) {
+    if (homeCount < matchesPerTeam && awayCount < matchesPerTeam) {
       selected.push([home, away]);
       teamMatchCount.set(home, homeCount + 1);
       teamMatchCount.set(away, awayCount + 1);
     }
-    if (selected.length >= 70) break;
+    if (selected.length >= totalTarget) break;
   }
 
-  // If we didn't reach 70 (unlikely), pad with remaining
+  // Pad if needed
   for (const [home, away] of matchups) {
-    if (selected.length >= 70) break;
+    if (selected.length >= totalTarget) break;
     if (!selected.some(([h, a]) => h === home && a === away)) {
       selected.push([home, away]);
     }
@@ -87,10 +167,129 @@ export function generateIPLSchedule(teams: Team[]): ScheduledMatch[] {
       homeTeamId: selected[i][0],
       awayTeamId: selected[i][1],
       isPlayoff: false,
+      type: "group",
     });
   }
 
   return schedule;
+}
+
+/**
+ * Simulate a single match from the schedule.
+ * Mutates team records (wins, losses, NRR, player stats) and heals injuries.
+ * Returns the MatchResult.
+ */
+export function simulateNextMatch(
+  schedule: ScheduledMatch[],
+  matchIndex: number,
+  teams: Team[],
+  rules: RuleSet = DEFAULT_RULES,
+): MatchResult {
+  const teamMap = new Map(teams.map(t => [t.id, t]));
+  const match = schedule[matchIndex];
+
+  const home = teamMap.get(match.homeTeamId)!;
+  const away = teamMap.get(match.awayTeamId)!;
+  const result = simulateMatch(home, away, rules);
+
+  match.result = result;
+
+  // Heal injuries for all teams
+  for (const t of teams) {
+    healInjuries(t);
+  }
+
+  return result;
+}
+
+/**
+ * After group stage, determine the top 4 teams and add playoff matches to the schedule.
+ * Returns the updated schedule with playoff slots (without results).
+ */
+export function addPlayoffMatches(schedule: ScheduledMatch[], teams: Team[]): ScheduledMatch[] {
+  const standings = getStandings(teams);
+  const top4 = standings.slice(0, 4);
+
+  const baseNumber = schedule.length + 1;
+
+  // Qualifier 1: 1st vs 2nd
+  schedule.push({
+    matchNumber: baseNumber,
+    homeTeamId: top4[0].teamId,
+    awayTeamId: top4[1].teamId,
+    isPlayoff: true,
+    playoffType: "qualifier1",
+    type: "qualifier1",
+  });
+
+  // Eliminator: 3rd vs 4th
+  schedule.push({
+    matchNumber: baseNumber + 1,
+    homeTeamId: top4[2].teamId,
+    awayTeamId: top4[3].teamId,
+    isPlayoff: true,
+    playoffType: "eliminator",
+    type: "eliminator",
+  });
+
+  return schedule;
+}
+
+/**
+ * After Qualifier 1 and Eliminator are played, add Qualifier 2 to the schedule.
+ */
+export function addQualifier2(schedule: ScheduledMatch[]): ScheduledMatch[] {
+  const q1 = schedule.find(m => m.playoffType === "qualifier1")!;
+  const elim = schedule.find(m => m.playoffType === "eliminator")!;
+
+  if (!q1.result || !elim.result) {
+    throw new Error("Qualifier 1 and Eliminator must be played before adding Qualifier 2");
+  }
+
+  const q1Loser = q1.result.winnerId === q1.homeTeamId ? q1.awayTeamId : q1.homeTeamId;
+  const elimWinner = elim.result.winnerId!;
+
+  schedule.push({
+    matchNumber: schedule.length + 1,
+    homeTeamId: q1Loser,
+    awayTeamId: elimWinner,
+    isPlayoff: true,
+    playoffType: "qualifier2",
+    type: "qualifier2",
+  });
+
+  return schedule;
+}
+
+/**
+ * After Qualifier 2 is played, add the Final to the schedule.
+ */
+export function addFinal(schedule: ScheduledMatch[]): ScheduledMatch[] {
+  const q1 = schedule.find(m => m.playoffType === "qualifier1")!;
+  const q2 = schedule.find(m => m.playoffType === "qualifier2")!;
+
+  if (!q1.result || !q2.result) {
+    throw new Error("Qualifier 1 and Qualifier 2 must be played before adding Final");
+  }
+
+  const q1Winner = q1.result.winnerId!;
+  const q2Winner = q2.result.winnerId!;
+
+  schedule.push({
+    matchNumber: schedule.length + 1,
+    homeTeamId: q1Winner,
+    awayTeamId: q2Winner,
+    isPlayoff: true,
+    playoffType: "final",
+    type: "final",
+  });
+
+  return schedule;
+}
+
+/** Get the number of group stage matches in a schedule */
+export function getGroupStageCount(schedule: ScheduledMatch[]): number {
+  return schedule.filter(m => m.type === "group").length;
 }
 
 /** Get current standings sorted by points then NRR */
@@ -111,91 +310,216 @@ export function getStandings(teams: Team[]): StandingsEntry[] {
     });
 }
 
-/** Run a full IPL season: group stage + playoffs */
-export function runSeason(teams: Team[]): SeasonResult {
+// ── Playoff Helpers ──────────────────────────────────────────────────────
+
+function makePlayoff(
+  schedule: ScheduledMatch[],
+  homeId: string, awayId: string,
+  type: PlayoffMatchType,
+): ScheduledMatch {
+  return {
+    matchNumber: schedule.length + 1,
+    homeTeamId: homeId,
+    awayTeamId: awayId,
+    isPlayoff: true,
+    playoffType: type,
+    type,
+  };
+}
+
+function playAndPush(
+  match: ScheduledMatch,
+  schedule: ScheduledMatch[],
+  teamMap: Map<string, Team>,
+  teams: Team[],
+  rules: RuleSet,
+): MatchResult {
+  const home = teamMap.get(match.homeTeamId)!;
+  const away = teamMap.get(match.awayTeamId)!;
+  match.result = simulateMatch(home, away, rules);
+  schedule.push(match);
+  for (const t of teams) healInjuries(t);
+  return match.result;
+}
+
+function getWinner(result: MatchResult, homeId: string, awayId: string): string {
+  return result.winnerId === homeId ? homeId : awayId;
+}
+
+function getLoser(result: MatchResult, homeId: string, awayId: string): string {
+  return result.winnerId === homeId ? awayId : homeId;
+}
+
+/**
+ * Run playoffs and return the champion's team ID.
+ * Supports three formats:
+ * - "none": no playoffs, top of standings wins
+ * - "simple": straight knockout bracket
+ * - "eliminator": IPL-style with qualifiers (gives top seeds a second chance)
+ */
+function runPlayoffs(
+  schedule: ScheduledMatch[],
+  standings: StandingsEntry[],
+  teamMap: Map<string, Team>,
+  teams: Team[],
+  rules: RuleSet,
+  format: string,
+  count: number,
+): string {
+  // No playoffs — table-topper wins
+  if (format === "none" || count <= 0) {
+    return standings[0].teamId;
+  }
+
+  const topIds = standings.slice(0, count).map(s => s.teamId);
+
+  // Only 1 playoff team — just them (edge case, treat as no playoffs)
+  if (topIds.length <= 1) {
+    return topIds[0];
+  }
+
+  // ── Simple bracket format ──────────────────────────────────────────
+  if (format === "simple") {
+    return runSimpleBracket(schedule, topIds, teamMap, teams, rules);
+  }
+
+  // ── Eliminator format (IPL-style) ─────────────────────────────────
+  return runEliminatorFormat(schedule, topIds, teamMap, teams, rules);
+}
+
+/**
+ * Simple single-elimination bracket.
+ * Seeds are matched: 1v(last), 2v(last-1), etc.
+ * If odd number, top seed gets a bye to the next round.
+ */
+function runSimpleBracket(
+  schedule: ScheduledMatch[],
+  teamIds: string[],
+  teamMap: Map<string, Team>,
+  teams: Team[],
+  rules: RuleSet,
+): string {
+  let remaining = [...teamIds];
+  let roundNum = 1;
+
+  while (remaining.length > 1) {
+    const nextRound: string[] = [];
+
+    // If odd, top seed gets a bye
+    if (remaining.length % 2 !== 0) {
+      nextRound.push(remaining[0]);
+      remaining = remaining.slice(1);
+    }
+
+    // Pair from outside in: 1v(last), 2v(last-1), ...
+    const half = remaining.length / 2;
+    for (let i = 0; i < half; i++) {
+      const homeId = remaining[i];
+      const awayId = remaining[remaining.length - 1 - i];
+
+      const isFinal = remaining.length === 2 && nextRound.length === 0;
+      const matchType: PlayoffMatchType = isFinal ? "final"
+        : roundNum === 1 && half <= 2 ? (i === 0 ? "semi1" : "semi2")
+        : "eliminator";
+
+      const match = makePlayoff(schedule, homeId, awayId, matchType);
+      const result = playAndPush(match, schedule, teamMap, teams, rules);
+      nextRound.push(getWinner(result, homeId, awayId));
+    }
+
+    remaining = nextRound;
+    roundNum++;
+  }
+
+  return remaining[0];
+}
+
+/**
+ * IPL-style eliminator format.
+ * For 4 teams: Q1 (1v2), Eliminator (3v4), Q2 (Q1 loser vs Elim winner), Final
+ * For 3 teams: Q1 (1v2), Eliminator (3 vs Q1 loser), Final
+ * For 2 teams: just a Final
+ * For 5+ teams: bottom seeds play eliminators first, top 2 get qualifier advantage
+ */
+function runEliminatorFormat(
+  schedule: ScheduledMatch[],
+  teamIds: string[],
+  teamMap: Map<string, Team>,
+  teams: Team[],
+  rules: RuleSet,
+): string {
+  if (teamIds.length === 2) {
+    const match = makePlayoff(schedule, teamIds[0], teamIds[1], "final");
+    const result = playAndPush(match, schedule, teamMap, teams, rules);
+    return getWinner(result, teamIds[0], teamIds[1]);
+  }
+
+  // Top 2 play Qualifier 1 (winner goes to final, loser gets another chance)
+  const q1 = makePlayoff(schedule, teamIds[0], teamIds[1], "qualifier1");
+  const q1Result = playAndPush(q1, schedule, teamMap, teams, rules);
+  const q1Winner = getWinner(q1Result, teamIds[0], teamIds[1]);
+  let q1Loser = getLoser(q1Result, teamIds[0], teamIds[1]);
+
+  // Remaining teams (seeds 3+) play eliminators to produce one survivor
+  let eliminatorPool = teamIds.slice(2);
+
+  // Bottom seeds play single-elimination rounds
+  while (eliminatorPool.length > 1) {
+    const nextPool: string[] = [];
+    if (eliminatorPool.length % 2 !== 0) {
+      nextPool.push(eliminatorPool[0]);
+      eliminatorPool = eliminatorPool.slice(1);
+    }
+    const half = eliminatorPool.length / 2;
+    for (let i = 0; i < half; i++) {
+      const homeId = eliminatorPool[i];
+      const awayId = eliminatorPool[eliminatorPool.length - 1 - i];
+      const match = makePlayoff(schedule, homeId, awayId, "eliminator");
+      const result = playAndPush(match, schedule, teamMap, teams, rules);
+      nextPool.push(getWinner(result, homeId, awayId));
+    }
+    eliminatorPool = nextPool;
+  }
+
+  const elimSurvivor = eliminatorPool[0];
+
+  // Qualifier 2: Q1 loser vs eliminator survivor
+  const q2 = makePlayoff(schedule, q1Loser, elimSurvivor, "qualifier2");
+  const q2Result = playAndPush(q2, schedule, teamMap, teams, rules);
+  const q2Winner = getWinner(q2Result, q1Loser, elimSurvivor);
+
+  // Final: Q1 winner vs Q2 winner
+  const final_match = makePlayoff(schedule, q1Winner, q2Winner, "final");
+  const finalResult = playAndPush(final_match, schedule, teamMap, teams, rules);
+  return getWinner(finalResult, q1Winner, q2Winner);
+}
+
+/** Run a full season: group stage + playoffs */
+export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): SeasonResult {
   // Reset all teams
   for (const t of teams) t.resetSeason();
 
   const teamMap = new Map(teams.map(t => [t.id, t]));
-  const schedule = generateIPLSchedule(teams);
+  const schedule = generateIPLSchedule(teams, rules.matchesPerTeam);
 
   // Play group stage
   for (const match of schedule) {
     const home = teamMap.get(match.homeTeamId)!;
     const away = teamMap.get(match.awayTeamId)!;
-    match.result = simulateMatch(home, away);
+    match.result = simulateMatch(home, away, rules);
 
-    // Heal injuries
+    // Heal injuries after each match
     for (const t of teams) {
-      for (const p of t.roster) {
-        if (p.injured) {
-          p.injuryGamesLeft--;
-          if (p.injuryGamesLeft <= 0) {
-            p.injured = false;
-            p.injuryGamesLeft = 0;
-          }
-        }
-      }
+      healInjuries(t);
     }
   }
 
   // Standings
   const standings = getStandings(teams);
 
-  // Playoffs: top 4 qualify
-  const top4 = standings.slice(0, 4).map(s => teamMap.get(s.teamId)!);
-
-  // Qualifier 1: 1st vs 2nd
-  const q1: ScheduledMatch = {
-    matchNumber: schedule.length + 1,
-    homeTeamId: top4[0].id,
-    awayTeamId: top4[1].id,
-    isPlayoff: true,
-    playoffType: "qualifier1",
-  };
-  q1.result = simulateMatch(top4[0], top4[1]);
-  schedule.push(q1);
-
-  // Eliminator: 3rd vs 4th
-  const elim: ScheduledMatch = {
-    matchNumber: schedule.length + 1,
-    homeTeamId: top4[2].id,
-    awayTeamId: top4[3].id,
-    isPlayoff: true,
-    playoffType: "eliminator",
-  };
-  elim.result = simulateMatch(top4[2], top4[3]);
-  schedule.push(elim);
-
-  // Qualifier 2: Loser of Q1 vs Winner of Eliminator
-  const q1Loser = q1.result!.winnerId === top4[0].id ? top4[1] : top4[0];
-  const elimWinner = elim.result!.winnerId === top4[2].id ? top4[2] : top4[3];
-
-  const q2: ScheduledMatch = {
-    matchNumber: schedule.length + 1,
-    homeTeamId: q1Loser.id,
-    awayTeamId: elimWinner.id,
-    isPlayoff: true,
-    playoffType: "qualifier2",
-  };
-  q2.result = simulateMatch(q1Loser, elimWinner);
-  schedule.push(q2);
-
-  // Final: Winner of Q1 vs Winner of Q2
-  const q1Winner = q1.result!.winnerId === top4[0].id ? top4[0] : top4[1];
-  const q2Winner = q2.result!.winnerId === q1Loser.id ? q1Loser : elimWinner;
-
-  const final: ScheduledMatch = {
-    matchNumber: schedule.length + 1,
-    homeTeamId: q1Winner.id,
-    awayTeamId: q2Winner.id,
-    isPlayoff: true,
-    playoffType: "final",
-  };
-  final.result = simulateMatch(q1Winner, q2Winner);
-  schedule.push(final);
-
-  const champion = final.result!.winnerId!;
+  const playoffFormat = rules.playoffFormat ?? "eliminator";
+  const playoffTeamCount = Math.min(rules.playoffTeams, teams.length);
+  const champion = runPlayoffs(schedule, standings, teamMap, teams, rules, playoffFormat, playoffTeamCount);
 
   // Award caps
   const allPlayers = teams.flatMap(t => t.roster);

@@ -7,11 +7,27 @@
 
 import { ALL_PLAYERS } from "./all-players.js";
 
+/**
+ * Known wicket-keepers. The ESPN pipeline classifies them as "batsman"
+ * since WK stats look identical to batting stats. Override their role here.
+ */
+const KNOWN_WICKET_KEEPERS = new Set([
+  // Primary WKs — fallback for when ESPN playingRoles data is missing
+  "MS Dhoni", "Rishabh Pant", "KL Rahul", "Sanju Samson",
+  "Ishan Kishan", "Jos Buttler", "Quinton de Kock", "Nicholas Pooran",
+  "Heinrich Klaasen", "Dhruv Jurel", "Jitesh Sharma",
+  "Srikar Bharat", "Wriddhiman Saha", "Phil Salt",
+  "Dinesh Karthik", "Anuj Rawat", "Ryan Rickelton",
+  "Kumar Kushagra", "Abishek Porel", "Aryan Juyal",
+  "Tim Seifert", "Prabhsimran Singh", "Vishnu Vinod",
+]);
+
 export interface RealPlayerData {
   name: string;
   age: number;
   country: string;
   role: string;
+  isWicketKeeper?: boolean;
   battingIQ: number;
   timing: number;
   power: number;
@@ -36,6 +52,7 @@ export function getRealPlayers(): RealPlayerData[] {
       age: p.age,
       country: p.country,
       role: p.role,
+      isWicketKeeper: KNOWN_WICKET_KEEPERS.has(p.name),
       battingIQ: p.ratings.battingIQ,
       timing: p.ratings.timing,
       power: p.ratings.power,

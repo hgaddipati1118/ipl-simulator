@@ -866,7 +866,7 @@ function buildInningsScorecard(
             howOut = `run out`;
             break;
           case "stumped": {
-            const keeper = bowlingXI.find(p => p.role === "wicket-keeper");
+            const keeper = bowlingXI.find(p => p.isWicketKeeper);
             howOut = `st ${keeper?.name ?? "keeper"} b ${bowlerName}`;
             break;
           }

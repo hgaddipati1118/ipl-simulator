@@ -63,6 +63,7 @@ export interface PlayerData {
   role: PlayerRole;
   ratings: PlayerRatings;
   isInternational: boolean; // non-Indian = international (foreign player slot)
+  isWicketKeeper?: boolean; // WK is a tag, not a role
   teamId?: string;
   bid?: number; // auction price in crores
   injured: boolean;
@@ -79,6 +80,7 @@ export class Player implements PlayerData {
   role: PlayerRole;
   ratings: PlayerRatings;
   isInternational: boolean;
+  isWicketKeeper: boolean;
   teamId?: string;
   bid: number;
   injured: boolean;
@@ -95,6 +97,7 @@ export class Player implements PlayerData {
     this.role = data.role;
     this.ratings = { ...data.ratings };
     this.isInternational = data.isInternational;
+    this.isWicketKeeper = data.isWicketKeeper ?? false;
     this.teamId = data.teamId;
     this.bid = data.bid ?? 0;
     this.injured = data.injured ?? false;
@@ -204,6 +207,7 @@ export class Player implements PlayerData {
       role: this.role,
       ratings: { ...this.ratings },
       isInternational: this.isInternational,
+      isWicketKeeper: this.isWicketKeeper,
       teamId: this.teamId,
       bid: this.bid,
       injured: this.injured,

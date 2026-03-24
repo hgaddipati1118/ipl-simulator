@@ -78,13 +78,15 @@ export function generateRandomPlayer(overrides?: Partial<PlayerData>): Player {
   // Pick role
   const roleRoll = Math.random();
   let role: PlayerRole;
-  if (roleRoll < 0.35) role = "batsman";
-  else if (roleRoll < 0.55) role = "bowler";
-  else if (roleRoll < 0.85) role = "all-rounder";
-  else role = "wicket-keeper";
+  if (roleRoll < 0.40) role = "batsman";
+  else if (roleRoll < 0.60) role = "bowler";
+  else role = "all-rounder";
 
-  // Generate ratings based on role
-  const ratings = generateRatings(role);
+  // ~15% of batsmen are wicket-keepers
+  const isWicketKeeper = role === "batsman" && Math.random() < 0.15;
+
+  // Generate ratings based on role (WK uses batsman-style ratings with higher running)
+  const ratings = generateRatings(role, isWicketKeeper);
 
   const name = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]
     + " " + LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
@@ -99,6 +101,7 @@ export function generateRandomPlayer(overrides?: Partial<PlayerData>): Player {
     role,
     ratings,
     isInternational,
+    isWicketKeeper,
     injured: false,
     injuryGamesLeft: 0,
     ...overrides,
@@ -106,8 +109,22 @@ export function generateRandomPlayer(overrides?: Partial<PlayerData>): Player {
 }
 
 /** Generate ratings appropriate for a role */
-function generateRatings(role: PlayerRole): PlayerRatings {
+function generateRatings(role: PlayerRole, isWicketKeeper = false): PlayerRatings {
   const baseRating = () => clamp(Math.round(randomNormal(55, 18)), 15, 95);
+
+  if (isWicketKeeper) {
+    // WK-batsmen: good batting, higher running, minimal bowling
+    return {
+      battingIQ: clamp(Math.round(randomNormal(65, 14)), 30, 95),
+      timing: clamp(Math.round(randomNormal(62, 14)), 28, 95),
+      power: clamp(Math.round(randomNormal(55, 16)), 20, 90),
+      running: clamp(Math.round(randomNormal(65, 14)), 30, 90),
+      wicketTaking: clamp(Math.round(randomNormal(20, 8)), 10, 40),
+      economy: clamp(Math.round(randomNormal(20, 8)), 10, 40),
+      accuracy: clamp(Math.round(randomNormal(25, 10)), 10, 45),
+      clutch: clamp(Math.round(randomNormal(58, 18)), 15, 95),
+    };
+  }
 
   switch (role) {
     case "batsman":
@@ -143,17 +160,6 @@ function generateRatings(role: PlayerRole): PlayerRatings {
         accuracy: clamp(Math.round(randomNormal(50, 15)), 20, 85),
         clutch: clamp(Math.round(randomNormal(55, 18)), 15, 95),
       };
-    case "wicket-keeper":
-      return {
-        battingIQ: clamp(Math.round(randomNormal(65, 14)), 30, 95),
-        timing: clamp(Math.round(randomNormal(62, 14)), 28, 95),
-        power: clamp(Math.round(randomNormal(55, 16)), 20, 90),
-        running: clamp(Math.round(randomNormal(65, 14)), 30, 90),
-        wicketTaking: clamp(Math.round(randomNormal(20, 8)), 10, 40),
-        economy: clamp(Math.round(randomNormal(20, 8)), 10, 40),
-        accuracy: clamp(Math.round(randomNormal(25, 10)), 10, 45),
-        clutch: clamp(Math.round(randomNormal(58, 18)), 15, 95),
-      };
     default:
       return {
         battingIQ: baseRating(), timing: baseRating(), power: baseRating(),
@@ -178,6 +184,7 @@ export function createPlayerFromData(data: {
   age: number;
   country: string;
   role?: string;
+  isWicketKeeper?: boolean;
   battingIQ: number;
   timing: number;
   power: number;
@@ -193,8 +200,11 @@ export function createPlayerFromData(data: {
   const isInternational = !indianCountries.includes(data.country);
 
   let role: PlayerRole;
-  if (data.role) {
+  if (data.role && data.role !== "wicket-keeper") {
     role = data.role as PlayerRole;
+  } else if (data.role === "wicket-keeper") {
+    // Legacy: treat "wicket-keeper" role as batsman with isWicketKeeper flag
+    role = "batsman";
   } else {
     // Infer from ratings
     const batOvr = data.battingIQ * 0.35 + data.timing * 0.30 + data.power * 0.30 + data.running * 0.05;
@@ -221,6 +231,7 @@ export function createPlayerFromData(data: {
       clutch: data.clutch,
     },
     isInternational,
+    isWicketKeeper: data.isWicketKeeper ?? data.role === "wicket-keeper",
     teamId: data.teamId,
     bid: data.bid,
     injured: false,

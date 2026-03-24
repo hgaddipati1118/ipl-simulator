@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Gujarat Titans - Titan/Warrior Helmet motif -->
+  <defs>
+    <linearGradient id="gt-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0B4973"/>
+      <stop offset="100%" stop-color="#1C1C1C"/>
+    </linearGradient>
+  </defs>
+  <!-- Background hexagon - titan strength -->
+  <polygon points="32,4 56,18 56,46 32,60 8,46 8,18" fill="url(#gt-grad)"/>
+  <polygon points="32,4 56,18 56,46 32,60 8,46 8,18" fill="none" stroke="#0B4973" stroke-width="2"/>
+  <!-- Titan helmet -->
+  <g transform="translate(32,30)">
+    <!-- Helmet dome -->
+    <path d="M-16,4 Q-18,-8 -14,-16 Q-8,-24 0,-26 Q8,-24 14,-16 Q18,-8 16,4 Z" fill="#0B4973"/>
+    <!-- Helmet crest/mohawk -->
+    <path d="M0,-26 Q-2,-30 0,-32 Q2,-30 0,-26" fill="#3B8CC7" stroke="#3B8CC7" stroke-width="1"/>
+    <path d="M-3,-24 Q0,-30 3,-24" fill="#3B8CC7"/>
+    <path d="M-5,-20 Q0,-28 5,-20" fill="#0B4973"/>
+    <!-- Visor opening -->
+    <path d="M-12,0 Q-6,-2 0,-2 Q6,-2 12,0 L10,4 Q4,2 0,2 Q-4,2 -10,4 Z" fill="#FFF" opacity="0.9"/>
+    <!-- Eye slits in visor -->
+    <rect x="-9" y="0" width="6" height="2" rx="1" fill="#1C1C1C"/>
+    <rect x="3" y="0" width="6" height="2" rx="1" fill="#1C1C1C"/>
+    <!-- Nose guard -->
+    <rect x="-1" y="-2" width="2" height="6" fill="#0B4973"/>
+    <!-- Chin guard -->
+    <path d="M-12,4 Q-10,12 0,14 Q10,12 12,4" fill="#0E3A5C"/>
+    <!-- Cheek plates -->
+    <path d="M-16,4 Q-14,10 -12,4" fill="#0E3A5C"/>
+    <path d="M16,4 Q14,10 12,4" fill="#0E3A5C"/>
+    <!-- Helmet highlight -->
+    <path d="M-8,-20 Q0,-22 8,-20 Q0,-18 -8,-20" fill="#FFF" opacity="0.1"/>
+  </g>
+  <!-- Hex border accent -->
+  <polygon points="32,8 52,20 52,44 32,56 12,44 12,20" fill="none" stroke="#3B8CC7" stroke-width="0.5" opacity="0.4"/>
+</svg>

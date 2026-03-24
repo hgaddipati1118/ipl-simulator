@@ -22,6 +22,7 @@ export {
   runAuction, retainPlayers,
   initAuction, userBid, userDropBid, cpuBidRound,
   nextPlayer, simCurrentPlayer, simRemainingAuction,
+  getBasePrice, getBidIncrement,
 } from "./auction.js";
 export type { AuctionConfig, AuctionBid, AuctionResult, AuctionState } from "./auction.js";
 

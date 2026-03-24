@@ -2,7 +2,171 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme Variables ─────────────────────────────────────────────────── */
+
+:root {
+  /* Light theme */
+  --th-body: #f8f9fc;
+  --th-surface: #ffffff;
+  --th-raised: #f0f1f5;
+  --th-overlay: #e8eaef;
+  --th-hover: rgba(0, 0, 0, 0.03);
+  --th-text-primary: #111827;
+  --th-text-secondary: #4b5563;
+  --th-text-muted: #6b7280;
+  --th-text-faint: #9ca3af;
+  --th-border: rgba(0, 0, 0, 0.08);
+  --th-border-strong: rgba(0, 0, 0, 0.15);
+  --th-row-alt: rgba(0, 0, 0, 0.02);
+  --th-glass-bg: rgba(255, 255, 255, 0.8);
+  --th-noise-opacity: 0.03;
+  --th-scrollbar: #cbd5e1;
+  --th-scrollbar-hover: #94a3b8;
+  --th-select-arrow: %239CA3AF;
+}
+
+.dark {
+  /* Dark theme — increased surface contrast for depth */
+  --th-body: #050810;
+  --th-surface: rgba(255, 255, 255, 0.03);
+  --th-raised: rgba(255, 255, 255, 0.06);
+  --th-overlay: rgba(255, 255, 255, 0.10);
+  --th-hover: rgba(255, 255, 255, 0.05);
+  --th-text-primary: #f1f5f9;
+  --th-text-secondary: #94a3b8;
+  --th-text-muted: #64748b;
+  --th-text-faint: #334155;
+  --th-border: rgba(255, 255, 255, 0.07);
+  --th-border-strong: rgba(255, 255, 255, 0.14);
+  --th-row-alt: rgba(255, 255, 255, 0.015);
+  --th-glass-bg: rgba(17, 24, 39, 0.75);
+  --th-noise-opacity: 0.018;
+  --th-scrollbar: #334155;
+  --th-scrollbar-hover: #475569;
+  --th-select-arrow: %239CA3AF;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────── */
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Outfit", system-ui, sans-serif;
   margin: 0;
+  background: var(--th-body);
+  color: var(--th-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--th-scrollbar); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--th-scrollbar-hover); }
+
+/* ── Stagger Animations ──────────────────────────────────────────────── */
+
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(7) { animation-delay: 240ms; }
+.stagger > *:nth-child(8) { animation-delay: 280ms; }
+.stagger > *:nth-child(9) { animation-delay: 320ms; }
+.stagger > *:nth-child(10) { animation-delay: 360ms; }
+
+/* ── Typography ──────────────────────────────────────────────────────── */
+
+.stat-num {
+  font-family: "JetBrains Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.ovr-badge {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.text-gradient-orange {
+  background: linear-gradient(135deg, #FF822A, #D1AB3E);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Themed Surfaces ─────────────────────────────────────────────────── */
+
+.glass {
+  background: var(--th-glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--th-noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px;
+  z-index: 1;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────── */
+
+tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+tbody tr:nth-child(even) {
+  background-color: var(--th-row-alt);
+}
+
+/* ── Form Controls ───────────────────────────────────────────────────── */
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='var(--th-select-arrow)' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 28px;
+}
+
+/* ── Interactive ─────────────────────────────────────────────────────── */
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid rgba(255, 130, 42, 0.5);
+  outline-offset: 2px;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+main, [class*="animate-"] {
+  animation-fill-mode: both;
+}
+
+/* ── Print & Accessibility ───────────────────────────────────────────── */
+
+@media print {
+  .noise::before { display: none; }
+  * { animation: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

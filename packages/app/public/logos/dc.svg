@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Delhi Capitals - Capital dome/parliament motif -->
+  <defs>
+    <linearGradient id="dc-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0066BB"/>
+      <stop offset="100%" stop-color="#004C93"/>
+    </linearGradient>
+  </defs>
+  <!-- Main dome -->
+  <path d="M12,44 L12,36 Q12,16 32,8 Q52,16 52,36 L52,44 Z" fill="url(#dc-grad)"/>
+  <!-- Dome highlight -->
+  <path d="M18,42 L18,36 Q18,20 32,13 Q46,20 46,36 L46,42 Z" fill="#0066BB" opacity="0.6"/>
+  <!-- Dome top finial -->
+  <circle cx="32" cy="8" r="3" fill="#FFF"/>
+  <rect x="31" y="5" width="2" height="4" fill="#FFF"/>
+  <!-- Dome windows/arches -->
+  <path d="M22,44 L22,36 Q22,32 26,30 Q28,29 28,32 L28,44 Z" fill="#002D5C" opacity="0.5"/>
+  <path d="M36,44 L36,32 Q36,29 38,30 Q42,32 42,36 L42,44 Z" fill="#002D5C" opacity="0.5"/>
+  <!-- Center arch -->
+  <path d="M28,44 L28,34 Q28,28 32,26 Q36,28 36,34 L36,44 Z" fill="#002D5C" opacity="0.6"/>
+  <!-- Base platform -->
+  <rect x="8" y="44" width="48" height="5" rx="1" fill="#004C93"/>
+  <rect x="4" y="49" width="56" height="4" rx="1" fill="#003366"/>
+  <!-- Pillar details -->
+  <rect x="14" y="36" width="2" height="8" fill="#FFF" opacity="0.3"/>
+  <rect x="48" y="36" width="2" height="8" fill="#FFF" opacity="0.3"/>
+</svg>

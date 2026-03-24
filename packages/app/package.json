@@ -10,6 +10,7 @@
   "dependencies": {
     "@ipl-sim/engine": "1.0.0",
     "@ipl-sim/ratings": "1.0.0",
+    "idb-keyval": "^6.2.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.0"

@@ -105,6 +105,7 @@ interface RatedPlayer {
   battingHand: string;
   bowlingStyle: string;
   role: "batsman" | "bowler" | "all-rounder";
+  isWicketKeeper?: boolean;
   isInternational: boolean;
   teamId?: string;
   price?: number;  // auction/retention price in crores
@@ -709,6 +710,9 @@ export function generateAllRatings(): RatedPlayer[] {
       ratings.overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
     }
 
+    // Use ESPN's playingRoles to detect wicket-keepers (inferRole can't distinguish them)
+    const espnRoles = player.profile.playingRoles ?? [];
+    const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
     const role = inferRole(ratings);
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
@@ -725,6 +729,7 @@ export function generateAllRatings(): RatedPlayer[] {
       battingHand,
       bowlingStyle,
       role,
+      isWicketKeeper: isWicketKeeper || undefined,
       isInternational: country !== "India",
       ratings: {
         battingIQ: ratings.battingIQ,
@@ -864,7 +869,7 @@ function generateTypeScriptModule(players: RatedPlayer[]): void {
     country: ${JSON.stringify(p.country)},
     role: ${JSON.stringify(p.role)},
     ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
-    isInternational: ${p.isInternational},${teamIdLine}${bidLine}
+    isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}${teamIdLine}${bidLine}
   }`;
   }).join(",\n");
 
@@ -1016,6 +1021,9 @@ export function generateWomenRatings(): RatedPlayer[] {
       ratings.overall = Math.round(stronger + (100 - stronger) * Math.pow(weaker / 100, 4));
     }
 
+    // Use ESPN's playingRoles to detect wicket-keepers (inferRole can't distinguish them)
+    const espnRoles = player.profile.playingRoles ?? [];
+    const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
     const role = inferRole(ratings);
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
@@ -1032,6 +1040,7 @@ export function generateWomenRatings(): RatedPlayer[] {
       battingHand,
       bowlingStyle,
       role,
+      isWicketKeeper: isWicketKeeper || undefined,
       isInternational: country !== "India",
       ratings: {
         battingIQ: ratings.battingIQ,
@@ -1149,7 +1158,7 @@ function generateWPLTypeScriptModule(players: RatedPlayer[]): void {
     country: ${JSON.stringify(p.country)},
     role: ${JSON.stringify(p.role)},
     ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
-    isInternational: ${p.isInternational},${teamIdLine}${bidLine}
+    isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}${teamIdLine}${bidLine}
   }`;
   }).join(",\n");
 
@@ -1182,25 +1191,29 @@ export interface WPLPlayerData {
   economy: number;
   accuracy: number;
   clutch: number;
-  teamId?: string;
+  teamId: string;
+  isWicketKeeper?: boolean;
 }
 
 export function getWPLPlayers(): WPLPlayerData[] {
-  return WPL_PLAYERS.map(p => ({
-    name: p.name,
-    age: p.age,
-    country: p.country,
-    role: p.role,
-    battingIQ: p.ratings.battingIQ,
-    timing: p.ratings.timing,
-    power: p.ratings.power,
-    running: p.ratings.running,
-    wicketTaking: p.ratings.wicketTaking,
-    economy: p.ratings.economy,
-    accuracy: p.ratings.accuracy,
-    clutch: p.ratings.clutch,
-    teamId: p.teamId,
-  }));
+  return WPL_PLAYERS
+    .filter((p): p is typeof p & { teamId: string } => !!p.teamId)
+    .map(p => ({
+      name: p.name,
+      age: p.age,
+      country: p.country,
+      role: p.isWicketKeeper ? p.role : p.role,
+      battingIQ: p.ratings.battingIQ,
+      timing: p.ratings.timing,
+      power: p.ratings.power,
+      running: p.ratings.running,
+      wicketTaking: p.ratings.wicketTaking,
+      economy: p.ratings.economy,
+      accuracy: p.ratings.accuracy,
+      clutch: p.ratings.clutch,
+      teamId: p.teamId,
+      isWicketKeeper: p.isWicketKeeper,
+    }));
 }
 `;
 

@@ -109,17 +109,21 @@ const POP_BAT: BatPopStats = {
   experience:       { mean: 74, std: 82 },        // total matches
 };
 
-// Bowling stats — calibrated from 1,000+ qualified bowlers
-// Use artificially wider stdev to spread the pre-filtered population
-// and prevent compression of z-scores among "all decent" bowlers
+// Bowling stats — calibrated from 1,000+ qualified bowlers.
+// Tighter stdevs than batting raw stats, so we use a BOWL_Z_SCALE multiplier
+// in the rating formulas to stretch bowling z-scores to match batting's range.
 const POP_BOWL: BowlPopStats = {
-  wicketsPerBall:   { mean: 0.045, std: 0.018 },  // wider mean/std to spread from avg to elite
-  runsPerBall:      { mean: 1.35, std: 0.25 },    // wider — 8.1 econ = avg, 6.5 = elite, 10 = poor
+  wicketsPerBall:   { mean: 0.045, std: 0.015 },  // elite ≈0.07, avg ≈0.045, poor ≈0.03
+  runsPerBall:      { mean: 1.35, std: 0.20 },    // elite ≈1.05 (6.3 econ), avg ≈1.35, poor ≈1.65
   ballsPerBoundary: { mean: 6, std: 3 },
   bowlPct:          { mean: 0.5, std: 0.3 },
   ballsPerInnings:  { mean: 20, std: 8 },
-  dotBallPct:       { mean: 0.38, std: 0.15 },
+  dotBallPct:       { mean: 0.38, std: 0.12 },
 };
+
+// Bowling z-scores compress tighter than batting because bowling stats have less variance.
+// This multiplier stretches bowling z-blends so elite bowlers reach 90+ like elite batters.
+const BOWL_Z_SCALE = 1.35;
 
 // Women's batting stats — calibrated from 468 qualified WT20I players (10+ matches)
 // Women's T20I features lower scoring rates, fewer boundaries, and much fewer sixes.
@@ -238,22 +242,22 @@ export function calculateRatings(stats: RawPlayerStats, gender: GenderPop = "men
   // ── Bowling ratings ──
   // WicketTaking: primarily wickets per ball + some economy context
   const wicketTaking = hasBowling
-    ? clamp(Math.round(zToRating(zWPB*0.6 + zEcon*0.2 + zBowlPct*0.1 + zBowlExp*0.1)), 15, 99)
+    ? clamp(Math.round(zToRating((zWPB*0.6 + zEcon*0.2 + zBowlPct*0.1 + zBowlExp*0.1) * BOWL_Z_SCALE)), 15, 99)
     : 20;
 
   // Economy: primarily economy + dot ball rate
   const economy = hasBowling
-    ? clamp(Math.round(zToRating(zEcon*0.7 + zDotPct*0.2 + zBowlPct*0.1)), 15, 99)
+    ? clamp(Math.round(zToRating((zEcon*0.7 + zDotPct*0.2 + zBowlPct*0.1) * BOWL_Z_SCALE)), 15, 99)
     : 20;
 
   // Accuracy: experience + economy + consistency
   const accuracy = hasBowling
-    ? clamp(Math.round(zToRating(zBowlExp*0.4 + zEcon*0.2 + zDotPct*0.3 + zBowlPct*0.1)), 15, 99)
+    ? clamp(Math.round(zToRating((zBowlExp*0.4 + zEcon*0.2 + zDotPct*0.3 + zBowlPct*0.1) * BOWL_Z_SCALE)), 15, 99)
     : 25;
 
   // Clutch: bowling under pressure — experience + bowling workload
   const clutch = hasBowling
-    ? clamp(Math.round(zToRating(zBowlExp*0.3 + zBowlPct*0.3 + zWPB*0.2 + zEcon*0.2)), 15, 99)
+    ? clamp(Math.round(zToRating((zBowlExp*0.3 + zBowlPct*0.3 + zWPB*0.2 + zEcon*0.2) * BOWL_Z_SCALE)), 15, 99)
     : 30;
 
   // ── Experience penalty (small sample regression) ──

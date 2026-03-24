@@ -10,6 +10,13 @@
     "build": "npm run build --workspace=packages/engine && npm run build --workspace=packages/ratings && npm run build --workspace=packages/app",
     "ratings:generate": "npm run generate --workspace=packages/ratings",
     "ratings:snapshot": "npm run snapshot --workspace=packages/ratings",
-    "engine:test": "npm test --workspace=packages/engine"
+    "engine:test": "npm test --workspace=packages/engine",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "vitest": "^4.1.0"
   }
 }

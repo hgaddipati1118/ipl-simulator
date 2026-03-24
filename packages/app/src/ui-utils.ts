@@ -1,0 +1,67 @@
+/** Calculate luminance from hex color (shared helper) */
+function getLuminance(hex: string): number {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+/** Returns true if the color is "light" and needs dark text on top */
+export function isLightColor(hex: string): boolean {
+  return getLuminance(hex) > 0.55;
+}
+
+/** Returns true if the color is very dark (needs a visible border on dark bg) */
+export function isDarkColor(hex: string): boolean {
+  return getLuminance(hex) < 0.15;
+}
+
+/** Badge text color for a given team primary color */
+export function badgeTextColor(primaryColor: string): string {
+  return isLightColor(primaryColor) ? "#1a1a2e" : "#ffffff";
+}
+
+/** Badge border style — dark team colors need a visible ring */
+export function badgeBorderStyle(primaryColor: string): string {
+  if (isDarkColor(primaryColor)) return "1px solid rgba(255,255,255,0.15)";
+  if (isLightColor(primaryColor)) return "none";
+  return `1px solid ${primaryColor}60`;
+}
+
+/** Team color for labels — dark colors get gray fallback */
+export function teamLabelColor(primaryColor: string): string {
+  return isDarkColor(primaryColor) ? "#9ca3af" : primaryColor + "aa";
+}
+
+/** OVR color class — 7-tier continuous gradient */
+export function ovrColorClass(ovr: number): string {
+  if (ovr >= 93) return "text-cyan-300";
+  if (ovr >= 85) return "text-emerald-400";
+  if (ovr >= 75) return "text-lime-400";
+  if (ovr >= 65) return "text-yellow-400";
+  if (ovr >= 51) return "text-amber-400";
+  if (ovr >= 36) return "text-red-400";
+  return "text-slate-500";
+}
+
+/** OVR background for badge style — 7-tier with elite glow */
+export function ovrBgClass(ovr: number): string {
+  if (ovr >= 93) return "bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/20";
+  if (ovr >= 85) return "bg-emerald-500/12 text-emerald-400";
+  if (ovr >= 75) return "bg-lime-500/10 text-lime-400";
+  if (ovr >= 65) return "bg-yellow-500/10 text-yellow-400";
+  if (ovr >= 51) return "bg-amber-500/10 text-amber-400";
+  if (ovr >= 36) return "bg-red-500/10 text-red-400";
+  return "bg-slate-500/10 text-slate-500";
+}
+
+/** Short role label */
+export function roleLabel(role: string): string {
+  switch (role) {
+    case "batsman": return "BAT";
+    case "bowler": return "BWL";
+    case "all-rounder": return "AR";
+    default: return role;
+  }
+}
