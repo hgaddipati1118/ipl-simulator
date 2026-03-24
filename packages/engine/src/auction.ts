@@ -184,6 +184,14 @@ function auctionPlayer(
       // Don't overbid dramatically
       if (currentBid > value * 15) bidProb *= 0.3;
 
+      // Budget discipline: save money for remaining squad slots
+      const slotsNeeded = Math.max(0, config.minSquadSize - team.roster.length);
+      const reserveBudget = slotsNeeded * 0.3; // 30L per remaining slot
+      if (team.remainingBudget - currentBid < reserveBudget) bidProb *= 0.1;
+
+      // Hard cap: never bid more than 30% of salary cap on one player
+      if (currentBid > team.salaryCap * 0.3) bidProb *= 0.05;
+
       if (Math.random() < bidProb) {
         currentBid += increment;
         currentBid = Math.round(currentBid * 100) / 100; // round to lakh precision
@@ -324,6 +332,12 @@ export function cpuBidRound(
     if (!player.isInternational) bidProb *= 1.15;
     if (team.roster.length < 12) bidProb *= 1.3;
     if (currentBid > value * 15) bidProb *= 0.3;
+
+    // Budget discipline: save money for remaining squad slots
+    const slotsNeeded = Math.max(0, (cfg.minSquadSize || 18) - team.roster.length);
+    const reserveBudget = slotsNeeded * 0.3;
+    if (team.remainingBudget - currentBid < reserveBudget) bidProb *= 0.1;
+    if (currentBid > team.salaryCap * 0.3) bidProb *= 0.05;
 
     if (Math.random() < bidProb) {
       currentBid = Math.round((currentBid + increment) * 100) / 100;
