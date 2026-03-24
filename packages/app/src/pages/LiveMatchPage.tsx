@@ -14,6 +14,7 @@ import {
   autoResolveDecision,
   getImpactSubOptions,
   applyImpactSub,
+  setAggression,
 } from "@ipl-sim/engine";
 import {
   saveInProgressMatch,
@@ -1260,6 +1261,32 @@ export function LiveMatchPage({ seasonNumber, matchState: initialState, matchInd
               </button>
             ))}
           </div>
+
+          {/* Aggression slider — only for user's batting team */}
+          {isUserMatch && state.battingTeamId === userTeamId && (
+            <div className="flex items-center gap-2 ml-2">
+              <span className="text-[10px] text-th-muted font-display whitespace-nowrap">
+                {state.aggression[state.battingTeamId === state.homeTeam.id ? 'home' : 'away'] <= 25 ? '🛡️' :
+                 state.aggression[state.battingTeamId === state.homeTeam.id ? 'home' : 'away'] >= 75 ? '⚔️' : '⚖️'}
+              </span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="10"
+                value={state.aggression[state.battingTeamId === state.homeTeam.id ? 'home' : 'away']}
+                onChange={e => {
+                  const level = parseInt(e.target.value);
+                  setState(prev => prev ? setAggression(prev, userTeamId!, level) : prev);
+                }}
+                className="w-16 sm:w-24 accent-orange-500 h-1.5"
+                title={`Aggression: ${state.aggression[state.battingTeamId === state.homeTeam.id ? 'home' : 'away']}%`}
+              />
+              <span className="text-[10px] text-th-muted font-mono w-6">
+                {state.aggression[state.battingTeamId === state.homeTeam.id ? 'home' : 'away']}
+              </span>
+            </div>
+          )}
 
           <div className="flex-1" />
 
