@@ -14,13 +14,26 @@ export {
   calculateBowlingOverall,
   calculateOverallRating,
   calculateMarketValue,
+  getTrainingCampFatigue,
 } from "./player.js";
-export type { PlayerData, PlayerRatings, PlayerRole, PlayerStats, MatchPerformance, InjurySeverity, BowlingStyle, BattingHand } from "./player.js";
+export type {
+  PlayerData,
+  PlayerRatings,
+  PlayerRole,
+  PlayerStats,
+  MatchPerformance,
+  InjurySeverity,
+  BowlingStyle,
+  BattingHand,
+  TrainingFocus,
+  TrainingIntensity,
+  PlayerProgressReport,
+} from "./player.js";
 
 export { Team, IPL_TEAMS, WPL_TEAMS } from "./team.js";
 export type { TeamConfig, BowlingPlan } from "./team.js";
 
-export { getMatchupModifiers, getMatchPhase, isPaceBowler, isSpinBowler } from "./matchups.js";
+export { getMatchupModifiers, getMatchPhase, isPaceBowler, isSpinBowler, getBatterAffinityModifier } from "./matchups.js";
 export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";
 
 export { calculateWinProbability } from "./win-probability.js";

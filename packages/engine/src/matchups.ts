@@ -156,6 +156,46 @@ export function getPhaseModifier(bowlingStyle: BowlingStyle, phase: MatchPhase):
 }
 
 /**
+ * Batter affinity — how well a batter handles pace vs spin.
+ * Derived from their ratings:
+ *   - High timing = good vs pace (can time drives, defend well)
+ *   - High power = good vs spin (can muscle over the top)
+ *   - High battingIQ = adaptable (good vs both)
+ */
+export function getBatterAffinityModifier(
+  batterRatings: { battingIQ: number; timing: number; power: number },
+  bowlingStyle: BowlingStyle,
+): { wicketMod: number; boundaryMod: number } {
+  if (bowlingStyle === "unknown") return { wicketMod: 1.0, boundaryMod: 1.0 };
+
+  const pace = isPaceBowler(bowlingStyle);
+  const spin = isSpinBowler(bowlingStyle);
+
+  if (pace) {
+    // vs pace: timing matters most (can they time drives and defend?)
+    const paceAbility = (batterRatings.timing * 0.5 + batterRatings.battingIQ * 0.3 + batterRatings.power * 0.2) / 100;
+    // paceAbility 0.7+ = good vs pace, 0.5 = neutral, <0.4 = struggles
+    const mod = (paceAbility - 0.55) * 0.3; // ±0.06 for typical range
+    return {
+      wicketMod: 1 - mod,    // Good vs pace = less likely out
+      boundaryMod: 1 + mod,  // Good vs pace = more boundaries
+    };
+  }
+
+  if (spin) {
+    // vs spin: power matters (can they hit over the top?) + IQ (read the spin)
+    const spinAbility = (batterRatings.power * 0.4 + batterRatings.battingIQ * 0.4 + batterRatings.timing * 0.2) / 100;
+    const mod = (spinAbility - 0.55) * 0.3;
+    return {
+      wicketMod: 1 - mod,
+      boundaryMod: 1 + mod,
+    };
+  }
+
+  return { wicketMod: 1.0, boundaryMod: 1.0 };
+}
+
+/**
  * Pitch condition modifiers for bowling type.
  */
 export function getPitchModifier(
@@ -231,6 +271,7 @@ export function getBoundaryModifier(boundarySize: BoundarySize): {
 export function getMatchupModifiers(params: {
   bowlingStyle: BowlingStyle;
   battingHand: BattingHand;
+  batterRatings?: { battingIQ: number; timing: number; power: number };
   over: number;
   pitchType?: PitchType;
   boundarySize?: BoundarySize;
@@ -256,10 +297,15 @@ export function getMatchupModifiers(params: {
   const pitchM = getPitchModifier(bowlingStyle, pitchType, dewFactor, isSecondInnings);
   const boundM = getBoundaryModifier(boundarySize);
 
+  // Batter affinity vs bowling type (pace/spin preference)
+  const affinityM = params.batterRatings
+    ? getBatterAffinityModifier(params.batterRatings, bowlingStyle)
+    : { wicketMod: 1.0, boundaryMod: 1.0 };
+
   return {
-    wicketMod: hand.wicketMod * phaseM.wicketMod * pitchM.wicketMod,
-    fourMod: hand.boundaryMod * pitchM.boundaryMod * boundM.fourMod,
-    sixMod: hand.boundaryMod * pitchM.boundaryMod * boundM.sixMod,
-    dotMod: hand.dotMod * (1 / phaseM.economyMod), // better economy = more dots
+    wicketMod: hand.wicketMod * phaseM.wicketMod * pitchM.wicketMod * affinityM.wicketMod,
+    fourMod: hand.boundaryMod * pitchM.boundaryMod * boundM.fourMod * affinityM.boundaryMod,
+    sixMod: hand.boundaryMod * pitchM.boundaryMod * boundM.sixMod * affinityM.boundaryMod,
+    dotMod: hand.dotMod * (1 / phaseM.economyMod),
   };
 }

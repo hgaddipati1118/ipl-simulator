@@ -10,6 +10,7 @@ import { Team, type BowlingPlan } from "./team.js";
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
+import { createRNG, randomSeed, type RNG } from "./rng.js";
 import {
   type BattingHand,
   type BowlingStyle,
@@ -211,6 +212,10 @@ interface MatchStateInternal {
   rules: RuleSet;
   stadiumRating: number;
 
+  // Seeded RNG for deterministic simulation
+  seed: number;
+  rng: RNG;
+
   // Playing XIs (player IDs)
   homeXIIds: string[];
   awayXIIds: string[];
@@ -374,7 +379,7 @@ function chaseAdjustment(
   return adjusted;
 }
 
-function randomBoundaryShot(runs: number): string {
+function randomBoundaryShot(runs: number, rng: RNG = Math.random): string {
   const fourShots = [
     "driven through covers", "cut past point", "flicked through midwicket",
     "punched through the off side", "pulled to deep square leg",
@@ -388,13 +393,13 @@ function randomBoundaryShot(runs: number): string {
     "reverse-swept for six", "pulled massively over deep square",
   ];
   const shots = runs === 6 ? sixShots : fourShots;
-  return shots[Math.floor(Math.random() * shots.length)];
+  return shots[Math.floor(rng() * shots.length)];
 }
 
 // generateCommentary removed -- replaced by imported generateBallCommentary from commentary.ts
 
-function randomWicketType(): "bowled" | "caught" | "lbw" | "run_out" | "stumped" {
-  const r = Math.random();
+function randomWicketType(rng: RNG = Math.random): "bowled" | "caught" | "lbw" | "run_out" | "stumped" {
+  const r = rng();
   if (r < 0.55) return "caught";
   if (r < 0.75) return "bowled";
   if (r < 0.90) return "lbw";
@@ -420,6 +425,7 @@ function runOneBall(
   batterRuns: number = 0,
   batterBalls: number = 0,
   legalBallInOver: number = 0,
+  rng: RNG = Math.random,
 ): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped" } {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
@@ -516,7 +522,7 @@ function runOneBall(
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
-  const outcome = weightedRandom(entries);
+  const outcome = weightedRandom(entries, rng);
 
   let runs = 0;
   let extras = 0;
@@ -536,7 +542,7 @@ function runOneBall(
   }
 
   // Determine wicket type upfront (used for DRS logic)
-  const wicketType = isWicket ? randomWicketType() : undefined;
+  const wicketType = isWicket ? randomWicketType(rng) : undefined;
 
   // Generate rich contextual commentary
   const commentary = generateBallCommentary({
@@ -554,7 +560,8 @@ function runOneBall(
     batterRuns,
     batterBalls,
     wicketType,
-    boundaryShot: (outcome === "4" || outcome === "6") ? randomBoundaryShot(runs || (outcome === "4" ? 4 : 6)) : undefined,
+    boundaryShot: (outcome === "4" || outcome === "6") ? randomBoundaryShot(runs || (outcome === "4" ? 4 : 6), rng) : undefined,
+    rng,
   });
 
   return { outcome, runs, extras, isWicket, commentary, wicketType };
@@ -596,6 +603,13 @@ function emptyInningsRaw(teamId: string): InningsScoreRaw {
   };
 }
 
+/** Clone a MatchState, preserving the RNG function reference (not serializable by JSON) */
+function cloneState(state: MatchState): MatchState {
+  const cloned: MatchState = JSON.parse(JSON.stringify(state));
+  cloned._internal.rng = state._internal.rng;
+  return cloned;
+}
+
 /* ─────────────────── Public API ─────────────────── */
 
 let liveMatchCounter = 1000;
@@ -604,14 +618,18 @@ let liveMatchCounter = 1000;
  * Create a new match state ready for ball-by-ball simulation.
  * @param userTeamId - The user's team ID, or null for CPU-vs-CPU matches.
  *   When provided, the engine will pause for tactical decisions on the user's team.
+ * @param seed - Optional RNG seed for deterministic simulation. If not provided, a random seed is generated.
  */
 export function createMatchState(
   homeTeam: Team,
   awayTeam: Team,
   rules: RuleSet = DEFAULT_RULES,
   userTeamId: string | null = null,
+  seed?: number,
 ): MatchState {
   const matchId = `live_match_${++liveMatchCounter}`;
+  const matchSeed = seed ?? randomSeed();
+  const rng = createRNG(matchSeed);
 
   const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
   const awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI);
@@ -622,7 +640,7 @@ export function createMatchState(
   const dewFactor = homeTeam.config.dewFactor ?? "none";
 
   // Toss
-  const tossWinner = Math.random() < 0.5 ? homeTeam : awayTeam;
+  const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
   const isUserTossWinner = userTeamId !== null && tossWinner.id === userTeamId;
 
   // CPU toss decision logic: dew → prefer chasing (bowl first), seaming → prefer batting first
@@ -771,6 +789,8 @@ export function createMatchState(
       matchId,
       rules,
       stadiumRating,
+      seed: matchSeed,
+      rng,
       homeXIIds: homeXI.map(p => p.id),
       awayXIIds: awayXI.map(p => p.id),
       battingOrderIds: battingOrder.map(p => p.id),
@@ -865,6 +885,8 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   const batterRunsPre = liveBatterPre?.runs ?? 0;
   const batterBallsPre = liveBatterPre?.balls ?? 0;
 
+  const rng = int.rng;
+
   const result = runOneBall(
     striker,
     bowler,
@@ -883,10 +905,11 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     batterRunsPre,
     batterBallsPre,
     int.currentOverLegalBalls,
+    rng,
   );
 
   // Clone state for mutation
-  const newState: MatchState = JSON.parse(JSON.stringify(state));
+  const newState = cloneState(state);
   const ni = newState._internal;
   const rawInnings = ni.currentInningsRaw;
 
@@ -919,14 +942,14 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         ? (ni.battingFirstId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds)
         : (ni.bowlingFirstId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds);
       const fielders = bowlingTeamIds.filter(id => id !== bowlerId);
-      const fielderId = fielders[Math.floor(Math.random() * fielders.length)];
+      const fielderId = fielders[Math.floor(rng() * fielders.length)];
       fielderName = pm[fielderId]?.name ?? "fielder";
     }
 
     // DRS logic for LBW decisions
     if (wicketType === "lbw") {
       // 20% of LBW decisions are incorrect (umpire's call — should be not out)
-      const isIncorrectDecision = Math.random() < 0.20;
+      const isIncorrectDecision = rng() < 0.20;
       if (isIncorrectDecision) {
         // Batting team auto-reviews incorrectly given LBW
         const battingTeamIsHome = newState.battingTeamId === newState.homeTeam.id;
@@ -946,10 +969,10 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     }
   } else if (result.outcome === "dot") {
     // DRS review opportunity: ~8% of dots could be close LBW appeals (not given out)
-    const isCloseLbwAppeal = Math.random() < 0.08;
+    const isCloseLbwAppeal = rng() < 0.08;
     if (isCloseLbwAppeal) {
       // 25% of these close calls were actually out (umpire missed it)
-      const wasActuallyOut = Math.random() < 0.25;
+      const wasActuallyOut = rng() < 0.25;
       const bowlingTeamIsHome = newState.bowlingTeamId === newState.homeTeam.id;
       const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
       const drsAvailable = bowlingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
@@ -966,7 +989,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         newState.status = "waiting_for_decision";
       } else if (drsAvailable > 0 && !isUserBowling) {
         // CPU auto-reviews close calls 40% of the time
-        if (Math.random() < 0.40) {
+        if (rng() < 0.40) {
           if (wasActuallyOut) {
             // Successful review: overturn to wicket
             result.isWicket = true;
@@ -1379,7 +1402,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         // CPU auto-picks or only one option — use phase-specific bowling plan
         const currentBowlingPlan = newState.bowlingTeamId === newState.homeTeam.id
           ? ni.homeBowlingPlan : ni.awayBowlingPlan;
-        const nextBowlerIdx = pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm, currentBowlingPlan, newState.overs);
+        const nextBowlerIdx = pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm, currentBowlingPlan, newState.overs, rng);
         assignNextBowler(newState, ni, pm, nextBowlerIdx);
       }
     }
@@ -2375,6 +2398,7 @@ function pickNextBowler(
   pm: Record<string, SerializedPlayer>,
   bowlingPlan?: BowlingPlan,
   currentOver?: number,
+  rng: RNG = Math.random,
 ): number {
   let eligibleIndices = bowlingOrderIds
     .map((id, idx) => ({ id, idx }))
@@ -2414,8 +2438,8 @@ function pickNextBowler(
     return (pm[b.id]?.bowlingOvr ?? 0) - (pm[a.id]?.bowlingOvr ?? 0);
   });
   // Pick randomly from top 2 of the best tier available
-  const pick = eligibleIndices[Math.floor(Math.random() * Math.min(2, eligibleIndices.length))];
-  return pick.idx;
+  const picked = eligibleIndices[Math.floor(rng() * Math.min(2, eligibleIndices.length))];
+  return picked.idx;
 }
 
 function formatOvers(overs: number, ballsInOver: number): string {

@@ -9,6 +9,7 @@
 
 import { Player } from "./player.js";
 import { Team } from "./team.js";
+import type { RNG } from "./rng.js";
 
 // ── Base price & bid increment utilities ────────────────────────────────
 
@@ -173,6 +174,7 @@ export function runAuction(
   players: Player[],
   teams: Team[],
   config: Partial<AuctionConfig> = {},
+  rng: RNG = Math.random,
 ): AuctionResult {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const bids: AuctionBid[] = [];
@@ -182,7 +184,7 @@ export function runAuction(
   const sortedPlayers = [...players].sort((a, b) => b.marketValue - a.marketValue);
 
   for (const player of sortedPlayers) {
-    const result = auctionPlayer(player, teams, cfg, bids.length);
+    const result = auctionPlayer(player, teams, cfg, bids.length, rng);
     if (result) {
       bids.push(result);
     } else {
@@ -235,6 +237,7 @@ function auctionPlayer(
   teams: Team[],
   config: AuctionConfig,
   playerIndex: number,
+  rng: RNG = Math.random,
 ): AuctionBid | null {
   const basePrice = getBasePrice(player);
   const value = Math.max(player.marketValue, basePrice);
@@ -295,7 +298,7 @@ function auctionPlayer(
       // Hard cap: never bid more than 30% of salary cap on one player
       if (currentBid > team.salaryCap * 0.3) bidProb *= 0.05;
 
-      if (Math.random() < bidProb) {
+      if (rng() < bidProb) {
         currentBid += increment;
         currentBid = Math.round(currentBid * 100) / 100; // round to lakh precision
         currentBidder = team;
@@ -401,6 +404,7 @@ export function cpuBidRound(
   state: AuctionState,
   teams: Team[],
   config: Partial<AuctionConfig> = {},
+  rng: RNG = Math.random,
 ): AuctionState {
   if (state.phase !== "bidding") return state;
 
@@ -443,7 +447,7 @@ export function cpuBidRound(
     if (team.remainingBudget - currentBid < reserveBudget) bidProb *= 0.1;
     if (currentBid > team.salaryCap * 0.3) bidProb *= 0.05;
 
-    if (Math.random() < bidProb) {
+    if (rng() < bidProb) {
       currentBid = Math.round((currentBid + increment) * 100) / 100;
       currentBidderId = teamId;
       anyBid = true;

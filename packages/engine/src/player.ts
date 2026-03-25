@@ -61,6 +61,17 @@ export type BowlingStyle =
 export type BattingHand = "right" | "left";
 
 export type InjurySeverity = "minor" | "moderate" | "severe";
+export type TrainingFocus = "balanced" | "batting" | "power" | "bowling" | "control" | "fitness" | "clutch";
+export type TrainingIntensity = "light" | "balanced" | "hard";
+
+export interface PlayerProgressReport {
+  focus: TrainingFocus;
+  intensity: TrainingIntensity;
+  battingChange: number;
+  bowlingChange: number;
+  overallChange: number;
+  ratingChanges: Partial<Record<keyof PlayerRatings, number>>;
+}
 
 export interface PlayerData {
   id: string;
@@ -80,6 +91,7 @@ export interface PlayerData {
   injuryGamesLeft: number;
   injuryType?: string;          // "hamstring", "shoulder", "back", "finger", "ankle", "side strain"
   injurySeverity?: InjurySeverity;
+  trainingFocus?: TrainingFocus;
   formHistory?: number[];       // last 5 match performance scores (0-100)
   fatigue?: number;             // 0-100 accumulated workload, lower is fresher
   workloadHistory?: number[];   // last 5 workload scores for management surfaces
@@ -91,6 +103,51 @@ function conditionPenalty(fatigue: number): number {
 
 function applyConditionPenalty(value: number, fatigue: number): number {
   return Math.max(1, value - conditionPenalty(fatigue));
+}
+
+const TRAINING_GAIN_MULTIPLIER: Record<TrainingIntensity, number> = {
+  light: 0.65,
+  balanced: 1,
+  hard: 1.2,
+};
+
+const TRAINING_VOLATILITY: Record<TrainingIntensity, number> = {
+  light: 0.9,
+  balanced: 1,
+  hard: 1.15,
+};
+
+const TRAINING_CAMP_BASE_FATIGUE: Record<TrainingIntensity, number> = {
+  light: 2,
+  balanced: 7,
+  hard: 13,
+};
+
+const TRAINING_CAMP_FOCUS_MOD: Record<TrainingFocus, number> = {
+  balanced: 0,
+  batting: 1,
+  power: 2,
+  bowling: 1,
+  control: 1,
+  fitness: -4,
+  clutch: 0,
+};
+
+const TRAINING_FOCUS_BIAS: Record<TrainingFocus, Partial<Record<keyof PlayerRatings, number>>> = {
+  balanced: {},
+  batting: { battingIQ: 0.7, timing: 0.8, running: 0.1 },
+  power: { power: 1.0, timing: 0.2, battingIQ: -0.1, running: -0.1 },
+  bowling: { wicketTaking: 0.85, economy: 0.2, accuracy: 0.4 },
+  control: { economy: 0.8, accuracy: 0.9, wicketTaking: 0.15 },
+  fitness: { running: 0.8, clutch: 0.25 },
+  clutch: { clutch: 1.0, battingIQ: 0.2, accuracy: 0.15 },
+};
+
+export function getTrainingCampFatigue(
+  focus: TrainingFocus = "balanced",
+  intensity: TrainingIntensity = "balanced",
+): number {
+  return clamp(TRAINING_CAMP_BASE_FATIGUE[intensity] + TRAINING_CAMP_FOCUS_MOD[focus], 0, 24);
 }
 
 export function calculateBattingOverall(ratings: PlayerRatings): number {
@@ -160,6 +217,7 @@ export class Player implements PlayerData {
   injuryGamesLeft: number;
   injuryType?: string;
   injurySeverity?: InjurySeverity;
+  trainingFocus: TrainingFocus;
   formHistory: number[];
   fatigue: number;
   workloadHistory: number[];
@@ -183,6 +241,7 @@ export class Player implements PlayerData {
     this.injuryGamesLeft = data.injuryGamesLeft ?? 0;
     this.injuryType = data.injuryType;
     this.injurySeverity = data.injurySeverity;
+    this.trainingFocus = data.trainingFocus ?? "balanced";
     this.formHistory = data.formHistory ? [...data.formHistory] : [];
     this.fatigue = data.fatigue ?? 0;
     this.workloadHistory = data.workloadHistory ? [...data.workloadHistory] : [];
@@ -319,6 +378,12 @@ export class Player implements PlayerData {
     this.workloadHistory = [];
   }
 
+  /** Apply the start-of-season freshness cost of the current training plan. */
+  applyPreseasonTrainingLoad(intensity: TrainingIntensity): void {
+    this.resetCondition();
+    this.fatigue = getTrainingCampFatigue(this.trainingFocus, intensity);
+  }
+
   /** Calculate form score from match stats */
   static calculateFormScore(stats: {
     runs: number;
@@ -335,10 +400,22 @@ export class Player implements PlayerData {
   }
 
   /** Season-to-season progression: attributes shift based on age */
-  progress(): void {
+  progress(input?: {
+    focus?: TrainingFocus;
+    intensity?: TrainingIntensity;
+  }): PlayerProgressReport {
     this.age++;
     const ageBias = (30 - this.age) * 0.3; // positive for young, negative for old
     const deviation = Math.pow(Math.abs(30 - this.age), 0.7);
+    const focus = input?.focus ?? this.trainingFocus ?? "balanced";
+    const intensity = input?.intensity ?? "balanced";
+    const gainMultiplier = TRAINING_GAIN_MULTIPLIER[intensity];
+    const volatility = TRAINING_VOLATILITY[intensity];
+    const focusBias = TRAINING_FOCUS_BIAS[focus];
+    const beforeBatting = this.battingOvr;
+    const beforeBowling = this.bowlingOvr;
+    const beforeOverall = this.overall;
+    const ratingChanges: Partial<Record<keyof PlayerRatings, number>> = {};
 
     const attrs: (keyof PlayerRatings)[] = [
       "battingIQ", "timing", "power", "running",
@@ -346,12 +423,28 @@ export class Player implements PlayerData {
     ];
 
     for (const attr of attrs) {
-      const change = randomNormal(ageBias, deviation);
-      this.ratings[attr] = clamp(Math.round(this.ratings[attr] + change), 1, 99);
+      const focusBoost = (focusBias[attr] ?? 0) * gainMultiplier;
+      const next = clamp(
+        Math.round(this.ratings[attr] + randomNormal(ageBias + focusBoost, deviation * volatility)),
+        1,
+        99,
+      );
+      ratingChanges[attr] = next - this.ratings[attr];
+      this.ratings[attr] = next;
     }
 
+    this.trainingFocus = focus;
     this.stats = this.emptyStats();
     this.resetCondition();
+
+    return {
+      focus,
+      intensity,
+      battingChange: this.battingOvr - beforeBatting,
+      bowlingChange: this.bowlingOvr - beforeBowling,
+      overallChange: this.overall - beforeOverall,
+      ratingChanges,
+    };
   }
 
   /** Reset season stats (keep ratings) */
@@ -379,6 +472,7 @@ export class Player implements PlayerData {
       injuryGamesLeft: this.injuryGamesLeft,
       injuryType: this.injuryType,
       injurySeverity: this.injurySeverity,
+      trainingFocus: this.trainingFocus,
       formHistory: [...this.formHistory],
       fatigue: this.fatigue,
       workloadHistory: [...this.workloadHistory],

@@ -288,7 +288,7 @@ function generateWicketCommentary(
       if (style === "pace") templates.push(
         `${prefix}, OUT! Too quick! Crashes into the stumps before ${batter} can react!`,
       );
-      return addWicketContext(pick(templates), batter, isDuck, isSetBatter, wasOnFifty);
+      return addWicketContext(pick(templates, rng), batter, isDuck, isSetBatter, wasOnFifty);
     }
 
     case "caught": {
@@ -299,7 +299,7 @@ function generateWicketCommentary(
         `${prefix}, OUT! Goes for the big shot but only finds ${catcher}! ${bowler} is pumped!`,
         `${prefix}, OUT! Caught by ${catcher}! ${batter} goes for the glory shot and pays the price!`,
       ];
-      return addWicketContext(pick(templates), batter, isDuck, isSetBatter, wasOnFifty);
+      return addWicketContext(pick(templates, rng), batter, isDuck, isSetBatter, wasOnFifty);
     }
 
     case "lbw": {
@@ -311,7 +311,7 @@ function generateWicketCommentary(
       if (style === "spin") templates.push(
         `${prefix}, OUT! Spins back in and traps ${batter} on the crease! LBW!`,
       );
-      return addWicketContext(pick(templates), batter, isDuck, isSetBatter, wasOnFifty);
+      return addWicketContext(pick(templates, rng), batter, isDuck, isSetBatter, wasOnFifty);
     }
 
     case "run_out": {
@@ -320,7 +320,7 @@ function generateWicketCommentary(
         `${prefix}, OUT! Direct hit! ${batter} was scrambling and the throw finds the stumps!`,
         `${prefix}, OUT! Run out! Brilliant fielding, ${batter} was well short of the crease!`,
       ];
-      return addWicketContext(pick(templates), batter, isDuck, isSetBatter, wasOnFifty);
+      return addWicketContext(pick(templates, rng), batter, isDuck, isSetBatter, wasOnFifty);
     }
 
     case "stumped": {
@@ -330,7 +330,7 @@ function generateWicketCommentary(
         `${prefix}, OUT! Quick as a flash, ${keeper} whips off the bails! ${batter} is stumped!`,
         `${prefix}, OUT! Down the pitch and beaten in the flight! Stumped by ${keeper}!`,
       ];
-      return addWicketContext(pick(templates), batter, isDuck, isSetBatter, wasOnFifty);
+      return addWicketContext(pick(templates, rng), batter, isDuck, isSetBatter, wasOnFifty);
     }
 
     default: {
@@ -339,7 +339,7 @@ function generateWicketCommentary(
         `${prefix}, OUT! Big wicket! ${batter} departs!`,
         `${prefix}, OUT! Breakthrough! That's the end of ${batter}!`,
       ];
-      return addWicketContext(pick(templates), batter, isDuck, isSetBatter, wasOnFifty);
+      return addWicketContext(pick(templates, rng), batter, isDuck, isSetBatter, wasOnFifty);
     }
   }
 }
@@ -351,7 +351,7 @@ function addWicketContext(base: string, batter: string, isDuck: boolean, isSetBa
   return base;
 }
 
-function generateWideCommentary(prefix: string, _batter: string, bowler: string, style: BowlingStyleCategory): string {
+function generateWideCommentary(prefix: string, _batter: string, bowler: string, style: BowlingStyleCategory, rng: RNG = Math.random): string {
   const templates = [
     `${prefix}, wide. Straying down the leg side`,
     `${prefix}, wide. Too far outside off, the umpire signals`,
@@ -366,19 +366,19 @@ function generateWideCommentary(prefix: string, _batter: string, bowler: string,
     `${prefix}, wide. Drifts too far, the umpire has no hesitation`,
   );
 
-  return pick(templates);
+  return pick(templates, rng);
 }
 
-function generateNoBallCommentary(prefix: string, _batter: string, bowler: string): string {
+function generateNoBallCommentary(prefix: string, _batter: string, bowler: string, rng: RNG = Math.random): string {
   return pick([
     `${prefix}, no ball! Overstepped, free hit coming up`,
     `${prefix}, no ball! Front foot no ball, one extra. ${bowler} needs to watch the crease`,
     `${prefix}, no ball! That's a freebie, ${bowler} overstepped the mark`,
     `${prefix}, no ball! The umpire checks... yes, overstep. Free hit next ball!`,
-  ]);
+  ], rng);
 }
 
-function generateLegbyeCommentary(prefix: string, batter: string, _bowler: string, style: BowlingStyleCategory): string {
+function generateLegbyeCommentary(prefix: string, batter: string, _bowler: string, style: BowlingStyleCategory, rng: RNG = Math.random): string {
   const templates = [
     `${prefix}, leg bye. Off the pad, they scamper through for one`,
     `${prefix}, leg bye. Flicked off the thigh pad`,
@@ -390,5 +390,5 @@ function generateLegbyeCommentary(prefix: string, batter: string, _bowler: strin
     `${prefix}, leg bye. Turns past the bat and off the pad`,
   );
 
-  return pick(templates);
+  return pick(templates, rng);
 }

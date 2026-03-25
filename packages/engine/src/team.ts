@@ -3,7 +3,7 @@
  * Ported from IndianCricketLeague/TeamClass.js
  */
 
-import { Player } from "./player.js";
+import { Player, type TrainingIntensity } from "./player.js";
 
 export interface BowlingPlan {
   powerplay: string[]; // player IDs preferred for overs 1-6
@@ -71,6 +71,7 @@ export class Team {
   userBattingOrder?: string[];   // player IDs in batting order
   userBowlingOrder?: string[];   // player IDs for bowling rotation
   bowlingPlan?: BowlingPlan;     // phase-specific bowling preferences
+  trainingIntensity: TrainingIntensity;
 
   constructor(config: TeamConfig, salaryCap = 120) {
     this.config = config;
@@ -86,6 +87,7 @@ export class Team {
     this.runsAgainst = 0;
     this.ballsFacedAgainst = 0;
     this.isUserControlled = false;
+    this.trainingIntensity = "balanced";
   }
 
   get id(): string { return this.config.id; }
@@ -291,7 +293,7 @@ export class Team {
     this.bowlingPlan = undefined;
     for (const p of this.roster) {
       p.resetSeasonStats();
-      p.resetCondition();
+      p.applyPreseasonTrainingLoad(this.trainingIntensity);
       // Clear injuries at season start
       p.injured = false;
       p.injuryGamesLeft = 0;
