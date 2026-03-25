@@ -60,6 +60,8 @@ export type BowlingStyle =
 
 export type BattingHand = "right" | "left";
 
+export type BattingPosition = "opener" | "top-order" | "middle-order" | "finisher" | "lower-order";
+
 export type InjurySeverity = "minor" | "moderate" | "severe";
 export type TrainingFocus = "balanced" | "batting" | "power" | "bowling" | "control" | "fitness" | "clutch";
 export type TrainingIntensity = "light" | "balanced" | "hard";
@@ -81,6 +83,7 @@ export interface PlayerData {
   imageUrl?: string;
   role: PlayerRole;
   ratings: PlayerRatings;
+  battingPosition?: BattingPosition; // opener, top-order, middle-order, finisher, lower-order
   isInternational: boolean; // non-Indian = international (foreign player slot)
   isWicketKeeper?: boolean; // WK is a tag, not a role
   bowlingStyle?: BowlingStyle;
@@ -142,6 +145,43 @@ const TRAINING_FOCUS_BIAS: Record<TrainingFocus, Partial<Record<keyof PlayerRati
   fitness: { running: 0.8, clutch: 0.25 },
   clutch: { clutch: 1.0, battingIQ: 0.2, accuracy: 0.15 },
 };
+
+/** Infer batting position from player role, ratings, and age */
+function inferBattingPosition(data: Partial<PlayerData>): BattingPosition {
+  const role = data.role ?? "batsman";
+  if (role === "bowler") return "lower-order";
+
+  const ratings = data.ratings;
+  if (!ratings) return role === "all-rounder" ? "middle-order" : "top-order";
+
+  const batOvr = calculateBattingOverall(ratings);
+  const power = ratings.power;
+  const timing = ratings.timing;
+  const iq = ratings.battingIQ;
+  const running = ratings.running;
+  const age = data.age ?? 25;
+
+  // Finishers: high power, typically bat at 5-7
+  // Power-heavy batters who are either older (experienced finishers like Dhoni/Pollard)
+  // or have significantly more power than timing (explosive, not classical)
+  if (power >= 80 && (power >= timing + 5 || age >= 33)) {
+    if (role === "all-rounder" || batOvr >= 70) return "finisher";
+  }
+
+  // Openers: classical technique — high IQ + timing + running, young-to-prime age
+  // They need to play the new ball, so timing and IQ matter more than raw power
+  if (role === "batsman" && iq >= 80 && timing >= 80 && running >= 55 && age <= 30) return "opener";
+
+  // Top order (#3-4): high overall, balanced, anchor types
+  if (role === "batsman" && batOvr >= 80 && iq >= 75) return "top-order";
+
+  // All-rounders default to middle order
+  if (role === "all-rounder") return "middle-order";
+
+  // Remaining batsmen: middle order if decent, lower order if weak
+  if (batOvr >= 70) return "middle-order";
+  return batOvr >= 50 ? "middle-order" : "lower-order";
+}
 
 export function getTrainingCampFatigue(
   focus: TrainingFocus = "balanced",
@@ -211,6 +251,7 @@ export class Player implements PlayerData {
   isWicketKeeper: boolean;
   bowlingStyle: BowlingStyle;
   battingHand: BattingHand;
+  battingPosition: BattingPosition;
   teamId?: string;
   bid: number;
   injured: boolean;
@@ -235,6 +276,7 @@ export class Player implements PlayerData {
     this.isWicketKeeper = data.isWicketKeeper ?? false;
     this.bowlingStyle = data.bowlingStyle ?? "unknown";
     this.battingHand = data.battingHand ?? "right";
+    this.battingPosition = data.battingPosition ?? inferBattingPosition(data);
     this.teamId = data.teamId;
     this.bid = data.bid ?? 0;
     this.injured = data.injured ?? false;
@@ -466,6 +508,7 @@ export class Player implements PlayerData {
       isWicketKeeper: this.isWicketKeeper,
       bowlingStyle: this.bowlingStyle,
       battingHand: this.battingHand,
+      battingPosition: this.battingPosition,
       teamId: this.teamId,
       bid: this.bid,
       injured: this.injured,

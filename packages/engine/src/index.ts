@@ -25,6 +25,7 @@ export type {
   InjurySeverity,
   BowlingStyle,
   BattingHand,
+  BattingPosition,
   TrainingFocus,
   TrainingIntensity,
   PlayerProgressReport,
