@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { GameState } from "../game-state";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
+import { PlayerAvatar } from "../components/PlayerAvatar";
+import { roleLabel, bowlingStyleLabel, ovrColorClass } from "../ui-utils";
 
 interface Props {
   state: GameState;
@@ -54,25 +56,57 @@ export function ResultsPage({ state, onNextSeason }: Props) {
             className="w-16 h-1 rounded-full mx-auto mt-3 mb-6"
             style={{ background: `linear-gradient(to right, ${champion?.config.primaryColor}, ${champion?.config.secondaryColor})` }}
           />
-          <div className="flex flex-col sm:flex-row justify-center gap-6 sm:gap-10">
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center">
-                <span className="text-orange-400 text-sm">🧢</span>
-              </div>
-              <div className="text-left">
-                <div className="text-[10px] text-orange-400/70 uppercase tracking-wider font-display font-semibold">Orange Cap</div>
-                <div className="text-th-primary text-sm font-display">{orangePlayer ? <PlayerLink playerId={orangePlayer.id}>{orangePlayer.name}</PlayerLink> : "Unknown"} <span className="stat-num text-orange-300">{seasonResult.orangeCap.runs}r</span></div>
-              </div>
+          {/* Season Awards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+            {/* Orange Cap */}
+            <div className="rounded-xl bg-orange-500/[0.06] border border-orange-500/20 p-4">
+              <div className="text-[10px] text-orange-400 uppercase tracking-wider font-display font-semibold mb-2">Orange Cap</div>
+              {orangePlayer && (
+                <div className="flex items-center gap-3">
+                  <PlayerAvatar name={orangePlayer.name} imageUrl={orangePlayer.imageUrl} size="md" teamColor={teams.find(t => t.id === orangePlayer.teamId)?.config.primaryColor} />
+                  <div className="text-left">
+                    <PlayerLink playerId={orangePlayer.id} className="text-th-primary text-sm font-display font-semibold">{orangePlayer.name}</PlayerLink>
+                    <div className="text-[10px] text-th-muted">{teams.find(t => t.id === orangePlayer.teamId)?.shortName}</div>
+                    <div className="text-orange-300 font-mono stat-num text-sm mt-1">{seasonResult.orangeCap.runs} runs <span className="text-[10px] text-th-muted">SR {seasonResult.orangeCap.strikeRate?.toFixed(1)}</span></div>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
-                <span className="text-purple-400 text-sm">🧢</span>
-              </div>
-              <div className="text-left">
-                <div className="text-[10px] text-purple-400/70 uppercase tracking-wider font-display font-semibold">Purple Cap</div>
-                <div className="text-th-primary text-sm font-display">{purplePlayer ? <PlayerLink playerId={purplePlayer.id}>{purplePlayer.name}</PlayerLink> : "Unknown"} <span className="stat-num text-purple-300">{seasonResult.purpleCap.wickets}w</span></div>
-              </div>
+
+            {/* Purple Cap */}
+            <div className="rounded-xl bg-purple-500/[0.06] border border-purple-500/20 p-4">
+              <div className="text-[10px] text-purple-400 uppercase tracking-wider font-display font-semibold mb-2">Purple Cap</div>
+              {purplePlayer && (
+                <div className="flex items-center gap-3">
+                  <PlayerAvatar name={purplePlayer.name} imageUrl={purplePlayer.imageUrl} size="md" teamColor={teams.find(t => t.id === purplePlayer.teamId)?.config.primaryColor} />
+                  <div className="text-left">
+                    <PlayerLink playerId={purplePlayer.id} className="text-th-primary text-sm font-display font-semibold">{purplePlayer.name}</PlayerLink>
+                    <div className="text-[10px] text-th-muted">{teams.find(t => t.id === purplePlayer.teamId)?.shortName} {purplePlayer.bowlingStyle !== "unknown" && <span className="text-purple-400/60">{bowlingStyleLabel(purplePlayer.bowlingStyle)}</span>}</div>
+                    <div className="text-purple-300 font-mono stat-num text-sm mt-1">{seasonResult.purpleCap.wickets} wkts <span className="text-[10px] text-th-muted">Econ {seasonResult.purpleCap.economy?.toFixed(2)}</span></div>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* MVP */}
+            {seasonResult.mvp && (() => {
+              const mvpPlayer = allPlayers.find(p => p.name === seasonResult.mvp.name);
+              return (
+                <div className="rounded-xl bg-sky-500/[0.06] border border-sky-500/20 p-4">
+                  <div className="text-[10px] text-sky-400 uppercase tracking-wider font-display font-semibold mb-2">Most Valuable Player</div>
+                  {mvpPlayer && (
+                    <div className="flex items-center gap-3">
+                      <PlayerAvatar name={mvpPlayer.name} imageUrl={mvpPlayer.imageUrl} size="md" teamColor={teams.find(t => t.id === mvpPlayer.teamId)?.config.primaryColor} />
+                      <div className="text-left">
+                        <PlayerLink playerId={mvpPlayer.id} className="text-th-primary text-sm font-display font-semibold">{mvpPlayer.name}</PlayerLink>
+                        <div className="text-[10px] text-th-muted">{teams.find(t => t.id === mvpPlayer.teamId)?.shortName} <span className={ovrColorClass(mvpPlayer.overall)}>{mvpPlayer.overall} OVR</span></div>
+                        <div className="text-sky-300 font-mono stat-num text-sm mt-1">{seasonResult.mvp.points.toFixed(1)} pts</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -88,6 +122,7 @@ export function ResultsPage({ state, onNextSeason }: Props) {
               <div key={p.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-th-hover transition-colors">
                 <div className="flex items-center gap-3">
                   <span className={`stat-num text-xs w-4 ${i < 3 ? "text-orange-400" : "text-th-faint"}`}>{i + 1}</span>
+                  <PlayerAvatar name={p.name} imageUrl={p.imageUrl} size="sm" teamColor={teams.find(t => t.id === p.teamId)?.config.primaryColor} />
                   <div>
                     <PlayerLink playerId={p.id} className="text-th-primary text-sm font-display">{p.name}</PlayerLink>
                     <span className="text-th-faint text-xs ml-2">{teams.find(t => t.id === p.teamId)?.shortName}</span>
@@ -112,9 +147,11 @@ export function ResultsPage({ state, onNextSeason }: Props) {
               <div key={p.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-th-hover transition-colors">
                 <div className="flex items-center gap-3">
                   <span className={`stat-num text-xs w-4 ${i < 3 ? "text-purple-400" : "text-th-faint"}`}>{i + 1}</span>
+                  <PlayerAvatar name={p.name} imageUrl={p.imageUrl} size="sm" teamColor={teams.find(t => t.id === p.teamId)?.config.primaryColor} />
                   <div>
                     <PlayerLink playerId={p.id} className="text-th-primary text-sm font-display">{p.name}</PlayerLink>
                     <span className="text-th-faint text-xs ml-2">{teams.find(t => t.id === p.teamId)?.shortName}</span>
+                    {p.bowlingStyle !== "unknown" && <span className="text-purple-400/50 text-[10px] ml-1">{bowlingStyleLabel(p.bowlingStyle)}</span>}
                   </div>
                 </div>
                 <div className="text-right flex items-baseline gap-2">
@@ -151,7 +188,12 @@ export function ResultsPage({ state, onNextSeason }: Props) {
                 return (
                   <tr key={s.teamId} className={`border-t border-th ${i < 4 ? "bg-emerald-500/[0.03]" : ""}`}>
                     <td className="px-4 py-2 text-th-muted stat-num">{i + 1}</td>
-                    <td className="px-4 py-2 text-th-primary font-display font-medium">{team.shortName}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <TeamBadge teamId={team.id} shortName={team.shortName} primaryColor={team.config.primaryColor} size="sm" />
+                        <span className="text-th-primary font-display font-medium">{team.shortName}</span>
+                      </div>
+                    </td>
                     <td className="text-center px-3 py-2 text-th-secondary stat-num">{s.played}</td>
                     <td className="text-center px-3 py-2 text-emerald-400 stat-num">{s.wins}</td>
                     <td className="text-center px-3 py-2 text-red-400/80 stat-num">{s.losses}</td>
