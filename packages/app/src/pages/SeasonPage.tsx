@@ -325,6 +325,12 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
                     Read Reports
                   </button>
                 )}
+                <button
+                  onClick={() => navigate("/training")}
+                  className="px-3 py-2 bg-th-raised hover:bg-th-overlay text-th-primary text-xs font-display font-medium rounded-lg transition-colors border border-th"
+                >
+                  Training Setup
+                </button>
               </div>
             </div>
           </div>

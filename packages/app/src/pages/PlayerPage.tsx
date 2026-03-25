@@ -342,6 +342,38 @@ export function PlayerPage({ state }: Props) {
         </div>
       </div>
 
+      <div className="rounded-2xl border border-th bg-th-surface p-4 sm:p-5 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div>
+            <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Development Plan</h3>
+            <div className="text-th-faint text-xs mt-1">
+              Focus and camp load only apply at the next season rollover.
+            </div>
+          </div>
+          <Link
+            to="/training"
+            className="inline-flex items-center justify-center rounded-lg border border-th bg-th-raised px-3 py-2 text-xs font-display font-medium text-th-secondary hover:text-th-primary hover:bg-th-hover transition-colors"
+          >
+            Adjust Training
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
+            <div className="text-th-faint text-[10px] uppercase tracking-wider">Current Focus</div>
+            <div className="text-th-primary font-display font-semibold mt-1">{trainingFocusLabel(player.trainingFocus)}</div>
+          </div>
+          <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
+            <div className="text-th-faint text-[10px] uppercase tracking-wider">Expected Lift</div>
+            <div className="text-th-secondary text-sm mt-1 leading-6">{trainingFocusSummary(player.trainingFocus)}</div>
+          </div>
+          <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
+            <div className="text-th-faint text-[10px] uppercase tracking-wider">Projected Camp Note</div>
+            <div className="text-th-secondary text-sm mt-1 leading-6">{trainingReadinessNote(team.trainingIntensity, player.trainingFocus)}</div>
+          </div>
+        </div>
+      </div>
+
       {/* Ratings + Stats Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
         {/* Attribute Ratings Card */}
@@ -523,6 +555,44 @@ function readinessTone(readiness: number): "good" | "info" | "warn" {
   if (readiness >= 70) return "good";
   if (readiness >= 55) return "info";
   return "warn";
+}
+
+function trainingFocusLabel(focus: string): string {
+  switch (focus) {
+    case "batting": return "Batting";
+    case "power": return "Power";
+    case "bowling": return "Bowling";
+    case "control": return "Control";
+    case "fitness": return "Fitness";
+    case "clutch": return "Clutch";
+    default: return "Balanced";
+  }
+}
+
+function trainingFocusSummary(focus: string): string {
+  switch (focus) {
+    case "batting": return "Batting IQ and timing are being pushed hardest.";
+    case "power": return "Power-hitting gets the extra reps.";
+    case "bowling": return "Wicket-taking tools get the main lift.";
+    case "control": return "Economy and accuracy are the focus.";
+    case "fitness": return "Running and freshness are being protected.";
+    case "clutch": return "Pressure handling gets extra work.";
+    default: return "An even plan with no strong attribute bias.";
+  }
+}
+
+function trainingReadinessNote(intensity: string, focus: string): string {
+  if (intensity === "hard") {
+    return focus === "fitness"
+      ? "Hard camp, but fitness work should soften the freshness hit."
+      : "High-intensity camp should raise upside, but expect less freshness.";
+  }
+  if (intensity === "light") {
+    return "Light camp protects freshness, but growth will be smaller.";
+  }
+  return focus === "fitness"
+    ? "Balanced camp with a little extra freshness protection."
+    : "Balanced camp keeps growth and freshness in the middle.";
 }
 
 function StatusCard({

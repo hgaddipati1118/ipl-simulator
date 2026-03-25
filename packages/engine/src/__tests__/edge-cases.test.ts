@@ -582,6 +582,28 @@ describe("Commentary – generateBallCommentary", () => {
     });
     expect(text).toContain("more to win");
   });
+
+  it("uses injected RNG for deterministic template selection", () => {
+    const first = generateBallCommentary({
+      ...baseParams,
+      outcome: "wicket",
+      runs: 0,
+      wicketType: "caught",
+      fielderName: "Jadeja",
+      rng: () => 0,
+    });
+    const second = generateBallCommentary({
+      ...baseParams,
+      outcome: "wicket",
+      runs: 0,
+      wicketType: "caught",
+      fielderName: "Jadeja",
+      rng: () => 0,
+    });
+
+    expect(first).toBe(second);
+    expect(first).toContain("Jadeja");
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

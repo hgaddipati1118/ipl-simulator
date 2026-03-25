@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMatchState, simulateRemaining } from "../live-match.js";
+import { applyLiveBallContextModifiers, createMatchState, simulateRemaining } from "../live-match.js";
 import { Player, type PlayerData } from "../player.js";
 import { RULE_PRESETS } from "../rules.js";
 import { Team, IPL_TEAMS, type TeamConfig } from "../team.js";
@@ -197,5 +197,50 @@ describe("live match venue logic", () => {
 
     expect(turning.runs).toBeLessThan(flat.runs);
     expect(turning.wickets).toBeGreaterThan(flat.wickets);
+  });
+});
+
+describe("applyLiveBallContextModifiers", () => {
+  const baseProbs = {
+    dot: 0.32,
+    "1": 0.28,
+    "2": 0.08,
+    "3": 0.01,
+    "4": 0.10,
+    "6": 0.05,
+    wicket: 0.06,
+    wide: 0.03,
+    noball: 0.01,
+    legbye: 0.02,
+  } satisfies Record<import("../match.js").BallOutcome, number>;
+
+  it("makes new batters shakier and set batters more dangerous", () => {
+    const newBatter = applyLiveBallContextModifiers(baseProbs, { batterBalls: 4, over: 8 });
+    const setBatter = applyLiveBallContextModifiers(baseProbs, { batterBalls: 34, over: 8 });
+
+    expect(newBatter.wicket).toBeGreaterThan(baseProbs.wicket);
+    expect(newBatter["4"]).toBeLessThan(baseProbs["4"]);
+    expect(setBatter.wicket).toBeLessThan(baseProbs.wicket);
+    expect(setBatter["4"]).toBeGreaterThan(baseProbs["4"]);
+    expect(setBatter["6"]).toBeGreaterThan(baseProbs["6"]);
+  });
+
+  it("adds extra control risk to long pace spells without touching spin", () => {
+    const tiredPacer = applyLiveBallContextModifiers(baseProbs, {
+      bowlerOversBowled: 3,
+      bowlingStyle: "right-arm-fast",
+      over: 17,
+    });
+    const spinner = applyLiveBallContextModifiers(baseProbs, {
+      bowlerOversBowled: 3,
+      bowlingStyle: "off-spin",
+      over: 17,
+    });
+
+    expect(tiredPacer.wide).toBeGreaterThan(baseProbs.wide);
+    expect(tiredPacer.noball).toBeGreaterThan(baseProbs.noball);
+    expect(tiredPacer["4"]).toBeGreaterThan(baseProbs["4"]);
+    expect(spinner.wide).toBe(baseProbs.wide);
+    expect(spinner["4"]).toBe(baseProbs["4"]);
   });
 });

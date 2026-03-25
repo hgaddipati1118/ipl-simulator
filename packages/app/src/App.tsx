@@ -22,6 +22,7 @@ import { LineupPage } from "./pages/LineupPage";
 import { LiveMatchPage } from "./pages/LiveMatchPage";
 import { InboxPage } from "./pages/InboxPage";
 import { PowerRankingsPage } from "./pages/PowerRankingsPage";
+import { TrainingPage } from "./pages/TrainingPage";
 import { LobbyPage } from "./pages/LobbyPage";
 import { MultiAuctionPage } from "./pages/MultiAuctionPage";
 import { getTeamLogo } from "./team-logos";
@@ -59,6 +60,8 @@ import {
   togglePlayerRetention,
   runCPURetentions,
   finishRetention,
+  setPlayerTrainingFocus,
+  setTeamTrainingIntensity,
   initLiveAuction,
   liveAuctionUserBid,
   liveAuctionUserPass,
@@ -147,6 +150,7 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
             {navLink("/ratings", "Ratings")}
             {navLink(`/team/${state.userTeamId}`, "My Team")}
             {navLink("/lineup", "Lineup")}
+            {navLink("/training", "Training")}
           </div>
         )}
 
@@ -189,6 +193,7 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
               {navLink("/inbox", "Inbox")}
               {navLink("/ratings", "Ratings")}
               {navLink(`/team/${state.userTeamId}`, "My Team")}
+              {navLink("/training", "Training")}
             </>
           )}
           <div className="border-t border-th mt-2 pt-2 flex flex-col gap-1">
@@ -446,6 +451,14 @@ export default function App() {
     navigate("/auction-live");
   };
 
+  const handleSetPlayerTrainingFocus = (playerId: string, focus: import("@ipl-sim/engine").TrainingFocus) => {
+    update(setPlayerTrainingFocus(state, playerId, focus));
+  };
+
+  const handleSetTeamTrainingIntensity = (teamId: string, intensity: import("@ipl-sim/engine").TrainingIntensity) => {
+    update(setTeamTrainingIntensity(state, teamId, intensity));
+  };
+
   // ── Live Auction handlers ──
 
   const handleAuctionUserBid = () => {
@@ -668,6 +681,13 @@ export default function App() {
               <div className="p-8 text-th-secondary">No team selected</div>
             );
           })()
+        } />
+        <Route path="/training" element={
+          <TrainingPage
+            state={state}
+            onSetPlayerFocus={handleSetPlayerTrainingFocus}
+            onSetIntensity={handleSetTeamTrainingIntensity}
+          />
         } />
         <Route path="/saves" element={
           <SavesPage

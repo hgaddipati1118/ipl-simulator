@@ -22,11 +22,14 @@ import {
   evaluateRetentionSelection,
   RETENTION_BUDGET,
   MAX_RETENTIONS,
+  getTrainingCampFatigue,
   type RuleSet, type SeasonResult, type AuctionResult, type TradeOffer,
   type ScheduledMatch, type MatchResult,
   type SerializableMatchResult, type MatchInjuryEvent,
   type AuctionState,
   type NarrativeEvent,
+  type TrainingFocus,
+  type TrainingIntensity,
 } from "@ipl-sim/engine";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
 import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
@@ -86,6 +89,7 @@ export interface GameState {
 
   // Post-match narrative events (news feed)
   narrativeEvents: NarrativeEvent[];
+  trainingReport: TrainingReportEntry[];
 
   // Retention state
   retentionState?: RetentionState;
@@ -108,6 +112,18 @@ export interface CompletedTrade {
   playersOut: string[];   // names of players sent
   playersIn: string[];    // names of players received
   accepted: boolean;
+}
+
+export interface TrainingReportEntry {
+  playerId: string;
+  playerName: string;
+  teamId: string;
+  focus: TrainingFocus;
+  intensity: TrainingIntensity;
+  battingChange: number;
+  bowlingChange: number;
+  overallChange: number;
+  projectedReadiness: number;
 }
 
 /** Initialize fresh game state */
@@ -178,6 +194,7 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     needsLineup: false,
     recentInjuries: [],
     narrativeEvents: [],
+    trainingReport: [],
   };
 }
 
@@ -615,10 +632,26 @@ export function finalizeSeason(state: GameState): GameState {
 
 /** Progress players, run retention, enter trade window */
 export function nextSeason(state: GameState): GameState {
+  const trainingReport: TrainingReportEntry[] = [];
+
   // Progress all players (age, ratings)
   for (const team of state.teams) {
     for (const player of team.roster) {
-      player.progress();
+      const progress = player.progress({
+        focus: player.trainingFocus,
+        intensity: team.trainingIntensity,
+      });
+      trainingReport.push({
+        playerId: player.id,
+        playerName: player.name,
+        teamId: team.id,
+        focus: progress.focus,
+        intensity: progress.intensity,
+        battingChange: progress.battingChange,
+        bowlingChange: progress.bowlingChange,
+        overallChange: progress.overallChange,
+        projectedReadiness: Math.max(0, 100 - getTrainingCampFatigue(progress.focus, team.trainingIntensity)),
+      });
     }
   }
 
@@ -645,7 +678,41 @@ export function nextSeason(state: GameState): GameState {
     needsLineup: false,
     recentInjuries: [],
     narrativeEvents: [],
+    trainingReport,
   };
+}
+
+export function setPlayerTrainingFocus(
+  state: GameState,
+  playerId: string,
+  focus: TrainingFocus,
+): GameState {
+  let changed = false;
+  const teams = state.teams.map(team => {
+    const player = team.roster.find(rosterPlayer => rosterPlayer.id === playerId);
+    if (!player) return team;
+    player.trainingFocus = focus;
+    changed = true;
+    return team;
+  });
+
+  return changed ? { ...state, teams } : state;
+}
+
+export function setTeamTrainingIntensity(
+  state: GameState,
+  teamId: string,
+  intensity: TrainingIntensity,
+): GameState {
+  let changed = false;
+  const teams = state.teams.map(team => {
+    if (team.id !== teamId) return team;
+    team.trainingIntensity = intensity;
+    changed = true;
+    return team;
+  });
+
+  return changed ? { ...state, teams } : state;
 }
 
 /** User responds to an incoming AI trade offer */
@@ -991,6 +1058,7 @@ export function replaceTeamRoster(
     clone.wins = t.wins; clone.losses = t.losses; clone.ties = t.ties;
     clone.nrr = t.nrr; clone.runsFor = t.runsFor; clone.ballsFacedFor = t.ballsFacedFor;
     clone.runsAgainst = t.runsAgainst; clone.ballsFacedAgainst = t.ballsFacedAgainst;
+    clone.trainingIntensity = t.trainingIntensity;
     return clone;
   });
   return { ...state, teams };

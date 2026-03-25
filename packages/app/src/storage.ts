@@ -28,7 +28,7 @@ const idbStore = createStore(DB_NAME, STORE_NAME);
 const IDB_KEYS = [
   "teams", "playerPool", "seasonResult", "auctionResult",
   "history", "tradeOffers", "completedTrades",
-  "schedule", "matchResults", "recentInjuries", "narrativeEvents", "auctionLiveState",
+  "schedule", "matchResults", "recentInjuries", "narrativeEvents", "trainingReport", "auctionLiveState",
 ] as const;
 
 function slotKey(slotId: string, key: string): string {
@@ -40,7 +40,7 @@ function slotKey(slotId: string, key: string): string {
 const LS_PREFIX = "ipl-sim";
 const LS_SLOTS = `${LS_PREFIX}:slots`;
 const LS_ACTIVE_SLOT = `${LS_PREFIX}:activeSlot`;
-const CURRENT_VERSION = 3; // bump: added save slots
+const CURRENT_VERSION = 4; // bump: training report + team training settings
 
 // Legacy keys (for migration)
 const LS_META_LEGACY = `${LS_PREFIX}:meta`;
@@ -94,6 +94,7 @@ function serializeTeams(teams: Team[]) {
     userPlayingXI: t.userPlayingXI,
     userBattingOrder: t.userBattingOrder,
     userBowlingOrder: t.userBowlingOrder,
+    trainingIntensity: t.trainingIntensity,
   }));
 }
 
@@ -114,6 +115,7 @@ function deserializeTeams(data: any[]): Team[] {
     team.userPlayingXI = t.userPlayingXI;
     team.userBattingOrder = t.userBattingOrder;
     team.userBowlingOrder = t.userBowlingOrder;
+    team.trainingIntensity = t.trainingIntensity ?? "balanced";
     return team;
   });
 }
@@ -269,6 +271,7 @@ export async function saveState(state: GameState): Promise<void> {
       set(slotKey(slotId, "matchResults"), state.matchResults, idbStore),
       set(slotKey(slotId, "recentInjuries"), state.recentInjuries, idbStore),
       set(slotKey(slotId, "narrativeEvents"), state.narrativeEvents, idbStore),
+      set(slotKey(slotId, "trainingReport"), state.trainingReport, idbStore),
       set(slotKey(slotId, "auctionLiveState"), state.auctionLiveState
         ? serializeAuctionLiveState(state.auctionLiveState) : undefined, idbStore),
     ]);
@@ -295,7 +298,7 @@ export async function loadState(): Promise<GameState | null> {
 export async function loadStateFromSlot(slotId: string): Promise<GameState | null> {
   try {
     const [teamsData, poolData, seasonResult, auctionResult, history, tradeOffers, completedTrades,
-           schedule, matchResults, recentInjuries, narrativeEvents, auctionLiveStateRaw] =
+           schedule, matchResults, recentInjuries, narrativeEvents, trainingReport, auctionLiveStateRaw] =
       await Promise.all([
         get(slotKey(slotId, "teams"), idbStore),
         get(slotKey(slotId, "playerPool"), idbStore),
@@ -308,6 +311,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
         get(slotKey(slotId, "matchResults"), idbStore),
         get(slotKey(slotId, "recentInjuries"), idbStore),
         get(slotKey(slotId, "narrativeEvents"), idbStore),
+        get(slotKey(slotId, "trainingReport"), idbStore),
         get(slotKey(slotId, "auctionLiveState"), idbStore),
       ]);
 
@@ -340,6 +344,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       needsLineup: meta.needsLineup ?? false,
       recentInjuries: recentInjuries ?? [],
       narrativeEvents: narrativeEvents ?? [],
+      trainingReport: trainingReport ?? [],
       retentionState: meta.retentionState,
       auctionLiveState: auctionLiveStateRaw
         ? deserializeAuctionLiveState(auctionLiveStateRaw) : undefined,
@@ -396,6 +401,7 @@ async function migrateLegacyData(): Promise<GameState | null> {
         needsLineup: false,
         recentInjuries: [],
         narrativeEvents: [],
+        trainingReport: [],
       };
 
       // Migrate into a new slot
@@ -445,6 +451,7 @@ async function migrateLegacyData(): Promise<GameState | null> {
       needsLineup: data.needsLineup ?? false,
       recentInjuries: data.recentInjuries ?? [],
       narrativeEvents: data.narrativeEvents ?? [],
+      trainingReport: data.trainingReport ?? [],
     };
 
     // Migrate into a slot
@@ -499,6 +506,7 @@ export interface SaveFile {
   schedule?: any[];
   matchResults?: any[];
   narrativeEvents?: GameState["narrativeEvents"];
+  trainingReport?: GameState["trainingReport"];
 }
 
 /** Export current game state as a downloadable JSON file */
@@ -527,6 +535,7 @@ export function exportSave(state: GameState): void {
     schedule: state.schedule,
     matchResults: state.matchResults,
     narrativeEvents: state.narrativeEvents,
+    trainingReport: state.trainingReport,
   };
 
   downloadJSON(saveFile, `${leaguePrefix(state)}-sim-season${state.seasonNumber}-${Date.now()}.json`);
@@ -571,6 +580,7 @@ export async function importSave(file: File): Promise<GameState> {
     needsLineup: data.meta?.needsLineup ?? data.needsLineup ?? false,
     recentInjuries: data.recentInjuries ?? [],
     narrativeEvents: data.narrativeEvents ?? [],
+    trainingReport: data.trainingReport ?? [],
   };
 
   // Create a new slot for the import

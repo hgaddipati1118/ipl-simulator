@@ -350,6 +350,11 @@ describe("checkRunOut", () => {
     const poorRate = countOccurrences(poorFielding, true) / poorFielding.length;
     expect(goodRate).toBeGreaterThan(poorRate);
   });
+
+  it("respects injected RNG for deterministic run-out checks", () => {
+    expect(checkRunOut({ ...baseParams, runsAttempted: 3, rng: () => 0 })).toBe(true);
+    expect(checkRunOut({ ...baseParams, runsAttempted: 3, rng: () => 0.999 })).toBe(false);
+  });
 });
 
 // ── checkOverthrow ────────────────────────────────────────────────────
@@ -501,6 +506,11 @@ describe("determineInjuryResponse", () => {
       expect(determineInjuryResponse("side-strain", false)).toBe("bowling-breakdown");
     }
   });
+
+  it("uses injected RNG for borderline batter injury calls", () => {
+    expect(determineInjuryResponse("side-strain", true, () => 0.2)).toBe("retired-hurt");
+    expect(determineInjuryResponse("side-strain", true, () => 0.8)).toBe("continues");
+  });
 });
 
 // ── isLikeForLikeReplacement ──────────────────────────────────────────
@@ -620,5 +630,20 @@ describe("processDRSReview", () => {
     );
     const reviewed = results.filter(r => r.reviewed);
     expect(reviewed.length).toBe(results.length);
+  });
+
+  it("uses injected RNG for deterministic review outcomes", () => {
+    expect(processDRSReview({ dismissalType: "lbw", reviewsRemaining: 1, rng: () => 0.2 })).toEqual({
+      reviewed: true,
+      overturned: true,
+      umpiresCall: false,
+      reviewsRemaining: 1,
+    });
+    expect(processDRSReview({ dismissalType: "lbw", reviewsRemaining: 1, rng: () => 0.44 })).toEqual({
+      reviewed: true,
+      overturned: false,
+      umpiresCall: true,
+      reviewsRemaining: 1,
+    });
   });
 });

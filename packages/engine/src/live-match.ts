@@ -407,6 +407,44 @@ function randomWicketType(rng: RNG = Math.random): "bowled" | "caught" | "lbw" |
   return "stumped";
 }
 
+export function applyLiveBallContextModifiers(
+  probs: Record<BallOutcome, number>,
+  input: {
+    batterBalls?: number;
+    bowlerOversBowled?: number;
+    bowlingStyle?: BowlingStyle;
+    over?: number;
+  },
+): Record<BallOutcome, number> {
+  const adjusted = { ...probs };
+  const batterBalls = input.batterBalls ?? 0;
+  const bowlerOversBowled = input.bowlerOversBowled ?? 0;
+
+  if (batterBalls < 10) {
+    adjusted.wicket *= 1.15;
+    adjusted["4"] *= 0.92;
+    adjusted["6"] *= 0.90;
+  } else if (batterBalls >= 20) {
+    const setBatterBonus = Math.min((batterBalls - 20) / 30, 0.15);
+    adjusted.wicket *= 1 - 0.10 - setBatterBonus;
+    adjusted["4"] *= 1 + 0.08 + setBatterBonus * 0.5;
+    adjusted["6"] *= 1 + 0.06 + setBatterBonus * 0.5;
+    adjusted.dot *= 0.95;
+  }
+
+  if (bowlerOversBowled >= 2 && input.bowlingStyle && isPaceBowler(input.bowlingStyle)) {
+    const deathBonus = (input.over ?? 0) >= 16 ? 0.03 : 0;
+    const fatiguePressure = Math.min(0.04 + Math.max(0, bowlerOversBowled - 2) * 0.03 + deathBonus, 0.12);
+    adjusted.wicket *= 1 - fatiguePressure * 0.45;
+    adjusted["4"] *= 1 + fatiguePressure * 0.55;
+    adjusted["6"] *= 1 + fatiguePressure * 0.45;
+    adjusted.wide *= 1 + fatiguePressure;
+    adjusted.noball *= 1 + fatiguePressure * 1.1;
+  }
+
+  return adjusted;
+}
+
 function runOneBall(
   batter: SerializedPlayer,
   bowler: SerializedPlayer,
@@ -425,7 +463,10 @@ function runOneBall(
   batterRuns: number = 0,
   batterBalls: number = 0,
   legalBallInOver: number = 0,
+  bowlerOversBowled: number = 0,
   rng: RNG = Math.random,
+  isHomeBatting: boolean = false,
+  isDayNight: boolean = true,
 ): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped" } {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
@@ -494,30 +535,28 @@ function runOneBall(
     }
   }
 
-  // ── Batter "setting in" — eye in effect ──
-  // First 10 balls: +15% wicket (vulnerable), After 20+ balls: -10% wicket, +8% boundary (set)
-  if (batterBalls < 10) {
-    probs.wicket *= 1.15;
-    probs["4"] *= 0.92;
-    probs["6"] *= 0.90;
-  } else if (batterBalls >= 20) {
-    const setBatterBonus = Math.min((batterBalls - 20) / 30, 0.15); // caps at 15% after 50 balls
-    probs.wicket *= (1 - 0.10 - setBatterBonus);
-    probs["4"] *= (1 + 0.08 + setBatterBonus * 0.5);
-    probs["6"] *= (1 + 0.06 + setBatterBonus * 0.5);
-    probs.dot *= (1 - 0.05);
+  probs = applyLiveBallContextModifiers(probs, {
+    batterBalls,
+    bowlerOversBowled,
+    bowlingStyle: bowler.bowlingStyle,
+    over,
+  });
+
+  // ── Home field advantage ──
+  // Home team gets a small boost: +3% boundaries, -3% wickets (crowd support, familiar conditions)
+  if (isHomeBatting) {
+    probs["4"] *= 1.03;
+    probs["6"] *= 1.03;
+    probs.wicket *= 0.97;
   }
 
-  // ── Bowler fatigue — stamina degrades over spell ──
-  // oversBowled > 2: slight decline. Pace bowlers tire faster than spin.
-  const bowlerOversBowled = legalBallInOver === 0 ? 0 : 0; // TODO: pass actual overs bowled
-  // For now use a simplified approach based on the over number of the match
-  const isPaceBowler = ["right-arm-fast", "left-arm-fast", "right-arm-medium", "left-arm-medium"]
-    .includes(bowler.bowlingStyle);
-  if (over >= 16 && isPaceBowler) {
-    // Death overs fatigue for pace
-    probs.wide *= 1.08; // more wides under pressure
-    probs.noball *= 1.10; // more no-balls
+  // ── Day/Night modifier ──
+  // Day-night matches: batting second under lights is slightly easier (dew already handled above)
+  // Day games: pitch deteriorates more (slightly harder batting in 2nd innings)
+  if (!isDayNight && isSecondInnings) {
+    // Pure day game, 2nd innings on worn pitch
+    probs.wicket *= 1.03;
+    probs["4"] *= 0.97;
   }
 
   // Normalize and sample
@@ -905,7 +944,10 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     batterRunsPre,
     batterBallsPre,
     int.currentOverLegalBalls,
+    int.bowlerOvers[bowlerId] ?? 0,
     rng,
+    state.battingTeamId === state.homeTeam.id, // isHomeBatting
+    true, // isDayNight (all IPL matches are day-night)
   );
 
   // Clone state for mutation
@@ -1542,7 +1584,7 @@ export function applyDecision(
     throw new Error("No pending decision to apply");
   }
 
-  const newState: MatchState = JSON.parse(JSON.stringify(state));
+  const newState = cloneState(state);
   const ni = newState._internal;
   const pm = ni.playerDataMap;
   const rawInnings = ni.currentInningsRaw;
@@ -1939,7 +1981,7 @@ export function applyImpactSub(
     return state;
   }
 
-  const newState: MatchState = JSON.parse(JSON.stringify(state));
+  const newState = cloneState(state);
   return applyDecision(
     { ...newState, status: "waiting_for_decision", pendingDecision: {
       type: 'impact_sub',
@@ -1953,7 +1995,7 @@ export function applyImpactSub(
 
 /** Set batting aggression for a team (0=defensive, 50=normal, 100=all-out attack) */
 export function setAggression(state: MatchState, teamId: string, level: number): MatchState {
-  const newState: MatchState = JSON.parse(JSON.stringify(state));
+  const newState = cloneState(state);
   const clamped = Math.max(0, Math.min(100, Math.round(level)));
   if (teamId === newState.homeTeam.id) newState.aggression.home = clamped;
   else newState.aggression.away = clamped;
@@ -1962,7 +2004,7 @@ export function setAggression(state: MatchState, teamId: string, level: number):
 
 /** Set field placement for a team's bowling. */
 export function setFieldSetting(state: MatchState, teamId: string, setting: FieldSetting): MatchState {
-  const newState: MatchState = JSON.parse(JSON.stringify(state));
+  const newState = cloneState(state);
   if (teamId === newState.homeTeam.id) newState.fieldSetting.home = setting;
   else newState.fieldSetting.away = setting;
   return newState;
@@ -1976,7 +2018,7 @@ export function startSecondInnings(state: MatchState): MatchState {
     throw new Error("Cannot start 2nd innings: match is not at innings break");
   }
 
-  const newState: MatchState = JSON.parse(JSON.stringify(state));
+  const newState = cloneState(state);
   const ni = newState._internal;
 
   // Swap batting/bowling teams
@@ -2093,7 +2135,7 @@ export function autoResolveDecision(state: MatchState): MatchState {
 
     case 'impact_sub': {
       // Skip impact sub when auto-resolving
-      const newState: MatchState = JSON.parse(JSON.stringify(state));
+      const newState = cloneState(state);
       newState.pendingDecision = undefined;
       newState.status = "in_progress";
       return newState;
@@ -2339,10 +2381,20 @@ export function serializeMatchState(state: MatchState): object {
 
 /**
  * Deserialize a MatchState from IndexedDB storage.
+ * Reconstructs the RNG from the stored seed.
+ * Note: The RNG state won't be identical to where it left off, so
+ * a resumed match may diverge from the original. For exact replays,
+ * replay from scratch using the same seed.
  */
 export function deserializeMatchState(data: any): MatchState {
-  // The state is already a plain object from JSON.parse, just cast it
-  return data as MatchState;
+  const state = data as MatchState;
+  // Reconstruct the RNG from the stored seed
+  if (state._internal && state._internal.seed != null) {
+    state._internal.rng = createRNG(state._internal.seed);
+  } else {
+    state._internal.rng = Math.random;
+  }
+  return state;
 }
 
 /* ─────────────────── Internal helpers ─────────────────── */

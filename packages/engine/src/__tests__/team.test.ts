@@ -280,6 +280,18 @@ describe("Team resetSeason", () => {
     team.resetSeason();
     expect(team.roster[0].stats.runs).toBe(0);
   });
+
+  it("applies camp load from team intensity at season reset", () => {
+    const team = makeFullTeam();
+    team.trainingIntensity = "hard";
+    team.roster[0].trainingFocus = "power";
+    team.roster[1].trainingFocus = "fitness";
+
+    team.resetSeason();
+
+    expect(team.roster[0].fatigue).toBeGreaterThan(team.roster[1].fatigue);
+    expect(team.roster[0].fatigue).toBeGreaterThan(0);
+  });
 });
 
 describe("Team powerRating", () => {

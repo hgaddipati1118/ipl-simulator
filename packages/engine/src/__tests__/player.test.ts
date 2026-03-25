@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Player, PlayerData } from "../player.js";
 
 function makePlayerData(overrides?: Partial<PlayerData>): PlayerData {
@@ -18,6 +18,10 @@ function makePlayerData(overrides?: Partial<PlayerData>): PlayerData {
     ...overrides,
   };
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("Player constructor", () => {
   it("sets all fields from data", () => {
@@ -214,6 +218,35 @@ describe("Player progression", () => {
     expect(p.fatigue).toBe(0);
     expect(p.workloadHistory).toEqual([]);
   });
+
+  it("lets training focus bias growth under the same random noise", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+
+    const battingPlan = new Player(makePlayerData({
+      age: 24,
+      role: "all-rounder",
+      trainingFocus: "batting",
+      ratings: {
+        battingIQ: 64, timing: 64, power: 64, running: 60,
+        wicketTaking: 64, economy: 64, accuracy: 64, clutch: 60,
+      },
+    }));
+    const bowlingPlan = new Player(makePlayerData({
+      age: 24,
+      role: "all-rounder",
+      trainingFocus: "bowling",
+      ratings: {
+        battingIQ: 64, timing: 64, power: 64, running: 60,
+        wicketTaking: 64, economy: 64, accuracy: 64, clutch: 60,
+      },
+    }));
+
+    battingPlan.progress({ focus: "batting", intensity: "balanced" });
+    bowlingPlan.progress({ focus: "bowling", intensity: "balanced" });
+
+    expect(battingPlan.battingOvr).toBeGreaterThan(bowlingPlan.battingOvr);
+    expect(bowlingPlan.bowlingOvr).toBeGreaterThan(battingPlan.bowlingOvr);
+  });
 });
 
 describe("Player condition management", () => {
@@ -232,6 +265,17 @@ describe("Player condition management", () => {
     expect(p.fatigue).toBe(14);
     p.recoverCondition(30);
     expect(p.fatigue).toBe(0);
+  });
+
+  it("applies lighter camp load to fitness plans than power plans", () => {
+    const fitnessPlan = new Player(makePlayerData({ trainingFocus: "fitness" }));
+    const powerPlan = new Player(makePlayerData({ trainingFocus: "power" }));
+
+    fitnessPlan.applyPreseasonTrainingLoad("hard");
+    powerPlan.applyPreseasonTrainingLoad("hard");
+
+    expect(fitnessPlan.fatigue).toBeLessThan(powerPlan.fatigue);
+    expect(powerPlan.fatigue).toBeGreaterThan(0);
   });
 });
 
@@ -271,6 +315,7 @@ describe("Player serialization", () => {
       injuryGamesLeft: 4,
       injuryType: "shoulder",
       injurySeverity: "moderate",
+      trainingFocus: "control",
       fatigue: 29,
       workloadHistory: [8, 11, 14],
     }));
@@ -283,6 +328,7 @@ describe("Player serialization", () => {
     expect(json.injurySeverity).toBe("moderate");
     expect(json.bowlingStyle).toBe("leg-spin");
     expect(json.battingHand).toBe("left");
+    expect(json.trainingFocus).toBe("control");
     expect(json.fatigue).toBe(29);
     expect(json.workloadHistory).toEqual([8, 11, 14]);
   });

@@ -25,6 +25,7 @@ import {
   type DewFactor,
   type PitchType,
 } from "./matchups.js";
+import { createRNG, randomSeed, type RNG } from "./rng.js";
 
 export type BallOutcome = "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
 
@@ -250,6 +251,7 @@ function simulateBall(
   ballsRemaining: number,
   wicketsDown: number,
   venue: VenueContext,
+  rng: RNG = Math.random,
 ): BallEvent {
   let probs = baseOutcomeProbabilities(batter, bowler);
 
@@ -301,7 +303,7 @@ function simulateBall(
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
-  const outcome = weightedRandom(entries);
+  const outcome = weightedRandom(entries, rng);
 
   // Determine runs
   let runs = 0;
@@ -321,7 +323,7 @@ function simulateBall(
     case "legbye": extras = 1; break;
   }
 
-  const commentary = generateCommentary(outcome, batter.name, bowler.name, over, runs);
+  const commentary = generateCommentary(outcome, batter.name, bowler.name, over, runs, rng);
 
   return {
     over,
@@ -337,8 +339,8 @@ function simulateBall(
 }
 
 /** Determine wicket type with realistic distribution */
-function randomWicketType(): "bowled" | "caught" | "lbw" | "run_out" | "stumped" {
-  const r = Math.random();
+function randomWicketType(rng: RNG = Math.random): "bowled" | "caught" | "lbw" | "run_out" | "stumped" {
+  const r = rng();
   if (r < 0.55) return "caught";
   if (r < 0.75) return "bowled";
   if (r < 0.90) return "lbw";
@@ -347,17 +349,17 @@ function randomWicketType(): "bowled" | "caught" | "lbw" | "run_out" | "stumped"
 }
 
 /** Pick a random fielding position name */
-function randomFielderPosition(): string {
+function randomFielderPosition(rng: RNG = Math.random): string {
   const positions = [
     "point", "cover", "mid-off", "mid-on", "midwicket", "square leg",
     "fine leg", "third man", "long-on", "long-off", "deep midwicket",
     "deep square leg", "deep cover", "slip", "gully", "short leg",
   ];
-  return positions[Math.floor(Math.random() * positions.length)];
+  return positions[Math.floor(rng() * positions.length)];
 }
 
 /** Pick a random shot description for boundaries */
-function randomBoundaryShot(runs: number): string {
+function randomBoundaryShot(runs: number, rng: RNG = Math.random): string {
   const fourShots = [
     "driven through covers", "cut past point", "flicked through midwicket",
     "punched through the off side", "pulled to deep square leg",
@@ -371,7 +373,7 @@ function randomBoundaryShot(runs: number): string {
     "reverse-swept for six", "pulled massively over deep square",
   ];
   const shots = runs === 6 ? sixShots : fourShots;
-  return shots[Math.floor(Math.random() * shots.length)];
+  return shots[Math.floor(rng() * shots.length)];
 }
 
 function generateCommentary(
@@ -380,6 +382,7 @@ function generateCommentary(
   bowler: string,
   over: number,
   runs: number,
+  rng: RNG = Math.random,
 ): string {
   const templates: Record<BallOutcome, string[]> = {
     dot: [
@@ -406,13 +409,13 @@ function generateCommentary(
       `${bowler} to ${batter}, 3 runs. Placed into the gap, excellent running gets them back for the third`,
     ],
     "4": [
-      `${bowler} to ${batter}, FOUR! ${randomBoundaryShot(4)}`,
-      `${bowler} to ${batter}, FOUR! ${randomBoundaryShot(4)}`,
+      `${bowler} to ${batter}, FOUR! ${randomBoundaryShot(4, rng)}`,
+      `${bowler} to ${batter}, FOUR! ${randomBoundaryShot(4, rng)}`,
       `${bowler} to ${batter}, FOUR! That races away to the boundary!`,
     ],
     "6": [
-      `${bowler} to ${batter}, SIX! ${randomBoundaryShot(6)}!`,
-      `${bowler} to ${batter}, SIX! ${randomBoundaryShot(6)}!`,
+      `${bowler} to ${batter}, SIX! ${randomBoundaryShot(6, rng)}!`,
+      `${bowler} to ${batter}, SIX! ${randomBoundaryShot(6, rng)}!`,
       `${bowler} to ${batter}, SIX! What a shot! That's massive!`,
     ],
     wicket: [
@@ -435,7 +438,7 @@ function generateCommentary(
   };
 
   const options = templates[outcome];
-  return options[Math.floor(Math.random() * options.length)];
+  return options[Math.floor(rng() * options.length)];
 }
 
 /** Create empty innings score */
@@ -533,6 +536,7 @@ function simulateInnings(
   maxOvers = 20,
   battingSubs: Player[] = [],
   bowlingSubs: Player[] = [],
+  rng: RNG = Math.random,
 ): InningsScore {
   const innings = emptyInnings(battingTeam.id);
   const battingOrder = battingTeam.getBattingOrder(xi);
@@ -622,7 +626,7 @@ function simulateInnings(
 
     const bowler = eligibleBowlers.length > 0
       ? eligibleBowlers.sort((a, b) => b.bowlingOvr - a.bowlingOvr)[
-          Math.floor(Math.random() * Math.min(3, eligibleBowlers.length))
+          Math.floor(rng() * Math.min(3, eligibleBowlers.length))
         ]
       : bowlers[0]; // absolute fallback
 
@@ -643,6 +647,7 @@ function simulateInnings(
         ballsRemaining,
         innings.wickets,
         venue,
+        rng,
       );
 
       event.ball = legalBalls + 1;
@@ -838,6 +843,7 @@ function buildInningsScorecard(
   bowlingTeam: Team,
   battingXI: Player[],
   bowlingXI: Player[],
+  rng: RNG = Math.random,
 ): InningsScorecard {
   const playerMap = new Map<string, Player>();
   for (const p of [...battingTeam.roster, ...bowlingTeam.roster]) {
@@ -889,15 +895,15 @@ function buildInningsScorecard(
       if (dismissalBall) {
         const bowlerPlayer = playerMap.get(dismissalBall.bowler);
         const bowlerName = bowlerPlayer?.name ?? "unknown";
-        const wicketType = randomWicketType();
+        const wicketType = randomWicketType(rng);
         switch (wicketType) {
           case "bowled":
             howOut = `b ${bowlerName}`;
             break;
           case "caught": {
             const fielders = bowlingXI.filter(p => p.id !== dismissalBall.bowler);
-            const fielder = fielders[Math.floor(Math.random() * fielders.length)];
-            howOut = `c ${fielder?.name ?? randomFielderPosition()} b ${bowlerName}`;
+            const fielder = fielders[Math.floor(rng() * fielders.length)];
+            howOut = `c ${fielder?.name ?? randomFielderPosition(rng)} b ${bowlerName}`;
             break;
           }
           case "lbw":
@@ -1011,6 +1017,7 @@ function buildDetailedBallLog(
   innings: InningsScore,
   inningsNumber: 1 | 2,
   playerMap: Map<string, Player>,
+  rng: RNG = Math.random,
 ): DetailedBallEvent[] {
   let runsSoFar = 0;
   let wicketsSoFar = 0;
@@ -1044,9 +1051,9 @@ function buildDetailedBallLog(
     let wicketType: DetailedBallEvent["wicketType"];
     let fielderName: string | undefined;
     if (ball.isWicket) {
-      wicketType = randomWicketType();
+      wicketType = randomWicketType(rng);
       if (wicketType === "caught") {
-        fielderName = randomFielderPosition();
+        fielderName = randomFielderPosition(rng);
       }
     }
 
@@ -1085,6 +1092,7 @@ function buildDetailedResult(
   tossWinner: Team,
   tossDecision: "bat" | "bowl",
   motm: { playerId: string; reason: string },
+  rng: RNG = Math.random,
 ): DetailedMatchResult {
   const playerMap = new Map<string, Player>();
   for (const p of [...homeTeam.roster, ...awayTeam.roster]) {
@@ -1097,11 +1105,11 @@ function buildDetailedResult(
     ? `${winnerTeam.name} won by ${margin}`
     : `Match tied`;
 
-  const inn1Scorecard = buildInningsScorecard(innings1, battingFirst, bowlingFirst, firstXI, firstBowlXI);
-  const inn2Scorecard = buildInningsScorecard(innings2, bowlingFirst, battingFirst, secondXI, secondBowlXI);
+  const inn1Scorecard = buildInningsScorecard(innings1, battingFirst, bowlingFirst, firstXI, firstBowlXI, rng);
+  const inn2Scorecard = buildInningsScorecard(innings2, bowlingFirst, battingFirst, secondXI, secondBowlXI, rng);
 
-  const ballLog1 = buildDetailedBallLog(innings1, 1, playerMap);
-  const ballLog2 = buildDetailedBallLog(innings2, 2, playerMap);
+  const ballLog1 = buildDetailedBallLog(innings1, 1, playerMap, rng);
+  const ballLog2 = buildDetailedBallLog(innings2, 2, playerMap, rng);
 
   return {
     matchId,
@@ -1132,7 +1140,9 @@ export function simulateMatch(
   homeTeam: Team,
   awayTeam: Team,
   rules: RuleSet = DEFAULT_RULES,
+  seed?: number,
 ): MatchResult {
+  const rng = createRNG(seed ?? randomSeed());
   const matchId = `match_${++matchCounter}`;
 
   const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
@@ -1143,7 +1153,7 @@ export function simulateMatch(
   const awaySubs = rules.impactPlayer ? awayTeam.getImpactSubs(awayXI) : [];
 
   // Toss
-  const tossWinner = Math.random() < 0.5 ? homeTeam : awayTeam;
+  const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
   const venue: VenueContext = {
     stadiumBowlRating: (homeTeam.config.stadiumBowlingRating ?? 1.0) * (2 - rules.scoringMultiplier),
     pitchType: homeTeam.config.pitchType ?? "balanced",
@@ -1167,6 +1177,7 @@ export function simulateMatch(
     firstXI, firstBowlXI,
     false, 0, venue, 20,
     firstBatSubs, firstBowlSubs,
+    rng,
   );
 
   // Second innings
@@ -1181,6 +1192,7 @@ export function simulateMatch(
     secondXI, secondBowlXI,
     true, target, venue, 20,
     secondBatSubs, secondBowlSubs,
+    rng,
   );
 
   // Determine winner
@@ -1195,8 +1207,8 @@ export function simulateMatch(
     margin = `${innings1.runs - innings2.runs} runs`;
   } else {
     // Tie -> Super Over (no impact subs in super over)
-    let so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1);
-    let so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1);
+    let so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1, [], [], rng);
+    let so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1, [], [], rng);
 
     if (so2.runs > so1.runs) {
       winnerId = bowlingFirst.id;
@@ -1204,8 +1216,8 @@ export function simulateMatch(
       winnerId = battingFirst.id;
     } else if (rules.superOverTieBreaker === "repeated-super-over") {
       while (so2.runs === so1.runs) {
-        so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1);
-        so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1);
+        so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1, [], [], rng);
+        so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1, [], [], rng);
       }
       winnerId = so2.runs > so1.runs ? bowlingFirst.id : battingFirst.id;
     } else {
@@ -1282,6 +1294,7 @@ export function simulateMatch(
     winnerId, margin,
     tossWinner, tossDecision,
     motm,
+    rng,
   );
 
   return {

@@ -45,6 +45,11 @@ export function InboxPage({ state }: Props) {
   const coldPlayers = userTeam
     ? [...userTeam.roster].filter(player => player.form <= 35).sort((a, b) => a.form - b.form).slice(0, 4)
     : [];
+  const trainingReview = userTeam
+    ? state.trainingReport.filter(entry => entry.teamId === userTeam.id)
+    : [];
+  const risers = [...trainingReview].filter(entry => entry.overallChange > 0).sort((a, b) => b.overallChange - a.overallChange).slice(0, 3);
+  const stalled = [...trainingReview].filter(entry => entry.overallChange <= 0).sort((a, b) => a.overallChange - b.overallChange).slice(0, 3);
 
   const actionItems = [
     state.needsLineup ? {
@@ -182,6 +187,57 @@ export function InboxPage({ state }: Props) {
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-th bg-th-surface p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-th-primary text-sm font-semibold uppercase tracking-wider">Training Review</h3>
+              <Link to="/training" className="text-th-muted hover:text-th-primary text-xs">Open Training</Link>
+            </div>
+
+            {trainingReview.length === 0 ? (
+              <div className="text-th-faint text-sm">
+                No offseason development report yet. It appears after you advance to the next season.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <div className="text-green-300 text-xs uppercase tracking-wider mb-2">Moved Up</div>
+                  {risers.length === 0 ? (
+                    <div className="text-th-faint text-sm">No clear risers came out of the last camp.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {risers.map(entry => (
+                        <div key={entry.playerId} className="flex items-center justify-between text-sm">
+                          <PlayerLink playerId={entry.playerId} className="text-th-primary">{entry.playerName}</PlayerLink>
+                          <span className="text-green-300 font-medium">
+                            {entry.overallChange > 0 ? "+" : ""}{entry.overallChange}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-th">
+                  <div className="text-orange-300 text-xs uppercase tracking-wider mb-2">Stalled / Slipped</div>
+                  {stalled.length === 0 ? (
+                    <div className="text-th-faint text-sm">No obvious stalled plans were flagged.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {stalled.map(entry => (
+                        <div key={entry.playerId} className="flex items-center justify-between text-sm">
+                          <PlayerLink playerId={entry.playerId} className="text-th-primary">{entry.playerName}</PlayerLink>
+                          <span className="text-red-300 font-medium">
+                            {entry.overallChange > 0 ? "+" : ""}{entry.overallChange}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-th bg-th-surface p-4">
