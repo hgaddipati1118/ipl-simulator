@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { GameState, getBoardExpectation, getBoardExpectationStatus } from "../game-state";
 import { PlayerLink } from "../components/PlayerLink";
+import { MAX_SCOUTING_ASSIGNMENTS } from "../scouting";
 
 interface Props {
   state: GameState;
@@ -52,8 +53,15 @@ export function InboxPage({ state }: Props) {
     : [];
   const risers = [...trainingReview].filter(entry => entry.overallChange > 0).sort((a, b) => b.overallChange - a.overallChange).slice(0, 3);
   const stalled = [...trainingReview].filter(entry => entry.overallChange <= 0).sort((a, b) => a.overallChange - b.overallChange).slice(0, 3);
+  const scoutingUpdates = state.scoutingInbox.slice(0, 4);
+  const activeScoutingAssignments = state.scoutingAssignments;
 
   const actionItems = [
+    activeScoutingAssignments.length > 0 ? {
+      title: "Scouting jobs running",
+      detail: `${activeScoutingAssignments.length} of ${MAX_SCOUTING_ASSIGNMENTS} scouting slots are active.`,
+      href: "/ratings",
+    } : null,
     state.contractReport && (state.contractReport.freeAgents.length > 0 || state.contractReport.finalYear.length > 0) ? {
       title: state.contractReport.freeAgents.length > 0 ? "Contract decisions due" : "Contract review due",
       detail: state.contractReport.freeAgents.length > 0
@@ -157,6 +165,69 @@ export function InboxPage({ state }: Props) {
                     <div className="text-th-muted text-sm mt-1">{item.detail}</div>
                   </Link>
                 ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-th bg-th-surface p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-th-primary text-sm font-semibold uppercase tracking-wider">Scouting Desk</h3>
+              <Link to="/ratings" className="text-th-muted hover:text-th-primary text-xs">Open Recruitment Desk</Link>
+            </div>
+            {activeScoutingAssignments.length === 0 && scoutingUpdates.length === 0 ? (
+              <div className="text-th-faint text-sm">
+                No active scouting work yet. Assign scouts from the recruitment desk or a player page.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-th bg-th-raised p-3">
+                  <div className="text-th-faint text-[10px] uppercase tracking-wider">Capacity</div>
+                  <div className="text-th-primary font-medium mt-1">
+                    {activeScoutingAssignments.length}/{MAX_SCOUTING_ASSIGNMENTS} assignments active
+                  </div>
+                  <div className="text-th-muted text-sm mt-1 leading-6">
+                    Reports tighten as matches and offseason steps pass, then land here when the desk has something new.
+                  </div>
+                </div>
+
+                {activeScoutingAssignments.length > 0 && (
+                  <div>
+                    <div className="text-th-muted text-xs uppercase tracking-wider mb-2">Live Files</div>
+                    <div className="space-y-2">
+                      {activeScoutingAssignments.map(assignment => (
+                        <div key={assignment.id} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-th-primary">{assignment.label}</span>
+                          <span className="text-emerald-300 font-medium">
+                            {assignment.cyclesWorked}/{assignment.cyclesRequired}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className={activeScoutingAssignments.length > 0 ? "pt-3 border-t border-th" : ""}>
+                  <div className="text-th-muted text-xs uppercase tracking-wider mb-2">Latest Reports</div>
+                  {scoutingUpdates.length === 0 ? (
+                    <div className="text-th-faint text-sm">No reports have landed yet.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {scoutingUpdates.map(update => (
+                        <div key={update.id} className="rounded-xl border border-th bg-th-raised p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-th-primary font-medium">{update.headline}</div>
+                            <span className={`text-[10px] uppercase tracking-wider ${
+                              update.completed ? "text-amber-300" : "text-emerald-300"
+                            }`}>
+                              {update.completed ? "Delivered" : "In Progress"}
+                            </span>
+                          </div>
+                          <div className="text-th-muted text-sm mt-1 leading-6">{update.detail}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

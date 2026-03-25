@@ -11,6 +11,36 @@ export interface ScoutingState {
   reports: Record<string, ScoutingReport>;
 }
 
+export type ScoutingAssignmentType = "player" | "team" | "shortlist" | "market";
+
+export interface ScoutingAssignment {
+  id: string;
+  type: ScoutingAssignmentType;
+  targetId: string | null;
+  label: string;
+  cyclesWorked: number;
+  cyclesRequired: number;
+  seasonCreated: number;
+}
+
+export interface ScoutingInboxItem {
+  id: string;
+  assignmentId: string;
+  type: ScoutingAssignmentType;
+  label: string;
+  headline: string;
+  detail: string;
+  seasonNumber: number;
+  completed: boolean;
+  playerIds: string[];
+}
+
+export interface ProgressScoutingAssignmentsResult {
+  scouting: ScoutingState;
+  assignments: ScoutingAssignment[];
+  inboxItems: ScoutingInboxItem[];
+}
+
 export interface ScoutedNumericView {
   actual: number;
   exact: boolean;
@@ -66,6 +96,7 @@ export interface PlayerScoutingView {
 const FULL_REPORT_CONFIDENCE = 92;
 const STYLE_REPORT_CONFIDENCE = 68;
 const COST_REPORT_CONFIDENCE = 86;
+const MARKET_RANGE_CONFIDENCE = 68;
 const RATING_KEYS = [
   "battingIQ",
   "timing",
@@ -76,6 +107,8 @@ const RATING_KEYS = [
   "accuracy",
   "clutch",
 ] as const;
+export const MAX_SCOUTING_ASSIGNMENTS = 3;
+export const SCOUTING_INBOX_LIMIT = 12;
 
 type RatingKey = typeof RATING_KEYS[number];
 
@@ -83,6 +116,19 @@ interface PlayerEntry {
   player: Player;
   teamId?: string;
 }
+
+interface AssignmentConfig {
+  boost: number;
+  cyclesRequired: number;
+  maxTargets: number;
+}
+
+const ASSIGNMENT_CONFIG: Record<ScoutingAssignmentType, AssignmentConfig> = {
+  player: { boost: 11, cyclesRequired: 2, maxTargets: 1 },
+  team: { boost: 5, cyclesRequired: 2, maxTargets: 10 },
+  shortlist: { boost: 6, cyclesRequired: 2, maxTargets: 8 },
+  market: { boost: 4, cyclesRequired: 2, maxTargets: 12 },
+};
 
 function trackedPlayers(teams: Team[], playerPool: Player[]): PlayerEntry[] {
   const rostered = teams.flatMap(team =>
@@ -232,6 +278,262 @@ function qualityLabel(estimate: number): string {
   return "Depth";
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return count === 1 ? singular : plural;
+}
+
+function makeScoutingId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function trackedPlayerMap(teams: Team[], playerPool: Player[]): Map<string, PlayerEntry> {
+  return new Map(
+    trackedPlayers(teams, playerPool).map(entry => [entry.player.id, entry]),
+  );
+}
+
+function sortEntriesByPriority(entries: PlayerEntry[]): PlayerEntry[] {
+  return [...entries].sort((left, right) =>
+    right.player.marketValue - left.player.marketValue ||
+    right.player.overall - left.player.overall ||
+    left.player.age - right.player.age,
+  );
+}
+
+function unresolvedEntries(
+  entries: PlayerEntry[],
+  reports: Record<string, ScoutingReport>,
+  userTeamId: string | null,
+): PlayerEntry[] {
+  return entries.filter(entry =>
+    entry.teamId !== userTeamId &&
+    (reports[entry.player.id]?.confidence ?? 0) < FULL_REPORT_CONFIDENCE,
+  );
+}
+
+function resolveAssignmentEntries(
+  assignment: ScoutingAssignment,
+  teams: Team[],
+  playerPool: Player[],
+  reports: Record<string, ScoutingReport>,
+  userTeamId: string | null,
+  shortlistIds: string[],
+): PlayerEntry[] {
+  const config = ASSIGNMENT_CONFIG[assignment.type];
+  const entriesById = trackedPlayerMap(teams, playerPool);
+
+  switch (assignment.type) {
+    case "player": {
+      if (!assignment.targetId) return [];
+      const entry = entriesById.get(assignment.targetId);
+      return entry ? unresolvedEntries([entry], reports, userTeamId) : [];
+    }
+    case "team": {
+      if (!assignment.targetId || assignment.targetId === userTeamId) return [];
+      const team = teams.find(entry => entry.id === assignment.targetId);
+      if (!team) return [];
+      return unresolvedEntries(
+        sortEntriesByPriority(team.roster.map(player => ({ player, teamId: team.id }))).slice(0, config.maxTargets),
+        reports,
+        userTeamId,
+      );
+    }
+    case "shortlist": {
+      const shortlistEntries = shortlistIds
+        .map(playerId => entriesById.get(playerId))
+        .filter((entry): entry is PlayerEntry => entry !== undefined);
+      return unresolvedEntries(
+        sortEntriesByPriority(shortlistEntries).slice(0, config.maxTargets),
+        reports,
+        userTeamId,
+      );
+    }
+    case "market":
+      return unresolvedEntries(
+        sortEntriesByPriority(playerPool.map(player => ({ player, teamId: player.teamId }))).slice(0, config.maxTargets),
+        reports,
+        userTeamId,
+      );
+    default:
+      return [];
+  }
+}
+
+function summarizeImprovement(
+  entries: PlayerEntry[],
+  before: ScoutingReport[],
+  after: ScoutingReport[],
+): {
+  improvedCount: number;
+  styleLocked: number;
+  marketRangeTightened: number;
+  pricingLocked: number;
+  fullDossiers: number;
+  focusNames: string[];
+} {
+  const deltas = entries.map((entry, index) => ({
+    name: entry.player.name,
+    before: before[index]?.confidence ?? 0,
+    after: after[index]?.confidence ?? 0,
+  }));
+
+  return {
+    improvedCount: deltas.filter(delta => delta.after > delta.before).length,
+    styleLocked: deltas.filter(delta => delta.before < STYLE_REPORT_CONFIDENCE && delta.after >= STYLE_REPORT_CONFIDENCE).length,
+    marketRangeTightened: deltas.filter(delta => delta.before < MARKET_RANGE_CONFIDENCE && delta.after >= MARKET_RANGE_CONFIDENCE).length,
+    pricingLocked: deltas.filter(delta => delta.before < COST_REPORT_CONFIDENCE && delta.after >= COST_REPORT_CONFIDENCE).length,
+    fullDossiers: deltas.filter(delta => delta.before < FULL_REPORT_CONFIDENCE && delta.after >= FULL_REPORT_CONFIDENCE).length,
+    focusNames: deltas
+      .sort((left, right) => (right.after - right.before) - (left.after - left.before))
+      .slice(0, 3)
+      .map(delta => delta.name),
+  };
+}
+
+function buildAssignmentUpdate(
+  assignment: ScoutingAssignment,
+  entries: PlayerEntry[],
+  before: ScoutingReport[],
+  after: ScoutingReport[],
+  seasonNumber: number,
+  completed: boolean,
+): ScoutingInboxItem | null {
+  if (entries.length === 0) {
+    return {
+      id: makeScoutingId("scout_note"),
+      assignmentId: assignment.id,
+      type: assignment.type,
+      label: assignment.label,
+      headline: `Scout file closed: ${assignment.label}`,
+      detail: "No live external targets remained in this assignment, so the scouting desk closed the file.",
+      seasonNumber,
+      completed: true,
+      playerIds: [],
+    };
+  }
+
+  const summary = summarizeImprovement(entries, before, after);
+  if (summary.improvedCount === 0 && !completed) {
+    return null;
+  }
+
+  if (assignment.type === "player") {
+    const playerName = entries[0]?.player.name ?? assignment.label;
+    const beforeConfidence = before[0]?.confidence ?? 0;
+    const afterConfidence = after[0]?.confidence ?? beforeConfidence;
+    const detailParts = [
+      `Confidence moved from ${beforeConfidence}% to ${afterConfidence}%.`,
+      summary.styleLocked > 0 ? "Style notes are now confirmed." : "",
+      summary.marketRangeTightened > 0 ? "Market value range has tightened." : "",
+      summary.pricingLocked > 0 ? "Pricing is now close to firm." : "",
+      summary.fullDossiers > 0 ? "A full dossier is on file." : "",
+      completed ? "The assignment is wrapped up for now." : "Scouts will keep working this file.",
+    ].filter(Boolean);
+
+    return {
+      id: makeScoutingId("scout_note"),
+      assignmentId: assignment.id,
+      type: assignment.type,
+      label: assignment.label,
+      headline: `${completed ? "Scout wrap-up" : "Scout update"}: ${playerName}`,
+      detail: detailParts.join(" "),
+      seasonNumber,
+      completed,
+      playerIds: entries.map(entry => entry.player.id),
+    };
+  }
+
+  const detailParts = [
+    `${summary.improvedCount} ${pluralize(summary.improvedCount, "target")} improved.`,
+    summary.styleLocked > 0 ? `${summary.styleLocked} style ${pluralize(summary.styleLocked, "profile")} locked in.` : "",
+    summary.marketRangeTightened > 0 ? `${summary.marketRangeTightened} market ${pluralize(summary.marketRangeTightened, "range")} tightened.` : "",
+    summary.pricingLocked > 0 ? `${summary.pricingLocked} ${pluralize(summary.pricingLocked, "price")} moved close to firm.` : "",
+    summary.fullDossiers > 0 ? `${summary.fullDossiers} full ${pluralize(summary.fullDossiers, "dossier")} completed.` : "",
+    summary.focusNames.length > 0 ? `Focus names: ${summary.focusNames.join(", ")}.` : "",
+    completed ? "The assignment is complete." : "",
+  ].filter(Boolean);
+
+  const headline = assignment.type === "team"
+    ? `${completed ? "Club sweep closed" : "Club sweep updated"}: ${assignment.label}`
+    : assignment.type === "shortlist"
+      ? `${completed ? "Shortlist report delivered" : "Shortlist report improved"}`
+      : `${completed ? "Market scan delivered" : "Market scan updated"}`;
+
+  return {
+    id: makeScoutingId("scout_note"),
+    assignmentId: assignment.id,
+    type: assignment.type,
+    label: assignment.label,
+    headline,
+    detail: detailParts.join(" "),
+    seasonNumber,
+    completed,
+    playerIds: entries.map(entry => entry.player.id),
+  };
+}
+
+function assignmentIsValid(
+  assignment: ScoutingAssignment,
+  teams: Team[],
+  playerPool: Player[],
+  userTeamId: string | null,
+  shortlistIds: string[],
+): boolean {
+  const entriesById = trackedPlayerMap(teams, playerPool);
+  switch (assignment.type) {
+    case "player": {
+      if (!assignment.targetId) return false;
+      const entry = entriesById.get(assignment.targetId);
+      return !!entry && entry.teamId !== userTeamId;
+    }
+    case "team":
+      return !!assignment.targetId && assignment.targetId !== userTeamId && teams.some(team => team.id === assignment.targetId);
+    case "shortlist":
+      return shortlistIds.some(playerId => entriesById.get(playerId)?.teamId !== userTeamId);
+    case "market":
+      return playerPool.length > 0;
+    default:
+      return false;
+  }
+}
+
+export function createScoutingAssignment(
+  type: ScoutingAssignmentType,
+  targetId: string | null,
+  label: string,
+  seasonNumber: number,
+): ScoutingAssignment {
+  return {
+    id: makeScoutingId("assignment"),
+    type,
+    targetId,
+    label,
+    cyclesWorked: 0,
+    cyclesRequired: ASSIGNMENT_CONFIG[type].cyclesRequired,
+    seasonCreated: seasonNumber,
+  };
+}
+
+export function getScoutingAssignment(
+  assignments: ScoutingAssignment[],
+  type: ScoutingAssignmentType,
+  targetId: string | null = null,
+): ScoutingAssignment | null {
+  return assignments.find(assignment => assignment.type === type && assignment.targetId === targetId) ?? null;
+}
+
+export function syncScoutingAssignments(
+  assignments: ScoutingAssignment[] | undefined,
+  teams: Team[],
+  playerPool: Player[],
+  userTeamId: string | null,
+  shortlistIds: string[],
+): ScoutingAssignment[] {
+  return (assignments ?? []).filter(assignment =>
+    assignmentIsValid(assignment, teams, playerPool, userTeamId, shortlistIds),
+  );
+}
+
 function roleSummary(role: Player["role"]): string {
   switch (role) {
     case "bowler": return "bowling-first option";
@@ -376,6 +678,90 @@ export function boostTeamScouting(
     team.roster.map(player => player.id),
     amount,
   );
+}
+
+export function progressScoutingAssignments(
+  scouting: ScoutingState | undefined,
+  assignments: ScoutingAssignment[],
+  teams: Team[],
+  playerPool: Player[],
+  userTeamId: string | null,
+  seasonNumber: number,
+  shortlistIds: string[],
+  options?: {
+    assignmentIds?: string[];
+    amountScale?: number;
+  },
+): ProgressScoutingAssignmentsResult {
+  let nextScouting = syncScoutingState(scouting, teams, playerPool, userTeamId, seasonNumber);
+  const activeAssignments = syncScoutingAssignments(assignments, teams, playerPool, userTeamId, shortlistIds);
+  const selectedAssignments = options?.assignmentIds ? new Set(options.assignmentIds) : null;
+  const amountScale = options?.amountScale ?? 1;
+  const nextAssignments: ScoutingAssignment[] = [];
+  const inboxItems: ScoutingInboxItem[] = [];
+
+  for (const assignment of activeAssignments) {
+    if (selectedAssignments && !selectedAssignments.has(assignment.id)) {
+      nextAssignments.push(assignment);
+      continue;
+    }
+
+    const config = ASSIGNMENT_CONFIG[assignment.type];
+    const entries = resolveAssignmentEntries(
+      assignment,
+      teams,
+      playerPool,
+      nextScouting.reports,
+      userTeamId,
+      shortlistIds,
+    );
+
+    if (entries.length === 0) {
+      const closedItem = buildAssignmentUpdate(assignment, [], [], [], seasonNumber, true);
+      if (closedItem) inboxItems.push(closedItem);
+      continue;
+    }
+
+    const playerIds = entries.map(entry => entry.player.id);
+    const beforeReports = playerIds.map(playerId => nextScouting.reports[playerId]);
+    const amount = Math.max(1, Math.round(config.boost * amountScale));
+    nextScouting = boostPlayerScouting(
+      nextScouting,
+      teams,
+      playerPool,
+      userTeamId,
+      seasonNumber,
+      playerIds,
+      amount,
+    );
+    const afterReports = playerIds.map(playerId => nextScouting.reports[playerId]);
+    const progressedAssignment = {
+      ...assignment,
+      cyclesWorked: assignment.cyclesWorked + 1,
+    };
+    const completed = progressedAssignment.cyclesWorked >= assignment.cyclesRequired ||
+      afterReports.every(report => report.confidence >= FULL_REPORT_CONFIDENCE);
+
+    const update = buildAssignmentUpdate(
+      progressedAssignment,
+      entries,
+      beforeReports,
+      afterReports,
+      seasonNumber,
+      completed,
+    );
+    if (update) inboxItems.push(update);
+
+    if (!completed) {
+      nextAssignments.push(progressedAssignment);
+    }
+  }
+
+  return {
+    scouting: nextScouting,
+    assignments: nextAssignments,
+    inboxItems,
+  };
 }
 
 export function getPlayerScoutingView(

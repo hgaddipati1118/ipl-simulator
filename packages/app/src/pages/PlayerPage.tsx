@@ -5,13 +5,14 @@ import { ovrBgClass, roleLabel, teamLabelColor, bowlingStyleLabel, battingHandLa
 import { TeamBadge } from "../components/TeamBadge";
 import { RadarChart } from "../components/RadarChart";
 import { PlayerAvatar } from "../components/PlayerAvatar";
-import { getPlayerScoutingView } from "../scouting";
+import { getPlayerScoutingView, getScoutingAssignment, MAX_SCOUTING_ASSIGNMENTS } from "../scouting";
 import { getRecruitmentTag } from "../recruitment";
 import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentControls";
 
 interface Props {
   state: GameState;
   onScoutPlayer?: (playerId: string) => void;
+  onToggleScoutAssignment?: (playerId: string) => void;
   onToggleShortlist?: (playerId: string) => void;
   onToggleWatchlist?: (playerId: string) => void;
 }
@@ -38,7 +39,7 @@ const ROLE_BADGE: Record<string, { bg: string; text: string }> = {
   "wicket-keeper": { bg: "bg-cyan-500/15 border-cyan-500/30", text: "text-cyan-400" },
 };
 
-export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWatchlist }: Props) {
+export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onToggleShortlist, onToggleWatchlist }: Props) {
   const { playerId } = useParams();
   const navigate = useNavigate();
 
@@ -231,6 +232,8 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
   const isUserPlayer = team?.id === state.userTeamId;
   const scoutingView = getPlayerScoutingView(player, team?.id, state.scouting, state.userTeamId);
   const recruitmentTag = getRecruitmentTag(state.recruitment, player.id);
+  const playerAssignment = getScoutingAssignment(state.scoutingAssignments, "player", player.id);
+  const scoutingCapacityFull = state.scoutingAssignments.length >= MAX_SCOUTING_ASSIGNMENTS;
 
   const attrs = [
     { key: "battingIQ", label: "Batting IQ", view: scoutingView.attributes.battingIQ, group: "bat" },
@@ -455,6 +458,23 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
                 <div className="text-th-faint text-[10px] uppercase tracking-wider">Confidence</div>
                 <div className="text-th-primary font-display font-semibold">{scoutingView.confidence}%</div>
               </div>
+              {onToggleScoutAssignment && (
+                <button
+                  onClick={() => onToggleScoutAssignment(player.id)}
+                  disabled={!playerAssignment && scoutingCapacityFull}
+                  className={`rounded-lg border px-3 py-2 text-xs font-display font-medium transition-colors ${
+                    playerAssignment
+                      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
+                      : scoutingCapacityFull
+                        ? "border-th bg-th-raised text-th-faint cursor-not-allowed"
+                        : "border-th bg-th-raised text-th-secondary hover:text-th-primary hover:bg-th-hover"
+                  }`}
+                >
+                  {playerAssignment
+                    ? `Stop Live Scout (${playerAssignment.cyclesWorked}/${playerAssignment.cyclesRequired})`
+                    : "Assign Scout"}
+                </button>
+              )}
               {onToggleShortlist && onToggleWatchlist && (
                 <RecruitmentActions
                   tier={recruitmentTag}
@@ -468,6 +488,11 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
             <InfoListCard title="What Shows Up" items={scoutingView.strengths} empty="No reliable strengths are locked in yet." />
             <InfoListCard title="Open Questions" items={scoutingView.concerns} empty="No major flags beyond the usual market uncertainty." />
           </div>
+          {playerAssignment && (
+            <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-950/15 px-3 py-3 text-sm text-emerald-200">
+              Live assignment active. The scouting desk is still working this file and will push follow-up reports into the inbox as the dossier improves.
+            </div>
+          )}
         </div>
       )}
 

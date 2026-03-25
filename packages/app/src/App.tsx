@@ -66,6 +66,7 @@ import {
   setTeamTrainingIntensity,
   recordPlayerScoutingExposure,
   recordTeamScoutingExposure,
+  toggleScoutingAssignment,
   toggleShortlistPlayer,
   toggleWatchlistPlayer,
   initLiveAuction,
@@ -483,6 +484,18 @@ export default function App() {
     update(recordTeamScoutingExposure(state, teamId, amount));
   };
 
+  const handleTogglePlayerScoutAssignment = (playerId: string) => {
+    update(toggleScoutingAssignment(state, "player", playerId));
+  };
+
+  const handleToggleShortlistScoutAssignment = () => {
+    update(toggleScoutingAssignment(state, "shortlist"));
+  };
+
+  const handleToggleMarketScoutAssignment = () => {
+    update(toggleScoutingAssignment(state, "market"));
+  };
+
   const handleToggleShortlist = (playerId: string) => {
     update(toggleShortlistPlayer(state, playerId));
   };
@@ -708,8 +721,12 @@ export default function App() {
             teams={state.teams}
             playerPool={state.playerPool}
             scouting={state.scouting}
+            scoutingAssignments={state.scoutingAssignments}
             userTeamId={state.userTeamId}
             recruitment={state.recruitment}
+            onTogglePlayerAssignment={handleTogglePlayerScoutAssignment}
+            onToggleShortlistAssignment={handleToggleShortlistScoutAssignment}
+            onToggleMarketAssignment={handleToggleMarketScoutAssignment}
             onToggleShortlist={handleToggleShortlist}
             onToggleWatchlist={handleToggleWatchlist}
           />
@@ -718,6 +735,7 @@ export default function App() {
           <PlayerPage
             state={state}
             onScoutPlayer={playerId => handleScoutPlayers([playerId], 12)}
+            onToggleScoutAssignment={handleTogglePlayerScoutAssignment}
             onToggleShortlist={handleToggleShortlist}
             onToggleWatchlist={handleToggleWatchlist}
           />

@@ -51,6 +51,8 @@ import {
   releaseFreeAgents,
   extendContract,
   getContractBadge,
+  getAuctionType,
+  getMaxRetentions,
   type ExpiringContractReport,
 } from "@ipl-sim/engine";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
@@ -60,7 +62,16 @@ import { buildNarrativeEventsForEngineResult, prependNarrativeEvents, type FeedM
 import {
   boostPlayerScouting,
   boostTeamScouting,
+  createScoutingAssignment,
   createScoutingState,
+  getScoutingAssignment,
+  MAX_SCOUTING_ASSIGNMENTS,
+  progressScoutingAssignments,
+  SCOUTING_INBOX_LIMIT,
+  syncScoutingAssignments,
+  type ScoutingAssignment,
+  type ScoutingAssignmentType,
+  type ScoutingInboxItem,
   type ScoutingState,
   syncScoutingState,
 } from "./scouting";
@@ -128,6 +139,8 @@ export interface GameState {
   narrativeEvents: NarrativeEvent[];
   trainingReport: TrainingReportEntry[];
   scouting: ScoutingState;
+  scoutingAssignments: ScoutingAssignment[];
+  scoutingInbox: ScoutingInboxItem[];
   recruitment: RecruitmentState;
 
   // Retention state
@@ -195,6 +208,19 @@ export interface BoardExpectationStatus {
   currentPosition: number;
 }
 
+function getShortlistPlayerIds(recruitment: RecruitmentState): string[] {
+  return Object.entries(recruitment.targets)
+    .filter(([, target]) => target.tier === "shortlist")
+    .map(([playerId]) => playerId);
+}
+
+function prependScoutingInbox(
+  existing: ScoutingInboxItem[],
+  updates: ScoutingInboxItem[],
+): ScoutingInboxItem[] {
+  return [...updates.reverse(), ...existing].slice(0, SCOUTING_INBOX_LIMIT);
+}
+
 function syncStateScouting(state: GameState, seasonNumber = state.seasonNumber): ScoutingState {
   return syncScoutingState(state.scouting, state.teams, state.playerPool, state.userTeamId, seasonNumber);
 }
@@ -204,11 +230,72 @@ function syncStateRecruitment(state: GameState): RecruitmentState {
 }
 
 function withSyncedScouting(state: GameState, seasonNumber = state.seasonNumber): GameState {
+  const recruitment = syncStateRecruitment(state);
+  const scouting = syncStateScouting(state, seasonNumber);
   return {
     ...state,
-    scouting: syncStateScouting(state, seasonNumber),
-    recruitment: syncStateRecruitment(state),
+    scouting,
+    scoutingAssignments: syncScoutingAssignments(
+      state.scoutingAssignments,
+      state.teams,
+      state.playerPool,
+      state.userTeamId,
+      getShortlistPlayerIds(recruitment),
+    ),
+    scoutingInbox: state.scoutingInbox.slice(0, SCOUTING_INBOX_LIMIT),
+    recruitment,
   };
+}
+
+function progressStateScoutingAssignments(
+  state: GameState,
+  options?: {
+    assignmentIds?: string[];
+    amountScale?: number;
+  },
+): GameState {
+  const synced = withSyncedScouting(state);
+  if (synced.scoutingAssignments.length === 0) return synced;
+
+  const progress = progressScoutingAssignments(
+    synced.scouting,
+    synced.scoutingAssignments,
+    synced.teams,
+    synced.playerPool,
+    synced.userTeamId,
+    synced.seasonNumber,
+    getShortlistPlayerIds(synced.recruitment),
+    options,
+  );
+
+  return withSyncedScouting({
+    ...synced,
+    scouting: progress.scouting,
+    scoutingAssignments: progress.assignments,
+    scoutingInbox: prependScoutingInbox(synced.scoutingInbox, progress.inboxItems),
+  });
+}
+
+function scoutingAssignmentLabel(
+  state: GameState,
+  type: ScoutingAssignmentType,
+  targetId: string | null,
+): string | null {
+  switch (type) {
+    case "player": {
+      const player = state.teams.flatMap(team => team.roster).find(entry => entry.id === targetId) ??
+        state.playerPool.find(entry => entry.id === targetId);
+      return player?.name ?? null;
+    }
+    case "team":
+      return state.teams.find(team => team.id === targetId)?.shortName ?? null;
+    case "shortlist":
+      return "Shortlist";
+    case "market":
+      return "Free-Agent Market";
+    default:
+      return null;
+  }
 }
 
 function generateOffseasonTradeOffers(state: GameState): TradeOffer[] {
@@ -325,6 +412,8 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     narrativeEvents: [],
     trainingReport: [],
     scouting: createScoutingState(teams, additionalPlayers, null, 1),
+    scoutingAssignments: [],
+    scoutingInbox: [],
     recruitment: createRecruitmentState(),
     youthProspects: [],
     fantasyLeaderboard: [],
@@ -586,6 +675,8 @@ export function playNextMatch(state: GameState): {
     recentInjuries: newInjuries,
     narrativeEvents: newNarrativeEvents,
     scouting: state.scouting,
+    scoutingAssignments: state.scoutingAssignments,
+    scoutingInbox: state.scoutingInbox,
   };
 
   if (matchInvolvesUser && matchEntry) {
@@ -616,6 +707,8 @@ export function playNextMatch(state: GameState): {
     ...nextState,
     fantasyLeaderboard: accumulateFantasyPoints(nextState.fantasyLeaderboard, enrichedMatchPoints),
   };
+
+  nextState = progressStateScoutingAssignments(nextState);
 
   return {
     state: withSyncedScouting(nextState),
@@ -702,6 +795,8 @@ export function applyLiveMatchToState(
     recentInjuries: newInjuries,
     narrativeEvents: persistedNarratives,
     scouting: state.scouting,
+    scoutingAssignments: state.scoutingAssignments,
+    scoutingInbox: state.scoutingInbox,
   };
 
   if (matchInvolvesUser && matchEntry) {
@@ -720,6 +815,8 @@ export function applyLiveMatchToState(
       ),
     };
   }
+
+  nextState = progressStateScoutingAssignments(nextState);
 
   return {
     state: withSyncedScouting(nextState),
@@ -920,19 +1017,44 @@ export function nextSeason(state: GameState): GameState {
     ? generateYouthProspects(state.userTeamId, 1 + Math.floor(Math.random() * 3))
     : [];
 
-  // Tick contracts for all teams, collect expiry report for user
+  // Tick contracts (all 1-year contracts expire)
+  for (const team of state.teams) {
+    tickContracts(team);
+  }
+
+  // Determine auction type for next season — this controls retention
+  const nextSeasonNum = state.seasonNumber + 1;
+  const auctionType = getAuctionType(nextSeasonNum, state.rules);
+  const maxRetain = getMaxRetentions(auctionType, state.rules);
+
+  // Handle retention based on auction cycle
   let contractReport: ExpiringContractReport | undefined;
   const releasedFreeAgents: Player[] = [];
   for (const team of state.teams) {
-    const report = tickContracts(team);
-    if (team.id === state.userTeamId) {
-      contractReport = report;
+    if (auctionType === "mini") {
+      // Mini auction: auto-renew all contracts (unlimited retention)
+      assignTeamContracts(team, "mini-auction");
     } else {
-      releasedFreeAgents.push(...releaseFreeAgents(team));
+      // Mega auction: CPU teams auto-retain top N by overall, release rest
+      if (team.id !== state.userTeamId) {
+        const sorted = [...team.roster].sort((a, b) => b.overall - a.overall);
+        const retained = sorted.slice(0, maxRetain);
+        const retainedIds = new Set(retained.map(p => p.id));
+        for (const p of team.roster) {
+          if (retainedIds.has(p.id)) {
+            p.contractYears = 1; // Renew retained
+          }
+        }
+        releasedFreeAgents.push(...releaseFreeAgents(team));
+      } else {
+        // User team: show expiry report, let user decide
+        contractReport = getExpiringContracts(team);
+      }
     }
   }
 
-  const userHasExpiredContracts = (contractReport?.freeAgents.length ?? 0) > 0;
+  const userHasExpiredContracts = auctionType === "mega"
+    && (contractReport?.freeAgents.length ?? 0) > 0;
   const tradeOffers = userHasExpiredContracts ? [] : generateOffseasonTradeOffers(state);
 
   // Evaluate board objectives at season end
@@ -958,7 +1080,7 @@ export function nextSeason(state: GameState): GameState {
     }
   }
 
-  return withSyncedScouting({
+  return progressStateScoutingAssignments(withSyncedScouting({
     ...state,
     phase: "trade",
     seasonNumber: state.seasonNumber + 1,
@@ -979,7 +1101,7 @@ export function nextSeason(state: GameState): GameState {
     boardState,
     contractReport,
     contractsResolved: !userHasExpiredContracts,
-  }, state.seasonNumber + 1);
+  }, state.seasonNumber + 1));
 }
 
 /** Promote a youth prospect to the user's main squad (costs 0 Cr, takes a roster slot) */
@@ -1073,6 +1195,49 @@ export function recordTeamScoutingExposure(
       amount,
     ),
   };
+}
+
+export function advanceActiveScoutingAssignments(
+  state: GameState,
+  cycles = 1,
+): GameState {
+  let nextState = withSyncedScouting(state);
+  for (let cycle = 0; cycle < cycles; cycle += 1) {
+    nextState = progressStateScoutingAssignments(nextState);
+    if (nextState.scoutingAssignments.length === 0) break;
+  }
+  return nextState;
+}
+
+export function toggleScoutingAssignment(
+  state: GameState,
+  type: ScoutingAssignmentType,
+  targetId: string | null = null,
+): GameState {
+  const synced = withSyncedScouting(state);
+  const existing = getScoutingAssignment(synced.scoutingAssignments, type, targetId);
+  if (existing) {
+    return {
+      ...synced,
+      scoutingAssignments: synced.scoutingAssignments.filter(assignment => assignment.id !== existing.id),
+    };
+  }
+
+  if (synced.scoutingAssignments.length >= MAX_SCOUTING_ASSIGNMENTS) {
+    return synced;
+  }
+
+  const label = scoutingAssignmentLabel(synced, type, targetId);
+  if (!label) return synced;
+
+  const assignment = createScoutingAssignment(type, targetId, label, synced.seasonNumber);
+  return progressStateScoutingAssignments({
+    ...synced,
+    scoutingAssignments: [assignment, ...synced.scoutingAssignments],
+  }, {
+    assignmentIds: [assignment.id],
+    amountScale: 0.75,
+  });
 }
 
 export function setRecruitmentTier(
@@ -1295,7 +1460,7 @@ export function proposeUserTrade(
 
 /** Finish the trade window and move to retention */
 export function finishTrades(state: GameState): GameState {
-  return startRetention(releaseExpiredUserContracts(state));
+  return startRetention(advanceActiveScoutingAssignments(releaseExpiredUserContracts(state)));
 }
 
 export function extendUserPlayerContract(
@@ -1454,13 +1619,13 @@ export function finishRetention(state: GameState): GameState {
     };
   }
 
-  return withSyncedScouting({
+  return advanceActiveScoutingAssignments(withSyncedScouting({
     ...state,
     phase: "auction",
     auctionResult: null,
     auctionLiveState: undefined,
     retentionState: undefined,
-  });
+  }));
 }
 
 // ── Live Auction ───────────────────────────────────────────────────────

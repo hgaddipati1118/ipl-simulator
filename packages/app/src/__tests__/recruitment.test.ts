@@ -9,7 +9,13 @@ vi.mock("@ipl-sim/ratings/dist/wpl-players.js", () => ({
 }));
 
 import { DEFAULT_RULES, IPL_TEAMS, Player, Team, type PlayerData } from "@ipl-sim/engine";
-import { toggleShortlistPlayer, toggleWatchlistPlayer, type GameState } from "../game-state";
+import {
+  advanceActiveScoutingAssignments,
+  toggleScoutingAssignment,
+  toggleShortlistPlayer,
+  toggleWatchlistPlayer,
+  type GameState,
+} from "../game-state";
 import {
   createRecruitmentState,
   getRecruitmentCounts,
@@ -75,6 +81,8 @@ function buildState(): GameState {
     narrativeEvents: [],
     trainingReport: [],
     scouting: createScoutingState([userTeam, targetTeam], playerPool, userTeam.id, 2),
+    scoutingAssignments: [],
+    scoutingInbox: [],
     recruitment: createRecruitmentState(),
     youthProspects: [],
     fantasyLeaderboard: [],
@@ -114,5 +122,16 @@ describe("recruitment helpers", () => {
 
     expect(synced.targets[targetPlayer.id]).toBeUndefined();
     expect(synced.targets[poolPlayer.id]).toBeUndefined();
+  });
+
+  it("lets the shortlist scouting assignment follow shortlist targets over time", () => {
+    const state = buildState();
+    const playerId = state.teams[1].roster[0].id;
+    const shortlisted = toggleShortlistPlayer(state, playerId);
+    const assigned = toggleScoutingAssignment(shortlisted, "shortlist");
+    const progressed = advanceActiveScoutingAssignments(assigned);
+
+    expect(assigned.scoutingAssignments.some(entry => entry.type === "shortlist")).toBe(true);
+    expect(progressed.scoutingInbox.some(entry => entry.headline.includes("Shortlist report"))).toBe(true);
   });
 });

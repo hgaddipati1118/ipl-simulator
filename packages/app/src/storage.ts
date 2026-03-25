@@ -31,7 +31,7 @@ const IDB_KEYS = [
   "teams", "playerPool", "seasonResult", "auctionResult",
   "history", "tradeOffers", "completedTrades",
   "schedule", "matchResults", "recentInjuries", "narrativeEvents", "trainingReport",
-  "scouting", "recruitment", "youthProspects", "fantasyLeaderboard", "boardState",
+  "scouting", "scoutingAssignments", "scoutingInbox", "recruitment", "youthProspects", "fantasyLeaderboard", "boardState",
   "contractReport", "auctionLiveState",
 ] as const;
 
@@ -44,7 +44,7 @@ function slotKey(slotId: string, key: string): string {
 const LS_PREFIX = "ipl-sim";
 const LS_SLOTS = `${LS_PREFIX}:slots`;
 const LS_ACTIVE_SLOT = `${LS_PREFIX}:activeSlot`;
-const CURRENT_VERSION = 7; // bump: recruitment + management layer persistence
+const CURRENT_VERSION = 8; // bump: active scouting desk persistence
 
 // Legacy keys (for migration)
 const LS_META_LEGACY = `${LS_PREFIX}:meta`;
@@ -293,6 +293,8 @@ export async function saveState(state: GameState): Promise<void> {
       set(slotKey(slotId, "narrativeEvents"), state.narrativeEvents, idbStore),
       set(slotKey(slotId, "trainingReport"), state.trainingReport, idbStore),
       set(slotKey(slotId, "scouting"), state.scouting, idbStore),
+      set(slotKey(slotId, "scoutingAssignments"), state.scoutingAssignments, idbStore),
+      set(slotKey(slotId, "scoutingInbox"), state.scoutingInbox, idbStore),
       set(slotKey(slotId, "recruitment"), state.recruitment, idbStore),
       set(slotKey(slotId, "youthProspects"), serializeYouthProspects(state.youthProspects), idbStore),
       set(slotKey(slotId, "fantasyLeaderboard"), state.fantasyLeaderboard, idbStore),
@@ -325,6 +327,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
   try {
     const [teamsData, poolData, seasonResult, auctionResult, history, tradeOffers, completedTrades,
            schedule, matchResults, recentInjuries, narrativeEvents, trainingReport, scouting,
+           scoutingAssignments, scoutingInbox,
            recruitment, youthProspects, fantasyLeaderboard, boardState, contractReport, auctionLiveStateRaw] =
       await Promise.all([
         get(slotKey(slotId, "teams"), idbStore),
@@ -340,6 +343,8 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
         get(slotKey(slotId, "narrativeEvents"), idbStore),
         get(slotKey(slotId, "trainingReport"), idbStore),
         get(slotKey(slotId, "scouting"), idbStore),
+        get(slotKey(slotId, "scoutingAssignments"), idbStore),
+        get(slotKey(slotId, "scoutingInbox"), idbStore),
         get(slotKey(slotId, "recruitment"), idbStore),
         get(slotKey(slotId, "youthProspects"), idbStore),
         get(slotKey(slotId, "fantasyLeaderboard"), idbStore),
@@ -382,6 +387,8 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       narrativeEvents: narrativeEvents ?? [],
       trainingReport: trainingReport ?? [],
       scouting: scouting ?? createScoutingState(teams, playerPool, meta.userTeamId, meta.seasonNumber),
+      scoutingAssignments: scoutingAssignments ?? [],
+      scoutingInbox: scoutingInbox ?? [],
       recruitment: recruitment ?? createRecruitmentState(),
       youthProspects: deserializeYouthProspects(youthProspects),
       fantasyLeaderboard: fantasyLeaderboard ?? [],
@@ -446,6 +453,8 @@ async function migrateLegacyData(): Promise<GameState | null> {
         narrativeEvents: [],
         trainingReport: [],
         scouting: createScoutingState(deserializeTeams(teamsData), deserializePlayers(poolData), meta.userTeamId, meta.seasonNumber),
+        scoutingAssignments: [],
+        scoutingInbox: [],
         recruitment: createRecruitmentState(),
         youthProspects: [],
         fantasyLeaderboard: [],
@@ -501,6 +510,8 @@ async function migrateLegacyData(): Promise<GameState | null> {
       narrativeEvents: data.narrativeEvents ?? [],
       trainingReport: data.trainingReport ?? [],
       scouting: data.scouting ?? createScoutingState(deserializeTeams(data.teams), deserializePlayers(data.playerPool), data.userTeamId, data.seasonNumber ?? 1),
+      scoutingAssignments: data.scoutingAssignments ?? [],
+      scoutingInbox: data.scoutingInbox ?? [],
       recruitment: data.recruitment ?? createRecruitmentState(),
       youthProspects: deserializeYouthProspects(data.youthProspects),
       fantasyLeaderboard: data.fantasyLeaderboard ?? [],
@@ -563,6 +574,8 @@ export interface SaveFile {
   narrativeEvents?: GameState["narrativeEvents"];
   trainingReport?: GameState["trainingReport"];
   scouting?: GameState["scouting"];
+  scoutingAssignments?: GameState["scoutingAssignments"];
+  scoutingInbox?: GameState["scoutingInbox"];
   recruitment?: GameState["recruitment"];
   youthProspects?: ReturnType<typeof serializeYouthProspects>;
   fantasyLeaderboard?: GameState["fantasyLeaderboard"];
@@ -599,6 +612,8 @@ export function exportSave(state: GameState): void {
     narrativeEvents: state.narrativeEvents,
     trainingReport: state.trainingReport,
     scouting: state.scouting,
+    scoutingAssignments: state.scoutingAssignments,
+    scoutingInbox: state.scoutingInbox,
     recruitment: state.recruitment,
     youthProspects: serializeYouthProspects(state.youthProspects),
     fantasyLeaderboard: state.fantasyLeaderboard,
@@ -653,6 +668,8 @@ export async function importSave(file: File): Promise<GameState> {
     narrativeEvents: data.narrativeEvents ?? [],
     trainingReport: data.trainingReport ?? [],
     scouting: data.scouting ?? createScoutingState(teams, playerPool, data.meta.userTeamId, data.meta.seasonNumber),
+    scoutingAssignments: data.scoutingAssignments ?? [],
+    scoutingInbox: data.scoutingInbox ?? [],
     recruitment: data.recruitment ?? createRecruitmentState(),
     youthProspects: deserializeYouthProspects(data.youthProspects),
     fantasyLeaderboard: data.fantasyLeaderboard ?? [],

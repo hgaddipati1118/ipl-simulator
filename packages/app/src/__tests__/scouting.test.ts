@@ -9,9 +9,19 @@ vi.mock("@ipl-sim/ratings/dist/wpl-players.js", () => ({
 }));
 
 import { DEFAULT_RULES, IPL_TEAMS, Player, Team, type PlayerData } from "@ipl-sim/engine";
-import { recordTeamScoutingExposure, type GameState } from "../game-state";
+import {
+  advanceActiveScoutingAssignments,
+  recordTeamScoutingExposure,
+  toggleScoutingAssignment,
+  type GameState,
+} from "../game-state";
 import { createRecruitmentState } from "../recruitment";
-import { boostPlayerScouting, createScoutingState, getPlayerScoutingView } from "../scouting";
+import {
+  boostPlayerScouting,
+  createScoutingState,
+  getPlayerScoutingView,
+  MAX_SCOUTING_ASSIGNMENTS,
+} from "../scouting";
 
 function makePlayer(id: string, overrides?: Partial<PlayerData>): Player {
   return new Player({
@@ -83,6 +93,8 @@ function buildState(): GameState {
     narrativeEvents: [],
     trainingReport: [],
     scouting,
+    scoutingAssignments: [],
+    scoutingInbox: [],
     recruitment: createRecruitmentState(),
     youthProspects: [],
     fantasyLeaderboard: [],
@@ -131,5 +143,42 @@ describe("scouting helpers", () => {
 
     expect(after[0]).toBeGreaterThan(before[0]);
     expect(after[1]).toBeGreaterThan(before[1]);
+  });
+
+  it("opens a player assignment, improves the report immediately, and then closes after follow-up work", () => {
+    const state = buildState();
+    const target = state.teams[1].roster[0];
+    const before = state.scouting.reports[target.id].confidence;
+
+    const assigned = toggleScoutingAssignment(state, "player", target.id);
+    const activeAssignment = assigned.scoutingAssignments.find(entry => entry.type === "player" && entry.targetId === target.id);
+
+    expect(activeAssignment).toBeDefined();
+    expect(assigned.scouting.reports[target.id].confidence).toBeGreaterThan(before);
+    expect(assigned.scoutingInbox[0]?.headline).toContain("Scout update");
+
+    const progressed = advanceActiveScoutingAssignments(assigned);
+
+    expect(progressed.scoutingAssignments.find(entry => entry.type === "player" && entry.targetId === target.id)).toBeUndefined();
+    expect(progressed.scoutingInbox[0]?.headline).toContain("Scout wrap-up");
+  });
+
+  it("caps active scouting assignments at the configured desk limit", () => {
+    const state = buildState();
+    const playerIds = [
+      state.teams[1].roster[0].id,
+      state.teams[1].roster[1].id,
+      state.playerPool[0].id,
+    ];
+
+    const filled = playerIds.reduce(
+      (current, playerId) => toggleScoutingAssignment(current, "player", playerId),
+      state,
+    );
+    const overflow = toggleScoutingAssignment(filled, "market");
+
+    expect(filled.scoutingAssignments).toHaveLength(MAX_SCOUTING_ASSIGNMENTS);
+    expect(overflow.scoutingAssignments).toHaveLength(MAX_SCOUTING_ASSIGNMENTS);
+    expect(overflow.scoutingAssignments.some(entry => entry.type === "market")).toBe(false);
   });
 });

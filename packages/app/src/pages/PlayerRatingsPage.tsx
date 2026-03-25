@@ -2,7 +2,13 @@ import { useState, useMemo } from "react";
 import { Team, Player } from "@ipl-sim/engine";
 import { ovrBgClass, roleLabel, teamLabelColor, battingPositionLabel, battingPositionColor } from "../ui-utils";
 import { PlayerLink } from "../components/PlayerLink";
-import { getPlayerScoutingView, type ScoutingState } from "../scouting";
+import {
+  getPlayerScoutingView,
+  getScoutingAssignment,
+  MAX_SCOUTING_ASSIGNMENTS,
+  type ScoutingAssignment,
+  type ScoutingState,
+} from "../scouting";
 import { getRecruitmentCounts, getRecruitmentTag, type RecruitmentState } from "../recruitment";
 import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentControls";
 
@@ -10,8 +16,12 @@ interface Props {
   teams: Team[];
   playerPool: Player[];
   scouting: ScoutingState;
+  scoutingAssignments: ScoutingAssignment[];
   userTeamId: string | null;
   recruitment: RecruitmentState;
+  onTogglePlayerAssignment: (playerId: string) => void;
+  onToggleShortlistAssignment: () => void;
+  onToggleMarketAssignment: () => void;
   onToggleShortlist: (playerId: string) => void;
   onToggleWatchlist: (playerId: string) => void;
 }
@@ -23,8 +33,12 @@ export function PlayerRatingsPage({
   teams,
   playerPool,
   scouting,
+  scoutingAssignments,
   userTeamId,
   recruitment,
+  onTogglePlayerAssignment,
+  onToggleShortlistAssignment,
+  onToggleMarketAssignment,
   onToggleShortlist,
   onToggleWatchlist,
 }: Props) {
@@ -35,6 +49,9 @@ export function PlayerRatingsPage({
   const [hideOwned, setHideOwned] = useState(false);
   const [search, setSearch] = useState("");
   const recruitmentCounts = useMemo(() => getRecruitmentCounts(recruitment), [recruitment]);
+  const shortlistAssignment = useMemo(() => getScoutingAssignment(scoutingAssignments, "shortlist"), [scoutingAssignments]);
+  const marketAssignment = useMemo(() => getScoutingAssignment(scoutingAssignments, "market"), [scoutingAssignments]);
+  const assignmentCapacityFull = scoutingAssignments.length >= MAX_SCOUTING_ASSIGNMENTS;
 
   const allPlayers = useMemo(() => {
     let result = [
@@ -80,6 +97,15 @@ export function PlayerRatingsPage({
     return result;
   }, [teams, playerPool, scouting, userTeamId, recruitment, sortBy, filterRole, filterTeam, filterRecruitment, hideOwned, search]);
 
+  const activeAssignments = useMemo(
+    () => scoutingAssignments
+      .map(assignment => ({
+        ...assignment,
+        progressLabel: `${assignment.cyclesWorked}/${assignment.cyclesRequired}`,
+      })),
+    [scoutingAssignments],
+  );
+
   const SortHeader = ({ label, field, className = "" }: { label: string; field: SortKey; className?: string }) => (
     <th
       className={`text-center px-2 py-3 cursor-pointer transition-colors hover:text-th-primary ${sortBy === field ? "text-orange-400" : ""} ${className}`}
@@ -103,6 +129,71 @@ export function PlayerRatingsPage({
           </p>
         </div>
         <span className="text-th-muted text-sm stat-num">{allPlayers.length} players</span>
+      </div>
+
+      <div className="rounded-2xl border border-th bg-th-surface p-4 sm:p-5 mb-5">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div>
+            <h3 className="text-th-primary text-sm font-semibold uppercase tracking-wider">Scouting Desk</h3>
+            <p className="text-th-muted text-sm mt-2 leading-6">
+              {scoutingAssignments.length}/{MAX_SCOUTING_ASSIGNMENTS} assignments active. Use the desk to keep pressure on your shortlist and the top of the free-agent market instead of only browsing estimates.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={onToggleShortlistAssignment}
+              disabled={(!shortlistAssignment && recruitmentCounts.shortlist === 0) || (assignmentCapacityFull && !shortlistAssignment)}
+              className={`rounded-lg border px-3 py-2 text-xs font-display font-medium transition-colors ${
+                shortlistAssignment
+                  ? "border-amber-500/40 bg-amber-500/15 text-amber-200"
+                  : (recruitmentCounts.shortlist === 0 || assignmentCapacityFull)
+                    ? "border-th bg-th-raised text-th-faint cursor-not-allowed"
+                    : "border-th bg-th-raised text-th-secondary hover:text-th-primary hover:bg-th-hover"
+              }`}
+            >
+              {shortlistAssignment ? `Stop Shortlist Scout (${shortlistAssignment.cyclesWorked}/${shortlistAssignment.cyclesRequired})` : "Scout Shortlist"}
+            </button>
+            <button
+              onClick={onToggleMarketAssignment}
+              disabled={(!marketAssignment && playerPool.length === 0) || (assignmentCapacityFull && !marketAssignment)}
+              className={`rounded-lg border px-3 py-2 text-xs font-display font-medium transition-colors ${
+                marketAssignment
+                  ? "border-sky-500/40 bg-sky-500/15 text-sky-200"
+                  : (playerPool.length === 0 || assignmentCapacityFull)
+                    ? "border-th bg-th-raised text-th-faint cursor-not-allowed"
+                    : "border-th bg-th-raised text-th-secondary hover:text-th-primary hover:bg-th-hover"
+              }`}
+            >
+              {marketAssignment ? `Stop Market Scan (${marketAssignment.cyclesWorked}/${marketAssignment.cyclesRequired})` : "Scan Free Agents"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+          {activeAssignments.length === 0 ? (
+            <div className="md:col-span-3 rounded-xl border border-th bg-th-raised p-3 text-th-faint text-sm">
+              No active assignments. Shortlist a few targets or run a market scan to start getting timed scouting updates through the inbox.
+            </div>
+          ) : (
+            activeAssignments.map(assignment => (
+              <div key={assignment.id} className="rounded-xl border border-th bg-th-raised px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-th-primary font-display font-semibold">{assignment.label}</div>
+                  <div className="text-th-faint text-[10px] uppercase tracking-wider">{assignment.progressLabel}</div>
+                </div>
+                <div className="text-th-muted text-xs mt-2">
+                  {assignment.type === "player"
+                    ? "Direct player file"
+                    : assignment.type === "shortlist"
+                      ? "Shortlist sweep"
+                      : assignment.type === "market"
+                        ? "Free-agent market scan"
+                        : "Club sweep"}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -189,7 +280,11 @@ export function PlayerRatingsPage({
               </tr>
             </thead>
             <tbody>
-              {allPlayers.slice(0, 125).map(({ player: p, team, teamLabel, scoutingView, recruitmentTag }, i) => (
+              {allPlayers.slice(0, 125).map(({ player: p, team, teamLabel, scoutingView, recruitmentTag }, i) => {
+                const playerAssignment = getScoutingAssignment(scoutingAssignments, "player", p.id);
+                const canAssignPlayer = team?.id !== userTeamId;
+                const playerButtonDisabled = !playerAssignment && (!canAssignPlayer || assignmentCapacityFull);
+                return (
                 <tr key={p.id} className="border-t border-th hover:bg-th-hover transition-colors">
                   <td className="px-2 sm:px-4 py-2.5 text-th-faint text-xs stat-num">{i + 1}</td>
                   <td className="text-left px-2 py-2.5">
@@ -229,12 +324,27 @@ export function PlayerRatingsPage({
                   </td>
                   <td className="text-center px-2 py-2.5 hidden md:table-cell">
                     {team?.id !== userTeamId ? (
-                      <RecruitmentActions
-                        tier={recruitmentTag}
-                        compact
-                        onToggleShortlist={() => onToggleShortlist(p.id)}
-                        onToggleWatchlist={() => onToggleWatchlist(p.id)}
-                      />
+                      <div className="flex flex-col items-center gap-2">
+                        <RecruitmentActions
+                          tier={recruitmentTag}
+                          compact
+                          onToggleShortlist={() => onToggleShortlist(p.id)}
+                          onToggleWatchlist={() => onToggleWatchlist(p.id)}
+                        />
+                        <button
+                          onClick={() => onTogglePlayerAssignment(p.id)}
+                          disabled={playerButtonDisabled}
+                          className={`rounded-lg border px-2 py-1 text-[10px] font-display font-medium transition-colors ${
+                            playerAssignment
+                              ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
+                              : playerButtonDisabled
+                                ? "border-th bg-th-raised text-th-faint cursor-not-allowed"
+                                : "border-th bg-th-raised text-th-secondary hover:text-th-primary hover:bg-th-hover"
+                          }`}
+                        >
+                          {playerAssignment ? `Scouting ${playerAssignment.cyclesWorked}/${playerAssignment.cyclesRequired}` : "Assign Scout"}
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-[10px] text-th-faint font-display">Own squad</span>
                     )}
@@ -242,6 +352,11 @@ export function PlayerRatingsPage({
                   <td className="text-center px-2 py-2.5 hidden lg:table-cell">
                     <span className="text-[10px] text-th-muted font-display">{scoutingView.confidenceLabel}</span>
                     <span className="block text-[10px] text-th-faint stat-num">{scoutingView.confidence}%</span>
+                    {playerAssignment && (
+                      <span className="block text-[10px] text-emerald-300 font-display mt-1">
+                        Active {playerAssignment.cyclesWorked}/{playerAssignment.cyclesRequired}
+                      </span>
+                    )}
                   </td>
                   <td className="text-center px-2 py-2.5">
                     <span className={`ovr-badge text-sm inline-block min-w-[28px] rounded-md px-1 py-0.5 ${ovrBgClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
@@ -260,7 +375,7 @@ export function PlayerRatingsPage({
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.runs}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.wickets}</td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
