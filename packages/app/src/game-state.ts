@@ -30,6 +30,26 @@ import {
   type NarrativeEvent,
   type TrainingFocus,
   type TrainingIntensity,
+  generateYouthProspects,
+  type YouthProspect,
+  calculateFantasyPoints,
+  accumulateFantasyPoints,
+  enrichFantasyNames,
+  type FantasyPoints,
+  generateBoardObjectives,
+  evaluateBoardObjectives,
+  createBoardState,
+  updateBoardState,
+  isFired,
+  type BoardState,
+  updateTeamMorale,
+  initSeasonMorale,
+  getConsecutiveResults,
+  tickContracts,
+  assignTeamContracts,
+  getExpiringContracts,
+  getContractBadge,
+  type ExpiringContractReport,
 } from "@ipl-sim/engine";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
 import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
@@ -113,6 +133,18 @@ export interface GameState {
 
   // Live auction state
   auctionLiveState?: AuctionState;
+
+  // Youth academy prospects (generated between seasons)
+  youthProspects: YouthProspect[];
+
+  // Fantasy points accumulated across the season
+  fantasyLeaderboard: FantasyPoints[];
+
+  // Board expectations & management pressure
+  boardState?: BoardState;
+
+  // Contract expiry report (populated at season end)
+  contractReport?: ExpiringContractReport;
 }
 
 export interface SeasonSummary {
@@ -247,6 +279,8 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     trainingReport: [],
     scouting: createScoutingState(teams, additionalPlayers, null, 1),
     recruitment: createRecruitmentState(),
+    youthProspects: [],
+    fantasyLeaderboard: [],
   };
 }
 
@@ -311,6 +345,45 @@ export function initSeason(state: GameState): GameState {
     }
   }
 
+  // Initialize morale for all teams at season start
+  for (const t of state.teams) {
+    const retainedIds = new Set(
+      state.retentionState?.retained
+        ? state.retentionState.retained
+        : t.roster.map(p => p.id), // first season: everyone is "retained"
+    );
+    initSeasonMorale(t, retainedIds);
+  }
+
+  // Assign initial contracts for first season
+  if (state.seasonNumber === 1) {
+    for (const t of state.teams) {
+      assignTeamContracts(t, "retained");
+    }
+  }
+
+  // Generate board objectives for the user's team
+  let boardState = state.boardState;
+  if (state.userTeamId) {
+    const userTeam = state.teams.find(t => t.id === state.userTeamId);
+    if (userTeam) {
+      const previousPos = state.history.length > 0
+        ? state.history[state.history.length - 1].seasonNumber // approximate
+        : undefined;
+      const objectives = generateBoardObjectives({
+        seasonNumber: state.seasonNumber,
+        previousPosition: previousPos,
+        teamPower: userTeam.powerRating,
+      });
+      boardState = createBoardState(objectives);
+      if (state.boardState) {
+        // Carry over satisfaction and warnings from previous season
+        boardState.satisfaction = state.boardState.satisfaction;
+        boardState.warnings = state.boardState.warnings;
+      }
+    }
+  }
+
   const schedule = generateSchedule(state.teams, state.rules.matchesPerTeam);
 
   const firstMatch = schedule[0];
@@ -326,6 +399,9 @@ export function initSeason(state: GameState): GameState {
     needsLineup: !!userPlays,
     recentInjuries: [],
     narrativeEvents: [],
+    boardState,
+    contractReport: undefined,
+    fantasyLeaderboard: [],
   });
 }
 
@@ -427,6 +503,30 @@ export function playNextMatch(state: GameState): {
       (nextMatch.homeTeamId === state.userTeamId || nextMatch.awayTeamId === state.userTeamId));
   }
 
+  // Update morale for both teams involved in this match
+  if (rawResult.winnerId && matchEntry) {
+    const homeTeam = teams.find(t => t.id === matchEntry.homeTeamId);
+    const awayTeam = teams.find(t => t.id === matchEntry.awayTeamId);
+    const homeXIIds = new Set(rawResult.innings[0]?.batterStats ? [...rawResult.innings[0].batterStats.keys()] : []);
+    const awayXIIds = new Set(rawResult.innings[1]?.batterStats ? [...rawResult.innings[1].batterStats.keys()] : []);
+
+    for (const [team, xiIds] of [[homeTeam, homeXIIds], [awayTeam, awayXIIds]] as [Team | undefined, Set<string>][]) {
+      if (!team) continue;
+      const streak = getConsecutiveResults(
+        newMatchResults.map(r => ({ winnerId: r.winnerId, homeTeamId: r.innings[0]?.teamId ?? "", awayTeamId: r.innings[1]?.teamId ?? "" })),
+        team.id,
+      );
+      updateTeamMorale(team, {
+        won: rawResult.winnerId === team.id,
+        marginText: rawResult.margin,
+        motmPlayerId: rawResult.motm,
+        playingXIIds: xiIds,
+        consecutiveWins: streak.consecutiveWins,
+        consecutiveLosses: streak.consecutiveLosses,
+      });
+    }
+  }
+
   let nextState: GameState = {
     ...state,
     schedule: newSchedule,
@@ -455,6 +555,18 @@ export function playNextMatch(state: GameState): {
       ),
     };
   }
+
+  // Accumulate fantasy points from this match
+  const matchFantasyPoints = calculateFantasyPoints(rawResult);
+  const playerNameMap = new Map<string, string>();
+  for (const team of teams) {
+    for (const p of team.roster) playerNameMap.set(p.id, p.name);
+  }
+  const enrichedMatchPoints = enrichFantasyNames(matchFantasyPoints, playerNameMap);
+  nextState = {
+    ...nextState,
+    fantasyLeaderboard: accumulateFantasyPoints(nextState.fantasyLeaderboard, enrichedMatchPoints),
+  };
 
   return {
     state: withSyncedScouting(nextState),
@@ -759,6 +871,43 @@ export function nextSeason(state: GameState): GameState {
   // Add new young players to pool
   const newPlayers = generatePlayerPool(50);
 
+  // Generate youth academy prospects for the user's team (1-3 players)
+  const youthProspects: YouthProspect[] = state.userTeamId
+    ? generateYouthProspects(state.userTeamId, 1 + Math.floor(Math.random() * 3))
+    : [];
+
+  // Tick contracts for all teams, collect expiry report for user
+  let contractReport: ExpiringContractReport | undefined;
+  for (const team of state.teams) {
+    const report = tickContracts(team);
+    if (team.id === state.userTeamId) {
+      contractReport = report;
+    }
+  }
+
+  // Evaluate board objectives at season end
+  let boardState = state.boardState;
+  if (boardState && state.seasonResult && state.userTeamId) {
+    const userTeam = state.teams.find(t => t.id === state.userTeamId);
+    if (userTeam) {
+      const standings = getStandings(state.teams);
+      const finalPosition = standings.findIndex(s => s.teamId === state.userTeamId) + 1;
+      const youthCount = userTeam.roster.filter(
+        p => p.age <= 23 && p.stats.matches >= 5,
+      ).length;
+      const evaluation = evaluateBoardObjectives({
+        objectives: boardState.objectives,
+        finalPosition,
+        isChampion: state.seasonResult.champion === state.userTeamId,
+        youthMatchesGiven: youthCount,
+        currentNRR: userTeam.nrr,
+        previousNRR: undefined,
+        totalTeams: state.teams.length,
+      });
+      boardState = updateBoardState(boardState, evaluation);
+    }
+  }
+
   return withSyncedScouting({
     ...state,
     phase: "trade",
@@ -775,7 +924,33 @@ export function nextSeason(state: GameState): GameState {
     recentInjuries: [],
     narrativeEvents: [],
     trainingReport,
+    youthProspects,
+    fantasyLeaderboard: [],
+    boardState,
+    contractReport,
   }, state.seasonNumber + 1);
+}
+
+/** Promote a youth prospect to the user's main squad (costs 0 Cr, takes a roster slot) */
+export function promoteYouthProspect(state: GameState, prospectIndex: number): GameState {
+  if (!state.userTeamId) return state;
+  const prospect = state.youthProspects[prospectIndex];
+  if (!prospect) return state;
+
+  const userTeam = state.teams.find(t => t.id === state.userTeamId);
+  if (!userTeam) return state;
+
+  // Add the prospect player to the team roster
+  const player = prospect.player;
+  player.teamId = state.userTeamId;
+  player.potential = prospect.potential;
+  userTeam.addPlayer(player, 0); // Free signing
+
+  // Remove from prospects list
+  const newProspects = [...state.youthProspects];
+  newProspects.splice(prospectIndex, 1);
+
+  return { ...state, youthProspects: newProspects };
 }
 
 export function setPlayerTrainingFocus(

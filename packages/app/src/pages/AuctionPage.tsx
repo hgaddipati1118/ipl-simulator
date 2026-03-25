@@ -5,10 +5,13 @@ import { ovrColorClass, roleLabel, bowlingStyleLabel, battingHandLabel } from ".
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerAvatar } from "../components/PlayerAvatar";
 import { getPlayerScoutingView, type ScoutingState } from "../scouting";
+import { getRecruitmentTag, type RecruitmentState } from "../recruitment";
+import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentControls";
 
 interface Props {
   state: GameState;
   scouting: ScoutingState;
+  recruitment: RecruitmentState;
   onUserBid: () => void;
   onUserPass: () => void;
   onCpuRound: () => void;
@@ -17,6 +20,8 @@ interface Props {
   onSimRemaining: () => void;
   onFinishAuction: () => void;
   onScoutPlayers: (playerIds: string[], amount?: number) => void;
+  onToggleShortlist: (playerId: string) => void;
+  onToggleWatchlist: (playerId: string) => void;
 }
 
 function AttributeBar({ label, value, valueLabel }: { label: string; value: number; valueLabel: string }) {
@@ -53,6 +58,7 @@ function MiniPlayerRow({ player }: { player: Player }) {
 export function AuctionPage({
   state,
   scouting,
+  recruitment,
   onUserBid,
   onUserPass,
   onCpuRound,
@@ -61,6 +67,8 @@ export function AuctionPage({
   onSimRemaining,
   onFinishAuction,
   onScoutPlayers,
+  onToggleShortlist,
+  onToggleWatchlist,
 }: Props) {
   const auction = state.auctionLiveState;
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
@@ -169,6 +177,7 @@ export function AuctionPage({
   const currentPlayerView = currentPlayer
     ? getPlayerScoutingView(currentPlayer, currentPlayer.teamId, scouting, state.userTeamId)
     : null;
+  const currentPlayerRecruitmentTag = currentPlayer ? getRecruitmentTag(recruitment, currentPlayer.id) : null;
 
   const userInBidding = !!(state.userTeamId && auction.biddingTeams.includes(state.userTeamId));
   const userIsHighest = auction.currentBidderId === state.userTeamId;
@@ -185,6 +194,7 @@ export function AuctionPage({
   const remainingPlayerViews = remainingPlayers.slice(0, 50).map(player => ({
     player,
     scoutingView: getPlayerScoutingView(player, player.teamId, scouting, state.userTeamId),
+    recruitmentTag: getRecruitmentTag(recruitment, player.id),
   }));
 
   return (
@@ -271,6 +281,7 @@ export function AuctionPage({
                     {currentPlayerView && (
                       <span className="text-[10px] text-th-faint font-display">{currentPlayerView.confidenceLabel}</span>
                     )}
+                    {currentPlayerRecruitmentTag && <RecruitmentBadge tier={currentPlayerRecruitmentTag} />}
                   </div>
                 </div>
                 <div className="text-right">
@@ -293,14 +304,21 @@ export function AuctionPage({
 
               {currentPlayerView && (
                 <div className="rounded-xl border border-th bg-th-raised px-4 py-3 mb-5">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Scout Read</div>
                       <div className="text-sm text-th-secondary font-display mt-1">{currentPlayerView.summary}</div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Market Read</div>
-                      <div className="text-sm text-th-primary font-mono stat-num mt-1">{currentPlayerView.marketValue.display}</div>
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="text-right">
+                        <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Market Read</div>
+                        <div className="text-sm text-th-primary font-mono stat-num mt-1">{currentPlayerView.marketValue.display}</div>
+                      </div>
+                      <RecruitmentActions
+                        tier={currentPlayerRecruitmentTag}
+                        onToggleShortlist={() => onToggleShortlist(currentPlayer.id)}
+                        onToggleWatchlist={() => onToggleWatchlist(currentPlayer.id)}
+                      />
                     </div>
                   </div>
                 </div>
@@ -393,9 +411,10 @@ export function AuctionPage({
               Remaining ({remainingPlayers.length})
             </h3>
             <div className="space-y-0.5 max-h-[calc(100vh-280px)] overflow-y-auto">
-              {remainingPlayerViews.map(({ player, scoutingView }) => (
+              {remainingPlayerViews.map(({ player, scoutingView, recruitmentTag }) => (
                 <div key={player.id} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm">
                   <span className="font-display text-th-secondary truncate flex-1">{player.name}</span>
+                  {recruitmentTag && <RecruitmentBadge tier={recruitmentTag} compact />}
                   <span className={`text-xs font-bold ${ovrColorClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
                   <span className="text-[10px] text-th-muted font-display">{roleLabel(player.role)}</span>
                   <span className="text-[10px] text-th-faint font-mono stat-num">{scoutingView.marketValue.compactDisplay}</span>

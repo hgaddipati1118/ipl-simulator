@@ -64,6 +64,8 @@ import {
   setTeamTrainingIntensity,
   recordPlayerScoutingExposure,
   recordTeamScoutingExposure,
+  toggleShortlistPlayer,
+  toggleWatchlistPlayer,
   initLiveAuction,
   liveAuctionUserBid,
   liveAuctionUserPass,
@@ -72,6 +74,7 @@ import {
   liveAuctionSimPlayer,
   liveAuctionSimRemaining,
   finalizeLiveAuction,
+  promoteYouthProspect,
   type SaveSlotInfo,
 } from "./game-state";
 import { saveState, loadState, clearState } from "./storage";
@@ -470,6 +473,14 @@ export default function App() {
     update(recordTeamScoutingExposure(state, teamId, amount));
   };
 
+  const handleToggleShortlist = (playerId: string) => {
+    update(toggleShortlistPlayer(state, playerId));
+  };
+
+  const handleToggleWatchlist = (playerId: string) => {
+    update(toggleWatchlistPlayer(state, playerId));
+  };
+
   // ── Live Auction handlers ──
 
   const handleAuctionUserBid = () => {
@@ -516,6 +527,11 @@ export default function App() {
   const handleUpdateStadium = (rating: number) => {
     if (!state.userTeamId) return;
     const next = updateStadiumRating(state, state.userTeamId, rating);
+    update(next);
+  };
+
+  const handlePromoteProspect = (index: number) => {
+    const next = promoteYouthProspect(state, index);
     update(next);
   };
 
@@ -629,12 +645,14 @@ export default function App() {
           <TradePage
             state={state}
             scouting={state.scouting}
+            recruitment={state.recruitment}
             onRespondToOffer={handleRespondToOffer}
             onProposeTrade={handleProposeTrade}
             onFinishTrades={handleFinishTrades}
             onUpdateStadium={handleUpdateStadium}
             onScoutTeam={handleScoutTeam}
             onScoutPlayers={handleScoutPlayers}
+            onPromoteProspect={handlePromoteProspect}
           />
         } />
         <Route path="/retention" element={
@@ -649,6 +667,7 @@ export default function App() {
           <AuctionPage
             state={state}
             scouting={state.scouting}
+            recruitment={state.recruitment}
             onUserBid={handleAuctionUserBid}
             onUserPass={handleAuctionUserPass}
             onCpuRound={handleAuctionCpuRound}
@@ -657,6 +676,8 @@ export default function App() {
             onSimRemaining={handleAuctionSimRemaining}
             onFinishAuction={handleAuctionFinish}
             onScoutPlayers={handleScoutPlayers}
+            onToggleShortlist={handleToggleShortlist}
+            onToggleWatchlist={handleToggleWatchlist}
           />
         } />
         <Route path="/team/:teamId" element={
@@ -664,7 +685,9 @@ export default function App() {
             teams={state.teams}
             rules={state.rules}
             scouting={state.scouting}
+            recruitment={state.recruitment}
             userTeamId={state.userTeamId}
+            onScoutTeam={handleScoutTeam}
           />
         } />
         <Route path="/ratings" element={
@@ -672,11 +695,17 @@ export default function App() {
             teams={state.teams}
             scouting={state.scouting}
             userTeamId={state.userTeamId}
+            recruitment={state.recruitment}
+            onToggleShortlist={handleToggleShortlist}
+            onToggleWatchlist={handleToggleWatchlist}
           />
         } />
         <Route path="/player/:playerId" element={
           <PlayerPage
             state={state}
+            onScoutPlayer={playerId => handleScoutPlayers([playerId], 12)}
+            onToggleShortlist={handleToggleShortlist}
+            onToggleWatchlist={handleToggleWatchlist}
           />
         } />
         <Route path="/match/:matchIndex" element={

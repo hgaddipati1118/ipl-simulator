@@ -1394,6 +1394,79 @@ export function LiveMatchPage({
         );
       })()}
 
+      {/* Strategic Timeout Modal */}
+      {isDecisionForUser && state.pendingDecision!.type === "strategic_timeout" && (() => {
+        const isUserBowling = state.pendingDecision!.teamId === state.bowlingTeamId;
+        return (
+          <DecisionModal
+            title="Strategic Timeout"
+            subtitle={isUserBowling
+              ? `Bowling team timeout available (over ${state.overs}). Use it to adjust your strategy.`
+              : `Batting team timeout available (over ${state.overs}). Use it to adjust your approach.`
+            }
+          >
+            <div className="space-y-4">
+              <p className="text-th-muted text-sm font-display">
+                {isUserBowling
+                  ? "Take a 2.5-minute break to change your field setting and aggression level before the next over."
+                  : "Take a 2.5-minute break to reassess your batting approach and aggression level."}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleDecision("strategic_timeout", "use")}
+                  className="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-500 hover:to-amber-500 text-white font-display font-semibold text-sm transition-all shadow-lg shadow-yellow-500/20"
+                >
+                  Take Timeout
+                </button>
+                <button
+                  onClick={() => handleDecision("strategic_timeout", "skip")}
+                  className="flex-1 px-5 py-3 rounded-xl bg-th-raised hover:bg-th-hover text-th-secondary font-display font-semibold text-sm border border-th transition-colors"
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+          </DecisionModal>
+        );
+      })()}
+
+      {/* Retire Out Modal */}
+      {isDecisionForUser && state.pendingDecision!.type === "retire_out" && (() => {
+        const opts = state.pendingDecision!.optionDetails ?? [];
+        return (
+          <DecisionModal title="Retire Out?" subtitle="Send a batter back to the pavilion to bring in an explosive finisher">
+            <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+              {opts.map(opt => {
+                const sr = opt.oversRemaining && opt.oversRemaining > 0
+                  ? ((opt.oversBowled ?? 0) / opt.oversRemaining * 100).toFixed(1)
+                  : "0.0";
+                return (
+                  <button
+                    key={opt.playerId}
+                    onClick={() => handleDecision("retire_out", opt.playerId)}
+                    className="w-full text-left px-4 py-3 rounded-xl bg-th-raised border border-th hover:bg-th-hover hover:border-th-strong transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-th-primary font-display font-semibold text-sm">{opt.playerName}</span>
+                        <span className="text-th-muted text-xs ml-2">{opt.oversBowled ?? 0} ({opt.oversRemaining ?? 0}b) SR {sr}</span>
+                      </div>
+                      <span className="text-red-400 text-xs font-display">Retire</span>
+                    </div>
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => handleDecision("retire_out", "skip")}
+                className="w-full px-4 py-3 rounded-xl bg-th-raised hover:bg-th-hover text-th-secondary font-display font-semibold text-sm border border-th transition-colors mt-2"
+              >
+                Keep Both Batters
+              </button>
+            </div>
+          </DecisionModal>
+        );
+      })()}
+
       {/* DRS Result Flash */}
       {drsResult && (
         <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center animate-fade-in">

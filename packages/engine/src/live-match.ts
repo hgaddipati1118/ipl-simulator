@@ -2129,6 +2129,12 @@ export function startSecondInnings(state: MatchState): MatchState {
   newState.sixes = 0;
   newState.fallOfWickets = [];
 
+  // Reset strategic timeouts for the new innings
+  newState.strategicTimeouts = {
+    home: { used: false },
+    away: { used: false },
+  };
+
   // Recompute innings 2 orders from current XI (accounts for impact subs applied during break)
   const battingXIIds = newBattingTeamId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
   const bowlingXIIds = newBowlingTeamId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;

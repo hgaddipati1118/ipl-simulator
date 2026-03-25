@@ -229,6 +229,118 @@ export function ResultsPage({ state, onNextSeason }: Props) {
         </div>
       )}
 
+      {/* Fantasy Points Leaderboard */}
+      {state.fantasyLeaderboard && state.fantasyLeaderboard.length > 0 && (
+        <div className="rounded-2xl border border-th overflow-hidden mb-8 bg-th-surface">
+          <div className="px-4 py-3 border-b border-th bg-pink-500/[0.04]">
+            <h3 className="text-xs font-display font-semibold text-pink-400 uppercase tracking-wider">Fantasy Points Leaderboard</h3>
+          </div>
+          <div className="divide-y divide-th">
+            {state.fantasyLeaderboard.slice(0, 10).map((fp, i) => {
+              const fpPlayer = allPlayers.find(p => p.id === fp.playerId);
+              return (
+                <div key={fp.playerId} className="px-4 py-2.5 flex items-center justify-between hover:bg-th-hover transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className={`stat-num text-xs w-4 ${i < 3 ? "text-pink-400" : "text-th-faint"}`}>{i + 1}</span>
+                    {fpPlayer && (
+                      <PlayerAvatar name={fpPlayer.name} imageUrl={fpPlayer.imageUrl} size="sm" teamColor={teams.find(t => t.id === fpPlayer.teamId)?.config.primaryColor} />
+                    )}
+                    <div>
+                      <PlayerLink playerId={fp.playerId} className="text-th-primary text-sm font-display">{fp.playerName || "Unknown"}</PlayerLink>
+                      <span className="text-th-faint text-xs ml-2">{teamMap.get(fp.teamId)?.shortName}</span>
+                    </div>
+                  </div>
+                  <div className="text-right flex items-baseline gap-3">
+                    <span className="text-th-muted text-[10px] stat-num">Bat {fp.battingPoints}</span>
+                    <span className="text-th-muted text-[10px] stat-num">Bowl {fp.bowlingPoints}</span>
+                    <span className="text-pink-300 font-semibold text-sm stat-num">{fp.totalPoints} pts</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Board Evaluation */}
+      {state.boardState && (
+        <div className="rounded-2xl border border-th overflow-hidden mb-8 bg-th-surface">
+          <div className="px-4 py-3 border-b border-th bg-blue-500/[0.04]">
+            <h3 className="text-xs font-display font-semibold text-blue-400 uppercase tracking-wider">Board Evaluation</h3>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-th-primary font-display font-semibold text-sm">{state.boardState.message}</div>
+                <div className="flex gap-2 mt-2">
+                  {state.boardState.objectives.map((obj, i) => (
+                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-th-overlay text-th-muted font-display border border-th">
+                      {obj.description}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] text-th-muted font-display uppercase tracking-wider">Satisfaction</div>
+                <div className={`font-display font-bold text-xl stat-num ${
+                  state.boardState.satisfaction >= 60 ? "text-green-400" :
+                  state.boardState.satisfaction >= 30 ? "text-yellow-400" : "text-red-400"
+                }`}>
+                  {state.boardState.satisfaction}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-th-muted font-display">
+              {state.boardState.budgetModifier !== 1.0 && (
+                <span className={state.boardState.budgetModifier > 1 ? "text-green-400" : "text-red-400"}>
+                  Budget {state.boardState.budgetModifier > 1 ? "+" : ""}{Math.round((state.boardState.budgetModifier - 1) * 100)}% next season
+                </span>
+              )}
+              {state.boardState.warnings > 0 && (
+                <span className="text-red-400 font-semibold">
+                  {state.boardState.warnings}/3 warnings
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contract Expiry Report */}
+      {state.contractReport && (state.contractReport.finalYear.length > 0 || state.contractReport.freeAgents.length > 0) && (
+        <div className="rounded-2xl border border-th overflow-hidden mb-8 bg-th-surface">
+          <div className="px-4 py-3 border-b border-th bg-amber-500/[0.04]">
+            <h3 className="text-xs font-display font-semibold text-amber-400 uppercase tracking-wider">Contract Report</h3>
+          </div>
+          <div className="p-4 space-y-2">
+            {state.contractReport.freeAgents.length > 0 && (
+              <div>
+                <div className="text-red-400 text-[10px] uppercase font-display font-semibold tracking-wider mb-1">Free Agents (contract expired)</div>
+                <div className="flex flex-wrap gap-2">
+                  {state.contractReport.freeAgents.map(c => (
+                    <span key={c.playerId} className="text-xs px-2 py-1 rounded bg-red-950/30 text-red-300 font-display border border-red-800/30">
+                      {c.playerName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {state.contractReport.finalYear.length > 0 && (
+              <div>
+                <div className="text-amber-400 text-[10px] uppercase font-display font-semibold tracking-wider mb-1">Entering Final Year</div>
+                <div className="flex flex-wrap gap-2">
+                  {state.contractReport.finalYear.map(c => (
+                    <span key={c.playerId} className="text-xs px-2 py-1 rounded bg-amber-950/30 text-amber-300 font-display border border-amber-800/30">
+                      {c.playerName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="text-center">
         <button
           onClick={onNextSeason}

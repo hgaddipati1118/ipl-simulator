@@ -3,29 +3,48 @@ import { Team, Player } from "@ipl-sim/engine";
 import { ovrBgClass, roleLabel, teamLabelColor } from "../ui-utils";
 import { PlayerLink } from "../components/PlayerLink";
 import { getPlayerScoutingView, type ScoutingState } from "../scouting";
+import { getRecruitmentCounts, getRecruitmentTag, type RecruitmentState } from "../recruitment";
+import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentControls";
 
 interface Props {
   teams: Team[];
   scouting: ScoutingState;
   userTeamId: string | null;
+  recruitment: RecruitmentState;
+  onToggleShortlist: (playerId: string) => void;
+  onToggleWatchlist: (playerId: string) => void;
 }
 
 type SortKey = "overall" | "battingOvr" | "bowlingOvr" | "age" | "runs" | "wickets" | "name";
+type RecruitmentFilter = "all" | "shortlist" | "watchlist";
 
-export function PlayerRatingsPage({ teams, scouting, userTeamId }: Props) {
+export function PlayerRatingsPage({
+  teams,
+  scouting,
+  userTeamId,
+  recruitment,
+  onToggleShortlist,
+  onToggleWatchlist,
+}: Props) {
   const [sortBy, setSortBy] = useState<SortKey>("overall");
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterTeam, setFilterTeam] = useState<string>("all");
+  const [filterRecruitment, setFilterRecruitment] = useState<RecruitmentFilter>("all");
+  const [hideOwned, setHideOwned] = useState(false);
   const [search, setSearch] = useState("");
+  const recruitmentCounts = useMemo(() => getRecruitmentCounts(recruitment), [recruitment]);
 
   const allPlayers = useMemo(() => {
     let result = teams.flatMap(team => team.roster.map(player => ({
       player,
       team,
       scoutingView: getPlayerScoutingView(player, team.id, scouting, userTeamId),
+      recruitmentTag: getRecruitmentTag(recruitment, player.id),
     })));
     if (filterRole !== "all") result = result.filter(({ player }) => player.role === filterRole);
     if (filterTeam !== "all") result = result.filter(({ team }) => team.id === filterTeam);
+    if (filterRecruitment !== "all") result = result.filter(({ recruitmentTag }) => recruitmentTag === filterRecruitment);
+    if (hideOwned) result = result.filter(({ team }) => team.id !== userTeamId);
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(({ player }) => player.name.toLowerCase().includes(q));
@@ -45,7 +64,7 @@ export function PlayerRatingsPage({ teams, scouting, userTeamId }: Props) {
       }
     });
     return result;
-  }, [teams, scouting, userTeamId, sortBy, filterRole, filterTeam, search]);
+  }, [teams, scouting, userTeamId, recruitment, sortBy, filterRole, filterTeam, filterRecruitment, hideOwned, search]);
 
   const SortHeader = ({ label, field, className = "" }: { label: string; field: SortKey; className?: string }) => (
     <th
@@ -63,6 +82,11 @@ export function PlayerRatingsPage({ teams, scouting, userTeamId }: Props) {
         <div>
           <h2 className="text-2xl font-display font-bold text-th-primary tracking-tight">Player Ratings</h2>
           <p className="text-th-faint text-xs font-display mt-1">External players show scouting estimates until your report is strong enough.</p>
+          <p className="text-th-faint text-xs font-display mt-1">
+            <span className="stat-num">{recruitmentCounts.shortlist}</span> shortlisted
+            <span className="mx-1.5 text-th-faint">•</span>
+            <span className="stat-num">{recruitmentCounts.watchlist}</span> watched
+          </p>
         </div>
         <span className="text-th-muted text-sm stat-num">{allPlayers.length} players</span>
       </div>
@@ -101,6 +125,24 @@ export function PlayerRatingsPage({ teams, scouting, userTeamId }: Props) {
             <option key={t.id} value={t.id}>{t.shortName}</option>
           ))}
         </select>
+        <select
+          value={filterRecruitment}
+          onChange={e => setFilterRecruitment(e.target.value as RecruitmentFilter)}
+          className="bg-th-surface border border-th rounded-xl px-3 py-2 text-sm text-th-primary font-display focus:outline-none focus:border-th-strong"
+        >
+          <option value="all">All Targets</option>
+          <option value="shortlist">Shortlist</option>
+          <option value="watchlist">Watchlist</option>
+        </select>
+        <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-th bg-th-surface text-sm text-th-secondary font-display">
+          <input
+            type="checkbox"
+            checked={hideOwned}
+            onChange={e => setHideOwned(e.target.checked)}
+            className="accent-orange-500"
+          />
+          Hide Owned
+        </label>
       </div>
 
       {/* Table */}
@@ -113,6 +155,7 @@ export function PlayerRatingsPage({ teams, scouting, userTeamId }: Props) {
                 <SortHeader label="Player" field="name" />
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Team</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Role</th>
+                <th className="text-center px-2 py-3 hidden md:table-cell">Track</th>
                 <th className="text-center px-2 py-3 hidden lg:table-cell">Scout</th>
                 <SortHeader label="OVR" field="overall" />
                 <SortHeader label="BAT" field="battingOvr" className="hidden md:table-cell" />
@@ -131,13 +174,14 @@ export function PlayerRatingsPage({ teams, scouting, userTeamId }: Props) {
               </tr>
             </thead>
             <tbody>
-              {allPlayers.slice(0, 100).map(({ player: p, team, scoutingView }, i) => (
+              {allPlayers.slice(0, 100).map(({ player: p, team, scoutingView, recruitmentTag }, i) => (
                 <tr key={p.id} className="border-t border-th hover:bg-th-hover transition-colors">
                   <td className="px-2 sm:px-4 py-2.5 text-th-faint text-xs stat-num">{i + 1}</td>
                   <td className="text-left px-2 py-2.5">
                     <PlayerLink playerId={p.id} className="text-th-primary font-display text-xs sm:text-sm">{p.name}</PlayerLink>
                     {p.isInternational && <span className="text-blue-400/60 text-[10px] ml-1 font-semibold">OS</span>}
                     {p.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] ml-1 font-semibold">WK</span>}
+                    {recruitmentTag && <span className="ml-1"><RecruitmentBadge tier={recruitmentTag} compact /></span>}
                     {/* Show team + role inline on mobile (hidden in dedicated columns) */}
                     <span className="sm:hidden block text-[10px] text-th-muted mt-0.5">
                       <span style={{ color: teamLabelColor(team.config.primaryColor) }}>{team.shortName}</span>
@@ -159,6 +203,18 @@ export function PlayerRatingsPage({ teams, scouting, userTeamId }: Props) {
                       p.role === "all-rounder" ? "bg-emerald-500/15 text-emerald-400" :
                       "bg-orange-500/15 text-orange-400"
                     }`}>{roleLabel(p.role)}</span>
+                  </td>
+                  <td className="text-center px-2 py-2.5 hidden md:table-cell">
+                    {team.id !== userTeamId ? (
+                      <RecruitmentActions
+                        tier={recruitmentTag}
+                        compact
+                        onToggleShortlist={() => onToggleShortlist(p.id)}
+                        onToggleWatchlist={() => onToggleWatchlist(p.id)}
+                      />
+                    ) : (
+                      <span className="text-[10px] text-th-faint font-display">Own squad</span>
+                    )}
                   </td>
                   <td className="text-center px-2 py-2.5 hidden lg:table-cell">
                     <span className="text-[10px] text-th-muted font-display">{scoutingView.confidenceLabel}</span>

@@ -6,16 +6,19 @@ import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
 import { PlayerAvatar } from "../components/PlayerAvatar";
 import { getPlayerScoutingView, type ScoutingState } from "../scouting";
+import { getRecruitmentTag, type RecruitmentState } from "../recruitment";
+import { RecruitmentBadge } from "../components/RecruitmentControls";
 
 interface Props {
   teams: Team[];
   rules?: RuleSet;
   scouting: ScoutingState;
+  recruitment: RecruitmentState;
   userTeamId: string | null;
   onScoutTeam?: (teamId: string, amount?: number) => void;
 }
 
-export function TeamView({ teams, rules = DEFAULT_RULES, scouting, userTeamId, onScoutTeam }: Props) {
+export function TeamView({ teams, rules = DEFAULT_RULES, scouting, recruitment, userTeamId, onScoutTeam }: Props) {
   const { teamId } = useParams();
   const navigate = useNavigate();
   const team = teams.find(t => t.id === teamId);
@@ -131,6 +134,17 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, userTeamId, o
                       {p.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] font-display font-semibold bg-cyan-500/10 px-1 rounded">WK</span>}
                       {p.injured && <span className="text-red-400 text-[10px] font-display font-semibold bg-red-500/10 px-1 rounded" aria-label="Player is injured">INJ</span>}
                       {xiIds.has(p.id) && <span className="text-emerald-400/70 text-[10px] font-display font-semibold bg-emerald-500/10 px-1 rounded">XI</span>}
+                      {isUserTeam && <MoraleDot morale={p.morale} />}
+                      {isUserTeam && p.contractYears >= 0 && (
+                        <span className={`text-[10px] font-display font-semibold px-1 rounded ${
+                          p.contractYears <= 0 ? "text-red-400 bg-red-500/10" :
+                          p.contractYears === 1 ? "text-amber-400 bg-amber-500/10" :
+                          "text-th-muted bg-th-hover"
+                        }`}>
+                          {p.contractYears <= 0 ? "FA" : `${p.contractYears}yr`}
+                        </span>
+                      )}
+                      <RecruitmentBadge tier={getRecruitmentTag(recruitment, p.id)} compact />
                       {!isUserTeam && <span className="text-th-faint text-[10px] font-display">{scoutingView.confidenceLabel}</span>}
                     </div>
                     <span className="text-th-faint text-xs font-display">{p.country}</span>
@@ -212,6 +226,17 @@ function ConditionBadge({ readiness }: { readiness: number }) {
     <span className={`text-[10px] font-display font-semibold px-1 rounded ${conditionColor(readiness)}`}>
       {conditionLabel(readiness)}
     </span>
+  );
+}
+
+function MoraleDot({ morale }: { morale: number }) {
+  const color = morale >= 70 ? "bg-green-400" : morale >= 40 ? "bg-yellow-400" : "bg-red-400";
+  const label = morale >= 70 ? "Happy" : morale >= 40 ? "Content" : "Unhappy";
+  return (
+    <span
+      className={`inline-block w-2 h-2 rounded-full ${color}`}
+      title={`Morale: ${Math.round(morale)} (${label})`}
+    />
   );
 }
 

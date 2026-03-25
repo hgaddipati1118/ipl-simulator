@@ -4,26 +4,32 @@ import { GameState } from "../game-state";
 import { ovrColorClass } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { getPlayerScoutingView, type PlayerScoutingView, type ScoutingState } from "../scouting";
+import { getRecruitmentTag, type RecruitmentState } from "../recruitment";
+import { RecruitmentBadge } from "../components/RecruitmentControls";
 
 interface Props {
   state: GameState;
   scouting: ScoutingState;
+  recruitment: RecruitmentState;
   onRespondToOffer: (offerId: string, accept: boolean) => void;
   onProposeTrade: (toTeamId: string, userPlayerIds: string[], targetPlayerIds: string[]) => { accepted: boolean; reason: string; counterOffer?: TradeOffer };
   onFinishTrades: () => void;
   onUpdateStadium: (rating: number) => void;
   onScoutTeam: (teamId: string, amount?: number) => void;
   onScoutPlayers: (playerIds: string[], amount?: number) => void;
+  onPromoteProspect?: (index: number) => void;
 }
 
 function PlayerChip({
   player,
   scoutingView,
+  recruitment,
   selected,
   onClick,
 }: {
   player: Player;
   scoutingView: PlayerScoutingView;
+  recruitment: RecruitmentState;
   selected?: boolean;
   onClick?: () => void;
 }) {
@@ -40,6 +46,7 @@ function PlayerChip({
       <span className={`text-xs ovr-badge ${ovrColorClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
       <span className="text-[10px] text-th-muted font-display">{player.role}</span>
       {player.isInternational && <span className="text-[10px] text-orange-400/60 font-semibold">OS</span>}
+      <RecruitmentBadge tier={getRecruitmentTag(recruitment, player.id)} compact />
       {!scoutingView.exactRatings && (
         <span className="text-[10px] text-th-faint font-display">{scoutingView.confidenceLabel}</span>
       )}
@@ -50,10 +57,12 @@ function PlayerChip({
 function IncomingOffers({
   state,
   scouting,
+  recruitment,
   onRespond,
 }: {
   state: GameState;
   scouting: ScoutingState;
+  recruitment: RecruitmentState;
   onRespond: (id: string, accept: boolean) => void;
 }) {
   const pending = state.tradeOffers.filter(o => o.status === "pending");
@@ -90,6 +99,7 @@ function IncomingOffers({
                     <div key={p.id} className="flex items-center gap-2 text-sm">
                       <span className="text-emerald-400 text-xs">+</span>
                       <span className="text-th-primary font-display">{p.name}</span>
+                      <RecruitmentBadge tier={getRecruitmentTag(recruitment, p.id)} compact />
                       <span className={`text-xs ovr-badge ${ovrColorClass(getPlayerScoutingView(p, fromTeam?.id, scouting, state.userTeamId).overall.sortValue)}`}>
                         {getPlayerScoutingView(p, fromTeam?.id, scouting, state.userTeamId).overall.compactDisplay}
                       </span>
@@ -104,6 +114,7 @@ function IncomingOffers({
                     <div key={p.id} className="flex items-center gap-2 text-sm">
                       <span className="text-red-400 text-xs">-</span>
                       <span className="text-th-primary font-display">{p.name}</span>
+                      <RecruitmentBadge tier={getRecruitmentTag(recruitment, p.id)} compact />
                       <span className={`text-xs ovr-badge ${ovrColorClass(getPlayerScoutingView(p, toTeam?.id, scouting, state.userTeamId).overall.sortValue)}`}>
                         {getPlayerScoutingView(p, toTeam?.id, scouting, state.userTeamId).overall.compactDisplay}
                       </span>
@@ -134,9 +145,10 @@ function IncomingOffers({
   );
 }
 
-function ProposeTrade({ state, scouting, onPropose, onScoutTeam }: {
+function ProposeTrade({ state, scouting, recruitment, onPropose, onScoutTeam }: {
   state: GameState;
   scouting: ScoutingState;
+  recruitment: RecruitmentState;
   onPropose: (toTeamId: string, userPlayerIds: string[], targetPlayerIds: string[]) => { accepted: boolean; reason: string };
   onScoutTeam: (teamId: string, amount?: number) => void;
 }) {
@@ -144,6 +156,7 @@ function ProposeTrade({ state, scouting, onPropose, onScoutTeam }: {
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [selectedUserPlayers, setSelectedUserPlayers] = useState<Set<string>>(new Set());
   const [selectedTargetPlayers, setSelectedTargetPlayers] = useState<Set<string>>(new Set());
+  const [shortlistFirst, setShortlistFirst] = useState(true);
   const [lastResult, setLastResult] = useState<{ accepted: boolean; reason: string; counterOffer?: TradeOffer } | null>(null);
 
   useEffect(() => {
@@ -218,6 +231,7 @@ function ProposeTrade({ state, scouting, onPropose, onScoutTeam }: {
                     key={p.id}
                     player={p}
                     scoutingView={getPlayerScoutingView(p, userTeam.id, scouting, state.userTeamId)}
+                    recruitment={recruitment}
                     selected={selectedUserPlayers.has(p.id)}
                     onClick={() => toggleUserPlayer(p.id)}
                   />
@@ -227,15 +241,34 @@ function ProposeTrade({ state, scouting, onPropose, onScoutTeam }: {
 
           {/* Target team's players */}
           <div>
-            <p className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-2">{targetTeam.shortName}'s players you want</p>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold">{targetTeam.shortName}'s players you want</p>
+              <label className="flex items-center gap-2 text-[10px] text-th-muted font-display">
+                <input
+                  type="checkbox"
+                  checked={shortlistFirst}
+                  onChange={e => setShortlistFirst(e.target.checked)}
+                  className="accent-orange-500"
+                />
+                Shortlist first
+              </label>
+            </div>
             <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
               {targetTeam.roster
-                .sort((a, b) => b.overall - a.overall)
+                .sort((a, b) => {
+                  if (shortlistFirst) {
+                    const aShortlisted = getRecruitmentTag(recruitment, a.id) === "shortlist" ? 1 : 0;
+                    const bShortlisted = getRecruitmentTag(recruitment, b.id) === "shortlist" ? 1 : 0;
+                    if (aShortlisted !== bShortlisted) return bShortlisted - aShortlisted;
+                  }
+                  return b.overall - a.overall;
+                })
                 .map(p => (
                   <PlayerChip
                     key={p.id}
                     player={p}
                     scoutingView={getPlayerScoutingView(p, targetTeam.id, scouting, state.userTeamId)}
+                    recruitment={recruitment}
                     selected={selectedTargetPlayers.has(p.id)}
                     onClick={() => toggleTargetPlayer(p.id)}
                   />
@@ -354,12 +387,14 @@ function StadiumEditor({ team, onUpdate }: { team: Team; onUpdate: (rating: numb
 export function TradePage({
   state,
   scouting,
+  recruitment,
   onRespondToOffer,
   onProposeTrade,
   onFinishTrades,
   onUpdateStadium,
   onScoutTeam,
   onScoutPlayers,
+  onPromoteProspect,
 }: Props) {
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
   const pendingOfferPlayerIds = state.tradeOffers
@@ -390,13 +425,13 @@ export function TradePage({
       {/* Incoming offers */}
       <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5">
         <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-4">Incoming Trade Offers</h3>
-        <IncomingOffers state={state} scouting={scouting} onRespond={onRespondToOffer} />
+        <IncomingOffers state={state} scouting={scouting} recruitment={recruitment} onRespond={onRespondToOffer} />
       </div>
 
       {/* Propose trade */}
       <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5">
         <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-4">Propose a Trade</h3>
-        <ProposeTrade state={state} scouting={scouting} onPropose={onProposeTrade} onScoutTeam={onScoutTeam} />
+        <ProposeTrade state={state} scouting={scouting} recruitment={recruitment} onPropose={onProposeTrade} onScoutTeam={onScoutTeam} />
       </div>
 
       {/* Stadium settings */}
@@ -404,6 +439,46 @@ export function TradePage({
         <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5">
           <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-4">Stadium Settings</h3>
           <StadiumEditor team={userTeam} onUpdate={onUpdateStadium} />
+        </div>
+      )}
+
+      {/* Youth Academy Prospects */}
+      {state.youthProspects && state.youthProspects.length > 0 && (
+        <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5">
+          <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-4">Youth Academy</h3>
+          <p className="text-th-muted text-sm mb-4">Your academy has produced {state.youthProspects.length} prospect{state.youthProspects.length > 1 ? "s" : ""} this season. Promote them to your squad for free.</p>
+          <div className="space-y-3">
+            {state.youthProspects.map((prospect, i) => {
+              const p = prospect.player;
+              const scoutColor = prospect.scoutRating === "Diamond" ? "text-cyan-400" : prospect.scoutRating === "Gold" ? "text-yellow-400" : prospect.scoutRating === "Silver" ? "text-gray-300" : "text-amber-700";
+              return (
+                <div key={p.id} className="flex items-center justify-between px-4 py-3 rounded-xl bg-th-raised border border-th">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-th-primary font-display font-medium text-sm">{p.name}</span>
+                        <span className={`text-[10px] font-display font-bold ${scoutColor}`}>{prospect.scoutRating}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-th-muted text-xs">{p.role}</span>
+                        <span className="text-th-faint text-xs">Age {p.age}</span>
+                        <span className="text-th-faint text-xs">Pot {prospect.potential}</span>
+                        <span className={`text-xs ${ovrColorClass(p.overall)}`}>{p.overall} OVR</span>
+                      </div>
+                    </div>
+                  </div>
+                  {onPromoteProspect && (
+                    <button
+                      onClick={() => onPromoteProspect(i)}
+                      className="px-3 py-1.5 text-xs font-display font-semibold bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-600/30 transition-colors"
+                    >
+                      Promote
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

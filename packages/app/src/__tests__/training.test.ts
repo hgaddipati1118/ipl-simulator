@@ -17,6 +17,7 @@ import {
   setTeamTrainingIntensity,
   type GameState,
 } from "../game-state";
+import { createRecruitmentState } from "../recruitment";
 
 function makePlayer(id: string, overrides?: Partial<PlayerData>): Player {
   return new Player({
@@ -68,6 +69,9 @@ function buildState(): GameState {
     narrativeEvents: [],
     trainingReport: [],
     scouting: { reports: {} },
+    recruitment: createRecruitmentState(),
+    youthProspects: [],
+    fantasyLeaderboard: [],
   };
 }
 
@@ -129,6 +133,9 @@ function buildLeagueState(): GameState {
     narrativeEvents: [],
     trainingReport: [],
     scouting: { reports: {} },
+    recruitment: createRecruitmentState(),
+    youthProspects: [],
+    fantasyLeaderboard: [],
   };
 }
 

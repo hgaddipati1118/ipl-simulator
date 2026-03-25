@@ -315,10 +315,41 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
 
               {boardExpectation && boardStatus && (
                 <div className="rounded-xl border border-th bg-th-raised p-3">
-                  <div className="text-th-muted text-[10px] uppercase font-display tracking-wider">Board Expectation</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-th-muted text-[10px] uppercase font-display tracking-wider">Board Expectation</div>
+                    {state.boardState && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-th-muted font-display">Satisfaction</span>
+                        <div className="w-16 h-1.5 bg-th-overlay rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              state.boardState.satisfaction >= 60 ? "bg-green-500" :
+                              state.boardState.satisfaction >= 30 ? "bg-yellow-500" : "bg-red-500"
+                            }`}
+                            style={{ width: `${state.boardState.satisfaction}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] stat-num text-th-muted">{state.boardState.satisfaction}</span>
+                        {state.boardState.warnings > 0 && (
+                          <span className="text-[10px] text-red-400 font-display font-semibold">
+                            {state.boardState.warnings === 1 ? "1 warning" : `${state.boardState.warnings} warnings`}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <div className="text-th-primary text-sm font-display font-medium mt-1">
                     {boardExpectation.label}
                   </div>
+                  {state.boardState?.objectives && state.boardState.objectives.length > 1 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {state.boardState.objectives.map((obj, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-th-overlay text-th-muted font-display">
+                          {obj.description}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className={`text-xs mt-1 ${
                     boardStatus.tone === "good"
                       ? "text-green-300"
@@ -326,7 +357,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
                         ? "text-orange-300"
                         : "text-blue-300"
                   }`}>
-                    {boardStatus.label} • {boardStatus.detail}
+                    {boardStatus.label} {"\u2022"} {boardStatus.detail}
                   </div>
                 </div>
               )}
@@ -571,7 +602,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
       )}
 
       {/* Leaderboards */}
-      <SeasonLeaderboards teams={state.teams} />
+      <SeasonLeaderboards teams={state.teams} fantasyLeaderboard={state.fantasyLeaderboard} />
     </div>
   );
 }
@@ -684,9 +715,33 @@ function buildLeaderboards(teams: import("@ipl-sim/engine").Team[]): Leaderboard
   ].filter(lb => lb.entries.length > 0);
 }
 
-function SeasonLeaderboards({ teams }: { teams: import("@ipl-sim/engine").Team[] }) {
+function SeasonLeaderboards({ teams, fantasyLeaderboard }: { teams: import("@ipl-sim/engine").Team[]; fantasyLeaderboard?: import("@ipl-sim/engine").FantasyPoints[] }) {
   const [open, setOpen] = useState(false);
-  const leaderboards = useMemo(() => buildLeaderboards(teams), [teams]);
+  const leaderboards = useMemo(() => {
+    const base = buildLeaderboards(teams);
+    // Add fantasy points leaderboard if available
+    if (fantasyLeaderboard && fantasyLeaderboard.length > 0) {
+      const teamMap = new Map(teams.map(t => [t.id, t.shortName]));
+      const fantasyEntries: LeaderboardEntry[] = fantasyLeaderboard
+        .slice(0, 5)
+        .map(fp => ({
+          playerId: fp.playerId,
+          playerName: fp.playerName || "Unknown",
+          teamShortName: teamMap.get(fp.teamId) ?? "",
+          value: `${fp.totalPoints} pts`,
+          numValue: fp.totalPoints,
+        }));
+      if (fantasyEntries.length > 0) {
+        base.push({
+          title: "Fantasy XI",
+          color: "text-pink-400",
+          bgColor: "bg-pink-500/10 border-pink-500/20",
+          entries: fantasyEntries,
+        });
+      }
+    }
+    return base;
+  }, [teams, fantasyLeaderboard]);
 
   if (leaderboards.length === 0) return null;
 

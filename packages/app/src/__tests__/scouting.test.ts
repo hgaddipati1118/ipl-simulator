@@ -10,6 +10,7 @@ vi.mock("@ipl-sim/ratings/dist/wpl-players.js", () => ({
 
 import { DEFAULT_RULES, IPL_TEAMS, Player, Team, type PlayerData } from "@ipl-sim/engine";
 import { recordTeamScoutingExposure, type GameState } from "../game-state";
+import { createRecruitmentState } from "../recruitment";
 import { boostPlayerScouting, createScoutingState, getPlayerScoutingView } from "../scouting";
 
 function makePlayer(id: string, overrides?: Partial<PlayerData>): Player {
@@ -82,6 +83,9 @@ function buildState(): GameState {
     narrativeEvents: [],
     trainingReport: [],
     scouting,
+    recruitment: createRecruitmentState(),
+    youthProspects: [],
+    fantasyLeaderboard: [],
   };
 }
 
