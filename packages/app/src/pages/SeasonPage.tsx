@@ -1,5 +1,13 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { GameState, getPlayerSeasonStats, isSeasonComplete, isGroupStageComplete, type PlayerSeasonStat } from "../game-state";
+import {
+  GameState,
+  getBoardExpectation,
+  getBoardExpectationStatus,
+  getPlayerSeasonStats,
+  isSeasonComplete,
+  isGroupStageComplete,
+  type PlayerSeasonStat,
+} from "../game-state";
 import { useNavigate } from "react-router-dom";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
@@ -71,6 +79,8 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
   const tiredPlayers = userTeam ? userTeam.roster.filter(player => !player.injured && player.readiness <= 55).length : 0;
   const pendingOffers = state.tradeOffers.filter(offer => offer.status === "pending").length;
   const latestStory = state.narrativeEvents[0] ?? null;
+  const boardExpectation = getBoardExpectation(state);
+  const boardStatus = getBoardExpectationStatus(state, boardExpectation);
 
   // Hovered schedule match for "sim to here"
   const [hoveredMatchIdx, setHoveredMatchIdx] = useState<number | null>(null);
@@ -272,11 +282,12 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
               </button>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
               <SquadStat label="Avg Ready" value={String(averageReadiness)} />
               <SquadStat label="Tired" value={String(tiredPlayers)} />
               <SquadStat label="Offers" value={String(pendingOffers)} />
               <SquadStat label="Stories" value={String(state.narrativeEvents.length)} />
+              <SquadStat label="Board" value={boardStatus?.label ?? "-"} />
             </div>
 
             <div className="space-y-3">
@@ -296,9 +307,29 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
                       : "Condition is stable for selection."
                     : pendingOffers > 0
                       ? `${pendingOffers} trade offer(s) still need an answer.`
-                      : "No immediate off-field pressure."}
+                      : boardStatus
+                        ? boardStatus.detail
+                        : "No immediate off-field pressure."}
                 </div>
               </div>
+
+              {boardExpectation && boardStatus && (
+                <div className="rounded-xl border border-th bg-th-raised p-3">
+                  <div className="text-th-muted text-[10px] uppercase font-display tracking-wider">Board Expectation</div>
+                  <div className="text-th-primary text-sm font-display font-medium mt-1">
+                    {boardExpectation.label}
+                  </div>
+                  <div className={`text-xs mt-1 ${
+                    boardStatus.tone === "good"
+                      ? "text-green-300"
+                      : boardStatus.tone === "warn"
+                        ? "text-orange-300"
+                        : "text-blue-300"
+                  }`}>
+                    {boardStatus.label} • {boardStatus.detail}
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 {state.needsLineup && (

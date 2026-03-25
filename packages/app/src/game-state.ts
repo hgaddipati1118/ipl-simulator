@@ -126,6 +126,23 @@ export interface TrainingReportEntry {
   projectedReadiness: number;
 }
 
+export type BoardObjectiveId = "win-title" | "make-final" | "make-playoffs" | "stay-competitive";
+
+export interface BoardExpectation {
+  teamId: string;
+  objective: BoardObjectiveId;
+  label: string;
+  summary: string;
+  targetFinish: number;
+}
+
+export interface BoardExpectationStatus {
+  label: "Ahead" | "On Track" | "Under Pressure";
+  tone: "good" | "info" | "warn";
+  detail: string;
+  currentPosition: number;
+}
+
 /** Initialize fresh game state */
 export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
   const isWPL = rules.league === "wpl";
@@ -713,6 +730,91 @@ export function setTeamTrainingIntensity(
   });
 
   return changed ? { ...state, teams } : state;
+}
+
+export function getBoardExpectation(state: GameState): BoardExpectation | null {
+  const userTeam = state.teams.find(team => team.id === state.userTeamId);
+  if (!userTeam) return null;
+
+  const playoffCutoff = Math.max(2, Math.min(state.teams.length, state.rules.playoffTeams || 4));
+  const defendingChampions = state.history.some(summary => summary.champion === userTeam.name);
+  const power = userTeam.powerRating;
+
+  if (defendingChampions || power >= 86) {
+    return {
+      teamId: userTeam.id,
+      objective: "win-title",
+      label: "Win the title",
+      summary: "The board expects a trophy push from this squad.",
+      targetFinish: 1,
+    };
+  }
+
+  if (power >= 80) {
+    return {
+      teamId: userTeam.id,
+      objective: "make-final",
+      label: "Reach the final",
+      summary: "This squad is strong enough that a deep playoff run is the baseline.",
+      targetFinish: 2,
+    };
+  }
+
+  if (power >= 73) {
+    return {
+      teamId: userTeam.id,
+      objective: "make-playoffs",
+      label: "Make the playoffs",
+      summary: "The board wants a credible top-table season, not another rebuild year.",
+      targetFinish: playoffCutoff,
+    };
+  }
+
+  return {
+    teamId: userTeam.id,
+    objective: "stay-competitive",
+    label: "Stay competitive",
+    summary: "The board wants progress and a live playoff chase into the back half of the season.",
+    targetFinish: Math.min(state.teams.length, playoffCutoff + 2),
+  };
+}
+
+export function getBoardExpectationStatus(
+  state: GameState,
+  expectation: BoardExpectation | null = getBoardExpectation(state),
+): BoardExpectationStatus | null {
+  if (!expectation) return null;
+
+  const standings = getStandings(state.teams);
+  const currentPosition = standings.findIndex(entry => entry.teamId === expectation.teamId) + 1;
+  const userTeam = state.teams.find(team => team.id === expectation.teamId);
+  const matchesPlayed = userTeam?.matchesPlayed ?? 0;
+  const slack = matchesPlayed < 6 ? 2 : matchesPlayed < 10 ? 1 : 0;
+
+  if (currentPosition < expectation.targetFinish) {
+    return {
+      label: "Ahead",
+      tone: "good",
+      detail: `The board objective is ${expectation.label.toLowerCase()}, and the club is currently ahead of that pace.`,
+      currentPosition,
+    };
+  }
+
+  if (currentPosition <= expectation.targetFinish + slack) {
+    return {
+      label: "On Track",
+      tone: "info",
+      detail: `The club is sitting at #${currentPosition}. The objective is still reachable if the current level holds.`,
+      currentPosition,
+    };
+  }
+
+  return {
+    label: "Under Pressure",
+    tone: "warn",
+    detail: `The board objective is ${expectation.label.toLowerCase()}, but #${currentPosition} is now behind schedule.`,
+    currentPosition,
+  };
 }
 
 /** User responds to an incoming AI trade offer */

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { GameState } from "../game-state";
+import { GameState, getBoardExpectation, getBoardExpectationStatus } from "../game-state";
 import { PlayerLink } from "../components/PlayerLink";
 
 interface Props {
@@ -38,6 +38,8 @@ export function InboxPage({ state }: Props) {
   const latestStories = state.narrativeEvents;
   const recentTrades = [...state.completedTrades].reverse().slice(0, 4);
   const recentInjuries = state.recentInjuries.slice(0, 4);
+  const boardExpectation = getBoardExpectation(state);
+  const boardStatus = getBoardExpectationStatus(state, boardExpectation);
 
   const hotPlayers = userTeam
     ? [...userTeam.roster].filter(player => player.form >= 65).sort((a, b) => b.form - a.form).slice(0, 4)
@@ -148,6 +150,32 @@ export function InboxPage({ state }: Props) {
                     <div className="text-th-muted text-sm mt-1">{item.detail}</div>
                   </Link>
                 ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-th bg-th-surface p-4">
+            <h3 className="text-th-primary text-sm font-semibold uppercase tracking-wider mb-3">Board Watch</h3>
+            {!boardExpectation || !boardStatus ? (
+              <div className="text-th-faint text-sm">Board expectations will appear once a season objective is active.</div>
+            ) : (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-th bg-th-raised p-3">
+                  <div className="text-th-faint text-[10px] uppercase tracking-wider">Objective</div>
+                  <div className="text-th-primary font-medium mt-1">{boardExpectation.label}</div>
+                  <div className="text-th-muted text-sm mt-1 leading-6">{boardExpectation.summary}</div>
+                </div>
+                <div className={`rounded-xl border p-3 ${
+                  boardStatus.tone === "good"
+                    ? "border-green-900/40 bg-green-950/15 text-green-300"
+                    : boardStatus.tone === "warn"
+                      ? "border-orange-900/40 bg-orange-950/15 text-orange-300"
+                      : "border-blue-900/40 bg-blue-950/15 text-blue-300"
+                }`}>
+                  <div className="text-[10px] uppercase tracking-wider">Status</div>
+                  <div className="font-medium mt-1">{boardStatus.label}</div>
+                  <div className="text-sm mt-1 leading-6">{boardStatus.detail}</div>
+                </div>
               </div>
             )}
           </div>
