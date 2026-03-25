@@ -167,6 +167,20 @@ describe("releaseFreeAgents", () => {
     const released = releaseFreeAgents(team);
     expect(released[0].teamId).toBeUndefined();
   });
+
+  it("refunds their salary from team spend", () => {
+    const team = makeTeam([
+      { contractYears: 0 },
+      { contractYears: 3 },
+      { contractYears: 3 },
+    ]);
+
+    expect(team.totalSpent).toBe(3);
+
+    releaseFreeAgents(team);
+
+    expect(team.totalSpent).toBe(2);
+  });
 });
 
 describe("extendContract", () => {

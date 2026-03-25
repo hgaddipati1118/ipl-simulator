@@ -102,8 +102,8 @@ export { generateRandomPlayer, generatePlayerPool, createPlayerFromData, nextPla
 
 export { randomNormal, clamp, weightedRandom, shuffle, normSInv } from "./math.js";
 
-export { RULE_PRESETS, DEFAULT_RULES, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_IDS, ALL_TEAM_IDS } from "./rules.js";
-export type { RuleSet, LeagueType, PlayoffFormat, GenderOption, PlayerSource } from "./rules.js";
+export { RULE_PRESETS, DEFAULT_RULES, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_IDS, ALL_TEAM_IDS, getAuctionType, getMaxRetentions } from "./rules.js";
+export type { RuleSet, LeagueType, PlayoffFormat, GenderOption, PlayerSource, AuctionType } from "./rules.js";
 
 export {
   evaluateTradeAI, executeTrade, createTradeOffer,

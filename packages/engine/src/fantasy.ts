@@ -5,7 +5,7 @@
  * and accumulates them across a season.
  */
 
-import type { MatchResult, InningsScore } from "./match.js";
+import type { MatchResult } from "./match.js";
 
 export interface FantasyPoints {
   playerId: string;

@@ -104,19 +104,16 @@ export function getExpiringContracts(team: Team): ExpiringContractReport {
 
 /** Release all free agents (contractYears === 0) from a team, returning them */
 export function releaseFreeAgents(team: Team): Player[] {
-  const freeAgents: Player[] = [];
-  const remaining: Player[] = [];
+  const freeAgentIds = team.roster
+    .filter(player => player.contractYears <= 0)
+    .map(player => player.id);
 
-  for (const player of team.roster) {
-    if (player.contractYears <= 0) {
-      player.teamId = undefined;
-      freeAgents.push(player);
-    } else {
-      remaining.push(player);
-    }
+  const freeAgents: Player[] = [];
+  for (const playerId of freeAgentIds) {
+    const released = team.removePlayer(playerId);
+    if (released) freeAgents.push(released);
   }
 
-  team.roster = remaining;
   return freeAgents;
 }
 

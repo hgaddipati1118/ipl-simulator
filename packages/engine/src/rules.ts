@@ -29,6 +29,9 @@ export interface RuleSet {
   injuriesEnabled: boolean;      // whether injuries can occur during matches
   gender?: GenderOption;         // player pool gender filter
   playerSource?: PlayerSource;   // "real" = existing rated players, "generated" = all CPU
+  megaAuctionCycle?: number;     // seasons between mega auctions (default 3 for IPL)
+  maxRetentions?: number;        // max players retained at mega auction (default 6)
+  maxMiniRetentions?: number;    // max players retained at mini auction (default 4)
 }
 
 /** 8 original IPL franchises (2014-2021 era) */
@@ -126,3 +129,21 @@ export const RULE_PRESETS = {
 };
 
 export const DEFAULT_RULES: RuleSet = RULE_PRESETS.modern2026;
+
+export type AuctionType = "mega" | "mini";
+
+/** Determine if the current season should have a mega or mini auction.
+ *  Mega auctions happen in season 1 and every `megaAuctionCycle` seasons.
+ *  Mini auctions happen in between. */
+export function getAuctionType(seasonNumber: number, rules: RuleSet): AuctionType {
+  const cycle = rules.megaAuctionCycle ?? 3; // IPL: every 3 seasons
+  // Season 1 is always mega. Then mega at season 4, 7, 10, etc.
+  if (seasonNumber === 1) return "mega";
+  return (seasonNumber - 1) % cycle === 0 ? "mega" : "mini";
+}
+
+/** Get max retentions for the current auction type */
+export function getMaxRetentions(auctionType: AuctionType, rules: RuleSet): number {
+  if (auctionType === "mega") return rules.maxRetentions ?? 6;
+  return rules.maxMiniRetentions ?? 4; // Mini auctions: keep most of roster, retain fewer
+}
