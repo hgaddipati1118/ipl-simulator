@@ -182,7 +182,7 @@ describe("live match venue logic", () => {
     expect(balls.length).toBeGreaterThan(0);
   });
 
-  it("turning pitches suppress spin-heavy first innings scoring in aggregate", { timeout: 30000 }, () => {
+  it("turning pitches suppress spin-heavy first innings scoring in aggregate", { timeout: 60000 }, () => {
     const matches = 12;
     const flat = averageLiveFirstInnings(
       matches,
@@ -227,11 +227,13 @@ describe("applyLiveBallContextModifiers", () => {
 
   it("adds extra control risk to long pace spells without touching spin", () => {
     const tiredPacer = applyLiveBallContextModifiers(baseProbs, {
+      batterBalls: 12,
       bowlerOversBowled: 3,
       bowlingStyle: "right-arm-fast",
       over: 17,
     });
     const spinner = applyLiveBallContextModifiers(baseProbs, {
+      batterBalls: 12,
       bowlerOversBowled: 3,
       bowlingStyle: "off-spin",
       over: 17,

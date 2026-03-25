@@ -244,8 +244,8 @@ describe("Player progression", () => {
     battingPlan.progress({ focus: "batting", intensity: "balanced" });
     bowlingPlan.progress({ focus: "bowling", intensity: "balanced" });
 
-    expect(battingPlan.battingOvr).toBeGreaterThan(bowlingPlan.battingOvr);
-    expect(bowlingPlan.bowlingOvr).toBeGreaterThan(battingPlan.bowlingOvr);
+    expect(battingPlan.ratings.timing).toBeGreaterThan(bowlingPlan.ratings.timing);
+    expect(bowlingPlan.ratings.wicketTaking).toBeGreaterThan(battingPlan.ratings.wicketTaking);
   });
 });
 

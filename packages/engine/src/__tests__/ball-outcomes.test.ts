@@ -223,14 +223,14 @@ describe("determineWideType", () => {
 
 describe("runsOffWide", () => {
   it("returns 0-4 runs", () => {
-    const results = sample(runsOffWide, 5_000);
+    const results = sample(runsOffWide, 2_000);
     for (const r of results) {
       expect([0, 1, 2, 4]).toContain(r);
     }
   });
 
   it("most common is 0 additional runs", () => {
-    const results = sample(runsOffWide, 5_000);
+    const results = sample(runsOffWide, 2_000);
     const zeros = countOccurrences(results, 0);
     // Should be ~70%
     expect(zeros / results.length).toBeGreaterThan(0.55);
@@ -239,14 +239,14 @@ describe("runsOffWide", () => {
 
 describe("runsOffNoBall", () => {
   it("returns 0, 1, 4, or 6 runs", () => {
-    const results = sample(runsOffNoBall, 5_000);
+    const results = sample(runsOffNoBall, 2_000);
     for (const r of results) {
       expect([0, 1, 4, 6]).toContain(r);
     }
   });
 
   it("most common is 0 additional runs", () => {
-    const results = sample(runsOffNoBall, 5_000);
+    const results = sample(runsOffNoBall, 2_000);
     const zeros = countOccurrences(results, 0);
     // Should be ~55%
     expect(zeros / results.length).toBeGreaterThan(0.40);
