@@ -42,6 +42,14 @@ import {
   type ScoutingState,
   syncScoutingState,
 } from "./scouting";
+import {
+  createRecruitmentState,
+  type RecruitmentState,
+  setRecruitmentTier as setRecruitmentTierState,
+  syncRecruitmentState,
+  toggleRecruitmentTarget,
+  type RecruitmentTier,
+} from "./recruitment";
 
 /** Aggregated player season stats for leaderboards */
 export interface PlayerSeasonStat {
@@ -98,6 +106,7 @@ export interface GameState {
   narrativeEvents: NarrativeEvent[];
   trainingReport: TrainingReportEntry[];
   scouting: ScoutingState;
+  recruitment: RecruitmentState;
 
   // Retention state
   retentionState?: RetentionState;
@@ -155,10 +164,15 @@ function syncStateScouting(state: GameState, seasonNumber = state.seasonNumber):
   return syncScoutingState(state.scouting, state.teams, state.playerPool, state.userTeamId, seasonNumber);
 }
 
+function syncStateRecruitment(state: GameState): RecruitmentState {
+  return syncRecruitmentState(state.recruitment, state.teams, state.playerPool);
+}
+
 function withSyncedScouting(state: GameState, seasonNumber = state.seasonNumber): GameState {
   return {
     ...state,
     scouting: syncStateScouting(state, seasonNumber),
+    recruitment: syncStateRecruitment(state),
   };
 }
 
@@ -232,6 +246,7 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     narrativeEvents: [],
     trainingReport: [],
     scouting: createScoutingState(teams, additionalPlayers, null, 1),
+    recruitment: createRecruitmentState(),
   };
 }
 
@@ -831,6 +846,37 @@ export function recordTeamScoutingExposure(
       teamId,
       amount,
     ),
+  };
+}
+
+export function setRecruitmentTier(
+  state: GameState,
+  playerId: string,
+  tier: RecruitmentTier | null,
+): GameState {
+  return {
+    ...state,
+    recruitment: setRecruitmentTierState(state.recruitment, playerId, tier, state.seasonNumber),
+  };
+}
+
+export function toggleShortlistPlayer(
+  state: GameState,
+  playerId: string,
+): GameState {
+  return {
+    ...state,
+    recruitment: toggleRecruitmentTarget(state.recruitment, playerId, "shortlist", state.seasonNumber),
+  };
+}
+
+export function toggleWatchlistPlayer(
+  state: GameState,
+  playerId: string,
+): GameState {
+  return {
+    ...state,
+    recruitment: toggleRecruitmentTarget(state.recruitment, playerId, "watchlist", state.seasonNumber),
   };
 }
 

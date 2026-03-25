@@ -6,10 +6,14 @@ import { TeamBadge } from "../components/TeamBadge";
 import { RadarChart } from "../components/RadarChart";
 import { PlayerAvatar } from "../components/PlayerAvatar";
 import { getPlayerScoutingView } from "../scouting";
+import { getRecruitmentTag } from "../recruitment";
+import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentControls";
 
 interface Props {
   state: GameState;
   onScoutPlayer?: (playerId: string) => void;
+  onToggleShortlist?: (playerId: string) => void;
+  onToggleWatchlist?: (playerId: string) => void;
 }
 
 /** Color for an attribute bar based on value 0-99 */
@@ -34,7 +38,7 @@ const ROLE_BADGE: Record<string, { bg: string; text: string }> = {
   "wicket-keeper": { bg: "bg-cyan-500/15 border-cyan-500/30", text: "text-cyan-400" },
 };
 
-export function PlayerPage({ state, onScoutPlayer }: Props) {
+export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWatchlist }: Props) {
   const { playerId } = useParams();
   const navigate = useNavigate();
 
@@ -219,6 +223,7 @@ export function PlayerPage({ state, onScoutPlayer }: Props) {
   const rb = ROLE_BADGE[player.role] ?? ROLE_BADGE.batsman;
   const isUserPlayer = team.id === state.userTeamId;
   const scoutingView = getPlayerScoutingView(player, team.id, state.scouting, state.userTeamId);
+  const recruitmentTag = getRecruitmentTag(state.recruitment, player.id);
 
   const attrs = [
     { key: "battingIQ", label: "Batting IQ", view: scoutingView.attributes.battingIQ, group: "bat" },
@@ -325,6 +330,12 @@ export function PlayerPage({ state, onScoutPlayer }: Props) {
                   <span className="text-th-faint text-[10px] font-display">{scoutingView.confidenceLabel}</span>
                 </>
               )}
+              {recruitmentTag && (
+                <>
+                  <span className="text-th-faint">|</span>
+                  <RecruitmentBadge tier={recruitmentTag} />
+                </>
+              )}
             </div>
           </div>
           <div className="text-right">
@@ -413,9 +424,18 @@ export function PlayerPage({ state, onScoutPlayer }: Props) {
                 Conditioning, training plans, and medical details stay private to the owning club.
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-th-faint text-[10px] uppercase tracking-wider">Confidence</div>
-              <div className="text-th-primary font-display font-semibold">{scoutingView.confidence}%</div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="text-right">
+                <div className="text-th-faint text-[10px] uppercase tracking-wider">Confidence</div>
+                <div className="text-th-primary font-display font-semibold">{scoutingView.confidence}%</div>
+              </div>
+              {onToggleShortlist && onToggleWatchlist && (
+                <RecruitmentActions
+                  tier={recruitmentTag}
+                  onToggleShortlist={() => onToggleShortlist(player.id)}
+                  onToggleWatchlist={() => onToggleWatchlist(player.id)}
+                />
+              )}
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

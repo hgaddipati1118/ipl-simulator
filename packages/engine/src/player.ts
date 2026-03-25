@@ -98,6 +98,9 @@ export interface PlayerData {
   formHistory?: number[];       // last 5 match performance scores (0-100)
   fatigue?: number;             // 0-100 accumulated workload, lower is fresher
   workloadHistory?: number[];   // last 5 workload scores for management surfaces
+  potential?: number;           // 0-99 ceiling for youth academy prospects (higher = develops faster)
+  morale?: number;              // 0-100 player happiness, affects clutch (default 70)
+  contractYears?: number;       // years remaining on contract (0 = free agent)
 }
 
 function conditionPenalty(fatigue: number): number {
@@ -262,6 +265,9 @@ export class Player implements PlayerData {
   formHistory: number[];
   fatigue: number;
   workloadHistory: number[];
+  potential?: number;
+  morale: number;
+  contractYears: number;
   stats: PlayerStats;
 
   constructor(data: PlayerData) {
@@ -287,6 +293,9 @@ export class Player implements PlayerData {
     this.formHistory = data.formHistory ? [...data.formHistory] : [];
     this.fatigue = data.fatigue ?? 0;
     this.workloadHistory = data.workloadHistory ? [...data.workloadHistory] : [];
+    this.potential = data.potential;
+    this.morale = data.morale ?? 70;
+    this.contractYears = data.contractYears ?? 2;
     this.stats = this.emptyStats();
   }
 
@@ -441,13 +450,13 @@ export class Player implements PlayerData {
     return clamp(Math.round(score), 0, 100);
   }
 
-  /** Season-to-season progression: attributes shift based on age */
+  /** Season-to-season progression: attributes shift based on age and potential */
   progress(input?: {
     focus?: TrainingFocus;
     intensity?: TrainingIntensity;
   }): PlayerProgressReport {
     this.age++;
-    const ageBias = (30 - this.age) * 0.3; // positive for young, negative for old
+    let ageBias = (30 - this.age) * 0.3; // positive for young, negative for old
     const deviation = Math.pow(Math.abs(30 - this.age), 0.7);
     const focus = input?.focus ?? this.trainingFocus ?? "balanced";
     const intensity = input?.intensity ?? "balanced";
@@ -459,6 +468,26 @@ export class Player implements PlayerData {
     const beforeOverall = this.overall;
     const ratingChanges: Partial<Record<keyof PlayerRatings, number>> = {};
 
+    // Potential-based development boost for youth prospects
+    let potentialBoost = 0;
+    if (this.potential !== undefined) {
+      if (this.potential > 90 && this.age < 23) {
+        // Generational talent: +3 to +6 per season
+        potentialBoost = 3 + Math.random() * 3;
+      } else if (this.potential > 80 && this.age < 25) {
+        // High potential: +2 to +4 per season
+        potentialBoost = 2 + Math.random() * 2;
+      } else if (this.potential > 70 && this.age < 27) {
+        // Decent potential: +1 to +2 per season
+        potentialBoost = 1 + Math.random();
+      }
+    }
+
+    // Accelerated decline for aging players (32+)
+    if (this.age > 32) {
+      ageBias -= (this.age - 32) * 0.25;
+    }
+
     const attrs: (keyof PlayerRatings)[] = [
       "battingIQ", "timing", "power", "running",
       "wicketTaking", "economy", "accuracy", "clutch",
@@ -467,7 +496,7 @@ export class Player implements PlayerData {
     for (const attr of attrs) {
       const focusBoost = (focusBias[attr] ?? 0) * gainMultiplier;
       const next = clamp(
-        Math.round(this.ratings[attr] + randomNormal(ageBias + focusBoost, deviation * volatility)),
+        Math.round(this.ratings[attr] + randomNormal(ageBias + focusBoost + potentialBoost, deviation * volatility)),
         1,
         99,
       );
@@ -519,6 +548,9 @@ export class Player implements PlayerData {
       formHistory: [...this.formHistory],
       fatigue: this.fatigue,
       workloadHistory: [...this.workloadHistory],
+      potential: this.potential,
+      morale: this.morale,
+      contractYears: this.contractYears,
       stats: this.stats,
     };
   }
@@ -529,6 +561,9 @@ export class Player implements PlayerData {
     if (data.stats) player.stats = data.stats;
     if (data.formHistory) player.formHistory = [...data.formHistory];
     if (data.workloadHistory) player.workloadHistory = [...data.workloadHistory];
+    if (data.potential !== undefined) player.potential = data.potential;
+    if (data.morale !== undefined) player.morale = data.morale;
+    if (data.contractYears !== undefined) player.contractYears = data.contractYears;
     return player;
   }
 }

@@ -98,7 +98,7 @@ export interface LiveBowlerStats {
 
 /** A pending tactical decision the user must resolve before the match continues. */
 export interface PendingDecision {
-  type: 'choose_bowler' | 'choose_batter' | 'impact_sub' | 'toss_decision' | 'drs_review' | 'retire_out';
+  type: 'choose_bowler' | 'choose_batter' | 'impact_sub' | 'toss_decision' | 'drs_review' | 'retire_out' | 'strategic_timeout';
   /** Player IDs the user can pick from. For impact_sub, these are bench players who can come in.
    *  For toss_decision, options are ["bat", "bowl"]. For drs_review, options are ["review", "accept"]. */
   options: string[];
@@ -201,6 +201,12 @@ export interface MatchState {
 
   // DRS reviews remaining per team (start at 1 each)
   drsRemaining: { home: number; away: number };
+
+  // Strategic timeouts (IPL: bowling team overs 6-9, batting team overs 13-16)
+  strategicTimeouts: {
+    home: { used: boolean; over?: number };
+    away: { used: boolean; over?: number };
+  };
 
   // Internal state (for serialization, not for UI display)
   _internal: MatchStateInternal;
@@ -823,6 +829,10 @@ export function createMatchState(
     aggression: { home: 50, away: 50 },
     fieldSetting: { home: "standard", away: "standard" },
     drsRemaining: { home: 1, away: 1 },
+    strategicTimeouts: {
+      home: { used: false },
+      away: { used: false },
+    },
 
     _internal: {
       matchId,
@@ -1385,7 +1395,69 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       }
     }
 
-    // Pick next bowler if innings continues (and no pending batter/retire decision)
+    // ── Strategic Timeout (between overs) ───────────────────────────
+    // IPL rule: bowling team calls timeout in overs 6-9, batting team in overs 13-16
+    if (newState.status !== "waiting_for_decision" &&
+        newState.overs < maxOvers && newState.wickets < 10 &&
+        !(isSecondInnings && newState.score >= target)) {
+      const completedOver = newState.overs; // overs just completed (1-indexed after increment)
+      const isUserBattingTO = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
+      const isUserBowlingTO = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
+      const bowlingIsHome = newState.bowlingTeamId === newState.homeTeam.id;
+      const battingIsHome = newState.battingTeamId === newState.homeTeam.id;
+
+      // Bowling team timeout: overs 6-9 (after overs 6, 7, 8, 9 completed)
+      if (completedOver >= 6 && completedOver <= 9) {
+        const bowlTO = bowlingIsHome ? newState.strategicTimeouts.home : newState.strategicTimeouts.away;
+        if (!bowlTO.used) {
+          if (isUserBowlingTO) {
+            // Offer timeout to user
+            newState.pendingDecision = {
+              type: 'strategic_timeout',
+              options: ["use", "skip"],
+              teamId: newState.bowlingTeamId,
+            };
+            newState.status = "waiting_for_decision";
+          } else {
+            // CPU auto-uses at over 7
+            if (completedOver === 7) {
+              if (bowlingIsHome) {
+                newState.strategicTimeouts.home = { used: true, over: completedOver };
+              } else {
+                newState.strategicTimeouts.away = { used: true, over: completedOver };
+              }
+            }
+          }
+        }
+      }
+
+      // Batting team timeout: overs 13-16 (after overs 13, 14, 15, 16 completed)
+      if (newState.status !== "waiting_for_decision" &&
+          completedOver >= 13 && completedOver <= 16) {
+        const batTO = battingIsHome ? newState.strategicTimeouts.home : newState.strategicTimeouts.away;
+        if (!batTO.used) {
+          if (isUserBattingTO) {
+            newState.pendingDecision = {
+              type: 'strategic_timeout',
+              options: ["use", "skip"],
+              teamId: newState.battingTeamId,
+            };
+            newState.status = "waiting_for_decision";
+          } else {
+            // CPU auto-uses at over 14
+            if (completedOver === 14) {
+              if (battingIsHome) {
+                newState.strategicTimeouts.home = { used: true, over: completedOver };
+              } else {
+                newState.strategicTimeouts.away = { used: true, over: completedOver };
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Pick next bowler if innings continues (and no pending batter/retire/timeout decision)
     if (newState.status !== "waiting_for_decision" &&
         newState.overs < maxOvers && newState.wickets < 10 &&
         !(isSecondInnings && newState.score >= target)) {
@@ -1909,6 +1981,25 @@ export function applyDecision(
 
       break;
     }
+
+    case 'strategic_timeout': {
+      const choice = decision.selectedPlayerId; // "use" or "skip"
+      const teamId = pending.teamId;
+      const isHome = teamId === newState.homeTeam.id;
+
+      if (choice === "use") {
+        if (isHome) {
+          newState.strategicTimeouts.home = { used: true, over: newState.overs };
+        } else {
+          newState.strategicTimeouts.away = { used: true, over: newState.overs };
+        }
+        // The user can now adjust aggression/field settings before the next ball
+        // (the UI will present those controls while the timeout decision is being made)
+      }
+      // If "skip", the team forfeits the timeout for this over window (but can still use later)
+
+      break;
+    }
   }
 
   // Clear the pending decision and resume
@@ -2156,6 +2247,11 @@ export function autoResolveDecision(state: MatchState): MatchState {
     case 'retire_out': {
       // When auto-resolving (fast-forward / CPU), skip retirement
       return applyDecision(state, { type: 'retire_out', selectedPlayerId: "skip" });
+    }
+
+    case 'strategic_timeout': {
+      // When auto-resolving, skip the timeout
+      return applyDecision(state, { type: 'strategic_timeout', selectedPlayerId: "skip" });
     }
   }
 

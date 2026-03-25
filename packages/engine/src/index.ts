@@ -38,6 +38,7 @@ export { getMatchupModifiers, getMatchPhase, isPaceBowler, isSpinBowler, getBatt
 export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";
 
 export { calculateWinProbability } from "./win-probability.js";
+export { getDLSResource, calculateDLSTarget, checkRainInterruption, canProduceResult, getRainDelayNarrative } from "./dls.js";
 
 export {
   determineDismissalType, isCatchDropped, determineWideType, runsOffWide,
@@ -152,3 +153,39 @@ export type { BallCommentaryParams } from "./commentary.js";
 
 export { generatePostMatchNarrative } from "./narrative.js";
 export type { NarrativeEvent, PostMatchNarrativeParams } from "./narrative.js";
+
+export {
+  generateBoardObjectives,
+  evaluateBoardObjectives,
+  createBoardState,
+  updateBoardState,
+  isFired,
+} from "./board.js";
+export type { BoardObjective, BoardObjectiveType, BoardState } from "./board.js";
+
+export {
+  updateTeamMorale,
+  getMoraleModifier,
+  getClutchMoraleModifier,
+  initSeasonMorale,
+  getMoraleLabel,
+  getDisgruntledPlayers,
+  getConsecutiveResults,
+} from "./morale.js";
+
+export {
+  getContractLength,
+  assignTeamContracts,
+  tickContracts,
+  getExpiringContracts,
+  releaseFreeAgents,
+  extendContract,
+  getContractBadge,
+} from "./contracts.js";
+export type { ContractSource, ContractInfo, ExpiringContractReport } from "./contracts.js";
+
+export { generateYouthProspects } from "./youth-academy.js";
+export type { YouthProspect } from "./youth-academy.js";
+
+export { calculateFantasyPoints, accumulateFantasyPoints, enrichFantasyNames } from "./fantasy.js";
+export type { FantasyPoints } from "./fantasy.js";

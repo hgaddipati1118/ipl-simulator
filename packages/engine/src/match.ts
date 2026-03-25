@@ -16,6 +16,7 @@ import { Player } from "./player.js";
 import { Team } from "./team.js";
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
+import { getMoraleModifier, getClutchMoraleModifier } from "./morale.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
 import {
   decideTossChoice,
@@ -294,12 +295,20 @@ function simulateBall(
   if (over >= 17 && isSecondInnings) {
     const runsNeeded = target - currentScore;
     if (runsNeeded > 0 && runsNeeded <= 30) {
-      const clutchBalance = (batter.ratings.clutch - bowler.ratings.clutch) / 100;
+      const clutchBalance = (batter.ratings.clutch * getClutchMoraleModifier(batter) - bowler.ratings.clutch * getClutchMoraleModifier(bowler)) / 100;
       probs["6"] *= 1 + clutchBalance * 0.3;
       probs["4"] *= 1 + clutchBalance * 0.2;
       probs.wicket *= 1 - clutchBalance * 0.2;
     }
   }
+
+  // Morale modifier: happy batters perform slightly better, unhappy slightly worse
+  const batterMoraleMod = getMoraleModifier(batter);
+  const bowlerMoraleMod = getMoraleModifier(bowler);
+  probs["4"] *= batterMoraleMod;
+  probs["6"] *= batterMoraleMod;
+  probs.wicket *= bowlerMoraleMod;
+  probs.dot *= bowlerMoraleMod;
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
