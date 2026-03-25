@@ -5,7 +5,13 @@ import { ovrBgClass, roleLabel, bowlingStyleLabel, battingPositionLabel, batting
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
 import { PlayerAvatar } from "../components/PlayerAvatar";
-import { getPlayerScoutingView, type ScoutingState } from "../scouting";
+import {
+  getPlayerScoutingView,
+  getScoutingAssignment,
+  MAX_SCOUTING_ASSIGNMENTS,
+  type ScoutingAssignment,
+  type ScoutingState,
+} from "../scouting";
 import { getRecruitmentTag, type RecruitmentState } from "../recruitment";
 import { RecruitmentBadge } from "../components/RecruitmentControls";
 
@@ -13,12 +19,14 @@ interface Props {
   teams: Team[];
   rules?: RuleSet;
   scouting: ScoutingState;
+  scoutingAssignments: ScoutingAssignment[];
   recruitment: RecruitmentState;
   userTeamId: string | null;
   onScoutTeam?: (teamId: string, amount?: number) => void;
+  onToggleScoutAssignment?: (teamId: string) => void;
 }
 
-export function TeamView({ teams, rules = DEFAULT_RULES, scouting, recruitment, userTeamId, onScoutTeam }: Props) {
+export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssignments, recruitment, userTeamId, onScoutTeam, onToggleScoutAssignment }: Props) {
   const { teamId } = useParams();
   const navigate = useNavigate();
   const team = teams.find(t => t.id === teamId);
@@ -29,6 +37,12 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, recruitment, 
   }, [teamId, userTeamId, onScoutTeam]);
 
   const isUserTeam = team?.id === userTeamId;
+  const teamAssignment = team ? getScoutingAssignment(scoutingAssignments, "team", team.id) : null;
+  const assignmentCapacityFull = scoutingAssignments.length >= MAX_SCOUTING_ASSIGNMENTS;
+  const watchlistCount = useMemo(
+    () => team ? team.roster.filter(player => getRecruitmentTag(recruitment, player.id) === "watchlist").length : 0,
+    [team, recruitment],
+  );
   const roster = useMemo(
     () => team ? [...team.roster].sort((a, b) => b.selectionScore - a.selectionScore || b.overall - a.overall) : [],
     [team],
@@ -62,6 +76,30 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, recruitment, 
             <span className="stat-num">{team.totalSpent.toFixed(1)}</span>/<span className="stat-num">{team.salaryCap}</span> Cr
           </p>
         </div>
+        {!isUserTeam && (
+          <div className="ml-auto flex flex-col items-end gap-2">
+            <button
+              onClick={() => onToggleScoutAssignment?.(team.id)}
+              disabled={!teamAssignment && assignmentCapacityFull}
+              className={`rounded-lg border px-3 py-2 text-xs font-display font-medium transition-colors ${
+                teamAssignment
+                  ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
+                  : assignmentCapacityFull
+                    ? "border-th bg-th-raised text-th-faint cursor-not-allowed"
+                    : "border-th bg-th-raised text-th-secondary hover:text-th-primary hover:bg-th-hover"
+              }`}
+            >
+              {teamAssignment
+                ? `Stop Team Sweep (${teamAssignment.cyclesWorked}/${teamAssignment.cyclesRequired})`
+                : "Assign Team Scout"}
+            </button>
+            <div className="text-th-faint text-[10px] font-display">
+              {watchlistCount > 0
+                ? `${watchlistCount} watchlist ${watchlistCount === 1 ? "player" : "players"} on this roster`
+                : `${scoutingAssignments.length}/${MAX_SCOUTING_ASSIGNMENTS} desk slots active`}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stats grid */}

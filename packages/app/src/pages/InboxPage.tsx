@@ -53,7 +53,35 @@ export function InboxPage({ state }: Props) {
     : [];
   const risers = [...trainingReview].filter(entry => entry.overallChange > 0).sort((a, b) => b.overallChange - a.overallChange).slice(0, 3);
   const stalled = [...trainingReview].filter(entry => entry.overallChange <= 0).sort((a, b) => a.overallChange - b.overallChange).slice(0, 3);
-  const scoutingUpdates = state.scoutingInbox.slice(0, 4);
+  const shortlistIds = useMemo(
+    () => new Set(
+      Object.entries(state.recruitment.targets)
+        .filter(([, target]) => target.tier === "shortlist")
+        .map(([playerId]) => playerId),
+    ),
+    [state.recruitment],
+  );
+  const watchlistIds = useMemo(
+    () => new Set(
+      Object.entries(state.recruitment.targets)
+        .filter(([, target]) => target.tier === "watchlist")
+        .map(([playerId]) => playerId),
+    ),
+    [state.recruitment],
+  );
+  const scoutingUpdates = useMemo(
+    () => [...state.scoutingInbox]
+      .sort((left, right) => {
+        const leftWatchlist = left.playerIds.some(playerId => watchlistIds.has(playerId));
+        const rightWatchlist = right.playerIds.some(playerId => watchlistIds.has(playerId));
+        if (leftWatchlist !== rightWatchlist) return Number(rightWatchlist) - Number(leftWatchlist);
+        const leftShortlist = left.playerIds.some(playerId => shortlistIds.has(playerId));
+        const rightShortlist = right.playerIds.some(playerId => shortlistIds.has(playerId));
+        return Number(rightShortlist) - Number(leftShortlist);
+      })
+      .slice(0, 4),
+    [state.scoutingInbox, shortlistIds, watchlistIds],
+  );
   const activeScoutingAssignments = state.scoutingAssignments;
 
   const actionItems = [
@@ -216,11 +244,20 @@ export function InboxPage({ state }: Props) {
                         <div key={update.id} className="rounded-xl border border-th bg-th-raised p-3">
                           <div className="flex items-center justify-between gap-3">
                             <div className="text-th-primary font-medium">{update.headline}</div>
-                            <span className={`text-[10px] uppercase tracking-wider ${
-                              update.completed ? "text-amber-300" : "text-emerald-300"
-                            }`}>
-                              {update.completed ? "Delivered" : "In Progress"}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {update.playerIds.some(playerId => watchlistIds.has(playerId)) && (
+                                <span className="text-[10px] uppercase tracking-wider text-sky-300">Watchlist</span>
+                              )}
+                              {!update.playerIds.some(playerId => watchlistIds.has(playerId)) &&
+                                update.playerIds.some(playerId => shortlistIds.has(playerId)) && (
+                                  <span className="text-[10px] uppercase tracking-wider text-amber-300">Shortlist</span>
+                                )}
+                              <span className={`text-[10px] uppercase tracking-wider ${
+                                update.completed ? "text-amber-300" : "text-emerald-300"
+                              }`}>
+                                {update.completed ? "Delivered" : "In Progress"}
+                              </span>
+                            </div>
                           </div>
                           <div className="text-th-muted text-sm mt-1 leading-6">{update.detail}</div>
                         </div>

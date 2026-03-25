@@ -53,6 +53,9 @@ import {
   getContractBadge,
   getAuctionType,
   getMaxRetentions,
+  getSeasonSalaryCap,
+  getScaledRetentions,
+  getAuctionPoolSize,
   type ExpiringContractReport,
 } from "@ipl-sim/engine";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
@@ -214,6 +217,12 @@ function getShortlistPlayerIds(recruitment: RecruitmentState): string[] {
     .map(([playerId]) => playerId);
 }
 
+function getWatchlistPlayerIds(recruitment: RecruitmentState): string[] {
+  return Object.entries(recruitment.targets)
+    .filter(([, target]) => target.tier === "watchlist")
+    .map(([playerId]) => playerId);
+}
+
 function prependScoutingInbox(
   existing: ScoutingInboxItem[],
   updates: ScoutingInboxItem[],
@@ -265,6 +274,7 @@ function progressStateScoutingAssignments(
     synced.userTeamId,
     synced.seasonNumber,
     getShortlistPlayerIds(synced.recruitment),
+    getWatchlistPlayerIds(synced.recruitment),
     options,
   );
 
@@ -1025,7 +1035,16 @@ export function nextSeason(state: GameState): GameState {
   // Determine auction type for next season — this controls retention
   const nextSeasonNum = state.seasonNumber + 1;
   const auctionType = getAuctionType(nextSeasonNum, state.rules);
-  const maxRetain = getMaxRetentions(auctionType, state.rules);
+  // Use scaled retention count for mega auctions (increases over time)
+  const maxRetain = auctionType === "mega"
+    ? getScaledRetentions(nextSeasonNum, state.rules)
+    : getMaxRetentions(auctionType, state.rules);
+
+  // Update salary cap for inflation
+  const scaledSalaryCap = getSeasonSalaryCap(nextSeasonNum, state.rules);
+  for (const team of state.teams) {
+    team.salaryCap = scaledSalaryCap;
+  }
 
   // Handle retention based on auction cycle
   let contractReport: ExpiringContractReport | undefined;

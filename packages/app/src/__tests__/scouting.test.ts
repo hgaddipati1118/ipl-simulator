@@ -181,4 +181,19 @@ describe("scouting helpers", () => {
     expect(overflow.scoutingAssignments).toHaveLength(MAX_SCOUTING_ASSIGNMENTS);
     expect(overflow.scoutingAssignments.some(entry => entry.type === "market")).toBe(false);
   });
+
+  it("supports team scouting assignments for opponent rosters", () => {
+    const state = buildState();
+    const targetTeam = state.teams[1];
+    const before = targetTeam.roster.map(player => state.scouting.reports[player.id].confidence);
+
+    const assigned = toggleScoutingAssignment(state, "team", targetTeam.id);
+    const progressed = advanceActiveScoutingAssignments(assigned);
+    const after = targetTeam.roster.map(player => progressed.scouting.reports[player.id].confidence);
+
+    expect(assigned.scoutingAssignments.some(entry => entry.type === "team" && entry.targetId === targetTeam.id)).toBe(true);
+    expect(progressed.scoutingInbox.some(entry => entry.headline.includes(targetTeam.shortName))).toBe(true);
+    expect(after[0]).toBeGreaterThan(before[0]);
+    expect(after[1]).toBeGreaterThan(before[1]);
+  });
 });

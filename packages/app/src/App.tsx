@@ -488,6 +488,10 @@ export default function App() {
     update(toggleScoutingAssignment(state, "player", playerId));
   };
 
+  const handleToggleTeamScoutAssignment = (teamId: string) => {
+    update(toggleScoutingAssignment(state, "team", teamId));
+  };
+
   const handleToggleShortlistScoutAssignment = () => {
     update(toggleScoutingAssignment(state, "shortlist"));
   };
@@ -711,9 +715,11 @@ export default function App() {
             teams={state.teams}
             rules={state.rules}
             scouting={state.scouting}
+            scoutingAssignments={state.scoutingAssignments}
             recruitment={state.recruitment}
             userTeamId={state.userTeamId}
             onScoutTeam={handleScoutTeam}
+            onToggleScoutAssignment={handleToggleTeamScoutAssignment}
           />
         } />
         <Route path="/ratings" element={

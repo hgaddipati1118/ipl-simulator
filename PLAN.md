@@ -54,6 +54,8 @@ Completed or materially improved in code:
 - player, ratings, auction, trade, and opponent-roster views now show report bands and market reads for external players until scouting confidence improves
 - a limited scouting-assignment desk now exists with player, shortlist, and market jobs instead of only passive page-view exposure
 - scouting assignments now persist in saves and deliver timed recruitment updates through the inbox
+- opponent team pages can now launch team scouting sweeps, and market/team assignments now prioritize watchlisted players instead of flat market order
+- scouting inbox triage now surfaces shortlist/watchlist-related reports more clearly instead of treating every update as equal
 
 Still intentionally not solved in this pass:
 
@@ -292,7 +294,8 @@ Status:
 - scouting confidence is now persistent app state rather than page-local chrome
 - external player surfaces now render estimate bands and market reads instead of exact hidden ratings
 - active scouting assignments now exist for player files, shortlist sweeps, and free-agent market scans
-- the next step is deeper workflow control: team scouting jobs, watchlist-driven desk behavior, and better filtering of delivered reports
+- opponent team scouting sweeps and watchlist-aware prioritization are now in
+- the next step is better filtering/triage controls for delivered reports and broader staff-allocation rules
 
 Work:
 
@@ -335,7 +338,7 @@ These are the next highest-leverage items:
 2. Finish auto-sim/live-sim convergence by closing remaining rule gaps and deeper phase-role behavior.
 3. Player form system.
 4. Captaincy, rotation, and richer between-match management calls on top of the new fatigue/training model.
-5. Scouting workflow depth beyond v1 assignments: team jobs, watchlist rules, and better report filtering.
+5. Scouting workflow depth beyond the current desk: richer report filtering, staff-allocation rules, and broader watchlist automation.
 6. Inbox/board/narrative layer.
 7. Contract and retention-era value pressure.
 

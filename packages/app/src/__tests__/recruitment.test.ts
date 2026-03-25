@@ -134,4 +134,45 @@ describe("recruitment helpers", () => {
     expect(assigned.scoutingAssignments.some(entry => entry.type === "shortlist")).toBe(true);
     expect(progressed.scoutingInbox.some(entry => entry.headline.includes("Shortlist report"))).toBe(true);
   });
+
+  it("prioritizes watchlisted players in market scans", () => {
+    const state = buildState();
+    const watchTarget = makePlayer("watch_target", {
+      ratings: {
+        battingIQ: 42,
+        timing: 41,
+        power: 40,
+        running: 39,
+        wicketTaking: 38,
+        economy: 37,
+        accuracy: 36,
+        clutch: 35,
+      },
+    });
+    const highValuePool = Array.from({ length: 15 }, (_, index) => makePlayer(`high_pool_${index}`, {
+      ratings: {
+        battingIQ: 82,
+        timing: 81,
+        power: 80,
+        running: 74,
+        wicketTaking: 78,
+        economy: 77,
+        accuracy: 76,
+        clutch: 75,
+      },
+    }));
+
+    const expandedState: GameState = {
+      ...state,
+      playerPool: [watchTarget, ...highValuePool],
+      scouting: createScoutingState(state.teams, [watchTarget, ...highValuePool], state.userTeamId, state.seasonNumber),
+    };
+
+    const watchlisted = toggleWatchlistPlayer(expandedState, watchTarget.id);
+    const before = watchlisted.scouting.reports[watchTarget.id].confidence;
+    const assigned = toggleScoutingAssignment(watchlisted, "market");
+
+    expect(assigned.scouting.reports[watchTarget.id].confidence).toBeGreaterThan(before);
+    expect(assigned.scoutingInbox[0]?.headline).toContain("Market scan");
+  });
 });

@@ -300,6 +300,28 @@ function sortEntriesByPriority(entries: PlayerEntry[]): PlayerEntry[] {
   );
 }
 
+function sortEntriesByDeskPriority(
+  entries: PlayerEntry[],
+  shortlistIds: string[],
+  watchlistIds: string[],
+): PlayerEntry[] {
+  const shortlistSet = new Set(shortlistIds);
+  const watchlistSet = new Set(watchlistIds);
+
+  const priority = (playerId: string): number => {
+    if (watchlistSet.has(playerId)) return 0;
+    if (shortlistSet.has(playerId)) return 1;
+    return 2;
+  };
+
+  return [...entries].sort((left, right) =>
+    priority(left.player.id) - priority(right.player.id) ||
+    right.player.marketValue - left.player.marketValue ||
+    right.player.overall - left.player.overall ||
+    left.player.age - right.player.age,
+  );
+}
+
 function unresolvedEntries(
   entries: PlayerEntry[],
   reports: Record<string, ScoutingReport>,
@@ -318,6 +340,7 @@ function resolveAssignmentEntries(
   reports: Record<string, ScoutingReport>,
   userTeamId: string | null,
   shortlistIds: string[],
+  watchlistIds: string[],
 ): PlayerEntry[] {
   const config = ASSIGNMENT_CONFIG[assignment.type];
   const entriesById = trackedPlayerMap(teams, playerPool);
@@ -333,7 +356,7 @@ function resolveAssignmentEntries(
       const team = teams.find(entry => entry.id === assignment.targetId);
       if (!team) return [];
       return unresolvedEntries(
-        sortEntriesByPriority(team.roster.map(player => ({ player, teamId: team.id }))).slice(0, config.maxTargets),
+        sortEntriesByDeskPriority(team.roster.map(player => ({ player, teamId: team.id })), shortlistIds, watchlistIds).slice(0, config.maxTargets),
         reports,
         userTeamId,
       );
@@ -343,14 +366,14 @@ function resolveAssignmentEntries(
         .map(playerId => entriesById.get(playerId))
         .filter((entry): entry is PlayerEntry => entry !== undefined);
       return unresolvedEntries(
-        sortEntriesByPriority(shortlistEntries).slice(0, config.maxTargets),
+        sortEntriesByDeskPriority(shortlistEntries, shortlistIds, watchlistIds).slice(0, config.maxTargets),
         reports,
         userTeamId,
       );
     }
     case "market":
       return unresolvedEntries(
-        sortEntriesByPriority(playerPool.map(player => ({ player, teamId: player.teamId }))).slice(0, config.maxTargets),
+        sortEntriesByDeskPriority(playerPool.map(player => ({ player, teamId: player.teamId })), shortlistIds, watchlistIds).slice(0, config.maxTargets),
         reports,
         userTeamId,
       );
@@ -688,6 +711,7 @@ export function progressScoutingAssignments(
   userTeamId: string | null,
   seasonNumber: number,
   shortlistIds: string[],
+  watchlistIds: string[],
   options?: {
     assignmentIds?: string[];
     amountScale?: number;
@@ -714,6 +738,7 @@ export function progressScoutingAssignments(
       nextScouting.reports,
       userTeamId,
       shortlistIds,
+      watchlistIds,
     );
 
     if (entries.length === 0) {
