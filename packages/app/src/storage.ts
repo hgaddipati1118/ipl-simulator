@@ -62,6 +62,7 @@ interface SaveMeta {
   userTeamId: string | null;
   rules: RuleSet;
   retentionState?: GameState["retentionState"];
+  contractsResolved?: boolean;
   // Season progress (lightweight scalars in localStorage)
   currentMatchIndex?: number;
   playoffsStarted?: boolean;
@@ -266,6 +267,7 @@ export async function saveState(state: GameState): Promise<void> {
     userTeamId: state.userTeamId,
     rules: state.rules,
     retentionState: state.retentionState,
+    contractsResolved: state.contractsResolved,
     currentMatchIndex: state.currentMatchIndex,
     playoffsStarted: state.playoffsStarted,
     needsLineup: state.needsLineup,
@@ -385,6 +387,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       fantasyLeaderboard: fantasyLeaderboard ?? [],
       boardState: boardState ?? undefined,
       contractReport: contractReport ?? undefined,
+      contractsResolved: meta.contractsResolved ?? true,
       retentionState: meta.retentionState,
       auctionLiveState: auctionLiveStateRaw
         ? deserializeAuctionLiveState(auctionLiveStateRaw) : undefined,
@@ -446,6 +449,7 @@ async function migrateLegacyData(): Promise<GameState | null> {
         recruitment: createRecruitmentState(),
         youthProspects: [],
         fantasyLeaderboard: [],
+        contractsResolved: true,
       };
 
       // Migrate into a new slot
@@ -502,6 +506,7 @@ async function migrateLegacyData(): Promise<GameState | null> {
       fantasyLeaderboard: data.fantasyLeaderboard ?? [],
       boardState: data.boardState ?? undefined,
       contractReport: data.contractReport ?? undefined,
+      contractsResolved: data.contractsResolved ?? true,
     };
 
     // Migrate into a slot
@@ -577,6 +582,7 @@ export function exportSave(state: GameState): void {
       userTeamId: state.userTeamId,
       rules: state.rules,
       retentionState: state.retentionState,
+      contractsResolved: state.contractsResolved,
       currentMatchIndex: state.currentMatchIndex,
       playoffsStarted: state.playoffsStarted,
       needsLineup: state.needsLineup,
@@ -652,6 +658,7 @@ export async function importSave(file: File): Promise<GameState> {
     fantasyLeaderboard: data.fantasyLeaderboard ?? [],
     boardState: data.boardState ?? undefined,
     contractReport: data.contractReport ?? undefined,
+    contractsResolved: data.meta?.contractsResolved ?? data.contractsResolved ?? true,
   };
 
   // Create a new slot for the import

@@ -48,6 +48,8 @@ import {
   tickContracts,
   assignTeamContracts,
   getExpiringContracts,
+  releaseFreeAgents,
+  extendContract,
   getContractBadge,
   type ExpiringContractReport,
 } from "@ipl-sim/engine";
@@ -145,6 +147,7 @@ export interface GameState {
 
   // Contract expiry report (populated at season end)
   contractReport?: ExpiringContractReport;
+  contractsResolved?: boolean;
 }
 
 export interface SeasonSummary {
@@ -205,6 +208,50 @@ function withSyncedScouting(state: GameState, seasonNumber = state.seasonNumber)
     ...state,
     scouting: syncStateScouting(state, seasonNumber),
     recruitment: syncStateRecruitment(state),
+  };
+}
+
+function generateOffseasonTradeOffers(state: GameState): TradeOffer[] {
+  return state.userTeamId
+    ? generateAITradeOffers(state.teams, state.userTeamId, 3)
+    : [];
+}
+
+function refreshUserContractState(state: GameState): GameState {
+  const userTeam = state.teams.find(team => team.id === state.userTeamId);
+  if (!userTeam) {
+    return {
+      ...state,
+      contractReport: undefined,
+      contractsResolved: true,
+    };
+  }
+
+  const contractReport = getExpiringContracts(userTeam);
+  const hasExpiredContracts = contractReport.freeAgents.length > 0;
+
+  if (hasExpiredContracts) {
+    return {
+      ...state,
+      contractReport,
+      contractsResolved: false,
+      tradeOffers: [],
+    };
+  }
+
+  if (state.contractsResolved === false) {
+    return {
+      ...state,
+      contractReport,
+      contractsResolved: true,
+      tradeOffers: generateOffseasonTradeOffers(state),
+    };
+  }
+
+  return {
+    ...state,
+    contractReport,
+    contractsResolved: true,
   };
 }
 
@@ -281,6 +328,7 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     recruitment: createRecruitmentState(),
     youthProspects: [],
     fantasyLeaderboard: [],
+    contractsResolved: true,
   };
 }
 
@@ -401,6 +449,7 @@ export function initSeason(state: GameState): GameState {
     narrativeEvents: [],
     boardState,
     contractReport: undefined,
+    contractsResolved: true,
     fantasyLeaderboard: [],
   });
 }
@@ -863,11 +912,6 @@ export function nextSeason(state: GameState): GameState {
     }
   }
 
-  // Generate AI trade offers for the user
-  const tradeOffers = state.userTeamId
-    ? generateAITradeOffers(state.teams, state.userTeamId, 3)
-    : [];
-
   // Add new young players to pool
   const newPlayers = generatePlayerPool(50);
 
@@ -878,12 +922,18 @@ export function nextSeason(state: GameState): GameState {
 
   // Tick contracts for all teams, collect expiry report for user
   let contractReport: ExpiringContractReport | undefined;
+  const releasedFreeAgents: Player[] = [];
   for (const team of state.teams) {
     const report = tickContracts(team);
     if (team.id === state.userTeamId) {
       contractReport = report;
+    } else {
+      releasedFreeAgents.push(...releaseFreeAgents(team));
     }
   }
+
+  const userHasExpiredContracts = (contractReport?.freeAgents.length ?? 0) > 0;
+  const tradeOffers = userHasExpiredContracts ? [] : generateOffseasonTradeOffers(state);
 
   // Evaluate board objectives at season end
   let boardState = state.boardState;
@@ -913,7 +963,7 @@ export function nextSeason(state: GameState): GameState {
     phase: "trade",
     seasonNumber: state.seasonNumber + 1,
     seasonResult: null,
-    playerPool: [...state.playerPool, ...newPlayers],
+    playerPool: [...state.playerPool, ...newPlayers, ...releasedFreeAgents],
     tradeOffers,
     completedTrades: [],
     schedule: [],
@@ -928,6 +978,7 @@ export function nextSeason(state: GameState): GameState {
     fantasyLeaderboard: [],
     boardState,
     contractReport,
+    contractsResolved: !userHasExpiredContracts,
   }, state.seasonNumber + 1);
 }
 
@@ -1244,7 +1295,43 @@ export function proposeUserTrade(
 
 /** Finish the trade window and move to retention */
 export function finishTrades(state: GameState): GameState {
-  return startRetention(state);
+  return startRetention(releaseExpiredUserContracts(state));
+}
+
+export function extendUserPlayerContract(
+  state: GameState,
+  playerId: string,
+  years: number,
+): GameState {
+  if (!state.userTeamId || years <= 0) return state;
+  const userTeam = state.teams.find(team => team.id === state.userTeamId);
+  const player = userTeam?.roster.find(rosterPlayer => rosterPlayer.id === playerId);
+  if (!player) return state;
+
+  extendContract(player, years);
+  return withSyncedScouting(refreshUserContractState(state));
+}
+
+export function releaseExpiredUserContracts(state: GameState): GameState {
+  if (!state.userTeamId) return state;
+  const userTeam = state.teams.find(team => team.id === state.userTeamId);
+  if (!userTeam) return state;
+
+  const releasedPlayers = releaseFreeAgents(userTeam);
+  if (releasedPlayers.length === 0) {
+    return withSyncedScouting(refreshUserContractState(state));
+  }
+
+  for (const player of releasedPlayers) {
+    player.contractYears = 0;
+  }
+
+  return withSyncedScouting(
+    refreshUserContractState({
+      ...state,
+      playerPool: [...state.playerPool, ...releasedPlayers],
+    }),
+  );
 }
 
 // ── Retention phase ────────────────────────────────────────────────────

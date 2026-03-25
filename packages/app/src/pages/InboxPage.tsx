@@ -54,6 +54,13 @@ export function InboxPage({ state }: Props) {
   const stalled = [...trainingReview].filter(entry => entry.overallChange <= 0).sort((a, b) => a.overallChange - b.overallChange).slice(0, 3);
 
   const actionItems = [
+    state.contractReport && (state.contractReport.freeAgents.length > 0 || state.contractReport.finalYear.length > 0) ? {
+      title: state.contractReport.freeAgents.length > 0 ? "Contract decisions due" : "Contract review due",
+      detail: state.contractReport.freeAgents.length > 0
+        ? `${state.contractReport.freeAgents.length} expired deal(s) are blocking the trade market.`
+        : `${state.contractReport.finalYear.length} player(s) are entering their final contract year.`,
+      href: "/trade",
+    } : null,
     state.needsLineup ? {
       title: "Lineup due",
       detail: "Your next match needs a confirmed XI and bowling plan.",
@@ -176,6 +183,51 @@ export function InboxPage({ state }: Props) {
                   <div className="font-medium mt-1">{boardStatus.label}</div>
                   <div className="text-sm mt-1 leading-6">{boardStatus.detail}</div>
                 </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-th bg-th-surface p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-th-primary text-sm font-semibold uppercase tracking-wider">Contract Watch</h3>
+              <Link to="/trade" className="text-th-muted hover:text-th-primary text-xs">Open Trade Desk</Link>
+            </div>
+            {!state.contractReport || (state.contractReport.finalYear.length === 0 && state.contractReport.freeAgents.length === 0) ? (
+              <div className="text-th-faint text-sm">No contract pressure points right now.</div>
+            ) : (
+              <div className="space-y-4">
+                {state.contractReport.freeAgents.length > 0 && (
+                  <div>
+                    <div className="text-red-300 text-xs uppercase tracking-wider mb-2">Expired Deals</div>
+                    <div className="space-y-2">
+                      {state.contractReport.freeAgents.map(contract => (
+                        <div key={contract.playerId} className="flex items-center justify-between gap-3 text-sm">
+                          <PlayerLink playerId={contract.playerId} className="text-th-primary">{contract.playerName}</PlayerLink>
+                          <span className="text-red-300 font-medium">Renew or release</span>
+                        </div>
+                      ))}
+                    </div>
+                    {state.contractsResolved === false && (
+                      <div className="text-th-faint text-xs mt-2 leading-5">
+                        Trade offers stay locked until those expired contracts are resolved.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {state.contractReport.finalYear.length > 0 && (
+                  <div className={state.contractReport.freeAgents.length > 0 ? "pt-3 border-t border-th" : ""}>
+                    <div className="text-amber-300 text-xs uppercase tracking-wider mb-2">Entering Final Year</div>
+                    <div className="space-y-2">
+                      {state.contractReport.finalYear.map(contract => (
+                        <div key={contract.playerId} className="flex items-center justify-between gap-3 text-sm">
+                          <PlayerLink playerId={contract.playerId} className="text-th-primary">{contract.playerName}</PlayerLink>
+                          <span className="text-amber-300 font-medium">{contract.yearsRemaining} year left</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

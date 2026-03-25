@@ -213,6 +213,19 @@ describe("simCurrentPlayer", () => {
       expect(state.unsold.length).toBe(1);
     }
   });
+
+  it("assigns a fresh auction contract when an expired player is sold", () => {
+    const teams = buildTeams(2);
+    const player = makePlayer("expired_pool", "batsman", 88);
+    player.contractYears = 0;
+
+    let state = initAuction([player], teams);
+    state = userBid(state, teams, teams[0].id);
+    state = simCurrentPlayer(state, teams);
+
+    const signedPlayer = teams.flatMap(team => team.roster).find(rosterPlayer => rosterPlayer.id === player.id);
+    expect(signedPlayer?.contractYears).toBe(3);
+  });
 });
 
 // ── simRemainingAuction ──────────────────────────────────────────────────

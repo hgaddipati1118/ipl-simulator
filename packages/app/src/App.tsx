@@ -36,6 +36,8 @@ import {
   respondToTradeOffer,
   proposeUserTrade,
   finishTrades,
+  extendUserPlayerContract,
+  releaseExpiredUserContracts,
   initSeason,
   playNextMatch,
   applyLiveMatchToState,
@@ -437,6 +439,14 @@ export default function App() {
     navigate("/retention");
   };
 
+  const handleExtendContract = (playerId: string, years: number) => {
+    update(extendUserPlayerContract(state, playerId, years));
+  };
+
+  const handleReleaseExpiredContracts = () => {
+    update(releaseExpiredUserContracts(state));
+  };
+
   // ── Retention handlers ──
 
   const handleToggleRetention = (playerId: string) => {
@@ -646,6 +656,8 @@ export default function App() {
             state={state}
             scouting={state.scouting}
             recruitment={state.recruitment}
+            onExtendContract={handleExtendContract}
+            onReleaseExpiredContracts={handleReleaseExpiredContracts}
             onRespondToOffer={handleRespondToOffer}
             onProposeTrade={handleProposeTrade}
             onFinishTrades={handleFinishTrades}

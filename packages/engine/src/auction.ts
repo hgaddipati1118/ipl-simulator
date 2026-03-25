@@ -9,6 +9,7 @@
 
 import { Player } from "./player.js";
 import { Team } from "./team.js";
+import { getContractLength } from "./contracts.js";
 import type { RNG } from "./rng.js";
 
 // ── Base price & bid increment utilities ────────────────────────────────
@@ -81,6 +82,12 @@ const DEFAULT_CONFIG: AuctionConfig = {
   maxInternational: 8,
   minSquadSize: 18,
 };
+
+function assignAuctionContract(player: Player): void {
+  if (player.contractYears <= 0) {
+    player.contractYears = getContractLength("auction");
+  }
+}
 
 export const RETENTION_BUDGET = 75;
 export const MAX_RETENTIONS = 6;
@@ -203,6 +210,7 @@ export function runAuction(
       if (wkIdx === -1) break;
       const [wk] = unsold.splice(wkIdx, 1);
       team.addPlayer(wk, getBasePrice(wk));
+      assignAuctionContract(wk);
       bids.push({ playerId: wk.id, playerName: wk.name, teamId: team.id, amount: getBasePrice(wk), round: 0 });
       wkCount++;
     }
@@ -218,6 +226,7 @@ export function runAuction(
       const [freeAgent] = unsold.splice(idx, 1);
       const bid = getBasePrice(freeAgent);
       team.addPlayer(freeAgent, bid);
+      assignAuctionContract(freeAgent);
       bids.push({
         playerId: freeAgent.id,
         playerName: freeAgent.name,
@@ -311,6 +320,7 @@ function auctionPlayer(
 
   if (currentBidder) {
     currentBidder.addPlayer(player, currentBid);
+    assignAuctionContract(player);
     return {
       playerId: player.id,
       playerName: player.name,
@@ -461,6 +471,7 @@ export function cpuBidRound(
       const winningTeam = teams.find(t => t.id === currentBidderId);
       if (winningTeam) {
         winningTeam.addPlayer(player, currentBid);
+        assignAuctionContract(player);
       }
       const bid: AuctionBid = {
         playerId: player.id,

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { type Team, type Player, type TradeOffer } from "@ipl-sim/engine";
+import { getContractBadge, type Team, type Player, type TradeOffer } from "@ipl-sim/engine";
 import { GameState } from "../game-state";
 import { ovrColorClass } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
+import { PlayerLink } from "../components/PlayerLink";
 import { getPlayerScoutingView, type PlayerScoutingView, type ScoutingState } from "../scouting";
 import { getRecruitmentTag, type RecruitmentState } from "../recruitment";
 import { RecruitmentBadge } from "../components/RecruitmentControls";
@@ -11,6 +12,8 @@ interface Props {
   state: GameState;
   scouting: ScoutingState;
   recruitment: RecruitmentState;
+  onExtendContract: (playerId: string, years: number) => void;
+  onReleaseExpiredContracts: () => void;
   onRespondToOffer: (offerId: string, accept: boolean) => void;
   onProposeTrade: (toTeamId: string, userPlayerIds: string[], targetPlayerIds: string[]) => { accepted: boolean; reason: string; counterOffer?: TradeOffer };
   onFinishTrades: () => void;
@@ -18,6 +21,156 @@ interface Props {
   onScoutTeam: (teamId: string, amount?: number) => void;
   onScoutPlayers: (playerIds: string[], amount?: number) => void;
   onPromoteProspect?: (index: number) => void;
+}
+
+function ContractDesk({
+  userTeam,
+  tradeLocked,
+  onExtendContract,
+  onReleaseExpiredContracts,
+}: {
+  userTeam: Team;
+  tradeLocked: boolean;
+  onExtendContract: (playerId: string, years: number) => void;
+  onReleaseExpiredContracts: () => void;
+}) {
+  const expiredPlayers = [...userTeam.roster]
+    .filter(player => player.contractYears <= 0)
+    .sort((a, b) => b.overall - a.overall);
+  const finalYearPlayers = [...userTeam.roster]
+    .filter(player => player.contractYears === 1)
+    .sort((a, b) => b.overall - a.overall);
+
+  if (expiredPlayers.length === 0 && finalYearPlayers.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={`rounded-2xl border p-5 sm:p-6 mb-5 ${
+      tradeLocked
+        ? "border-amber-500/20 bg-amber-500/[0.05]"
+        : "border-th bg-th-surface"
+    }`}>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+        <div>
+          <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Contract Desk</h3>
+          <p className="text-th-muted text-sm mt-2 font-display leading-6">
+            Resolve expired deals before the trade market opens. Final-year players can also be renewed here.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-display">
+          <span className="rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-red-300">
+            {expiredPlayers.length} expired
+          </span>
+          <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-amber-300">
+            {finalYearPlayers.length} on final year
+          </span>
+        </div>
+      </div>
+
+      {tradeLocked && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3 mb-4">
+          <div className="text-amber-300 font-display font-medium text-sm">Trade market locked</div>
+          <div className="text-amber-100/80 text-sm mt-1 leading-6">
+            Renew or release your expired contracts to unlock incoming offers and proposals.
+          </div>
+        </div>
+      )}
+
+      {expiredPlayers.length > 0 && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <div className="text-red-300 text-[10px] uppercase tracking-wider font-display font-semibold">Expired Deals</div>
+              <div className="text-th-faint text-xs mt-1">These players will hit the market unless you renew them now.</div>
+            </div>
+            <button
+              onClick={onReleaseExpiredContracts}
+              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-display font-medium text-red-200 hover:bg-red-500/15 transition-colors"
+            >
+              Release All Expired
+            </button>
+          </div>
+          <div className="space-y-2">
+            {expiredPlayers.map(player => (
+              <div key={player.id} className="rounded-xl border border-th bg-th-raised px-4 py-3">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <PlayerLink playerId={player.id} className="text-th-primary font-display font-medium">{player.name}</PlayerLink>
+                        <span className={`text-xs font-semibold ${ovrColorClass(player.overall)}`}>{player.overall} OVR</span>
+                        <span className="text-[10px] rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-red-300">
+                          {getContractBadge(player.contractYears)}
+                        </span>
+                      </div>
+                      <div className="text-th-muted text-xs mt-1 font-display">
+                        {player.role} • Age {player.age} • Last deal {player.bid.toFixed(1)} Cr
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => onExtendContract(player.id, 1)}
+                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-display font-medium text-amber-200 hover:bg-amber-500/15 transition-colors"
+                    >
+                      Renew +1 Year
+                    </button>
+                    <button
+                      onClick={() => onExtendContract(player.id, 2)}
+                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-display font-medium text-emerald-200 hover:bg-emerald-500/15 transition-colors"
+                    >
+                      Renew +2 Years
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {finalYearPlayers.length > 0 && (
+        <div>
+          <div className="text-amber-300 text-[10px] uppercase tracking-wider font-display font-semibold mb-3">Entering Final Year</div>
+          <div className="space-y-2">
+            {finalYearPlayers.map(player => (
+              <div key={player.id} className="rounded-xl border border-th bg-th-raised px-4 py-3">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <PlayerLink playerId={player.id} className="text-th-primary font-display font-medium">{player.name}</PlayerLink>
+                      <span className={`text-xs font-semibold ${ovrColorClass(player.overall)}`}>{player.overall} OVR</span>
+                      <span className="text-[10px] rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-amber-300">
+                        {getContractBadge(player.contractYears)}
+                      </span>
+                    </div>
+                    <div className="text-th-muted text-xs mt-1 font-display">
+                      {player.role} • Age {player.age} • Current bid {player.bid.toFixed(1)} Cr
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => onExtendContract(player.id, 1)}
+                      className="rounded-lg border border-th bg-th-overlay px-3 py-1.5 text-xs font-display font-medium text-th-secondary hover:text-th-primary hover:bg-th-hover transition-colors"
+                    >
+                      Add 1 Year
+                    </button>
+                    <button
+                      onClick={() => onExtendContract(player.id, 2)}
+                      className="rounded-lg border border-th bg-th-overlay px-3 py-1.5 text-xs font-display font-medium text-th-secondary hover:text-th-primary hover:bg-th-hover transition-colors"
+                    >
+                      Add 2 Years
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PlayerChip({
@@ -388,6 +541,8 @@ export function TradePage({
   state,
   scouting,
   recruitment,
+  onExtendContract,
+  onReleaseExpiredContracts,
   onRespondToOffer,
   onProposeTrade,
   onFinishTrades,
@@ -397,6 +552,7 @@ export function TradePage({
   onPromoteProspect,
 }: Props) {
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
+  const tradeLocked = state.contractsResolved === false || !!userTeam?.roster.some(player => player.contractYears <= 0);
   const pendingOfferPlayerIds = state.tradeOffers
     .filter(offer => offer.status === "pending")
     .flatMap(offer => [...offer.playersOffered, ...offer.playersRequested]);
@@ -412,26 +568,48 @@ export function TradePage({
         <div>
           <h2 className="text-2xl font-display font-bold text-th-primary tracking-tight">Trade Window</h2>
           <p className="text-th-muted mt-1 font-display">Season <span className="stat-num">{state.seasonNumber}</span> — Pre-auction trades</p>
-          <p className="text-th-faint text-xs font-display mt-1">Opposition values are now filtered through scouting confidence instead of exact internals.</p>
+          <p className="text-th-faint text-xs font-display mt-1">
+            {tradeLocked
+              ? "Resolve expired contracts first, then the trade market will open."
+              : "Opposition values are filtered through scouting confidence instead of exact internals."}
+          </p>
         </div>
         <button
           onClick={onFinishTrades}
-          className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-orange-500/20 w-full sm:w-auto"
+          disabled={tradeLocked}
+          className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-500 text-white font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-orange-500/20 disabled:shadow-none w-full sm:w-auto"
         >
-          Finish Trades & Start Auction
+          {tradeLocked ? "Resolve Contracts First" : "Finish Trades & Start Auction"}
         </button>
       </div>
 
+      {userTeam && (
+        <ContractDesk
+          userTeam={userTeam}
+          tradeLocked={tradeLocked}
+          onExtendContract={onExtendContract}
+          onReleaseExpiredContracts={onReleaseExpiredContracts}
+        />
+      )}
+
       {/* Incoming offers */}
-      <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5">
+      <div className={`rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5 transition-opacity ${tradeLocked ? "opacity-45 pointer-events-none" : ""}`}>
         <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-4">Incoming Trade Offers</h3>
-        <IncomingOffers state={state} scouting={scouting} recruitment={recruitment} onRespond={onRespondToOffer} />
+        {tradeLocked ? (
+          <p className="text-th-muted text-sm font-display">Incoming offers unlock once your expired contracts are resolved.</p>
+        ) : (
+          <IncomingOffers state={state} scouting={scouting} recruitment={recruitment} onRespond={onRespondToOffer} />
+        )}
       </div>
 
       {/* Propose trade */}
-      <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5">
+      <div className={`rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5 transition-opacity ${tradeLocked ? "opacity-45 pointer-events-none" : ""}`}>
         <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-4">Propose a Trade</h3>
-        <ProposeTrade state={state} scouting={scouting} recruitment={recruitment} onPropose={onProposeTrade} onScoutTeam={onScoutTeam} />
+        {tradeLocked ? (
+          <p className="text-th-muted text-sm font-display">Resolve contracts first, then you can start shopping the squad.</p>
+        ) : (
+          <ProposeTrade state={state} scouting={scouting} recruitment={recruitment} onPropose={onProposeTrade} onScoutTeam={onScoutTeam} />
+        )}
       </div>
 
       {/* Stadium settings */}
