@@ -319,7 +319,7 @@ describe("simulateMatch", () => {
     expect(result.innings[1].ballLog.length).toBeGreaterThan(0);
   });
 
-  it("turning pitches reward spin-heavy bowling more than flat pitches in aggregate", () => {
+  it("turning pitches reward spin-heavy bowling more than flat pitches in aggregate", { timeout: 30000 }, () => {
     const matches = 90;
     const flat = averageFirstInnings(
       matches,

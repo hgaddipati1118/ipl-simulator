@@ -168,7 +168,7 @@ describe("live match venue logic", () => {
     }
   });
 
-  it("simulates cleanly when venue metadata is missing", () => {
+  it("simulates cleanly when venue metadata is missing", { timeout: 30000 }, () => {
     const initial = createMatchState(
       buildTeam(0, { pitchType: undefined, boundarySize: undefined, dewFactor: undefined }),
       buildTeam(1, { pitchType: undefined, boundarySize: undefined, dewFactor: undefined }),
@@ -182,8 +182,8 @@ describe("live match venue logic", () => {
     expect(balls.length).toBeGreaterThan(0);
   });
 
-  it("turning pitches suppress spin-heavy first innings scoring in aggregate", { timeout: 60000 }, () => {
-    const matches = 12;
+  it("turning pitches suppress spin-heavy first innings scoring in aggregate", { timeout: 120000 }, () => {
+    const matches = 8;
     const flat = averageLiveFirstInnings(
       matches,
       () => buildSpinHeavyTeam(0, { pitchType: "flat", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),

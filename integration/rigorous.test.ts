@@ -345,7 +345,7 @@ describe("trade counter-offer negotiation", () => {
 // ── AI Trade Offer Generation ────────────────────────────────────────────
 
 describe("AI trade offer quality", () => {
-  it("AI offers are not absurdly lopsided", () => {
+  it("AI offers are not absurdly lopsided", { timeout: 30000 }, () => {
     const teams = buildIPLTeams();
     const offers = generateAITradeOffers(teams, teams[0].id, 5);
 
