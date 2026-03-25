@@ -67,6 +67,7 @@ function buildState(): GameState {
     recentInjuries: [],
     narrativeEvents: [],
     trainingReport: [],
+    scouting: { reports: {} },
   };
 }
 
@@ -127,6 +128,7 @@ function buildLeagueState(): GameState {
     recentInjuries: [],
     narrativeEvents: [],
     trainingReport: [],
+    scouting: { reports: {} },
   };
 }
 

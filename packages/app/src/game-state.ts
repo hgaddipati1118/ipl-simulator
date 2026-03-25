@@ -35,6 +35,13 @@ import {
 import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
 import { buildNarrativeEventsForEngineResult, prependNarrativeEvents, type FeedMatchResult } from "./news-feed";
+import {
+  boostPlayerScouting,
+  boostTeamScouting,
+  createScoutingState,
+  type ScoutingState,
+  syncScoutingState,
+} from "./scouting";
 
 /** Aggregated player season stats for leaderboards */
 export interface PlayerSeasonStat {
@@ -90,6 +97,7 @@ export interface GameState {
   // Post-match narrative events (news feed)
   narrativeEvents: NarrativeEvent[];
   trainingReport: TrainingReportEntry[];
+  scouting: ScoutingState;
 
   // Retention state
   retentionState?: RetentionState;
@@ -141,6 +149,17 @@ export interface BoardExpectationStatus {
   tone: "good" | "info" | "warn";
   detail: string;
   currentPosition: number;
+}
+
+function syncStateScouting(state: GameState, seasonNumber = state.seasonNumber): ScoutingState {
+  return syncScoutingState(state.scouting, state.teams, state.playerPool, state.userTeamId, seasonNumber);
+}
+
+function withSyncedScouting(state: GameState, seasonNumber = state.seasonNumber): GameState {
+  return {
+    ...state,
+    scouting: syncStateScouting(state, seasonNumber),
+  };
 }
 
 /** Initialize fresh game state */
@@ -212,6 +231,7 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     recentInjuries: [],
     narrativeEvents: [],
     trainingReport: [],
+    scouting: createScoutingState(teams, additionalPlayers, null, 1),
   };
 }
 
@@ -231,12 +251,12 @@ export function runAuctionPhase(state: GameState): GameState {
     }
   }
 
-  return {
+  return withSyncedScouting({
     ...state,
     phase: "season",
     auctionResult: result,
     playerPool: result.unsold,
-  };
+  });
 }
 
 /** Run a full season */
@@ -282,7 +302,7 @@ export function initSeason(state: GameState): GameState {
   const userPlays = firstMatch &&
     (firstMatch.homeTeamId === state.userTeamId || firstMatch.awayTeamId === state.userTeamId);
 
-  return {
+  return withSyncedScouting({
     ...state,
     schedule,
     currentMatchIndex: 0,
@@ -291,7 +311,7 @@ export function initSeason(state: GameState): GameState {
     needsLineup: !!userPlays,
     recentInjuries: [],
     narrativeEvents: [],
-  };
+  });
 }
 
 /** Check if the current match involves the user's team */
@@ -363,6 +383,8 @@ export function playNextMatch(state: GameState): {
   let newSchedule = [...schedule];
   let newPlayoffsStarted = state.playoffsStarted;
   const newInjuries = rawResult.injuries || [];
+  const matchInvolvesUser = !!state.userTeamId &&
+    (matchEntry?.homeTeamId === state.userTeamId || matchEntry?.awayTeamId === state.userTeamId);
 
   const groupCount = schedule.filter(m => m.type === "group").length;
   if (!state.playoffsStarted && newIndex === groupCount) {
@@ -390,17 +412,37 @@ export function playNextMatch(state: GameState): {
       (nextMatch.homeTeamId === state.userTeamId || nextMatch.awayTeamId === state.userTeamId));
   }
 
+  let nextState: GameState = {
+    ...state,
+    schedule: newSchedule,
+    currentMatchIndex: newIndex,
+    matchResults: newMatchResults,
+    playoffsStarted: newPlayoffsStarted,
+    needsLineup,
+    recentInjuries: newInjuries,
+    narrativeEvents: newNarrativeEvents,
+    scouting: state.scouting,
+  };
+
+  if (matchInvolvesUser && matchEntry) {
+    const homeIds = nextState.teams.find(team => team.id === matchEntry.homeTeamId)?.roster.map(player => player.id) ?? [];
+    const awayIds = nextState.teams.find(team => team.id === matchEntry.awayTeamId)?.roster.map(player => player.id) ?? [];
+    nextState = {
+      ...nextState,
+      scouting: boostPlayerScouting(
+        nextState.scouting,
+        nextState.teams,
+        nextState.playerPool,
+        nextState.userTeamId,
+        nextState.seasonNumber,
+        [...homeIds, ...awayIds],
+        10,
+      ),
+    };
+  }
+
   return {
-    state: {
-      ...state,
-      schedule: newSchedule,
-      currentMatchIndex: newIndex,
-      matchResults: newMatchResults,
-      playoffsStarted: newPlayoffsStarted,
-      needsLineup,
-      recentInjuries: newInjuries,
-      narrativeEvents: newNarrativeEvents,
-    },
+    state: withSyncedScouting(nextState),
     result: serialized,
     detailed,
     matchIndex: currentMatchIndex,
@@ -445,6 +487,8 @@ export function applyLiveMatchToState(
   let newSchedule = [...schedule];
   let newPlayoffsStarted = state.playoffsStarted;
   const newInjuries = rawResult.injuries || [];
+  const matchInvolvesUser = !!state.userTeamId &&
+    (matchEntry?.homeTeamId === state.userTeamId || matchEntry?.awayTeamId === state.userTeamId);
 
   const groupCount = schedule.filter(m => m.type === "group").length;
   if (!state.playoffsStarted && newIndex === groupCount) {
@@ -472,17 +516,37 @@ export function applyLiveMatchToState(
       (nextMatch.homeTeamId === state.userTeamId || nextMatch.awayTeamId === state.userTeamId));
   }
 
+  let nextState: GameState = {
+    ...state,
+    schedule: newSchedule,
+    currentMatchIndex: newIndex,
+    matchResults: newMatchResults,
+    playoffsStarted: newPlayoffsStarted,
+    needsLineup,
+    recentInjuries: newInjuries,
+    narrativeEvents: persistedNarratives,
+    scouting: state.scouting,
+  };
+
+  if (matchInvolvesUser && matchEntry) {
+    const homeIds = nextState.teams.find(team => team.id === matchEntry.homeTeamId)?.roster.map(player => player.id) ?? [];
+    const awayIds = nextState.teams.find(team => team.id === matchEntry.awayTeamId)?.roster.map(player => player.id) ?? [];
+    nextState = {
+      ...nextState,
+      scouting: boostPlayerScouting(
+        nextState.scouting,
+        nextState.teams,
+        nextState.playerPool,
+        nextState.userTeamId,
+        nextState.seasonNumber,
+        [...homeIds, ...awayIds],
+        10,
+      ),
+    };
+  }
+
   return {
-    state: {
-      ...state,
-      schedule: newSchedule,
-      currentMatchIndex: newIndex,
-      matchResults: newMatchResults,
-      playoffsStarted: newPlayoffsStarted,
-      needsLineup,
-      recentInjuries: newInjuries,
-      narrativeEvents: persistedNarratives,
-    },
+    state: withSyncedScouting(nextState),
     result: serialized,
     matchIndex: currentMatchIndex,
   };
@@ -572,11 +636,11 @@ export function finalizeSeason(state: GameState): GameState {
   const orangeCap = allPlayers.reduce(
     (best, p) => {
       const sr = p.stats.ballsFaced > 0 ? (p.stats.runs / p.stats.ballsFaced) * 100 : 0;
-      if (p.stats.runs > best.runs) return { playerId: p.id, runs: p.stats.runs, strikeRate: sr };
-      if (p.stats.runs === best.runs && sr > best.strikeRate) return { playerId: p.id, runs: p.stats.runs, strikeRate: sr };
+      if (p.stats.runs > best.runs) return { playerId: p.id, name: p.name, runs: p.stats.runs, strikeRate: sr };
+      if (p.stats.runs === best.runs && sr > best.strikeRate) return { playerId: p.id, name: p.name, runs: p.stats.runs, strikeRate: sr };
       return best;
     },
-    { playerId: "", runs: 0, strikeRate: 0 },
+    { playerId: "", name: "", runs: 0, strikeRate: 0 },
   );
 
   // Purple Cap: most wickets, tiebreaker = lower economy rate
@@ -586,11 +650,11 @@ export function finalizeSeason(state: GameState): GameState {
       const fracBalls = Math.round((p.stats.overs - intOvers) * 10);
       const totalOvers = intOvers + fracBalls / 6;
       const econ = totalOvers > 0 ? p.stats.runsConceded / totalOvers : 99;
-      if (p.stats.wickets > best.wickets) return { playerId: p.id, wickets: p.stats.wickets, economy: econ };
-      if (p.stats.wickets === best.wickets && econ < best.economy) return { playerId: p.id, wickets: p.stats.wickets, economy: econ };
+      if (p.stats.wickets > best.wickets) return { playerId: p.id, name: p.name, wickets: p.stats.wickets, economy: econ };
+      if (p.stats.wickets === best.wickets && econ < best.economy) return { playerId: p.id, name: p.name, wickets: p.stats.wickets, economy: econ };
       return best;
     },
-    { playerId: "", wickets: 0, economy: 99 },
+    { playerId: "", name: "", wickets: 0, economy: 99 },
   );
 
   // MVP points accumulation across all matches
@@ -680,7 +744,7 @@ export function nextSeason(state: GameState): GameState {
   // Add new young players to pool
   const newPlayers = generatePlayerPool(50);
 
-  return {
+  return withSyncedScouting({
     ...state,
     phase: "trade",
     seasonNumber: state.seasonNumber + 1,
@@ -696,7 +760,7 @@ export function nextSeason(state: GameState): GameState {
     recentInjuries: [],
     narrativeEvents: [],
     trainingReport,
-  };
+  }, state.seasonNumber + 1);
 }
 
 export function setPlayerTrainingFocus(
@@ -730,6 +794,44 @@ export function setTeamTrainingIntensity(
   });
 
   return changed ? { ...state, teams } : state;
+}
+
+export function recordPlayerScoutingExposure(
+  state: GameState,
+  playerIds: string[],
+  amount = 8,
+): GameState {
+  return {
+    ...state,
+    scouting: boostPlayerScouting(
+      state.scouting,
+      state.teams,
+      state.playerPool,
+      state.userTeamId,
+      state.seasonNumber,
+      playerIds,
+      amount,
+    ),
+  };
+}
+
+export function recordTeamScoutingExposure(
+  state: GameState,
+  teamId: string,
+  amount = 8,
+): GameState {
+  return {
+    ...state,
+    scouting: boostTeamScouting(
+      state.scouting,
+      state.teams,
+      state.playerPool,
+      state.userTeamId,
+      state.seasonNumber,
+      teamId,
+      amount,
+    ),
+  };
 }
 
 export function getBoardExpectation(state: GameState): BoardExpectation | null {
@@ -856,6 +958,15 @@ export function respondToTradeOffer(
     ...state,
     tradeOffers: [...state.tradeOffers],
     completedTrades: [...state.completedTrades, completedTrade],
+    scouting: boostPlayerScouting(
+      state.scouting,
+      state.teams,
+      state.playerPool,
+      state.userTeamId,
+      state.seasonNumber,
+      [...offer.playersOffered, ...offer.playersRequested],
+      8,
+    ),
   };
 }
 
@@ -894,6 +1005,15 @@ export function proposeUserTrade(
     state: {
       ...state,
       completedTrades: [...state.completedTrades, completedTrade],
+      scouting: boostPlayerScouting(
+        state.scouting,
+        state.teams,
+        state.playerPool,
+        state.userTeamId,
+        state.seasonNumber,
+        [...userPlayerIds, ...targetPlayerIds],
+        10,
+      ),
     },
     accepted: result.accepted,
     reason: result.reason ?? "",
@@ -911,7 +1031,7 @@ export function finishTrades(state: GameState): GameState {
 /** Start the retention phase after trade window */
 export function startRetention(state: GameState): GameState {
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
-  return {
+  return withSyncedScouting({
     ...state,
     phase: "retention",
     retentionState: {
@@ -922,7 +1042,7 @@ export function startRetention(state: GameState): GameState {
       costs: {},
       cpuDone: false,
     },
-  };
+  });
 }
 
 /** Toggle a player between retained/released */
@@ -977,14 +1097,14 @@ export function runCPURetentions(state: GameState): GameState {
     releasedToPool.push(...released);
   }
 
-  return {
+  return withSyncedScouting({
     ...state,
     playerPool: [...state.playerPool, ...releasedToPool],
     retentionState: {
       ...state.retentionState,
       cpuDone: true,
     },
-  };
+  });
 }
 
 /** Finish retention and start auction */
@@ -1026,13 +1146,13 @@ export function finishRetention(state: GameState): GameState {
     };
   }
 
-  return {
+  return withSyncedScouting({
     ...state,
     phase: "auction",
     auctionResult: null,
     auctionLiveState: undefined,
     retentionState: undefined,
-  };
+  });
 }
 
 // ── Live Auction ───────────────────────────────────────────────────────
@@ -1044,10 +1164,10 @@ export function initLiveAuction(state: GameState): GameState {
     maxInternational: state.rules.maxOverseasInSquad,
   };
   const auctionLiveState = engineInitAuction(state.playerPool, state.teams, auctionConfig);
-  return {
+  return withSyncedScouting({
     ...state,
     auctionLiveState,
-  };
+  });
 }
 
 /** User bids on the current player in live auction */
@@ -1124,21 +1244,21 @@ export function finalizeLiveAuction(state: GameState): GameState {
     unsold: unsold,
   };
 
-  return {
+  return withSyncedScouting({
     ...state,
     phase: "season",
     auctionResult,
     playerPool: unsold,
     auctionLiveState: undefined,
-  };
+  });
 }
 
 /** Add imported players to the auction pool */
 export function addPlayersToPool(state: GameState, players: Player[]): GameState {
-  return {
+  return withSyncedScouting({
     ...state,
     playerPool: [...state.playerPool, ...players],
-  };
+  });
 }
 
 /** Replace a team's roster with imported players */
@@ -1163,7 +1283,7 @@ export function replaceTeamRoster(
     clone.trainingIntensity = t.trainingIntensity;
     return clone;
   });
-  return { ...state, teams };
+  return withSyncedScouting({ ...state, teams });
 }
 
 /** Update a team's stadium bowling rating */

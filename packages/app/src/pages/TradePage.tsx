@@ -1,18 +1,32 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { type Team, type Player, type TradeOffer } from "@ipl-sim/engine";
-import { GameState, CompletedTrade } from "../game-state";
-import { ovrColorClass, badgeTextColor } from "../ui-utils";
+import { GameState } from "../game-state";
+import { ovrColorClass } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
+import { getPlayerScoutingView, type PlayerScoutingView, type ScoutingState } from "../scouting";
 
 interface Props {
   state: GameState;
+  scouting: ScoutingState;
   onRespondToOffer: (offerId: string, accept: boolean) => void;
   onProposeTrade: (toTeamId: string, userPlayerIds: string[], targetPlayerIds: string[]) => { accepted: boolean; reason: string; counterOffer?: TradeOffer };
   onFinishTrades: () => void;
   onUpdateStadium: (rating: number) => void;
+  onScoutTeam: (teamId: string, amount?: number) => void;
+  onScoutPlayers: (playerIds: string[], amount?: number) => void;
 }
 
-function PlayerChip({ player, selected, onClick }: { player: Player; selected?: boolean; onClick?: () => void }) {
+function PlayerChip({
+  player,
+  scoutingView,
+  selected,
+  onClick,
+}: {
+  player: Player;
+  scoutingView: PlayerScoutingView;
+  selected?: boolean;
+  onClick?: () => void;
+}) {
   return (
     <button
       onClick={onClick}
@@ -23,14 +37,25 @@ function PlayerChip({ player, selected, onClick }: { player: Player; selected?: 
       }`}
     >
       <span className="font-display font-medium">{player.name}</span>
-      <span className={`text-xs ovr-badge ${ovrColorClass(player.overall)}`}>{player.overall}</span>
+      <span className={`text-xs ovr-badge ${ovrColorClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
       <span className="text-[10px] text-th-muted font-display">{player.role}</span>
       {player.isInternational && <span className="text-[10px] text-orange-400/60 font-semibold">OS</span>}
+      {!scoutingView.exactRatings && (
+        <span className="text-[10px] text-th-faint font-display">{scoutingView.confidenceLabel}</span>
+      )}
     </button>
   );
 }
 
-function IncomingOffers({ state, onRespond }: { state: GameState; onRespond: (id: string, accept: boolean) => void }) {
+function IncomingOffers({
+  state,
+  scouting,
+  onRespond,
+}: {
+  state: GameState;
+  scouting: ScoutingState;
+  onRespond: (id: string, accept: boolean) => void;
+}) {
   const pending = state.tradeOffers.filter(o => o.status === "pending");
   if (pending.length === 0) {
     return <p className="text-th-muted text-sm font-display">No incoming trade offers.</p>;
@@ -65,7 +90,9 @@ function IncomingOffers({ state, onRespond }: { state: GameState; onRespond: (id
                     <div key={p.id} className="flex items-center gap-2 text-sm">
                       <span className="text-emerald-400 text-xs">+</span>
                       <span className="text-th-primary font-display">{p.name}</span>
-                      <span className={`text-xs ovr-badge ${ovrColorClass(p.overall)}`}>{p.overall}</span>
+                      <span className={`text-xs ovr-badge ${ovrColorClass(getPlayerScoutingView(p, fromTeam?.id, scouting, state.userTeamId).overall.sortValue)}`}>
+                        {getPlayerScoutingView(p, fromTeam?.id, scouting, state.userTeamId).overall.compactDisplay}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -77,7 +104,9 @@ function IncomingOffers({ state, onRespond }: { state: GameState; onRespond: (id
                     <div key={p.id} className="flex items-center gap-2 text-sm">
                       <span className="text-red-400 text-xs">-</span>
                       <span className="text-th-primary font-display">{p.name}</span>
-                      <span className={`text-xs ovr-badge ${ovrColorClass(p.overall)}`}>{p.overall}</span>
+                      <span className={`text-xs ovr-badge ${ovrColorClass(getPlayerScoutingView(p, toTeam?.id, scouting, state.userTeamId).overall.sortValue)}`}>
+                        {getPlayerScoutingView(p, toTeam?.id, scouting, state.userTeamId).overall.compactDisplay}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -105,15 +134,22 @@ function IncomingOffers({ state, onRespond }: { state: GameState; onRespond: (id
   );
 }
 
-function ProposeTrade({ state, onPropose }: {
+function ProposeTrade({ state, scouting, onPropose, onScoutTeam }: {
   state: GameState;
+  scouting: ScoutingState;
   onPropose: (toTeamId: string, userPlayerIds: string[], targetPlayerIds: string[]) => { accepted: boolean; reason: string };
+  onScoutTeam: (teamId: string, amount?: number) => void;
 }) {
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [selectedUserPlayers, setSelectedUserPlayers] = useState<Set<string>>(new Set());
   const [selectedTargetPlayers, setSelectedTargetPlayers] = useState<Set<string>>(new Set());
   const [lastResult, setLastResult] = useState<{ accepted: boolean; reason: string; counterOffer?: TradeOffer } | null>(null);
+
+  useEffect(() => {
+    if (!selectedTarget) return;
+    onScoutTeam(selectedTarget, 10);
+  }, [selectedTarget, onScoutTeam]);
 
   if (!userTeam) return null;
 
@@ -181,6 +217,7 @@ function ProposeTrade({ state, onPropose }: {
                   <PlayerChip
                     key={p.id}
                     player={p}
+                    scoutingView={getPlayerScoutingView(p, userTeam.id, scouting, state.userTeamId)}
                     selected={selectedUserPlayers.has(p.id)}
                     onClick={() => toggleUserPlayer(p.id)}
                   />
@@ -198,6 +235,7 @@ function ProposeTrade({ state, onPropose }: {
                   <PlayerChip
                     key={p.id}
                     player={p}
+                    scoutingView={getPlayerScoutingView(p, targetTeam.id, scouting, state.userTeamId)}
                     selected={selectedTargetPlayers.has(p.id)}
                     onClick={() => toggleTargetPlayer(p.id)}
                   />
@@ -313,14 +351,33 @@ function StadiumEditor({ team, onUpdate }: { team: Team; onUpdate: (rating: numb
   );
 }
 
-export function TradePage({ state, onRespondToOffer, onProposeTrade, onFinishTrades, onUpdateStadium }: Props) {
+export function TradePage({
+  state,
+  scouting,
+  onRespondToOffer,
+  onProposeTrade,
+  onFinishTrades,
+  onUpdateStadium,
+  onScoutTeam,
+  onScoutPlayers,
+}: Props) {
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
+  const pendingOfferPlayerIds = state.tradeOffers
+    .filter(offer => offer.status === "pending")
+    .flatMap(offer => [...offer.playersOffered, ...offer.playersRequested]);
+
+  useEffect(() => {
+    if (pendingOfferPlayerIds.length === 0) return;
+    onScoutPlayers(pendingOfferPlayerIds, 8);
+  }, [pendingOfferPlayerIds.join(","), onScoutPlayers]);
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h2 className="text-2xl font-display font-bold text-th-primary tracking-tight">Trade Window</h2>
           <p className="text-th-muted mt-1 font-display">Season <span className="stat-num">{state.seasonNumber}</span> — Pre-auction trades</p>
+          <p className="text-th-faint text-xs font-display mt-1">Opposition values are now filtered through scouting confidence instead of exact internals.</p>
         </div>
         <button
           onClick={onFinishTrades}
@@ -333,13 +390,13 @@ export function TradePage({ state, onRespondToOffer, onProposeTrade, onFinishTra
       {/* Incoming offers */}
       <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5">
         <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-4">Incoming Trade Offers</h3>
-        <IncomingOffers state={state} onRespond={onRespondToOffer} />
+        <IncomingOffers state={state} scouting={scouting} onRespond={onRespondToOffer} />
       </div>
 
       {/* Propose trade */}
       <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5">
         <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-4">Propose a Trade</h3>
-        <ProposeTrade state={state} onPropose={onProposeTrade} />
+        <ProposeTrade state={state} scouting={scouting} onPropose={onProposeTrade} onScoutTeam={onScoutTeam} />
       </div>
 
       {/* Stadium settings */}

@@ -4,9 +4,11 @@ import { GameState } from "../game-state";
 import { ovrColorClass, roleLabel, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerAvatar } from "../components/PlayerAvatar";
+import { getPlayerScoutingView, type ScoutingState } from "../scouting";
 
 interface Props {
   state: GameState;
+  scouting: ScoutingState;
   onUserBid: () => void;
   onUserPass: () => void;
   onCpuRound: () => void;
@@ -14,9 +16,10 @@ interface Props {
   onSimPlayer: () => void;
   onSimRemaining: () => void;
   onFinishAuction: () => void;
+  onScoutPlayers: (playerIds: string[], amount?: number) => void;
 }
 
-function AttributeBar({ label, value }: { label: string; value: number }) {
+function AttributeBar({ label, value, valueLabel }: { label: string; value: number; valueLabel: string }) {
   const pct = Math.min(value, 99);
   let color = "bg-gray-500";
   if (value >= 85) color = "bg-emerald-500";
@@ -29,7 +32,7 @@ function AttributeBar({ label, value }: { label: string; value: number }) {
       <div className="flex-1 h-2 bg-white/[0.06] rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all duration-300`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs text-th-primary font-mono stat-num w-6 text-right">{value}</span>
+      <span className="text-xs text-th-primary font-mono stat-num min-w-[42px] text-right">{valueLabel}</span>
     </div>
   );
 }
@@ -49,6 +52,7 @@ function MiniPlayerRow({ player }: { player: Player }) {
 
 export function AuctionPage({
   state,
+  scouting,
   onUserBid,
   onUserPass,
   onCpuRound,
@@ -56,11 +60,13 @@ export function AuctionPage({
   onSimPlayer,
   onSimRemaining,
   onFinishAuction,
+  onScoutPlayers,
 }: Props) {
   const auction = state.auctionLiveState;
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
   const autoRunRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
+  const currentPlayer = auction?.players[auction.currentPlayerIndex];
 
   // Auto-run CPU bid rounds when in bidding phase and user is not highest bidder
   useEffect(() => {
@@ -87,6 +93,11 @@ export function AuctionPage({
       if (autoRunRef.current) clearTimeout(autoRunRef.current);
     };
   }, [auction?.phase, auction?.round, auction?.currentBidderId, auction?.biddingTeams]);
+
+  useEffect(() => {
+    if (!currentPlayer) return;
+    onScoutPlayers([currentPlayer.id], 12);
+  }, [currentPlayer?.id, onScoutPlayers]);
 
   if (!auction) {
     return (
@@ -152,9 +163,11 @@ export function AuctionPage({
     );
   }
 
-  const currentPlayer = auction.players[auction.currentPlayerIndex];
   const currentBidderTeam = auction.currentBidderId
     ? state.teams.find(t => t.id === auction.currentBidderId)
+    : null;
+  const currentPlayerView = currentPlayer
+    ? getPlayerScoutingView(currentPlayer, currentPlayer.teamId, scouting, state.userTeamId)
     : null;
 
   const userInBidding = !!(state.userTeamId && auction.biddingTeams.includes(state.userTeamId));
@@ -169,6 +182,10 @@ export function AuctionPage({
 
   // Remaining players to show (after current)
   const remainingPlayers = auction.players.slice(auction.currentPlayerIndex + 1);
+  const remainingPlayerViews = remainingPlayers.slice(0, 50).map(player => ({
+    player,
+    scoutingView: getPlayerScoutingView(player, player.teamId, scouting, state.userTeamId),
+  }));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-fade-in">
@@ -234,22 +251,25 @@ export function AuctionPage({
                     {currentPlayer.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] ml-2 font-semibold">WK</span>}
                   </h3>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className={`text-sm font-bold ${ovrColorClass(currentPlayer.overall)}`}>{currentPlayer.overall} OVR</span>
+                    <span className={`text-sm font-bold ${ovrColorClass(currentPlayerView?.overall.sortValue ?? currentPlayer.overall)}`}>{currentPlayerView?.overall.display ?? currentPlayer.overall} OVR</span>
                     <span className="text-xs text-th-muted font-display">{roleLabel(currentPlayer.role)}</span>
-                    {currentPlayer.battingHand && (
+                    {currentPlayerView?.showStyleDetails && currentPlayer.battingHand && (
                       <span className="text-[10px] text-th-muted font-display font-semibold bg-th-body px-1.5 py-0.5 rounded border border-th">
                         {battingHandLabel(currentPlayer.battingHand)}
                       </span>
                     )}
-                    {currentPlayer.bowlingStyle && bowlingStyleLabel(currentPlayer.bowlingStyle) && (
+                    {currentPlayerView?.showStyleDetails && currentPlayer.bowlingStyle && bowlingStyleLabel(currentPlayer.bowlingStyle) && (
                       <span className="text-[10px] text-purple-400/70 font-display font-semibold bg-purple-500/10 px-1.5 py-0.5 rounded">
                         {bowlingStyleLabel(currentPlayer.bowlingStyle)}
                       </span>
                     )}
-                    <span className="text-xs text-th-muted font-display">Age {currentPlayer.age}</span>
+                    <span className="text-xs text-th-muted font-display">Age {currentPlayerView?.ageDisplay ?? currentPlayer.age}</span>
                     <span className="text-xs text-th-muted font-display">{currentPlayer.country}</span>
                     {currentPlayer.isInternational && (
                       <span className="text-[10px] text-orange-400/70 font-semibold border border-orange-400/20 rounded px-1">OS</span>
+                    )}
+                    {currentPlayerView && (
+                      <span className="text-[10px] text-th-faint font-display">{currentPlayerView.confidenceLabel}</span>
                     )}
                   </div>
                 </div>
@@ -261,15 +281,30 @@ export function AuctionPage({
 
               {/* Attribute bars */}
               <div className="space-y-1.5 mb-6">
-                <AttributeBar label="Bat IQ" value={currentPlayer.ratings.battingIQ} />
-                <AttributeBar label="Timing" value={currentPlayer.ratings.timing} />
-                <AttributeBar label="Power" value={currentPlayer.ratings.power} />
-                <AttributeBar label="Running" value={currentPlayer.ratings.running} />
-                <AttributeBar label="Wickets" value={currentPlayer.ratings.wicketTaking} />
-                <AttributeBar label="Economy" value={currentPlayer.ratings.economy} />
-                <AttributeBar label="Accuracy" value={currentPlayer.ratings.accuracy} />
-                <AttributeBar label="Clutch" value={currentPlayer.ratings.clutch} />
+                <AttributeBar label="Bat IQ" value={currentPlayerView?.attributes.battingIQ.barValue ?? currentPlayer.ratings.battingIQ} valueLabel={currentPlayerView?.attributes.battingIQ.display ?? String(currentPlayer.ratings.battingIQ)} />
+                <AttributeBar label="Timing" value={currentPlayerView?.attributes.timing.barValue ?? currentPlayer.ratings.timing} valueLabel={currentPlayerView?.attributes.timing.display ?? String(currentPlayer.ratings.timing)} />
+                <AttributeBar label="Power" value={currentPlayerView?.attributes.power.barValue ?? currentPlayer.ratings.power} valueLabel={currentPlayerView?.attributes.power.display ?? String(currentPlayer.ratings.power)} />
+                <AttributeBar label="Running" value={currentPlayerView?.attributes.running.barValue ?? currentPlayer.ratings.running} valueLabel={currentPlayerView?.attributes.running.display ?? String(currentPlayer.ratings.running)} />
+                <AttributeBar label="Wickets" value={currentPlayerView?.attributes.wicketTaking.barValue ?? currentPlayer.ratings.wicketTaking} valueLabel={currentPlayerView?.attributes.wicketTaking.display ?? String(currentPlayer.ratings.wicketTaking)} />
+                <AttributeBar label="Economy" value={currentPlayerView?.attributes.economy.barValue ?? currentPlayer.ratings.economy} valueLabel={currentPlayerView?.attributes.economy.display ?? String(currentPlayer.ratings.economy)} />
+                <AttributeBar label="Accuracy" value={currentPlayerView?.attributes.accuracy.barValue ?? currentPlayer.ratings.accuracy} valueLabel={currentPlayerView?.attributes.accuracy.display ?? String(currentPlayer.ratings.accuracy)} />
+                <AttributeBar label="Clutch" value={currentPlayerView?.attributes.clutch.barValue ?? currentPlayer.ratings.clutch} valueLabel={currentPlayerView?.attributes.clutch.display ?? String(currentPlayer.ratings.clutch)} />
               </div>
+
+              {currentPlayerView && (
+                <div className="rounded-xl border border-th bg-th-raised px-4 py-3 mb-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Scout Read</div>
+                      <div className="text-sm text-th-secondary font-display mt-1">{currentPlayerView.summary}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Market Read</div>
+                      <div className="text-sm text-th-primary font-mono stat-num mt-1">{currentPlayerView.marketValue.display}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Current bid */}
               <div className="rounded-xl border border-th bg-th-raised p-4 mb-5 text-center">
@@ -358,12 +393,12 @@ export function AuctionPage({
               Remaining ({remainingPlayers.length})
             </h3>
             <div className="space-y-0.5 max-h-[calc(100vh-280px)] overflow-y-auto">
-              {remainingPlayers.slice(0, 50).map(p => (
-                <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm">
-                  <span className="font-display text-th-secondary truncate flex-1">{p.name}</span>
-                  <span className={`text-xs font-bold ${ovrColorClass(p.overall)}`}>{p.overall}</span>
-                  <span className="text-[10px] text-th-muted font-display">{roleLabel(p.role)}</span>
-                  <span className="text-[10px] text-th-faint font-mono stat-num">{p.marketValue.toFixed(1)}</span>
+              {remainingPlayerViews.map(({ player, scoutingView }) => (
+                <div key={player.id} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm">
+                  <span className="font-display text-th-secondary truncate flex-1">{player.name}</span>
+                  <span className={`text-xs font-bold ${ovrColorClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
+                  <span className="text-[10px] text-th-muted font-display">{roleLabel(player.role)}</span>
+                  <span className="text-[10px] text-th-faint font-mono stat-num">{scoutingView.marketValue.compactDisplay}</span>
                 </div>
               ))}
               {remainingPlayers.length > 50 && (

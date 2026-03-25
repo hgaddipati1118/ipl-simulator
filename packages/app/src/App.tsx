@@ -62,6 +62,8 @@ import {
   finishRetention,
   setPlayerTrainingFocus,
   setTeamTrainingIntensity,
+  recordPlayerScoutingExposure,
+  recordTeamScoutingExposure,
   initLiveAuction,
   liveAuctionUserBid,
   liveAuctionUserPass,
@@ -459,6 +461,15 @@ export default function App() {
     update(setTeamTrainingIntensity(state, teamId, intensity));
   };
 
+  const handleScoutPlayers = (playerIds: string[], amount = 8) => {
+    if (playerIds.length === 0) return;
+    update(recordPlayerScoutingExposure(state, playerIds, amount));
+  };
+
+  const handleScoutTeam = (teamId: string, amount = 8) => {
+    update(recordTeamScoutingExposure(state, teamId, amount));
+  };
+
   // ── Live Auction handlers ──
 
   const handleAuctionUserBid = () => {
@@ -617,10 +628,13 @@ export default function App() {
         <Route path="/trade" element={
           <TradePage
             state={state}
+            scouting={state.scouting}
             onRespondToOffer={handleRespondToOffer}
             onProposeTrade={handleProposeTrade}
             onFinishTrades={handleFinishTrades}
             onUpdateStadium={handleUpdateStadium}
+            onScoutTeam={handleScoutTeam}
+            onScoutPlayers={handleScoutPlayers}
           />
         } />
         <Route path="/retention" element={
@@ -634,6 +648,7 @@ export default function App() {
         <Route path="/auction-live" element={
           <AuctionPage
             state={state}
+            scouting={state.scouting}
             onUserBid={handleAuctionUserBid}
             onUserPass={handleAuctionUserPass}
             onCpuRound={handleAuctionCpuRound}
@@ -641,16 +656,28 @@ export default function App() {
             onSimPlayer={handleAuctionSimPlayer}
             onSimRemaining={handleAuctionSimRemaining}
             onFinishAuction={handleAuctionFinish}
+            onScoutPlayers={handleScoutPlayers}
           />
         } />
         <Route path="/team/:teamId" element={
-          <TeamView teams={state.teams} rules={state.rules} />
+          <TeamView
+            teams={state.teams}
+            rules={state.rules}
+            scouting={state.scouting}
+            userTeamId={state.userTeamId}
+          />
         } />
         <Route path="/ratings" element={
-          <PlayerRatingsPage teams={state.teams} />
+          <PlayerRatingsPage
+            teams={state.teams}
+            scouting={state.scouting}
+            userTeamId={state.userTeamId}
+          />
         } />
         <Route path="/player/:playerId" element={
-          <PlayerPage state={state} />
+          <PlayerPage
+            state={state}
+          />
         } />
         <Route path="/match/:matchIndex" element={
           <MatchPage state={state} />

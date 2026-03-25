@@ -17,6 +17,7 @@ import {
 } from "@ipl-sim/engine";
 import type { GameState, SeasonSummary, CompletedTrade } from "./game-state";
 import { clearAllMatchData as clearMatchDataOnClear } from "./match-db";
+import { createScoutingState } from "./scouting";
 
 // ── IndexedDB Store ──────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ const idbStore = createStore(DB_NAME, STORE_NAME);
 const IDB_KEYS = [
   "teams", "playerPool", "seasonResult", "auctionResult",
   "history", "tradeOffers", "completedTrades",
-  "schedule", "matchResults", "recentInjuries", "narrativeEvents", "trainingReport", "auctionLiveState",
+  "schedule", "matchResults", "recentInjuries", "narrativeEvents", "trainingReport", "scouting", "auctionLiveState",
 ] as const;
 
 function slotKey(slotId: string, key: string): string {
@@ -40,7 +41,7 @@ function slotKey(slotId: string, key: string): string {
 const LS_PREFIX = "ipl-sim";
 const LS_SLOTS = `${LS_PREFIX}:slots`;
 const LS_ACTIVE_SLOT = `${LS_PREFIX}:activeSlot`;
-const CURRENT_VERSION = 4; // bump: training report + team training settings
+const CURRENT_VERSION = 5; // bump: scouting state persistence
 
 // Legacy keys (for migration)
 const LS_META_LEGACY = `${LS_PREFIX}:meta`;
@@ -272,6 +273,7 @@ export async function saveState(state: GameState): Promise<void> {
       set(slotKey(slotId, "recentInjuries"), state.recentInjuries, idbStore),
       set(slotKey(slotId, "narrativeEvents"), state.narrativeEvents, idbStore),
       set(slotKey(slotId, "trainingReport"), state.trainingReport, idbStore),
+      set(slotKey(slotId, "scouting"), state.scouting, idbStore),
       set(slotKey(slotId, "auctionLiveState"), state.auctionLiveState
         ? serializeAuctionLiveState(state.auctionLiveState) : undefined, idbStore),
     ]);
@@ -298,7 +300,7 @@ export async function loadState(): Promise<GameState | null> {
 export async function loadStateFromSlot(slotId: string): Promise<GameState | null> {
   try {
     const [teamsData, poolData, seasonResult, auctionResult, history, tradeOffers, completedTrades,
-           schedule, matchResults, recentInjuries, narrativeEvents, trainingReport, auctionLiveStateRaw] =
+           schedule, matchResults, recentInjuries, narrativeEvents, trainingReport, scouting, auctionLiveStateRaw] =
       await Promise.all([
         get(slotKey(slotId, "teams"), idbStore),
         get(slotKey(slotId, "playerPool"), idbStore),
@@ -312,6 +314,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
         get(slotKey(slotId, "recentInjuries"), idbStore),
         get(slotKey(slotId, "narrativeEvents"), idbStore),
         get(slotKey(slotId, "trainingReport"), idbStore),
+        get(slotKey(slotId, "scouting"), idbStore),
         get(slotKey(slotId, "auctionLiveState"), idbStore),
       ]);
 
@@ -325,12 +328,15 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       meta = { phase: "setup", seasonNumber: 1, userTeamId: null, rules: DEFAULT_RULES };
     }
 
+    const teams = deserializeTeams(teamsData);
+    const playerPool = deserializePlayers(poolData);
+
     return {
       phase: meta.phase,
       rules: meta.rules ?? DEFAULT_RULES,
-      teams: deserializeTeams(teamsData),
+      teams,
       userTeamId: meta.userTeamId,
-      playerPool: deserializePlayers(poolData),
+      playerPool,
       auctionResult: auctionResult ?? null,
       seasonResult: seasonResult ?? null,
       seasonNumber: meta.seasonNumber,
@@ -345,6 +351,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       recentInjuries: recentInjuries ?? [],
       narrativeEvents: narrativeEvents ?? [],
       trainingReport: trainingReport ?? [],
+      scouting: scouting ?? createScoutingState(teams, playerPool, meta.userTeamId, meta.seasonNumber),
       retentionState: meta.retentionState,
       auctionLiveState: auctionLiveStateRaw
         ? deserializeAuctionLiveState(auctionLiveStateRaw) : undefined,
@@ -402,6 +409,7 @@ async function migrateLegacyData(): Promise<GameState | null> {
         recentInjuries: [],
         narrativeEvents: [],
         trainingReport: [],
+        scouting: createScoutingState(deserializeTeams(teamsData), deserializePlayers(poolData), meta.userTeamId, meta.seasonNumber),
       };
 
       // Migrate into a new slot
@@ -452,6 +460,7 @@ async function migrateLegacyData(): Promise<GameState | null> {
       recentInjuries: data.recentInjuries ?? [],
       narrativeEvents: data.narrativeEvents ?? [],
       trainingReport: data.trainingReport ?? [],
+      scouting: data.scouting ?? createScoutingState(deserializeTeams(data.teams), deserializePlayers(data.playerPool), data.userTeamId, data.seasonNumber ?? 1),
     };
 
     // Migrate into a slot
@@ -507,6 +516,7 @@ export interface SaveFile {
   matchResults?: any[];
   narrativeEvents?: GameState["narrativeEvents"];
   trainingReport?: GameState["trainingReport"];
+  scouting?: GameState["scouting"];
 }
 
 /** Export current game state as a downloadable JSON file */
@@ -536,6 +546,7 @@ export function exportSave(state: GameState): void {
     matchResults: state.matchResults,
     narrativeEvents: state.narrativeEvents,
     trainingReport: state.trainingReport,
+    scouting: state.scouting,
   };
 
   downloadJSON(saveFile, `${leaguePrefix(state)}-sim-season${state.seasonNumber}-${Date.now()}.json`);
@@ -561,12 +572,15 @@ export async function importSave(file: File): Promise<GameState> {
     throw new Error("Invalid save: no teams found");
   }
 
+  const teams = deserializeTeams(data.teams);
+  const playerPool = deserializePlayers(data.playerPool);
+
   const state: GameState = {
     phase: data.meta.phase,
     rules: data.meta.rules ?? DEFAULT_RULES,
-    teams: deserializeTeams(data.teams),
+    teams,
     userTeamId: data.meta.userTeamId,
-    playerPool: deserializePlayers(data.playerPool),
+    playerPool,
     auctionResult: data.auctionResult ?? null,
     seasonResult: data.seasonResult ?? null,
     seasonNumber: data.meta.seasonNumber,
@@ -581,6 +595,7 @@ export async function importSave(file: File): Promise<GameState> {
     recentInjuries: data.recentInjuries ?? [],
     narrativeEvents: data.narrativeEvents ?? [],
     trainingReport: data.trainingReport ?? [],
+    scouting: data.scouting ?? createScoutingState(teams, playerPool, data.meta.userTeamId, data.meta.seasonNumber),
   };
 
   // Create a new slot for the import

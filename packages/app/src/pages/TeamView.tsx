@@ -1,26 +1,43 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Team, type RuleSet, DEFAULT_RULES } from "@ipl-sim/engine";
 import { ovrBgClass, roleLabel, bowlingStyleLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
 import { PlayerAvatar } from "../components/PlayerAvatar";
+import { getPlayerScoutingView, type ScoutingState } from "../scouting";
 
 interface Props {
   teams: Team[];
   rules?: RuleSet;
+  scouting: ScoutingState;
+  userTeamId: string | null;
+  onScoutTeam?: (teamId: string, amount?: number) => void;
 }
 
-export function TeamView({ teams, rules = DEFAULT_RULES }: Props) {
+export function TeamView({ teams, rules = DEFAULT_RULES, scouting, userTeamId, onScoutTeam }: Props) {
   const { teamId } = useParams();
   const navigate = useNavigate();
   const team = teams.find(t => t.id === teamId);
 
-  if (!team) return <div className="p-8 text-th-secondary">Team not found</div>;
+  useEffect(() => {
+    if (!teamId || teamId === userTeamId || !onScoutTeam) return;
+    onScoutTeam(teamId, 10);
+  }, [teamId, userTeamId, onScoutTeam]);
 
-  const roster = useMemo(() => [...team.roster].sort((a, b) => b.selectionScore - a.selectionScore || b.overall - a.overall), [team.roster]);
-  const xi = team.getPlayingXI(rules.maxOverseasInXI);
-  const xiIds = new Set(xi.map(p => p.id));
+  const isUserTeam = team?.id === userTeamId;
+  const roster = useMemo(
+    () => team ? [...team.roster].sort((a, b) => b.selectionScore - a.selectionScore || b.overall - a.overall) : [],
+    [team],
+  );
+  const rosterViews = useMemo(() => roster.map(player => ({
+    player,
+    scoutingView: getPlayerScoutingView(player, team?.id, scouting, userTeamId),
+  })), [roster, team?.id, scouting, userTeamId]);
+  const xi = useMemo(() => team ? team.getPlayingXI(rules.maxOverseasInXI) : [], [team, rules.maxOverseasInXI]);
+  const xiIds = useMemo(() => new Set(xi.map(player => player.id)), [xi]);
+
+  if (!team) return <div className="p-8 text-th-secondary">Team not found</div>;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -94,42 +111,47 @@ export function TeamView({ teams, rules = DEFAULT_RULES }: Props) {
                 <th className="text-center px-2 py-3">Role</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Style</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Age</th>
-                <th className="text-center px-2 py-3 hidden sm:table-cell">Ready</th>
+                <th className="text-center px-2 py-3 hidden sm:table-cell">{isUserTeam ? "Ready" : "Scout"}</th>
                 <th className="text-center px-2 py-3 hidden md:table-cell">M</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Runs</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Wkts</th>
-                <th className="text-center px-2 py-3 hidden md:table-cell">Bid</th>
+                <th className="text-center px-2 py-3 hidden md:table-cell">{isUserTeam ? "Bid" : "Value"}</th>
               </tr>
             </thead>
             <tbody>
-              {roster.map(p => (
+              {rosterViews.map(({ player: p, scoutingView }) => (
                 <tr key={p.id} className={`border-t border-th transition-colors hover:bg-th-hover ${xiIds.has(p.id) ? "" : "opacity-40"}`}>
                   <td className="px-3 sm:px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <PlayerAvatar name={p.name} imageUrl={p.imageUrl} size="sm" teamColor={team.config.primaryColor} />
                       <PlayerLink playerId={p.id} className="text-th-primary font-display font-medium">{p.name}</PlayerLink>
-                      <FormBadge form={p.form} />
-                      <ConditionBadge readiness={p.readiness} />
+                      {isUserTeam && <FormBadge form={p.form} />}
+                      {isUserTeam && <ConditionBadge readiness={p.readiness} />}
                       {p.isInternational && <span className="text-blue-400/70 text-[10px] font-display font-semibold bg-blue-500/10 px-1 rounded">OS</span>}
                       {p.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] font-display font-semibold bg-cyan-500/10 px-1 rounded">WK</span>}
                       {p.injured && <span className="text-red-400 text-[10px] font-display font-semibold bg-red-500/10 px-1 rounded" aria-label="Player is injured">INJ</span>}
                       {xiIds.has(p.id) && <span className="text-emerald-400/70 text-[10px] font-display font-semibold bg-emerald-500/10 px-1 rounded">XI</span>}
+                      {!isUserTeam && <span className="text-th-faint text-[10px] font-display">{scoutingView.confidenceLabel}</span>}
                     </div>
                     <span className="text-th-faint text-xs font-display">{p.country}</span>
                   </td>
                   <td className="text-center px-2 py-2.5">
-                    <span className={`ovr-badge text-sm inline-block min-w-[28px] rounded-md px-1 py-0.5 ${ovrBgClass(p.overall)}`}>{p.overall}</span>
+                    <span className={`ovr-badge text-sm inline-block min-w-[28px] rounded-md px-1 py-0.5 ${ovrBgClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
                   </td>
-                  <td className="text-center px-2 py-2.5 stat-num text-orange-300/70 text-sm">{p.battingOvr}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-purple-300/70 text-sm">{p.bowlingOvr}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-orange-300/70 text-sm">{scoutingView.batting.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-purple-300/70 text-sm">{scoutingView.bowling.compactDisplay}</td>
                   <td className="text-center px-2 py-2.5 text-th-muted text-xs font-display">{roleLabel(p.role)}</td>
-                  <td className="text-center px-2 py-2.5 text-purple-400/60 text-[10px] font-display font-semibold hidden sm:table-cell">{bowlingStyleLabel(p.bowlingStyle)}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden sm:table-cell">{p.age}</td>
-                  <td className={`text-center px-2 py-2.5 stat-num text-sm hidden sm:table-cell ${conditionColor(p.readiness)}`}>{p.readiness}</td>
+                  <td className="text-center px-2 py-2.5 text-purple-400/60 text-[10px] font-display font-semibold hidden sm:table-cell">{scoutingView.showStyleDetails ? bowlingStyleLabel(p.bowlingStyle) : scoutingView.confidenceLabel}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden sm:table-cell">{scoutingView.ageDisplay}</td>
+                  <td className={`text-center px-2 py-2.5 stat-num text-sm hidden sm:table-cell ${isUserTeam ? conditionColor(p.readiness) : "text-th-muted"}`}>
+                    {isUserTeam ? p.readiness : scoutingView.confidenceLabel}
+                  </td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden md:table-cell">{p.stats.matches}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.runs}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.wickets}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden md:table-cell">{p.bid.toFixed(1)}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden md:table-cell">
+                    {isUserTeam ? p.bid.toFixed(1) : scoutingView.marketValue.compactDisplay}
+                  </td>
                 </tr>
               ))}
             </tbody>

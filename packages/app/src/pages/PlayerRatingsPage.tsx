@@ -2,21 +2,28 @@ import { useState, useMemo } from "react";
 import { Team, Player } from "@ipl-sim/engine";
 import { ovrBgClass, roleLabel, teamLabelColor } from "../ui-utils";
 import { PlayerLink } from "../components/PlayerLink";
+import { getPlayerScoutingView, type ScoutingState } from "../scouting";
 
 interface Props {
   teams: Team[];
+  scouting: ScoutingState;
+  userTeamId: string | null;
 }
 
 type SortKey = "overall" | "battingOvr" | "bowlingOvr" | "age" | "runs" | "wickets" | "name";
 
-export function PlayerRatingsPage({ teams }: Props) {
+export function PlayerRatingsPage({ teams, scouting, userTeamId }: Props) {
   const [sortBy, setSortBy] = useState<SortKey>("overall");
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterTeam, setFilterTeam] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   const allPlayers = useMemo(() => {
-    let result = teams.flatMap(t => t.roster.map(p => ({ player: p, team: t })));
+    let result = teams.flatMap(team => team.roster.map(player => ({
+      player,
+      team,
+      scoutingView: getPlayerScoutingView(player, team.id, scouting, userTeamId),
+    })));
     if (filterRole !== "all") result = result.filter(({ player }) => player.role === filterRole);
     if (filterTeam !== "all") result = result.filter(({ team }) => team.id === filterTeam);
     if (search) {
@@ -25,11 +32,12 @@ export function PlayerRatingsPage({ teams }: Props) {
     }
     result.sort((a, b) => {
       const pa = a.player, pb = b.player;
+      const va = a.scoutingView, vb = b.scoutingView;
       switch (sortBy) {
-        case "overall": return pb.overall - pa.overall;
-        case "battingOvr": return pb.battingOvr - pa.battingOvr;
-        case "bowlingOvr": return pb.bowlingOvr - pa.bowlingOvr;
-        case "age": return pa.age - pb.age;
+        case "overall": return vb.overall.sortValue - va.overall.sortValue;
+        case "battingOvr": return vb.batting.sortValue - va.batting.sortValue;
+        case "bowlingOvr": return vb.bowling.sortValue - va.bowling.sortValue;
+        case "age": return va.ageSortValue - vb.ageSortValue;
         case "runs": return pb.stats.runs - pa.stats.runs;
         case "wickets": return pb.stats.wickets - pa.stats.wickets;
         case "name": return pa.name.localeCompare(pb.name);
@@ -37,7 +45,7 @@ export function PlayerRatingsPage({ teams }: Props) {
       }
     });
     return result;
-  }, [teams, sortBy, filterRole, filterTeam, search]);
+  }, [teams, scouting, userTeamId, sortBy, filterRole, filterTeam, search]);
 
   const SortHeader = ({ label, field, className = "" }: { label: string; field: SortKey; className?: string }) => (
     <th
@@ -52,7 +60,10 @@ export function PlayerRatingsPage({ teams }: Props) {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-display font-bold text-th-primary tracking-tight">Player Ratings</h2>
+        <div>
+          <h2 className="text-2xl font-display font-bold text-th-primary tracking-tight">Player Ratings</h2>
+          <p className="text-th-faint text-xs font-display mt-1">External players show scouting estimates until your report is strong enough.</p>
+        </div>
         <span className="text-th-muted text-sm stat-num">{allPlayers.length} players</span>
       </div>
 
@@ -102,6 +113,7 @@ export function PlayerRatingsPage({ teams }: Props) {
                 <SortHeader label="Player" field="name" />
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Team</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Role</th>
+                <th className="text-center px-2 py-3 hidden lg:table-cell">Scout</th>
                 <SortHeader label="OVR" field="overall" />
                 <SortHeader label="BAT" field="battingOvr" className="hidden md:table-cell" />
                 <SortHeader label="BWL" field="bowlingOvr" className="hidden md:table-cell" />
@@ -119,7 +131,7 @@ export function PlayerRatingsPage({ teams }: Props) {
               </tr>
             </thead>
             <tbody>
-              {allPlayers.slice(0, 100).map(({ player: p, team }, i) => (
+              {allPlayers.slice(0, 100).map(({ player: p, team, scoutingView }, i) => (
                 <tr key={p.id} className="border-t border-th hover:bg-th-hover transition-colors">
                   <td className="px-2 sm:px-4 py-2.5 text-th-faint text-xs stat-num">{i + 1}</td>
                   <td className="text-left px-2 py-2.5">
@@ -130,6 +142,7 @@ export function PlayerRatingsPage({ teams }: Props) {
                     <span className="sm:hidden block text-[10px] text-th-muted mt-0.5">
                       <span style={{ color: teamLabelColor(team.config.primaryColor) }}>{team.shortName}</span>
                       {" "}<span className={p.role === "bowler" ? "text-purple-400/70" : p.role === "all-rounder" ? "text-emerald-400/70" : "text-orange-400/70"}>{roleLabel(p.role)}</span>
+                      {" "}<span className="text-th-faint">| {scoutingView.confidenceLabel}</span>
                     </span>
                   </td>
                   <td className="text-center px-2 py-2.5 hidden sm:table-cell">
@@ -147,20 +160,24 @@ export function PlayerRatingsPage({ teams }: Props) {
                       "bg-orange-500/15 text-orange-400"
                     }`}>{roleLabel(p.role)}</span>
                   </td>
-                  <td className="text-center px-2 py-2.5">
-                    <span className={`ovr-badge text-sm inline-block min-w-[28px] rounded-md px-1 py-0.5 ${ovrBgClass(p.overall)}`}>{p.overall}</span>
+                  <td className="text-center px-2 py-2.5 hidden lg:table-cell">
+                    <span className="text-[10px] text-th-muted font-display">{scoutingView.confidenceLabel}</span>
+                    <span className="block text-[10px] text-th-faint stat-num">{scoutingView.confidence}%</span>
                   </td>
-                  <td className="text-center px-2 py-2.5 stat-num text-orange-300/60 text-sm hidden md:table-cell">{p.battingOvr}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-purple-300/60 text-sm hidden md:table-cell">{p.bowlingOvr}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{p.ratings.battingIQ}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{p.ratings.timing}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{p.ratings.power}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{p.ratings.running}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{p.ratings.wicketTaking}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{p.ratings.economy}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{p.ratings.accuracy}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-cyan-400/40 text-sm hidden lg:table-cell">{p.ratings.clutch}</td>
-                  <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden md:table-cell">{p.age}</td>
+                  <td className="text-center px-2 py-2.5">
+                    <span className={`ovr-badge text-sm inline-block min-w-[28px] rounded-md px-1 py-0.5 ${ovrBgClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
+                  </td>
+                  <td className="text-center px-2 py-2.5 stat-num text-orange-300/60 text-sm hidden md:table-cell">{scoutingView.batting.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-purple-300/60 text-sm hidden md:table-cell">{scoutingView.bowling.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.battingIQ.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.timing.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.power.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-orange-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.running.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.wicketTaking.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.economy.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.accuracy.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-cyan-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.clutch.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden md:table-cell">{scoutingView.ageDisplay}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.runs}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.wickets}</td>
                 </tr>
@@ -172,4 +189,3 @@ export function PlayerRatingsPage({ teams }: Props) {
     </div>
   );
 }
-

@@ -1,13 +1,15 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { GameState } from "../game-state";
 import { ovrBgClass, roleLabel, teamLabelColor, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { RadarChart } from "../components/RadarChart";
 import { PlayerAvatar } from "../components/PlayerAvatar";
+import { getPlayerScoutingView } from "../scouting";
 
 interface Props {
   state: GameState;
+  onScoutPlayer?: (playerId: string) => void;
 }
 
 /** Color for an attribute bar based on value 0-99 */
@@ -32,7 +34,7 @@ const ROLE_BADGE: Record<string, { bg: string; text: string }> = {
   "wicket-keeper": { bg: "bg-cyan-500/15 border-cyan-500/30", text: "text-cyan-400" },
 };
 
-export function PlayerPage({ state }: Props) {
+export function PlayerPage({ state, onScoutPlayer }: Props) {
   const { playerId } = useParams();
   const navigate = useNavigate();
 
@@ -48,13 +50,17 @@ export function PlayerPage({ state }: Props) {
   // Get prev/next player within same team
   const { prevPlayer, nextPlayer } = useMemo(() => {
     if (!team || !player) return { prevPlayer: null, nextPlayer: null };
-    const sorted = [...team.roster].sort((a, b) => b.overall - a.overall);
+    const sorted = [...team.roster].sort((a, b) => {
+      const aView = getPlayerScoutingView(a, team.id, state.scouting, state.userTeamId);
+      const bView = getPlayerScoutingView(b, team.id, state.scouting, state.userTeamId);
+      return bView.overall.sortValue - aView.overall.sortValue;
+    });
     const idx = sorted.findIndex(p => p.id === player.id);
     return {
       prevPlayer: idx > 0 ? sorted[idx - 1] : null,
       nextPlayer: idx < sorted.length - 1 ? sorted[idx + 1] : null,
     };
-  }, [team, player]);
+  }, [team, player, state.scouting, state.userTeamId]);
 
   // Build match-by-match log from matchResults
   const matchLog = useMemo(() => {
@@ -194,6 +200,11 @@ export function PlayerPage({ state }: Props) {
     }, withBowl[0]);
   }, [matchLog]);
 
+  useEffect(() => {
+    if (!playerId || !onScoutPlayer) return;
+    onScoutPlayer(playerId);
+  }, [playerId, onScoutPlayer]);
+
   if (!player || !team) {
     return (
       <div className="max-w-5xl mx-auto px-6 py-8">
@@ -206,16 +217,18 @@ export function PlayerPage({ state }: Props) {
   }
 
   const rb = ROLE_BADGE[player.role] ?? ROLE_BADGE.batsman;
+  const isUserPlayer = team.id === state.userTeamId;
+  const scoutingView = getPlayerScoutingView(player, team.id, state.scouting, state.userTeamId);
 
   const attrs = [
-    { key: "battingIQ", label: "Batting IQ", val: player.ratings.battingIQ, group: "bat" },
-    { key: "timing", label: "Timing", val: player.ratings.timing, group: "bat" },
-    { key: "power", label: "Power", val: player.ratings.power, group: "bat" },
-    { key: "running", label: "Running", val: player.ratings.running, group: "bat" },
-    { key: "wicketTaking", label: "Wicket Taking", val: player.ratings.wicketTaking, group: "bowl" },
-    { key: "economy", label: "Economy", val: player.ratings.economy, group: "bowl" },
-    { key: "accuracy", label: "Accuracy", val: player.ratings.accuracy, group: "bowl" },
-    { key: "clutch", label: "Clutch", val: player.ratings.clutch, group: "clutch" },
+    { key: "battingIQ", label: "Batting IQ", view: scoutingView.attributes.battingIQ, group: "bat" },
+    { key: "timing", label: "Timing", view: scoutingView.attributes.timing, group: "bat" },
+    { key: "power", label: "Power", view: scoutingView.attributes.power, group: "bat" },
+    { key: "running", label: "Running", view: scoutingView.attributes.running, group: "bat" },
+    { key: "wicketTaking", label: "Wicket Taking", view: scoutingView.attributes.wicketTaking, group: "bowl" },
+    { key: "economy", label: "Economy", view: scoutingView.attributes.economy, group: "bowl" },
+    { key: "accuracy", label: "Accuracy", view: scoutingView.attributes.accuracy, group: "bowl" },
+    { key: "clutch", label: "Clutch", view: scoutingView.attributes.clutch, group: "clutch" },
   ];
 
   return (
@@ -281,7 +294,7 @@ export function PlayerPage({ state }: Props) {
                 {roleLabel(player.role)}
               </span>
               <span className="text-th-faint">|</span>
-              <span className="text-th-muted text-sm font-display">Age {player.age}</span>
+              <span className="text-th-muted text-sm font-display">Age {scoutingView.ageDisplay}</span>
               <span className="text-th-faint">|</span>
               <span className="text-th-muted text-sm font-display">{player.country}</span>
               {player.isInternational && (
@@ -290,7 +303,7 @@ export function PlayerPage({ state }: Props) {
               {player.isWicketKeeper && (
                 <span className="text-cyan-400/70 text-[10px] font-display font-semibold bg-cyan-500/10 px-1.5 py-0.5 rounded">WK</span>
               )}
-              {player.battingHand && (
+              {scoutingView.showStyleDetails && player.battingHand && (
                 <>
                   <span className="text-th-faint">|</span>
                   <span className="text-th-muted/70 text-[10px] font-display font-semibold bg-th-surface px-1.5 py-0.5 rounded border border-th">
@@ -298,7 +311,7 @@ export function PlayerPage({ state }: Props) {
                   </span>
                 </>
               )}
-              {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
+              {scoutingView.showStyleDetails && player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
                 <>
                   <span className="text-th-faint">|</span>
                   <span className="text-purple-400/70 text-[10px] font-display font-semibold bg-purple-500/10 px-1.5 py-0.5 rounded">
@@ -306,13 +319,19 @@ export function PlayerPage({ state }: Props) {
                   </span>
                 </>
               )}
+              {!scoutingView.exactRatings && (
+                <>
+                  <span className="text-th-faint">|</span>
+                  <span className="text-th-faint text-[10px] font-display">{scoutingView.confidenceLabel}</span>
+                </>
+              )}
             </div>
           </div>
           <div className="text-right">
-            <div className={`ovr-badge text-2xl inline-block min-w-[40px] rounded-lg px-2 py-1 font-display font-bold ${ovrBgClass(player.overall)}`}>
-              {player.overall}
+            <div className={`ovr-badge text-2xl inline-block min-w-[40px] rounded-lg px-2 py-1 font-display font-bold ${ovrBgClass(scoutingView.overall.sortValue)}`}>
+              {scoutingView.overall.display}
             </div>
-            <div className="text-th-faint text-[10px] uppercase tracking-wider mt-1 font-display">Overall</div>
+            <div className="text-th-faint text-[10px] uppercase tracking-wider mt-1 font-display">{scoutingView.exactRatings ? "Overall" : "Scout Grade"}</div>
           </div>
         </div>
 
@@ -335,44 +354,76 @@ export function PlayerPage({ state }: Props) {
         )}
 
         <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatusCard label="Readiness" value={String(player.readiness)} tone={readinessTone(player.readiness)} />
-          <StatusCard label="Fatigue" value={String(player.fatigue)} tone={player.fatigue >= 60 ? "warn" : player.fatigue >= 35 ? "info" : "good"} />
-          <StatusCard label="Recent Load" value={String(player.recentWorkload)} tone={player.recentWorkload >= 20 ? "warn" : player.recentWorkload >= 12 ? "info" : "good"} />
-          <StatusCard label="Form" value={String(Math.round(player.form))} tone={player.form >= 65 ? "good" : player.form <= 35 ? "warn" : "info"} />
+          {isUserPlayer ? (
+            <>
+              <StatusCard label="Readiness" value={String(player.readiness)} tone={readinessTone(player.readiness)} />
+              <StatusCard label="Fatigue" value={String(player.fatigue)} tone={player.fatigue >= 60 ? "warn" : player.fatigue >= 35 ? "info" : "good"} />
+              <StatusCard label="Recent Load" value={String(player.recentWorkload)} tone={player.recentWorkload >= 20 ? "warn" : player.recentWorkload >= 12 ? "info" : "good"} />
+              <StatusCard label="Form" value={String(Math.round(player.form))} tone={player.form >= 65 ? "good" : player.form <= 35 ? "warn" : "info"} />
+            </>
+          ) : (
+            <>
+              <StatusCard label="Report" value={scoutingView.confidenceLabel} tone={scoutingView.exactRatings ? "good" : scoutingView.confidence >= 60 ? "info" : "warn"} />
+              <StatusCard label="Market" value={scoutingView.marketValue.compactDisplay} tone="info" />
+              <StatusCard label="Strengths" value={String(scoutingView.strengths.length)} tone="good" />
+              <StatusCard label="Concerns" value={String(scoutingView.concerns.length)} tone={scoutingView.concerns.length > 1 ? "warn" : "info"} />
+            </>
+          )}
         </div>
       </div>
 
-      <div className="rounded-2xl border border-th bg-th-surface p-4 sm:p-5 mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-          <div>
-            <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Development Plan</h3>
-            <div className="text-th-faint text-xs mt-1">
-              Focus and camp load only apply at the next season rollover.
+      {isUserPlayer ? (
+        <div className="rounded-2xl border border-th bg-th-surface p-4 sm:p-5 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div>
+              <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Development Plan</h3>
+              <div className="text-th-faint text-xs mt-1">
+                Focus and camp load only apply at the next season rollover.
+              </div>
+            </div>
+            <Link
+              to="/training"
+              className="inline-flex items-center justify-center rounded-lg border border-th bg-th-raised px-3 py-2 text-xs font-display font-medium text-th-secondary hover:text-th-primary hover:bg-th-hover transition-colors"
+            >
+              Adjust Training
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
+              <div className="text-th-faint text-[10px] uppercase tracking-wider">Current Focus</div>
+              <div className="text-th-primary font-display font-semibold mt-1">{trainingFocusLabel(player.trainingFocus)}</div>
+            </div>
+            <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
+              <div className="text-th-faint text-[10px] uppercase tracking-wider">Expected Lift</div>
+              <div className="text-th-secondary text-sm mt-1 leading-6">{trainingFocusSummary(player.trainingFocus)}</div>
+            </div>
+            <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
+              <div className="text-th-faint text-[10px] uppercase tracking-wider">Projected Camp Note</div>
+              <div className="text-th-secondary text-sm mt-1 leading-6">{trainingReadinessNote(team.trainingIntensity, player.trainingFocus)}</div>
             </div>
           </div>
-          <Link
-            to="/training"
-            className="inline-flex items-center justify-center rounded-lg border border-th bg-th-raised px-3 py-2 text-xs font-display font-medium text-th-secondary hover:text-th-primary hover:bg-th-hover transition-colors"
-          >
-            Adjust Training
-          </Link>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
-            <div className="text-th-faint text-[10px] uppercase tracking-wider">Current Focus</div>
-            <div className="text-th-primary font-display font-semibold mt-1">{trainingFocusLabel(player.trainingFocus)}</div>
+      ) : (
+        <div className="rounded-2xl border border-th bg-th-surface p-4 sm:p-5 mb-6">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Scouting Dossier</h3>
+              <div className="text-th-faint text-xs mt-1">
+                Conditioning, training plans, and medical details stay private to the owning club.
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-th-faint text-[10px] uppercase tracking-wider">Confidence</div>
+              <div className="text-th-primary font-display font-semibold">{scoutingView.confidence}%</div>
+            </div>
           </div>
-          <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
-            <div className="text-th-faint text-[10px] uppercase tracking-wider">Expected Lift</div>
-            <div className="text-th-secondary text-sm mt-1 leading-6">{trainingFocusSummary(player.trainingFocus)}</div>
-          </div>
-          <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
-            <div className="text-th-faint text-[10px] uppercase tracking-wider">Projected Camp Note</div>
-            <div className="text-th-secondary text-sm mt-1 leading-6">{trainingReadinessNote(team.trainingIntensity, player.trainingFocus)}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <InfoListCard title="What Shows Up" items={scoutingView.strengths} empty="No reliable strengths are locked in yet." />
+            <InfoListCard title="Open Questions" items={scoutingView.concerns} empty="No major flags beyond the usual market uncertainty." />
           </div>
         </div>
-      </div>
+      )}
 
       {/* Ratings + Stats Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
@@ -381,22 +432,27 @@ export function PlayerPage({ state }: Props) {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Attributes</h3>
             <div className="flex gap-3">
-              <span className="text-orange-300/70 text-xs font-display">BAT <span className="stat-num font-bold">{player.battingOvr}</span></span>
-              <span className="text-purple-300/70 text-xs font-display">BWL <span className="stat-num font-bold">{player.bowlingOvr}</span></span>
+              <span className="text-orange-300/70 text-xs font-display">BAT <span className="stat-num font-bold">{scoutingView.batting.display}</span></span>
+              <span className="text-purple-300/70 text-xs font-display">BWL <span className="stat-num font-bold">{scoutingView.bowling.display}</span></span>
             </div>
           </div>
+          {!scoutingView.exactRatings && (
+            <div className="mb-4 rounded-xl border border-th bg-th-raised px-3 py-2 text-xs text-th-muted font-display">
+              This card is built from scouting estimates, not internal player data.
+            </div>
+          )}
           {/* Radar chart */}
           <div className="flex justify-center mb-5">
             <RadarChart
               attributes={[
-                { label: "CLT", value: player.ratings.clutch },
-                { label: "IQ", value: player.ratings.battingIQ },
-                { label: "TIM", value: player.ratings.timing },
-                { label: "PWR", value: player.ratings.power },
-                { label: "RUN", value: player.ratings.running },
-                { label: "WKT", value: player.ratings.wicketTaking },
-                { label: "ECN", value: player.ratings.economy },
-                { label: "ACC", value: player.ratings.accuracy },
+                { label: "CLT", value: scoutingView.attributes.clutch.barValue },
+                { label: "IQ", value: scoutingView.attributes.battingIQ.barValue },
+                { label: "TIM", value: scoutingView.attributes.timing.barValue },
+                { label: "PWR", value: scoutingView.attributes.power.barValue },
+                { label: "RUN", value: scoutingView.attributes.running.barValue },
+                { label: "WKT", value: scoutingView.attributes.wicketTaking.barValue },
+                { label: "ECN", value: scoutingView.attributes.economy.barValue },
+                { label: "ACC", value: scoutingView.attributes.accuracy.barValue },
               ]}
               teamColor={team?.config.primaryColor}
               size={200}
@@ -410,17 +466,17 @@ export function PlayerPage({ state }: Props) {
                 <div
                   className="flex-1 h-2 bg-th-raised rounded-full overflow-hidden"
                   role="progressbar"
-                  aria-valuenow={a.val}
+                  aria-valuenow={a.view.barValue}
                   aria-valuemin={0}
                   aria-valuemax={99}
                   aria-label={`${a.label} rating`}
                 >
                   <div
-                    className={`h-full rounded-full ${attrBarColor(a.val)} transition-all duration-500`}
-                    style={{ width: `${a.val}%` }}
+                    className={`h-full rounded-full ${attrBarColor(a.view.barValue)} transition-all duration-500`}
+                    style={{ width: `${a.view.barValue}%` }}
                   />
                 </div>
-                <span className={`stat-num text-sm font-bold w-8 text-right ${attrTextColor(a.val)}`}>{a.val}</span>
+                <span className={`stat-num text-sm font-bold min-w-[44px] text-right ${attrTextColor(a.view.barValue)}`}>{a.view.display}</span>
               </div>
             ))}
           </div>
@@ -614,6 +670,29 @@ function StatusCard({
     <div className={`rounded-xl border px-3 py-2.5 ${toneClasses}`}>
       <div className="text-[10px] uppercase tracking-wider text-th-faint">{label}</div>
       <div className="font-display font-semibold stat-num text-lg mt-1">{value}</div>
+    </div>
+  );
+}
+
+function InfoListCard({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  items: string[];
+  empty: string;
+}) {
+  return (
+    <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
+      <div className="text-th-faint text-[10px] uppercase tracking-wider">{title}</div>
+      <div className="mt-2 space-y-2">
+        {(items.length > 0 ? items : [empty]).map(item => (
+          <div key={item} className="text-sm text-th-secondary leading-6">
+            {item}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
