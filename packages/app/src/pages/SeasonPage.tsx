@@ -62,6 +62,15 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
     return -1;
   }, [state.schedule, state.currentMatchIndex, state.userTeamId, matchBasedActive]);
   const canSimToUserMatch = nextUserMatchIndex > state.currentMatchIndex;
+  const nextUserMatch = nextUserMatchIndex >= state.currentMatchIndex && nextUserMatchIndex < state.schedule.length
+    ? state.schedule[nextUserMatchIndex]
+    : null;
+  const averageReadiness = userTeam
+    ? Math.round(userTeam.roster.reduce((sum, player) => sum + player.readiness, 0) / Math.max(1, userTeam.roster.length))
+    : 0;
+  const tiredPlayers = userTeam ? userTeam.roster.filter(player => !player.injured && player.readiness <= 55).length : 0;
+  const pendingOffers = state.tradeOffers.filter(offer => offer.status === "pending").length;
+  const latestStory = state.narrativeEvents[0] ?? null;
 
   // Hovered schedule match for "sim to here"
   const [hoveredMatchIdx, setHoveredMatchIdx] = useState<number | null>(null);
@@ -242,6 +251,95 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
             <span>{state.schedule.filter(m => !m.isPlayoff && m.result).length}/{state.schedule.filter(m => !m.isPlayoff).length}</span>
             {state.rules.playoffTeams > 0 && (
               <span>{state.schedule.filter(m => m.isPlayoff && m.result).length}/{state.schedule.filter(m => m.isPlayoff).length}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {userTeam && (
+        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr,0.8fr] gap-4 mb-6">
+          <div className="rounded-2xl border border-th bg-th-surface p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Manager Desk</h3>
+                <p className="text-th-faint text-xs mt-1">Condition, inbox pressure, and your next decision point.</p>
+              </div>
+              <button
+                onClick={() => navigate("/inbox")}
+                className="text-[11px] font-display font-medium text-th-secondary hover:text-th-primary bg-th-raised hover:bg-th-overlay px-2.5 py-1 rounded-lg transition-colors border border-th"
+              >
+                Open Inbox
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <SquadStat label="Avg Ready" value={String(averageReadiness)} />
+              <SquadStat label="Tired" value={String(tiredPlayers)} />
+              <SquadStat label="Offers" value={String(pendingOffers)} />
+              <SquadStat label="Stories" value={String(state.narrativeEvents.length)} />
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-xl border border-th bg-th-raised p-3">
+                <div className="text-th-muted text-[10px] uppercase font-display tracking-wider">Next Call</div>
+                <div className="text-th-primary text-sm font-display font-medium mt-1">
+                  {state.needsLineup
+                    ? "Lineup needed before your next match."
+                    : nextUserMatch
+                      ? `${nextUserMatch.homeTeamId} vs ${nextUserMatch.awayTeamId} is your next user fixture.`
+                      : "No user fixture is queued right now."}
+                </div>
+                <div className="text-th-faint text-xs mt-1">
+                  {state.needsLineup
+                    ? tiredPlayers > 0
+                      ? `${tiredPlayers} player(s) are carrying low readiness into selection.`
+                      : "Condition is stable for selection."
+                    : pendingOffers > 0
+                      ? `${pendingOffers} trade offer(s) still need an answer.`
+                      : "No immediate off-field pressure."}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {state.needsLineup && (
+                  <button
+                    onClick={() => navigate("/lineup")}
+                    className="px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white text-xs font-display font-semibold rounded-lg transition-all"
+                  >
+                    Review Lineup
+                  </button>
+                )}
+                {pendingOffers > 0 && (
+                  <button
+                    onClick={() => navigate("/trade")}
+                    className="px-3 py-2 bg-th-raised hover:bg-th-overlay text-th-primary text-xs font-display font-medium rounded-lg transition-colors border border-th"
+                  >
+                    Review Trades
+                  </button>
+                )}
+                {!state.needsLineup && (
+                  <button
+                    onClick={() => navigate("/inbox")}
+                    className="px-3 py-2 bg-th-raised hover:bg-th-overlay text-th-primary text-xs font-display font-medium rounded-lg transition-colors border border-th"
+                  >
+                    Read Reports
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-th bg-th-surface p-4">
+            <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-3">Latest Report</h3>
+            {latestStory ? (
+              <div className="rounded-xl border border-th bg-th-raised p-3">
+                <div className="text-th-primary font-display font-medium">{latestStory.headline}</div>
+                <div className="text-th-muted text-sm mt-2 leading-6">{latestStory.body}</div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-th bg-th-raised p-3 text-th-faint text-sm">
+                The inbox will start filling once matches are played.
+              </div>
             )}
           </div>
         </div>

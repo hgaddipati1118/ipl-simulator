@@ -17,7 +17,9 @@ export interface LineupInsight {
 export interface LineupReport {
   lineupScore: number;
   venueLabel: string;
+  averageReadiness: number;
   hotStarters: number;
+  tiredStarters: number;
   bowlingOptions: number;
   strengths: LineupInsight[];
   concerns: LineupInsight[];
@@ -180,11 +182,16 @@ export function buildLineupReport(params: {
   const topOrderFit = average(topOrder.map((player, index) => getBattingSlotFit(player, index).score));
   const topSixPower = average(topSix.map(player => player.ratings.power));
   const topSixRunning = average(topSix.map(player => player.ratings.running));
+  const averageReadiness = average(selectedPlayers.map(player => player.readiness));
   const hotStarters = selectedPlayers.filter(player => player.form >= 65).length;
   const coldStarters = selectedPlayers.filter(player => player.form <= 35).length;
+  const tiredStarters = selectedPlayers.filter(player => player.readiness <= 55).length;
   const hotBench = availablePlayers
     .filter(player => !selectedPlayers.some(selected => selected.id === player.id) && player.form >= 65)
     .sort((a, b) => b.form - a.form || b.overall - a.overall);
+  const freshBench = availablePlayers
+    .filter(player => !selectedPlayers.some(selected => selected.id === player.id) && player.readiness >= 80)
+    .sort((a, b) => b.readiness - a.readiness || b.overall - a.overall);
 
   const deathCandidates = (bowlingPlan?.death.length ?? 0) > 0
     ? bowlingPlan!.death
@@ -241,6 +248,8 @@ export function buildLineupReport(params: {
 
   if (hotStarters >= 2) addIfRoom(strengths, "In-Form Core", `${hotStarters} starters are in strong recent form.`);
   if (coldStarters >= 2) addIfRoom(concerns, "Cold Picks", `${coldStarters} starters are carrying poor recent form.`);
+  if (averageReadiness >= 82) addIfRoom(strengths, "Fresh Squad", `Average readiness is ${Math.round(averageReadiness)}, so the XI should hold intensity late.`);
+  if (tiredStarters >= 2) addIfRoom(concerns, "Condition Risk", `${tiredStarters} starters are below 55 readiness. Workload could show up late.`);
 
   if (hotBench.length > 0) {
     const benchPlayer = hotBench[0];
@@ -254,6 +263,14 @@ export function buildLineupReport(params: {
         `${benchPlayer.name} is hot (${Math.round(benchPlayer.form)} form) and has a case over ${sameRoleSwap.name}.`,
       );
     }
+  }
+
+  if (freshBench.length > 0 && tiredStarters > 0) {
+    addIfRoom(
+      recommendations,
+      "Fresh Legs Available",
+      `${freshBench[0].name} is sitting on ${freshBench[0].readiness} readiness if you want to ease the workload.`,
+    );
   }
 
   const openerCandidates = battingOrder
@@ -305,7 +322,9 @@ export function buildLineupReport(params: {
   return {
     lineupScore,
     venueLabel: venueBits.join(" • "),
+    averageReadiness: Math.round(averageReadiness),
     hotStarters,
+    tiredStarters,
     bowlingOptions: bowlers.length,
     strengths,
     concerns,

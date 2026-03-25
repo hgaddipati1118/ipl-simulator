@@ -247,7 +247,11 @@ describe("simulateNextMatch", () => {
     const winsBeforeHome = homeBefore.wins;
     const winsBeforeAway = awayBefore.wins;
 
-    simulateNextMatch(schedule, 0, teams);
+    simulateNextMatch(schedule, 0, teams, {
+      ...RULE_PRESETS.modern,
+      impactPlayer: false,
+      injuriesEnabled: false,
+    });
 
     // One team should have gained a win
     expect(homeBefore.wins + awayBefore.wins).toBe(winsBeforeHome + winsBeforeAway + 1);
@@ -267,6 +271,35 @@ describe("simulateNextMatch", () => {
     // Injury should have been healed (games left decremented to 0)
     expect(teams[0].roster[0].injuryGamesLeft).toBe(0);
     expect(teams[0].roster[0].injured).toBe(false);
+  });
+
+  it("applies match fatigue to the XI while resting other squads", () => {
+    const teams = buildTeams();
+    const schedule = [{
+      matchNumber: 1,
+      homeTeamId: teams[0].id,
+      awayTeamId: teams[1].id,
+      isPlayoff: false,
+      type: "group" as const,
+    }];
+
+    for (const team of teams) {
+      for (const player of team.roster) {
+        player.fatigue = 20;
+      }
+    }
+
+    const homeXI = teams[0].getPlayingXI();
+    const restingPlayer = teams[2].roster[0];
+
+    simulateNextMatch(schedule, 0, teams, {
+      ...RULE_PRESETS.modern,
+      impactPlayer: false,
+      injuriesEnabled: false,
+    });
+
+    expect(homeXI.some(player => player.fatigue > 20)).toBe(true);
+    expect(restingPlayer.fatigue).toBeLessThan(20);
   });
 });
 

@@ -311,6 +311,7 @@ export function createPlayerFromData(data: {
   name: string;
   age: number;
   country: string;
+  imageUrl?: string;
   role?: string;
   isWicketKeeper?: boolean;
   bowlingStyle?: BowlingStyle;
@@ -349,6 +350,7 @@ export function createPlayerFromData(data: {
     name: data.name,
     age: data.age,
     country: data.country,
+    imageUrl: data.imageUrl,
     role,
     ratings,
     isInternational,

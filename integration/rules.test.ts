@@ -44,8 +44,17 @@ describe("RULE_PRESETS", () => {
     expect(RULE_PRESETS.modern.maxBouncersPerOver).toBe(2);
   });
 
-  it("DEFAULT_RULES equals modern", () => {
-    expect(DEFAULT_RULES).toEqual(RULE_PRESETS.modern);
+  it("modern2026 preset has correct values", () => {
+    expect(RULE_PRESETS.modern2026.impactPlayer).toBe(true);
+    expect(RULE_PRESETS.modern2026.salaryCap).toBe(125);
+    expect(RULE_PRESETS.modern2026.matchesPerTeam).toBe(16);
+    expect(RULE_PRESETS.modern2026.superOverTieBreaker).toBe("repeated-super-over");
+    expect(RULE_PRESETS.modern2026.maxBouncersPerOver).toBe(2);
+    expect(RULE_PRESETS.modern2026.name).toBe("IPL 2026+");
+  });
+
+  it("DEFAULT_RULES equals modern2026", () => {
+    expect(DEFAULT_RULES).toEqual(RULE_PRESETS.modern2026);
   });
 });
 
@@ -205,7 +214,11 @@ describe("full season with classic rules", () => {
     expect(result.champion).toBeTruthy();
     expect(result.standings).toHaveLength(10);
     expect(result.orangeCap.runs).toBeGreaterThan(0);
+    expect(result.orangeCap.strikeRate).toBeGreaterThan(0);
     expect(result.purpleCap.wickets).toBeGreaterThan(0);
+    expect(result.purpleCap.economy).toBeLessThan(99);
+    expect(result.mvp.name).toBeTruthy();
+    expect(result.mvp.points).toBeGreaterThan(0);
   }, 30000);
 });
 
@@ -217,7 +230,11 @@ describe("full season with modern rules", () => {
     expect(result.champion).toBeTruthy();
     expect(result.standings).toHaveLength(10);
     expect(result.orangeCap.runs).toBeGreaterThan(0);
+    expect(result.orangeCap.strikeRate).toBeGreaterThan(0);
     expect(result.purpleCap.wickets).toBeGreaterThan(0);
+    expect(result.purpleCap.economy).toBeLessThan(99);
+    expect(result.mvp.name).toBeTruthy();
+    expect(result.mvp.points).toBeGreaterThan(0);
   }, 30000);
 
   it("impact subs are used across the season", () => {

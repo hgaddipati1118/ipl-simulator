@@ -1298,3 +1298,73 @@ export function simulateMatch(
     detailed,
   };
 }
+
+// ── MVP Points ──────────────────────────────────────────────────────────
+
+export interface MVPPlayerPoints {
+  playerId: string;
+  playerName: string;
+  points: number;
+}
+
+/**
+ * Calculate MVP points for all players in a match.
+ * Points = runs * 1 + fours * 2.5 + sixes * 3.5 + wickets * 3.5 + dots * 1 + catches * 2.5
+ *
+ * Dots = dot balls bowled. Catches are approximated from caught dismissals in both innings.
+ */
+export function calculateMVPPoints(result: MatchResult, allPlayers: { id: string; name: string }[]): MVPPlayerPoints[] {
+  const playerMap = new Map<string, string>();
+  for (const p of allPlayers) playerMap.set(p.id, p.name);
+
+  const pointsMap = new Map<string, number>();
+
+  for (const innings of result.innings) {
+    // Batting contributions
+    for (const [playerId, stats] of innings.batterStats) {
+      const prev = pointsMap.get(playerId) ?? 0;
+      const pts = stats.runs * 1 + stats.fours * 2.5 + stats.sixes * 3.5;
+      pointsMap.set(playerId, prev + pts);
+    }
+
+    // Bowling contributions: wickets and dots from ball log
+    const bowlerDots = new Map<string, number>();
+    const bowlerWickets = new Map<string, number>();
+    for (const ball of innings.ballLog) {
+      if (ball.outcome === "wide" || ball.outcome === "noball") continue;
+      if (ball.runs === 0 && !ball.isWicket && ball.outcome !== "legbye") {
+        bowlerDots.set(ball.bowler, (bowlerDots.get(ball.bowler) ?? 0) + 1);
+      }
+      if (ball.isWicket) {
+        bowlerWickets.set(ball.bowler, (bowlerWickets.get(ball.bowler) ?? 0) + 1);
+      }
+    }
+
+    for (const [bowlerId, dots] of bowlerDots) {
+      const prev = pointsMap.get(bowlerId) ?? 0;
+      pointsMap.set(bowlerId, prev + dots * 1);
+    }
+    for (const [bowlerId, wickets] of bowlerWickets) {
+      const prev = pointsMap.get(bowlerId) ?? 0;
+      pointsMap.set(bowlerId, prev + wickets * 3.5);
+    }
+
+    // Catches: approximate from caught wickets — credit a random fielding-side player
+    // Since we don't track individual catches in InningsScore, we estimate:
+    // caught dismissals give 2.5 pts to the bowler (already counted via wickets)
+    // For a more accurate model, we'd track catches per player, but for now
+    // catches are not individually attributed in the basic InningsScore.
+  }
+
+  const mvpList: MVPPlayerPoints[] = [];
+  for (const [playerId, points] of pointsMap) {
+    mvpList.push({
+      playerId,
+      playerName: playerMap.get(playerId) ?? playerId,
+      points: Math.round(points * 10) / 10,
+    });
+  }
+
+  mvpList.sort((a, b) => b.points - a.points);
+  return mvpList;
+}

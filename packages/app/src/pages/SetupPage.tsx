@@ -257,7 +257,9 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
   const navigate = useNavigate();
   const isWPL = rules.league === "wpl";
   const isCustom = rules.league === "custom";
-  const isModern = rules.impactPlayer;
+  const isModern = rules.name === "IPL Modern (2023+)" || (rules.impactPlayer && rules.matchesPerTeam === 14 && rules.league === "ipl");
+  const is2026 = rules.name === "IPL 2026+" || (rules.impactPlayer && rules.matchesPerTeam === 16 && rules.league === "ipl");
+  const isClassic = !isModern && !is2026 && !isWPL && !isCustom;
   const [showCustom, setShowCustom] = useState(isCustom);
 
   const leagueLabel = rules.leagueName ?? (isWPL ? "WPL" : isCustom ? (rules.leagueName || "Custom") : "IPL");
@@ -336,7 +338,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
             <button
               onClick={() => onRulesChange(RULE_PRESETS.classic)}
               className={`px-4 py-2 text-xs font-display font-medium transition-all duration-200 ${
-                !isModern
+                isClassic
                   ? "bg-white/10 text-th-primary"
                   : "bg-transparent text-th-muted hover:text-th-primary hover:bg-th-hover"
               }`}
@@ -351,7 +353,17 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
                   : "bg-transparent text-th-muted hover:text-th-primary hover:bg-th-hover"
               }`}
             >
-              Modern (2023+)
+              Modern (2023-25)
+            </button>
+            <button
+              onClick={() => onRulesChange(RULE_PRESETS.modern2026)}
+              className={`px-4 py-2 text-xs font-display font-medium transition-all duration-200 border-l border-th ${
+                is2026
+                  ? "bg-white/10 text-th-primary"
+                  : "bg-transparent text-th-muted hover:text-th-primary hover:bg-th-hover"
+              }`}
+            >
+              IPL 2026+
             </button>
           </div>
         </div>

@@ -11,7 +11,7 @@ import {
   generateAITradeOffers, processTradeOffer, executeTrade,
   generateSchedule, simulateNextMatch, getStandings,
   addPlayoffMatches, addQualifier2, addFinal, applyLiveResult,
-  serializeMatchResult, healInjuries, simulateMatch,
+  serializeMatchResult, healInjuries, simulateMatch, calculateMVPPoints,
   initAuction as engineInitAuction,
   userBid as engineUserBid,
   userDropBid as engineUserDropBid,
@@ -534,14 +534,52 @@ export function finalizeSeason(state: GameState): GameState {
   const standings = getStandings(state.teams);
   const champion = finalMatch?.result?.winnerId || standings[0]?.teamId || "";
 
+  // Orange Cap: most runs, tiebreaker = higher strike rate
   const orangeCap = allPlayers.reduce(
-    (best, p) => p.stats.runs > best.runs ? { playerId: p.id, runs: p.stats.runs } : best,
-    { playerId: "", runs: 0 },
+    (best, p) => {
+      const sr = p.stats.ballsFaced > 0 ? (p.stats.runs / p.stats.ballsFaced) * 100 : 0;
+      if (p.stats.runs > best.runs) return { playerId: p.id, runs: p.stats.runs, strikeRate: sr };
+      if (p.stats.runs === best.runs && sr > best.strikeRate) return { playerId: p.id, runs: p.stats.runs, strikeRate: sr };
+      return best;
+    },
+    { playerId: "", runs: 0, strikeRate: 0 },
   );
+
+  // Purple Cap: most wickets, tiebreaker = lower economy rate
   const purpleCap = allPlayers.reduce(
-    (best, p) => p.stats.wickets > best.wickets ? { playerId: p.id, wickets: p.stats.wickets } : best,
-    { playerId: "", wickets: 0 },
+    (best, p) => {
+      const intOvers = Math.floor(p.stats.overs);
+      const fracBalls = Math.round((p.stats.overs - intOvers) * 10);
+      const totalOvers = intOvers + fracBalls / 6;
+      const econ = totalOvers > 0 ? p.stats.runsConceded / totalOvers : 99;
+      if (p.stats.wickets > best.wickets) return { playerId: p.id, wickets: p.stats.wickets, economy: econ };
+      if (p.stats.wickets === best.wickets && econ < best.economy) return { playerId: p.id, wickets: p.stats.wickets, economy: econ };
+      return best;
+    },
+    { playerId: "", wickets: 0, economy: 99 },
   );
+
+  // MVP points accumulation across all matches
+  const playerIdNameMap = allPlayers.map(p => ({ id: p.id, name: p.name }));
+  const mvpAccumulator = new Map<string, { name: string; points: number }>();
+  for (const match of state.schedule) {
+    if (!match.result) continue;
+    const matchMVP = calculateMVPPoints(match.result, playerIdNameMap);
+    for (const entry of matchMVP) {
+      const prev = mvpAccumulator.get(entry.playerId);
+      if (prev) {
+        prev.points += entry.points;
+      } else {
+        mvpAccumulator.set(entry.playerId, { name: entry.playerName, points: entry.points });
+      }
+    }
+  }
+  let mvp = { name: "", points: 0 };
+  for (const [, entry] of mvpAccumulator) {
+    if (entry.points > mvp.points) {
+      mvp = { name: entry.name, points: Math.round(entry.points * 10) / 10 };
+    }
+  }
 
   const seasonResult: SeasonResult = {
     schedule: state.schedule,
@@ -549,6 +587,7 @@ export function finalizeSeason(state: GameState): GameState {
     champion,
     orangeCap,
     purpleCap,
+    mvp,
   };
 
   const orangePlayer = allPlayers.find(p => p.id === orangeCap.playerId);

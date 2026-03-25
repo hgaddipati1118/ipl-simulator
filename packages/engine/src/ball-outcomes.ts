@@ -285,6 +285,7 @@ export function checkMidMatchInjury(params: {
 
 export type InjuryResponse =
   | "retired-hurt"       // Batter walks off, can potentially return later
+  | "retired-out"        // Voluntary tactical retirement — batter cannot return
   | "concussion-sub"     // Like-for-like replacement from bench
   | "bowling-breakdown"  // Bowler can't continue, another bowler finishes over
   | "continues";         // Minor, player plays on

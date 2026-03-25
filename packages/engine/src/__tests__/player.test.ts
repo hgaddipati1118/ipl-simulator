@@ -83,6 +83,14 @@ describe("Player computed ratings", () => {
     const p = new Player(makePlayerData());
     expect(p.overall).toBeGreaterThanOrEqual(Math.max(p.battingOvr, p.bowlingOvr));
   });
+
+  it("derives readiness and selection score from fatigue", () => {
+    const p = new Player(makePlayerData({ fatigue: 44 }));
+    expect(p.readiness).toBe(56);
+    expect(p.selectionScore).toBeLessThan(p.overall);
+    expect(p.effectiveBattingOvr).toBeLessThan(p.battingOvr);
+    expect(p.effectiveBowlingOvr).toBeLessThanOrEqual(p.bowlingOvr);
+  });
 });
 
 describe("Player market value", () => {
@@ -199,6 +207,32 @@ describe("Player progression", () => {
     expect(p.stats.runs).toBe(0);
     expect(p.stats.wickets).toBe(0);
   });
+
+  it("clears fatigue and workload during off-season progression", () => {
+    const p = new Player(makePlayerData({ fatigue: 38, workloadHistory: [10, 12, 14] }));
+    p.progress();
+    expect(p.fatigue).toBe(0);
+    expect(p.workloadHistory).toEqual([]);
+  });
+});
+
+describe("Player condition management", () => {
+  it("adds fatigue from match workload and records recent load", () => {
+    const p = new Player(makePlayerData());
+    p.applyMatchWorkload({ ballsFaced: 32, oversBowled: 4, keptWicket: true });
+    expect(p.fatigue).toBeGreaterThan(0);
+    expect(p.workloadHistory.length).toBe(1);
+    expect(p.workloadHistory[0]).toBeGreaterThanOrEqual(10);
+    expect(p.readiness).toBeLessThan(100);
+  });
+
+  it("recovers condition without dropping below zero", () => {
+    const p = new Player(makePlayerData({ fatigue: 26, workloadHistory: [11, 13] }));
+    p.recoverCondition(12);
+    expect(p.fatigue).toBe(14);
+    p.recoverCondition(30);
+    expect(p.fatigue).toBe(0);
+  });
 });
 
 describe("Player serialization", () => {
@@ -230,36 +264,48 @@ describe("Player serialization", () => {
 
   it("serializes injury fields correctly", () => {
     const p = new Player(makePlayerData({
+      imageUrl: "/images/test.png",
       bowlingStyle: "leg-spin",
       battingHand: "left",
       injured: true,
       injuryGamesLeft: 4,
       injuryType: "shoulder",
       injurySeverity: "moderate",
+      fatigue: 29,
+      workloadHistory: [8, 11, 14],
     }));
 
     const json = p.toJSON();
+    expect(json.imageUrl).toBe("/images/test.png");
     expect(json.injured).toBe(true);
     expect(json.injuryGamesLeft).toBe(4);
     expect(json.injuryType).toBe("shoulder");
     expect(json.injurySeverity).toBe("moderate");
     expect(json.bowlingStyle).toBe("leg-spin");
     expect(json.battingHand).toBe("left");
+    expect(json.fatigue).toBe(29);
+    expect(json.workloadHistory).toEqual([8, 11, 14]);
   });
 
   it("deserializes injury fields correctly", () => {
     const p = new Player(makePlayerData({
+      imageUrl: "/images/test.png",
       injured: true,
       injuryGamesLeft: 4,
       injuryType: "shoulder",
       injurySeverity: "moderate",
+      fatigue: 33,
+      workloadHistory: [10, 12],
     }));
 
     const restored = Player.fromJSON(p.toJSON());
+    expect(restored.imageUrl).toBe("/images/test.png");
     expect(restored.injured).toBe(true);
     expect(restored.injuryGamesLeft).toBe(4);
     expect(restored.injuryType).toBe("shoulder");
     expect(restored.injurySeverity).toBe("moderate");
+    expect(restored.fatigue).toBe(33);
+    expect(restored.workloadHistory).toEqual([10, 12]);
   });
 
   it("roundtrip with no injury fields leaves them falsy", () => {
@@ -269,5 +315,7 @@ describe("Player serialization", () => {
     expect(restored.injuryGamesLeft).toBe(0);
     expect(restored.injuryType).toBeUndefined();
     expect(restored.injurySeverity).toBeUndefined();
+    expect(restored.fatigue).toBe(0);
+    expect(restored.workloadHistory).toEqual([]);
   });
 });

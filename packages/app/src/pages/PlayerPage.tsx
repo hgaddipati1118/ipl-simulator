@@ -4,6 +4,7 @@ import { GameState } from "../game-state";
 import { ovrBgClass, roleLabel, teamLabelColor, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { RadarChart } from "../components/RadarChart";
+import { PlayerAvatar } from "../components/PlayerAvatar";
 
 interface Props {
   state: GameState;
@@ -264,6 +265,7 @@ export function PlayerPage({ state }: Props) {
         <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: team.config.primaryColor }} />
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <TeamBadge teamId={team.id} shortName={team.shortName} primaryColor={team.config.primaryColor} size="md" />
+          <PlayerAvatar name={player.name} imageUrl={player.imageUrl} size="lg" teamColor={team.config.primaryColor} />
           <div className="flex-1">
             <h2 className="text-2xl sm:text-3xl font-display font-extrabold text-th-primary tracking-tight">{player.name}</h2>
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -331,6 +333,13 @@ export function PlayerPage({ state }: Props) {
             </span>
           </div>
         )}
+
+        <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatusCard label="Readiness" value={String(player.readiness)} tone={readinessTone(player.readiness)} />
+          <StatusCard label="Fatigue" value={String(player.fatigue)} tone={player.fatigue >= 60 ? "warn" : player.fatigue >= 35 ? "info" : "good"} />
+          <StatusCard label="Recent Load" value={String(player.recentWorkload)} tone={player.recentWorkload >= 20 ? "warn" : player.recentWorkload >= 12 ? "info" : "good"} />
+          <StatusCard label="Form" value={String(Math.round(player.form))} tone={player.form >= 65 ? "good" : player.form <= 35 ? "warn" : "info"} />
+        </div>
       </div>
 
       {/* Ratings + Stats Grid */}
@@ -506,6 +515,35 @@ function MiniStat({ label, value, highlight }: { label: string; value: string; h
     <div className="bg-th-surface rounded-lg px-2.5 py-1.5">
       <div className="text-th-faint text-[9px] uppercase font-display tracking-wider">{label}</div>
       <div className={`font-display font-semibold stat-num text-sm ${highlight ? "text-th-primary" : "text-th-secondary"}`}>{value}</div>
+    </div>
+  );
+}
+
+function readinessTone(readiness: number): "good" | "info" | "warn" {
+  if (readiness >= 70) return "good";
+  if (readiness >= 55) return "info";
+  return "warn";
+}
+
+function StatusCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "good" | "info" | "warn";
+}) {
+  const toneClasses = tone === "good"
+    ? "text-green-300 border-green-900/40 bg-green-950/10"
+    : tone === "warn"
+      ? "text-red-300 border-red-900/40 bg-red-950/10"
+      : "text-blue-300 border-blue-900/40 bg-blue-950/10";
+
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${toneClasses}`}>
+      <div className="text-[10px] uppercase tracking-wider text-th-faint">{label}</div>
+      <div className="font-display font-semibold stat-num text-lg mt-1">{value}</div>
     </div>
   );
 }

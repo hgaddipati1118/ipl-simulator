@@ -31,11 +31,11 @@ export {
 } from "./ball-outcomes.js";
 export type { DismissalType, WideType, NoBallType, MatchInjuryType, InjuryResponse, DRSResult } from "./ball-outcomes.js";
 
-export { simulateMatch } from "./match.js";
+export { simulateMatch, calculateMVPPoints } from "./match.js";
 export type {
   BallOutcome, BallEvent, InningsScore, MatchResult, MatchInjuryEvent,
   DetailedMatchResult, DetailedBallEvent, BatterInnings,
-  BowlerFigures, InningsScorecard,
+  BowlerFigures, InningsScorecard, MVPPlayerPoints,
 } from "./match.js";
 
 export {

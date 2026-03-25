@@ -142,7 +142,11 @@ export class Team {
   /** Auto-select best playing XI (guarantees at least 1 wicket-keeper) */
   autoSelectPlayingXI(maxOverseas = 4): Player[] {
     const available = this.roster.filter(p => !p.injured);
-    const sorted = [...available].sort((a, b) => b.overall - a.overall);
+    const sorted = [...available].sort((a, b) => {
+      const scoreDiff = b.selectionScore - a.selectionScore;
+      if (scoreDiff !== 0) return scoreDiff;
+      return b.overall - a.overall;
+    });
 
     const xi: Player[] = [];
     let intCount = 0;
@@ -287,6 +291,7 @@ export class Team {
     this.bowlingPlan = undefined;
     for (const p of this.roster) {
       p.resetSeasonStats();
+      p.resetCondition();
       // Clear injuries at season start
       p.injured = false;
       p.injuryGamesLeft = 0;
@@ -306,6 +311,6 @@ export class Team {
   get powerRating(): number {
     const xi = this.getPlayingXI();
     if (xi.length === 0) return 0;
-    return Math.round(xi.reduce((s, p) => s + p.overall, 0) / xi.length);
+    return Math.round(xi.reduce((s, p) => s + p.selectionScore, 0) / xi.length);
   }
 }

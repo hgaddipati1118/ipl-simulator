@@ -3,6 +3,7 @@ import { type Player, type AuctionState, getBidIncrement, getBasePrice } from "@
 import { GameState } from "../game-state";
 import { ovrColorClass, roleLabel, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
+import { PlayerAvatar } from "../components/PlayerAvatar";
 
 interface Props {
   state: GameState;
@@ -226,6 +227,7 @@ export function AuctionPage({
             <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6">
               {/* Player info */}
               <div className="flex items-start gap-4 mb-5">
+                <PlayerAvatar name={currentPlayer.name} imageUrl={currentPlayer.imageUrl} size="md" />
                 <div className="flex-1">
                   <h3 className="text-xl font-display font-bold text-th-primary">
                     {currentPlayer.name}

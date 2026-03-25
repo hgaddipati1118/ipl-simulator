@@ -182,6 +182,26 @@ describe("Team getPlayingXI", () => {
     // The selection is greedy by overall, so the XIs should have high overall players
     expect(xi.length).toBeGreaterThan(0);
   });
+
+  it("prefers fresher players when overall quality is close", () => {
+    const team = makeFullTeam();
+    const tiredBatter = team.roster.find(p => p.role === "batsman" && !p.isWicketKeeper)!;
+    const freshBatter = team.roster.find(p => p.role === "batsman" && !p.isWicketKeeper && p.id !== tiredBatter.id)!;
+
+    tiredBatter.ratings.battingIQ = 82;
+    tiredBatter.ratings.timing = 82;
+    tiredBatter.ratings.power = 78;
+    tiredBatter.fatigue = 76;
+
+    freshBatter.ratings.battingIQ = 79;
+    freshBatter.ratings.timing = 79;
+    freshBatter.ratings.power = 76;
+    freshBatter.fatigue = 8;
+
+    const xi = team.getPlayingXI();
+    expect(xi.some(p => p.id === freshBatter.id)).toBe(true);
+    expect(xi.some(p => p.id === tiredBatter.id)).toBe(false);
+  });
 });
 
 describe("Team batting order", () => {

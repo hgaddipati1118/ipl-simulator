@@ -97,7 +97,7 @@ export interface LiveBowlerStats {
 
 /** A pending tactical decision the user must resolve before the match continues. */
 export interface PendingDecision {
-  type: 'choose_bowler' | 'choose_batter' | 'impact_sub' | 'toss_decision' | 'drs_review';
+  type: 'choose_bowler' | 'choose_batter' | 'impact_sub' | 'toss_decision' | 'drs_review' | 'retire_out';
   /** Player IDs the user can pick from. For impact_sub, these are bench players who can come in.
    *  For toss_decision, options are ["bat", "bowl"]. For drs_review, options are ["review", "accept"]. */
   options: string[];
@@ -1190,7 +1190,111 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     newState.strikerName = newState.nonStrikerName;
     newState.nonStrikerName = tempName;
 
-    // Pick next bowler if innings continues (and no pending batter decision)
+    // ── Retire Out (between overs) ───────────────────────────
+    // Offer tactical retirement when innings is still in progress
+    if (newState.status !== "waiting_for_decision" &&
+        newState.overs < maxOvers && newState.wickets < 10 &&
+        !(isSecondInnings && newState.score >= target) &&
+        newState.nextBatterIdx < ni.battingOrderIds.length) {
+      const isUserBatting = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
+
+      if (isUserBatting) {
+        // Offer retire-out between overs: options are current striker and non-striker (plus "skip")
+        const currentStrikerId = ni.battingOrderIds[newState.strikerIdx];
+        const currentNonStrikerId = ni.battingOrderIds[newState.nonStrikerIdx];
+        const retireOptions = ["skip", currentStrikerId, currentNonStrikerId];
+        const retireDetails: PendingDecisionOption[] = [currentStrikerId, currentNonStrikerId].map(id => {
+          const p = pm[id];
+          const liveStat = newState.batterStats.find(b => b.playerId === id);
+          return {
+            playerId: id,
+            playerName: p.name,
+            role: p.role,
+            battingOvr: p.battingOvr,
+            bowlingOvr: p.bowlingOvr,
+            overall: p.overall,
+            oversBowled: liveStat?.runs,
+            oversRemaining: liveStat?.balls,
+          };
+        });
+
+        newState.pendingDecision = {
+          type: 'retire_out',
+          options: retireOptions,
+          teamId: newState.battingTeamId,
+          optionDetails: retireDetails,
+        };
+        newState.status = "waiting_for_decision";
+      } else {
+        // CPU auto-retire: in death overs (16+), retire batters with SR < 120 who scored 25+
+        // if explosive batters (battingOvr > 80, power > 70) are waiting
+        if (newState.overs >= 16) {
+          const currentStrikerId = ni.battingOrderIds[newState.strikerIdx];
+          const currentNonStrikerId = ni.battingOrderIds[newState.nonStrikerIdx];
+          const strikerLive = newState.batterStats.find(b => b.playerId === currentStrikerId);
+          const nonStrikerLive = newState.batterStats.find(b => b.playerId === currentNonStrikerId);
+
+          // Check if explosive batters are waiting
+          const waitingBatters = ni.battingOrderIds.slice(newState.nextBatterIdx);
+          const hasExplosiveWaiting = waitingBatters.some(id => {
+            const p = pm[id];
+            return p && p.battingOvr > 80 && p.ratings.power > 70;
+          });
+
+          if (hasExplosiveWaiting) {
+            // Check striker for retirement
+            let retireId: string | null = null;
+            if (strikerLive && strikerLive.runs >= 25 && strikerLive.balls > 0 &&
+                (strikerLive.runs / strikerLive.balls) * 100 < 120) {
+              retireId = currentStrikerId;
+            } else if (nonStrikerLive && nonStrikerLive.runs >= 25 && nonStrikerLive.balls > 0 &&
+                       (nonStrikerLive.runs / nonStrikerLive.balls) * 100 < 120) {
+              retireId = currentNonStrikerId;
+            }
+
+            if (retireId) {
+              // Retire the batter
+              const liveBatter = newState.batterStats.find(b => b.playerId === retireId);
+              if (liveBatter) {
+                liveBatter.isOut = true;
+                liveBatter.howOut = "retired out";
+              }
+              const rawBat = rawInnings.batterStats[retireId];
+              if (rawBat) rawBat.isOut = true;
+
+              newState.wickets++;
+              rawInnings.wickets++;
+
+              // Bring in next batter
+              if (newState.nextBatterIdx < ni.battingOrderIds.length) {
+                // Replace the retired batter's position
+                if (retireId === currentStrikerId) {
+                  bringInNextBatter(newState, ni, pm, rawInnings);
+                } else {
+                  // Non-striker retiring: swap indices and bring in
+                  const tmpIdx = newState.strikerIdx;
+                  newState.strikerIdx = newState.nonStrikerIdx;
+                  newState.nonStrikerIdx = tmpIdx;
+                  const tmpName = newState.strikerName;
+                  newState.strikerName = newState.nonStrikerName;
+                  newState.nonStrikerName = tmpName;
+                  bringInNextBatter(newState, ni, pm, rawInnings);
+                  // Swap back so the new batter is at non-striker
+                  const tmpIdx2 = newState.strikerIdx;
+                  newState.strikerIdx = newState.nonStrikerIdx;
+                  newState.nonStrikerIdx = tmpIdx2;
+                  const tmpName2 = newState.strikerName;
+                  newState.strikerName = newState.nonStrikerName;
+                  newState.nonStrikerName = tmpName2;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Pick next bowler if innings continues (and no pending batter/retire decision)
     if (newState.status !== "waiting_for_decision" &&
         newState.overs < maxOvers && newState.wickets < 10 &&
         !(isSecondInnings && newState.score >= target)) {
@@ -1666,6 +1770,54 @@ export function applyDecision(
 
       break;
     }
+
+    case 'retire_out': {
+      const chosenId = decision.selectedPlayerId;
+
+      if (chosenId === "skip") {
+        // User chose not to retire anyone — proceed
+        break;
+      }
+
+      // Retire the selected batter out (cannot return)
+      const liveBatter = newState.batterStats.find(b => b.playerId === chosenId);
+      if (liveBatter) {
+        liveBatter.isOut = true;
+        liveBatter.howOut = "retired out";
+      }
+      const rawBat = rawInnings.batterStats[chosenId];
+      if (rawBat) rawBat.isOut = true;
+
+      newState.wickets++;
+      rawInnings.wickets++;
+
+      // Bring in next batter
+      if (newState.nextBatterIdx < ni.battingOrderIds.length) {
+        const currentStrikerId = ni.battingOrderIds[newState.strikerIdx];
+        const currentNonStrikerId = ni.battingOrderIds[newState.nonStrikerIdx];
+
+        if (chosenId === currentStrikerId) {
+          bringInNextBatter(newState, ni, pm, rawInnings);
+        } else if (chosenId === currentNonStrikerId) {
+          // Non-striker retiring: swap, bring in, swap back
+          const tmpIdx = newState.strikerIdx;
+          newState.strikerIdx = newState.nonStrikerIdx;
+          newState.nonStrikerIdx = tmpIdx;
+          const tmpName = newState.strikerName;
+          newState.strikerName = newState.nonStrikerName;
+          newState.nonStrikerName = tmpName;
+          bringInNextBatter(newState, ni, pm, rawInnings);
+          const tmpIdx2 = newState.strikerIdx;
+          newState.strikerIdx = newState.nonStrikerIdx;
+          newState.nonStrikerIdx = tmpIdx2;
+          const tmpName2 = newState.strikerName;
+          newState.strikerName = newState.nonStrikerName;
+          newState.nonStrikerName = tmpName2;
+        }
+      }
+
+      break;
+    }
   }
 
   // Clear the pending decision and resume
@@ -1908,6 +2060,11 @@ export function autoResolveDecision(state: MatchState): MatchState {
     case 'drs_review': {
       // CPU auto-accepts (no review when auto-resolving)
       return applyDecision(state, { type: 'drs_review', selectedPlayerId: "accept" });
+    }
+
+    case 'retire_out': {
+      // When auto-resolving (fast-forward / CPU), skip retirement
+      return applyDecision(state, { type: 'retire_out', selectedPlayerId: "skip" });
     }
   }
 

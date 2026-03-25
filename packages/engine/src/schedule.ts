@@ -7,7 +7,8 @@
  */
 
 import { Team } from "./team.js";
-import { MatchResult, simulateMatch, type InningsScore, type MatchInjuryEvent } from "./match.js";
+import { MatchResult, simulateMatch, calculateMVPPoints, type InningsScore, type MatchInjuryEvent } from "./match.js";
+import { Player } from "./player.js";
 import { shuffle } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { healInjuries, runPostMatchInjuryChecks } from "./injury.js";
@@ -40,8 +41,9 @@ export interface SeasonResult {
   schedule: ScheduledMatch[];
   standings: StandingsEntry[];
   champion: string;
-  orangeCap: { playerId: string; runs: number };
-  purpleCap: { playerId: string; wickets: number };
+  orangeCap: { playerId: string; runs: number; strikeRate: number };
+  purpleCap: { playerId: string; wickets: number; economy: number };
+  mvp: { name: string; points: number };
 }
 
 /** Serializable version of MatchResult for storage (Maps converted to plain objects) */
@@ -56,6 +58,110 @@ export interface SerializableMatchResult {
   winnerId: string | null;
   margin: string;
   motm: string;
+}
+
+interface PlayerWorkload {
+  ballsFaced: number;
+  oversBowled: number;
+}
+
+function getBattingInnings(result: MatchResult, teamId: string): InningsScore | undefined {
+  return result.innings.find(innings => innings.teamId === teamId);
+}
+
+function getBowlingInnings(result: MatchResult, teamId: string): InningsScore | undefined {
+  return result.innings.find(innings => innings.teamId !== teamId);
+}
+
+function getPlayingXIIds(result: MatchResult, teamId: string): Set<string> {
+  return new Set(getBattingInnings(result, teamId)?.batterStats.keys() ?? []);
+}
+
+function getPlayerWorkload(result: MatchResult, teamId: string): Map<string, PlayerWorkload> {
+  const workloads = new Map<string, PlayerWorkload>();
+  const battingInnings = getBattingInnings(result, teamId);
+  const bowlingInnings = getBowlingInnings(result, teamId);
+
+  if (battingInnings) {
+    for (const [playerId, stats] of battingInnings.batterStats) {
+      workloads.set(playerId, {
+        ballsFaced: stats.balls,
+        oversBowled: workloads.get(playerId)?.oversBowled ?? 0,
+      });
+    }
+  }
+
+  if (bowlingInnings) {
+    for (const [playerId, stats] of bowlingInnings.bowlerStats) {
+      workloads.set(playerId, {
+        ballsFaced: workloads.get(playerId)?.ballsFaced ?? 0,
+        oversBowled: stats.overs + stats.balls / 6,
+      });
+    }
+  }
+
+  return workloads;
+}
+
+function applyPostMatchCondition(result: MatchResult, teams: Team[]): void {
+  const involvedTeamIds = new Set([result.homeTeamId, result.awayTeamId]);
+
+  for (const team of teams) {
+    if (!involvedTeamIds.has(team.id)) {
+      for (const player of team.roster) {
+        player.recoverCondition(10);
+      }
+      continue;
+    }
+
+    const xiIds = getPlayingXIIds(result, team.id);
+    const workloads = getPlayerWorkload(result, team.id);
+
+    for (const player of team.roster) {
+      if (!xiIds.has(player.id)) {
+        player.recoverCondition(6);
+        continue;
+      }
+
+      const workload = workloads.get(player.id) ?? { ballsFaced: 0, oversBowled: 0 };
+      player.applyMatchWorkload({
+        ballsFaced: workload.ballsFaced,
+        oversBowled: workload.oversBowled,
+        keptWicket: player.isWicketKeeper,
+      });
+    }
+  }
+}
+
+function updateLiveMatchForm(result: MatchResult, teams: Team[]): void {
+  for (const team of teams) {
+    if (team.id !== result.homeTeamId && team.id !== result.awayTeamId) continue;
+
+    const battingInnings = getBattingInnings(result, team.id);
+    const bowlingInnings = getBowlingInnings(result, team.id);
+    if (!battingInnings || !bowlingInnings) continue;
+
+    for (const playerId of getPlayingXIIds(result, team.id)) {
+      const player = team.roster.find(candidate => candidate.id === playerId);
+      if (!player) continue;
+
+      const batting = battingInnings.batterStats.get(playerId);
+      const bowling = bowlingInnings.bowlerStats.get(playerId);
+      const runs = batting?.runs ?? 0;
+      const balls = batting?.balls ?? 0;
+      const wickets = bowling?.wickets ?? 0;
+      const overs = bowling ? bowling.overs + bowling.balls / 6 : 0;
+      const economy = overs > 0 ? bowling!.runs / overs : 99;
+      const strikeRate = balls > 0 ? (runs / balls) * 100 : 0;
+
+      player.recordMatchPerformance(Player.calculateFormScore({
+        runs,
+        wickets,
+        strikeRate,
+        economy,
+      }));
+    }
+  }
 }
 
 export interface SerializableInningsScore {
@@ -195,6 +301,8 @@ export function simulateNextMatch(
 
   match.result = result;
 
+  applyPostMatchCondition(result, teams);
+
   // Heal injuries for all teams
   for (const t of teams) {
     healInjuries(t);
@@ -328,6 +436,9 @@ export function applyLiveResult(
   const awayXISet = new Set(completedMatch._internal.awayXIIds);
   for (const p of home.roster) { if (homeXISet.has(p.id)) p.stats.matches++; }
   for (const p of away.roster) { if (awayXISet.has(p.id)) p.stats.matches++; }
+
+  updateLiveMatchForm(result, teams);
+  applyPostMatchCondition(result, teams);
 
   // Heal injuries for all teams
   for (const t of teams) {
@@ -659,15 +770,62 @@ export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): Season
   // Award caps
   const allPlayers = teams.flatMap(t => t.roster);
 
+  // Orange Cap: most runs, tiebreaker = higher strike rate
   const orangeCap = allPlayers.reduce(
-    (best, p) => p.stats.runs > best.runs ? { playerId: p.id, runs: p.stats.runs } : best,
-    { playerId: "", runs: 0 },
+    (best, p) => {
+      const sr = p.stats.ballsFaced > 0 ? (p.stats.runs / p.stats.ballsFaced) * 100 : 0;
+      if (p.stats.runs > best.runs) {
+        return { playerId: p.id, runs: p.stats.runs, strikeRate: sr };
+      }
+      if (p.stats.runs === best.runs && sr > best.strikeRate) {
+        return { playerId: p.id, runs: p.stats.runs, strikeRate: sr };
+      }
+      return best;
+    },
+    { playerId: "", runs: 0, strikeRate: 0 },
   );
 
+  // Purple Cap: most wickets, tiebreaker = lower economy rate
   const purpleCap = allPlayers.reduce(
-    (best, p) => p.stats.wickets > best.wickets ? { playerId: p.id, wickets: p.stats.wickets } : best,
-    { playerId: "", wickets: 0 },
+    (best, p) => {
+      const effectiveOvers = p.stats.overs; // display format (e.g. 16.4)
+      const intOvers = Math.floor(effectiveOvers);
+      const fracBalls = Math.round((effectiveOvers - intOvers) * 10);
+      const totalOvers = intOvers + fracBalls / 6;
+      const econ = totalOvers > 0 ? p.stats.runsConceded / totalOvers : 99;
+      if (p.stats.wickets > best.wickets) {
+        return { playerId: p.id, wickets: p.stats.wickets, economy: econ };
+      }
+      if (p.stats.wickets === best.wickets && econ < best.economy) {
+        return { playerId: p.id, wickets: p.stats.wickets, economy: econ };
+      }
+      return best;
+    },
+    { playerId: "", wickets: 0, economy: 99 },
   );
+
+  // MVP points: accumulate across all group + playoff matches
+  const mvpAccumulator = new Map<string, { name: string; points: number }>();
+  const playerIdNameMap = allPlayers.map(p => ({ id: p.id, name: p.name }));
+  for (const match of schedule) {
+    if (!match.result) continue;
+    const matchMVP = calculateMVPPoints(match.result, playerIdNameMap);
+    for (const entry of matchMVP) {
+      const prev = mvpAccumulator.get(entry.playerId);
+      if (prev) {
+        prev.points += entry.points;
+      } else {
+        mvpAccumulator.set(entry.playerId, { name: entry.playerName, points: entry.points });
+      }
+    }
+  }
+
+  let mvp = { name: "", points: 0 };
+  for (const [, entry] of mvpAccumulator) {
+    if (entry.points > mvp.points) {
+      mvp = { name: entry.name, points: Math.round(entry.points * 10) / 10 };
+    }
+  }
 
   return {
     schedule,
@@ -675,5 +833,6 @@ export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): Season
     champion,
     orangeCap,
     purpleCap,
+    mvp,
   };
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   type MatchState,
@@ -27,6 +27,9 @@ import {
   saveMatchDetail,
 } from "../match-db";
 import { buildNarrativeEventsForLiveState, type FeedMatchResult } from "../news-feed";
+import { PlayerAvatar } from "../components/PlayerAvatar";
+import { TeamBadge } from "../components/TeamBadge";
+import { ovrBgClass } from "../ui-utils";
 
 type Speed = "1x" | "2x" | "5x" | "instant";
 
@@ -90,6 +93,9 @@ export function LiveMatchPage({
   // DRS result flash
   const [drsResult, setDrsResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // Pre-match buildup
+  const [showBuildup, setShowBuildup] = useState(true);
+
   const playingRef = useRef(playing);
   const speedRef = useRef(speed);
   const stateRef = useRef(state);
@@ -105,6 +111,19 @@ export function LiveMatchPage({
   const isUserMatch = Boolean(
     userTeamId && state && (state.homeTeam.id === userTeamId || state.awayTeam.id === userTeamId)
   );
+
+  // Build player imageUrl lookup from teams prop (since SerializedPlayer in MatchState doesn't carry imageUrl)
+  const playerImageMap = useMemo(() => {
+    const map: Record<string, string | undefined> = {};
+    if (teams) {
+      for (const t of teams) {
+        for (const p of t.roster) {
+          if (p.imageUrl) map[p.id] = p.imageUrl;
+        }
+      }
+    }
+    return map;
+  }, [teams]);
 
   // Load from IndexedDB if resuming (e.g. page refresh during live match)
   useEffect(() => {
@@ -500,6 +519,174 @@ export function LiveMatchPage({
   const hasPendingDecision = state.status === "waiting_for_decision" && state.pendingDecision;
   const isDecisionForUser = hasPendingDecision && isUserMatch;
 
+  // Pre-match buildup: show when no balls bowled yet and not dismissed
+  const noBallsBowled = recentBalls.length === 0 && state.overs === 0 && state.balls === 0 && state.innings === 1;
+  const showBuildupScreen = showBuildup && noBallsBowled && state.status === "in_progress";
+
+  if (showBuildupScreen) {
+    const homeTeamFull = teams?.find(t => t.id === state.homeTeam.id);
+    const awayTeamFull = teams?.find(t => t.id === state.awayTeam.id);
+    const pitchType = state._internal.pitchType ?? "balanced";
+    const boundarySize = state._internal.boundarySize ?? "medium";
+    const dewFactor = state._internal.dewFactor ?? "none";
+    const stadiumName = homeTeamFull?.config.stadiumName ?? `${homeTeamFull?.config.city ?? "Unknown"} Stadium`;
+    const city = homeTeamFull?.config.city ?? "Unknown";
+    const stadiumRating = homeTeamFull?.config.stadiumBowlingRating ?? 1.0;
+
+    // Find highest OVR player from each team
+    const homeStarPlayer = homeTeamFull?.roster
+      .slice()
+      .sort((a, b) => b.overall - a.overall)[0] ?? null;
+    const awayStarPlayer = awayTeamFull?.roster
+      .slice()
+      .sort((a, b) => b.overall - a.overall)[0] ?? null;
+
+    const tossWinnerTeam = state.tossWinner === state.homeTeam.id ? state.homeTeam : state.awayTeam;
+
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-fade-in">
+        {/* Buildup card with gradient */}
+        <div
+          className="rounded-2xl border border-th overflow-hidden"
+          style={{
+            background: `linear-gradient(135deg, ${state.homeTeam.primaryColor}18 0%, transparent 40%, ${state.awayTeam.primaryColor}18 100%)`,
+          }}
+        >
+          {/* Top accent bar */}
+          <div className="h-1 flex">
+            <div className="flex-1" style={{ background: state.homeTeam.primaryColor }} />
+            <div className="flex-1" style={{ background: state.awayTeam.primaryColor }} />
+          </div>
+
+          <div className="p-5 sm:p-8">
+            {/* Match header */}
+            <div className="text-center mb-6">
+              <div className="text-[10px] text-th-muted uppercase tracking-widest font-display mb-1">
+                Match {matchIndex + 1} -- Season {seasonNumber}
+              </div>
+              <div className="text-xs text-th-faint font-display">IPL {new Date().getFullYear()}</div>
+            </div>
+
+            {/* Team vs Team */}
+            <div className="flex items-center justify-center gap-6 sm:gap-10 mb-8">
+              <div className="text-center">
+                <TeamBadge teamId={state.homeTeam.id} shortName={state.homeTeam.shortName} primaryColor={state.homeTeam.primaryColor} size="lg" />
+                <div className="mt-2 font-display font-bold text-th-primary text-sm sm:text-base">{state.homeTeam.shortName}</div>
+                <div className="text-[10px] text-th-muted font-display">{state.homeTeam.name}</div>
+              </div>
+
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-display font-extrabold text-th-faint">VS</div>
+              </div>
+
+              <div className="text-center">
+                <TeamBadge teamId={state.awayTeam.id} shortName={state.awayTeam.shortName} primaryColor={state.awayTeam.primaryColor} size="lg" />
+                <div className="mt-2 font-display font-bold text-th-primary text-sm sm:text-base">{state.awayTeam.shortName}</div>
+                <div className="text-[10px] text-th-muted font-display">{state.awayTeam.name}</div>
+              </div>
+            </div>
+
+            {/* Venue card */}
+            <div className="rounded-xl bg-th-body/60 border border-th p-4 mb-6">
+              <div className="text-center">
+                <div className="text-xs text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Venue</div>
+                <div className="font-display font-bold text-th-primary text-sm sm:text-base">{stadiumName}</div>
+                <div className="text-xs text-th-muted font-display mt-0.5">{city}</div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                <div className="text-center">
+                  <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Pitch</div>
+                  <div className="text-xs text-th-secondary font-display font-semibold capitalize">{pitchType}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Boundary</div>
+                  <div className="text-xs text-th-secondary font-display font-semibold capitalize">{boundarySize}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Dew</div>
+                  <div className="text-xs text-th-secondary font-display font-semibold capitalize">{dewFactor}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Conditions</div>
+                  <div className="text-xs text-th-secondary font-display font-semibold">{getStadiumLabel(stadiumRating)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Key players spotlight */}
+            {(homeStarPlayer || awayStarPlayer) && (
+              <div className="mb-6">
+                <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold text-center mb-3">Key Players</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {homeStarPlayer && (
+                    <div
+                      className="rounded-xl border border-th p-3 flex items-center gap-3"
+                      style={{ background: `${state.homeTeam.primaryColor}08` }}
+                    >
+                      <PlayerAvatar name={homeStarPlayer.name} imageUrl={homeStarPlayer.imageUrl} size="lg" teamColor={state.homeTeam.primaryColor} />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-display font-bold text-th-primary text-sm truncate">{homeStarPlayer.name}</div>
+                        <div className="text-[10px] text-th-muted font-display">
+                          BAT {homeStarPlayer.battingOvr} | BWL {homeStarPlayer.bowlingOvr}
+                        </div>
+                        <div className="text-[10px] font-display mt-0.5" style={{ color: state.homeTeam.primaryColor }}>
+                          {state.homeTeam.shortName}
+                        </div>
+                      </div>
+                      <div className={`text-sm font-display font-bold px-2 py-1 rounded-lg ${ovrBgClass(homeStarPlayer.overall)}`}>
+                        {homeStarPlayer.overall}
+                      </div>
+                    </div>
+                  )}
+                  {awayStarPlayer && (
+                    <div
+                      className="rounded-xl border border-th p-3 flex items-center gap-3"
+                      style={{ background: `${state.awayTeam.primaryColor}08` }}
+                    >
+                      <PlayerAvatar name={awayStarPlayer.name} imageUrl={awayStarPlayer.imageUrl} size="lg" teamColor={state.awayTeam.primaryColor} />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-display font-bold text-th-primary text-sm truncate">{awayStarPlayer.name}</div>
+                        <div className="text-[10px] text-th-muted font-display">
+                          BAT {awayStarPlayer.battingOvr} | BWL {awayStarPlayer.bowlingOvr}
+                        </div>
+                        <div className="text-[10px] font-display mt-0.5" style={{ color: state.awayTeam.primaryColor }}>
+                          {state.awayTeam.shortName}
+                        </div>
+                      </div>
+                      <div className={`text-sm font-display font-bold px-2 py-1 rounded-lg ${ovrBgClass(awayStarPlayer.overall)}`}>
+                        {awayStarPlayer.overall}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Toss result */}
+            <div className="rounded-xl bg-th-body/60 border border-th p-3 mb-6 text-center">
+              <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Toss</div>
+              <div className="text-sm text-th-secondary font-display">
+                <span className="font-bold text-th-primary" style={{ color: tossWinnerTeam.primaryColor }}>{tossWinnerTeam.name}</span>
+                {" "}won the toss and chose to{" "}
+                <span className="font-bold text-th-primary">{state.tossDecision === "bat" ? "bat" : "bowl"}</span> first
+              </div>
+            </div>
+
+            {/* Start Match button */}
+            <div className="text-center">
+              <button
+                onClick={() => setShowBuildup(false)}
+                className="px-8 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-display font-bold rounded-xl transition-all duration-200 shadow-lg shadow-orange-500/20 text-sm sm:text-base"
+              >
+                Start Match
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
       {/* Score flash overlay */}
@@ -640,7 +827,8 @@ export function LiveMatchPage({
             {state.batterStats.filter(b => !b.isOut).slice(-2).map(b => {
               const isStriker = b.playerId === state._internal.battingOrderIds[state.strikerIdx];
               return (
-                <span key={b.playerId} className={`font-mono ${isStriker ? "text-th-primary font-semibold" : "text-th-secondary"}`}>
+                <span key={b.playerId} className={`font-mono flex items-center gap-1.5 ${isStriker ? "text-th-primary font-semibold" : "text-th-secondary"}`}>
+                  <PlayerAvatar name={b.playerName} imageUrl={playerImageMap[b.playerId]} size="sm" teamColor={battingTeam.primaryColor} />
                   {b.playerName}{isStriker ? "*" : ""}{" "}
                   <span className="text-th-muted">{b.runs}({b.balls})</span>
                 </span>
@@ -652,7 +840,8 @@ export function LiveMatchPage({
                 ?? state.bowlerStats[state.bowlerStats.length - 1];
               const oversStr = b.balls > 0 ? `${b.overs}.${b.balls}` : `${b.overs}`;
               return (
-                <span className="font-mono text-th-secondary">
+                <span className="font-mono text-th-secondary flex items-center gap-1.5">
+                  <PlayerAvatar name={b.playerName} imageUrl={playerImageMap[b.playerId]} size="sm" teamColor={bowlingTeam.primaryColor} />
                   {b.playerName} <span className="text-th-muted">{oversStr}-{b.maidens}-{b.runs}-{b.wickets}</span>
                 </span>
               );

@@ -84,6 +84,26 @@ export const RULE_PRESETS = {
     playerSource: "real",
   } satisfies RuleSet,
 
+  modern2026: {
+    name: "IPL 2026+",
+    league: "ipl",
+    teamIds: IPL_10_TEAM_IDS,
+    impactPlayer: true,
+    salaryCap: 125,
+    maxBouncersPerOver: 2,
+    superOverTieBreaker: "repeated-super-over",
+    maxOverseasInXI: 4,
+    maxOverseasInSquad: 8,
+    maxSquadSize: 25,
+    matchesPerTeam: 16,
+    playoffTeams: 4,
+    playoffFormat: "eliminator",
+    scoringMultiplier: 1.0,
+    injuriesEnabled: true,
+    gender: "men",
+    playerSource: "real",
+  } satisfies RuleSet,
+
   wpl: {
     name: "WPL (Women's Premier League)",
     league: "wpl",
@@ -105,4 +125,4 @@ export const RULE_PRESETS = {
   } satisfies RuleSet,
 };
 
-export const DEFAULT_RULES: RuleSet = RULE_PRESETS.modern;
+export const DEFAULT_RULES: RuleSet = RULE_PRESETS.modern2026;

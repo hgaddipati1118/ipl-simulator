@@ -58,6 +58,11 @@ export function checkForInjury(player: Player): InjuryStatus | null {
     chance += AGE_PENALTY_CHANCE;
   }
 
+  // Heavy workloads should make repeat selections carry more downside.
+  if (player.fatigue > 55) {
+    chance += (player.fatigue - 55) * 0.0007;
+  }
+
   if (Math.random() >= chance) return null;
 
   // Player is injured — determine severity

@@ -81,6 +81,16 @@ export interface PlayerData {
   injuryType?: string;          // "hamstring", "shoulder", "back", "finger", "ankle", "side strain"
   injurySeverity?: InjurySeverity;
   formHistory?: number[];       // last 5 match performance scores (0-100)
+  fatigue?: number;             // 0-100 accumulated workload, lower is fresher
+  workloadHistory?: number[];   // last 5 workload scores for management surfaces
+}
+
+function conditionPenalty(fatigue: number): number {
+  return Math.max(0, Math.round(Math.max(0, fatigue - 20) / 4.5));
+}
+
+function applyConditionPenalty(value: number, fatigue: number): number {
+  return Math.max(1, value - conditionPenalty(fatigue));
 }
 
 export function calculateBattingOverall(ratings: PlayerRatings): number {
@@ -151,6 +161,8 @@ export class Player implements PlayerData {
   injuryType?: string;
   injurySeverity?: InjurySeverity;
   formHistory: number[];
+  fatigue: number;
+  workloadHistory: number[];
   stats: PlayerStats;
 
   constructor(data: PlayerData) {
@@ -172,6 +184,8 @@ export class Player implements PlayerData {
     this.injuryType = data.injuryType;
     this.injurySeverity = data.injurySeverity;
     this.formHistory = data.formHistory ? [...data.formHistory] : [];
+    this.fatigue = data.fatigue ?? 0;
+    this.workloadHistory = data.workloadHistory ? [...data.workloadHistory] : [];
     this.stats = this.emptyStats();
   }
 
@@ -197,6 +211,30 @@ export class Player implements PlayerData {
   /** Overall rating: stronger discipline as base, weaker adds diminishing bonus */
   get overall(): number {
     return calculateOverallRating(this.battingOvr, this.bowlingOvr);
+  }
+
+  /** Match readiness derived from accumulated fatigue (0-100, higher is fresher). */
+  get readiness(): number {
+    return clamp(Math.round(100 - this.fatigue), 0, 100);
+  }
+
+  /** Effective ratings for selection and management advice when fatigue is considered. */
+  get effectiveBattingOvr(): number {
+    return applyConditionPenalty(this.battingOvr, this.fatigue);
+  }
+
+  get effectiveBowlingOvr(): number {
+    return applyConditionPenalty(this.bowlingOvr, this.fatigue);
+  }
+
+  get selectionScore(): number {
+    return applyConditionPenalty(this.overall, this.fatigue);
+  }
+
+  /** Smoothed recent workload used in management UI. */
+  get recentWorkload(): number {
+    if (this.workloadHistory.length === 0) return 0;
+    return Math.round(this.workloadHistory.reduce((sum, value) => sum + value, 0) / this.workloadHistory.length);
   }
 
   /** Market value in crores, used for auction AI */
@@ -251,6 +289,36 @@ export class Player implements PlayerData {
     }
   }
 
+  /** Increase fatigue from a match appearance and store a compact workload history. */
+  applyMatchWorkload(input: {
+    ballsFaced: number;
+    oversBowled: number;
+    keptWicket?: boolean;
+  }): void {
+    const roleLoad = this.role === "all-rounder" ? 2 : this.role === "bowler" ? 1 : 0;
+    const battingLoad = Math.min(input.ballsFaced, 60) * 0.16;
+    const bowlingLoad = Math.min(input.oversBowled, 4) * 4;
+    const keepingLoad = input.keptWicket ? 4 : 0;
+    const workload = clamp(Math.round(9 + battingLoad + bowlingLoad + keepingLoad + roleLoad), 8, 32);
+
+    this.fatigue = clamp(Math.round(this.fatigue + workload), 0, 100);
+    this.workloadHistory.push(workload);
+    if (this.workloadHistory.length > 5) {
+      this.workloadHistory = this.workloadHistory.slice(-5);
+    }
+  }
+
+  /** Recover fatigue during rest periods or between fixtures. */
+  recoverCondition(amount = 10): void {
+    this.fatigue = clamp(Math.round(this.fatigue - amount), 0, 100);
+  }
+
+  /** Fully reset condition for a new season. */
+  resetCondition(): void {
+    this.fatigue = 0;
+    this.workloadHistory = [];
+  }
+
   /** Calculate form score from match stats */
   static calculateFormScore(stats: {
     runs: number;
@@ -283,6 +351,7 @@ export class Player implements PlayerData {
     }
 
     this.stats = this.emptyStats();
+    this.resetCondition();
   }
 
   /** Reset season stats (keep ratings) */
@@ -311,6 +380,8 @@ export class Player implements PlayerData {
       injuryType: this.injuryType,
       injurySeverity: this.injurySeverity,
       formHistory: [...this.formHistory],
+      fatigue: this.fatigue,
+      workloadHistory: [...this.workloadHistory],
       stats: this.stats,
     };
   }
@@ -320,6 +391,7 @@ export class Player implements PlayerData {
     const player = new Player(data);
     if (data.stats) player.stats = data.stats;
     if (data.formHistory) player.formHistory = [...data.formHistory];
+    if (data.workloadHistory) player.workloadHistory = [...data.workloadHistory];
     return player;
   }
 }

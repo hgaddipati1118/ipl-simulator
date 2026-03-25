@@ -4,6 +4,7 @@ import { Team, type RuleSet, DEFAULT_RULES } from "@ipl-sim/engine";
 import { ovrBgClass, roleLabel, bowlingStyleLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
+import { PlayerAvatar } from "../components/PlayerAvatar";
 
 interface Props {
   teams: Team[];
@@ -17,7 +18,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES }: Props) {
 
   if (!team) return <div className="p-8 text-th-secondary">Team not found</div>;
 
-  const roster = useMemo(() => [...team.roster].sort((a, b) => b.overall - a.overall), [team.roster]);
+  const roster = useMemo(() => [...team.roster].sort((a, b) => b.selectionScore - a.selectionScore || b.overall - a.overall), [team.roster]);
   const xi = team.getPlayingXI(rules.maxOverseasInXI);
   const xiIds = new Set(xi.map(p => p.id));
 
@@ -93,6 +94,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES }: Props) {
                 <th className="text-center px-2 py-3">Role</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Style</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Age</th>
+                <th className="text-center px-2 py-3 hidden sm:table-cell">Ready</th>
                 <th className="text-center px-2 py-3 hidden md:table-cell">M</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Runs</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Wkts</th>
@@ -104,8 +106,10 @@ export function TeamView({ teams, rules = DEFAULT_RULES }: Props) {
                 <tr key={p.id} className={`border-t border-th transition-colors hover:bg-th-hover ${xiIds.has(p.id) ? "" : "opacity-40"}`}>
                   <td className="px-3 sm:px-4 py-2.5">
                     <div className="flex items-center gap-2">
+                      <PlayerAvatar name={p.name} imageUrl={p.imageUrl} size="sm" teamColor={team.config.primaryColor} />
                       <PlayerLink playerId={p.id} className="text-th-primary font-display font-medium">{p.name}</PlayerLink>
                       <FormBadge form={p.form} />
+                      <ConditionBadge readiness={p.readiness} />
                       {p.isInternational && <span className="text-blue-400/70 text-[10px] font-display font-semibold bg-blue-500/10 px-1 rounded">OS</span>}
                       {p.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] font-display font-semibold bg-cyan-500/10 px-1 rounded">WK</span>}
                       {p.injured && <span className="text-red-400 text-[10px] font-display font-semibold bg-red-500/10 px-1 rounded" aria-label="Player is injured">INJ</span>}
@@ -121,6 +125,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES }: Props) {
                   <td className="text-center px-2 py-2.5 text-th-muted text-xs font-display">{roleLabel(p.role)}</td>
                   <td className="text-center px-2 py-2.5 text-purple-400/60 text-[10px] font-display font-semibold hidden sm:table-cell">{bowlingStyleLabel(p.bowlingStyle)}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden sm:table-cell">{p.age}</td>
+                  <td className={`text-center px-2 py-2.5 stat-num text-sm hidden sm:table-cell ${conditionColor(p.readiness)}`}>{p.readiness}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden md:table-cell">{p.stats.matches}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.runs}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.wickets}</td>
@@ -162,6 +167,30 @@ function FormBadge({ form }: { form: number }) {
     return <span className="text-red-400 text-xs" title={`Form: ${Math.round(form)}`}>&#9660;</span>;
   }
   return null;
+}
+
+function conditionColor(readiness: number): string {
+  if (readiness >= 85) return "text-cyan-300";
+  if (readiness >= 70) return "text-green-300";
+  if (readiness >= 55) return "text-yellow-300";
+  if (readiness >= 40) return "text-orange-300";
+  return "text-red-300";
+}
+
+function conditionLabel(readiness: number): string {
+  if (readiness >= 85) return "Fresh";
+  if (readiness >= 70) return "Good";
+  if (readiness >= 55) return "Managed";
+  if (readiness >= 40) return "Tired";
+  return "Exhausted";
+}
+
+function ConditionBadge({ readiness }: { readiness: number }) {
+  return (
+    <span className={`text-[10px] font-display font-semibold px-1 rounded ${conditionColor(readiness)}`}>
+      {conditionLabel(readiness)}
+    </span>
+  );
 }
 
 function RoleBar({ roster, teamColor }: { roster: Player[]; teamColor: string }) {

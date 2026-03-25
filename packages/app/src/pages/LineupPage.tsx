@@ -362,7 +362,7 @@ function PlayingXITab({
   onAutoSelect: () => void;
 }) {
   const sorted = useMemo(
-    () => [...available].sort((a, b) => b.overall - a.overall),
+    () => [...available].sort((a, b) => b.selectionScore - a.selectionScore || b.overall - a.overall),
     [available]
   );
 
@@ -389,6 +389,7 @@ function PlayingXITab({
               <th className="text-center px-2 py-2">BAT</th>
               <th className="text-center px-2 py-2">BWL</th>
               <th className="text-center px-2 py-2">Age</th>
+              <th className="text-center px-2 py-2">Ready</th>
               <th className="text-center px-2 py-2">Status</th>
             </tr>
           </thead>
@@ -420,6 +421,7 @@ function PlayingXITab({
                     <div className="flex items-center gap-2">
                       <span className="text-th-primary font-medium">{p.name}</span>
                       <FormIndicator player={p} />
+                      <ConditionBadge player={p} />
                       {p.isInternational && (
                         <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
                       )}
@@ -441,7 +443,8 @@ function PlayingXITab({
                   <td className="text-center px-2 py-2 text-th-secondary">{p.battingOvr}</td>
                   <td className="text-center px-2 py-2 text-th-secondary">{p.bowlingOvr}</td>
                   <td className="text-center px-2 py-2 text-th-muted">{p.age}</td>
-                  <td className="text-center px-2 py-2 text-green-400 text-xs">Available</td>
+                  <td className={`text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{p.readiness}</td>
+                  <td className={`text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{conditionLabel(p.readiness)}</td>
                 </tr>
               );
             })}
@@ -474,6 +477,7 @@ function PlayingXITab({
                 <td className="text-center px-2 py-2 text-th-faint">{p.battingOvr}</td>
                 <td className="text-center px-2 py-2 text-th-faint">{p.bowlingOvr}</td>
                 <td className="text-center px-2 py-2 text-th-faint">{p.age}</td>
+                <td className="text-center px-2 py-2 text-th-faint text-xs">{p.readiness}</td>
                 <td className="text-center px-2 py-2">
                   <span className="text-red-400 text-xs">
                     {p.injuryType ?? "Injured"} ({p.injuryGamesLeft}m)
@@ -539,6 +543,7 @@ function BattingOrderTab({
               <div className="flex-1 flex items-center gap-3">
                 <span className="text-th-primary font-medium">{player.name}</span>
                 <FormIndicator player={player} />
+                <ConditionBadge player={player} />
                 <RoleBadge role={player.role} />
                 {player.isInternational && (
                   <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
@@ -679,6 +684,7 @@ function BowlingOrderTab({
               <div className="flex-1 flex items-center gap-3">
                 <span className="text-th-primary font-medium">{player.name}</span>
                 <FormIndicator player={player} />
+                <ConditionBadge player={player} />
                 <RoleBadge role={player.role} />
                 {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
                   <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
@@ -757,9 +763,10 @@ function SelectionReport({ report }: { report: LineupReport }) {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <MetricCard label="Lineup Score" value={String(report.lineupScore)} accent="text-blue-400" />
+        <MetricCard label="Avg Readiness" value={String(report.averageReadiness)} accent="text-cyan-400" />
         <MetricCard label="Hot Starters" value={String(report.hotStarters)} accent="text-green-400" />
+        <MetricCard label="Tired XI" value={String(report.tiredStarters)} accent="text-amber-400" />
         <MetricCard label="Bowling Options" value={String(report.bowlingOptions)} accent="text-purple-400" />
-        <MetricCard label="Venue" value={report.venueLabel.split(" • ")[0] ?? report.venueLabel} accent="text-th-secondary" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -882,6 +889,34 @@ export function FormIndicator({ player }: { player: Player }) {
     return <span className="text-red-400 text-xs ml-1" title={`Form: ${Math.round(form)}`}>&#9660;</span>;
   }
   return null; // Neutral form: no indicator
+}
+
+function conditionLabel(readiness: number): string {
+  if (readiness >= 85) return "Fresh";
+  if (readiness >= 70) return "Good";
+  if (readiness >= 55) return "Managed";
+  if (readiness >= 40) return "Tired";
+  return "Exhausted";
+}
+
+function conditionTextColor(readiness: number): string {
+  if (readiness >= 85) return "text-cyan-300";
+  if (readiness >= 70) return "text-green-300";
+  if (readiness >= 55) return "text-yellow-300";
+  if (readiness >= 40) return "text-orange-300";
+  return "text-red-300";
+}
+
+function ConditionBadge({ player }: { player: Player }) {
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded ${fitBadgeTone({
+      score: player.readiness,
+      tone: player.readiness >= 70 ? "good" : player.readiness >= 55 ? "info" : "warn",
+      label: "",
+    })}`}>
+      {conditionLabel(player.readiness)}
+    </span>
+  );
 }
 
 function BowlingPlanTab({
