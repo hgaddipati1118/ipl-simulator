@@ -645,6 +645,7 @@ export default function App() {
             onSimBatch={handleSimBatch}
             onSimToPlayoffs={handleSimToPlayoffs}
             onViewResults={handleViewResults}
+            onPromoteProspect={handlePromoteProspect}
           />
         } />
         <Route path="/inbox" element={<InboxPage state={state} />} />
@@ -705,6 +706,7 @@ export default function App() {
         <Route path="/ratings" element={
           <PlayerRatingsPage
             teams={state.teams}
+            playerPool={state.playerPool}
             scouting={state.scouting}
             userTeamId={state.userTeamId}
             recruitment={state.recruitment}

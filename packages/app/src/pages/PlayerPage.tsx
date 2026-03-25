@@ -43,20 +43,27 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
   const navigate = useNavigate();
 
   // Find the player across all teams
-  const { player, team } = useMemo(() => {
+  const { player, team, fromPool } = useMemo(() => {
     for (const t of state.teams) {
       const p = t.roster.find(r => r.id === playerId);
-      if (p) return { player: p, team: t };
+      if (p) return { player: p, team: t, fromPool: false };
     }
-    return { player: null, team: null };
-  }, [state.teams, playerId]);
+    const pooledPlayer = state.playerPool.find(candidate => candidate.id === playerId);
+    if (pooledPlayer) {
+      return { player: pooledPlayer, team: null, fromPool: true };
+    }
+    return { player: null, team: null, fromPool: false };
+  }, [state.teams, state.playerPool, playerId]);
 
   // Get prev/next player within same team
   const { prevPlayer, nextPlayer } = useMemo(() => {
-    if (!team || !player) return { prevPlayer: null, nextPlayer: null };
-    const sorted = [...team.roster].sort((a, b) => {
-      const aView = getPlayerScoutingView(a, team.id, state.scouting, state.userTeamId);
-      const bView = getPlayerScoutingView(b, team.id, state.scouting, state.userTeamId);
+    if (!player) return { prevPlayer: null, nextPlayer: null };
+    const peerPlayers = team ? team.roster : state.playerPool;
+    const peerTeamId = team?.id;
+    if (peerPlayers.length === 0) return { prevPlayer: null, nextPlayer: null };
+    const sorted = [...peerPlayers].sort((a, b) => {
+      const aView = getPlayerScoutingView(a, peerTeamId, state.scouting, state.userTeamId);
+      const bView = getPlayerScoutingView(b, peerTeamId, state.scouting, state.userTeamId);
       return bView.overall.sortValue - aView.overall.sortValue;
     });
     const idx = sorted.findIndex(p => p.id === player.id);
@@ -64,7 +71,7 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
       prevPlayer: idx > 0 ? sorted[idx - 1] : null,
       nextPlayer: idx < sorted.length - 1 ? sorted[idx + 1] : null,
     };
-  }, [team, player, state.scouting, state.userTeamId]);
+  }, [team, player, state.playerPool, state.scouting, state.userTeamId]);
 
   // Build match-by-match log from matchResults
   const matchLog = useMemo(() => {
@@ -209,7 +216,7 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
     onScoutPlayer(playerId);
   }, [playerId, onScoutPlayer]);
 
-  if (!player || !team) {
+  if (!player) {
     return (
       <div className="max-w-5xl mx-auto px-6 py-8">
         <p className="text-th-secondary">Player not found.</p>
@@ -221,8 +228,8 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
   }
 
   const rb = ROLE_BADGE[player.role] ?? ROLE_BADGE.batsman;
-  const isUserPlayer = team.id === state.userTeamId;
-  const scoutingView = getPlayerScoutingView(player, team.id, state.scouting, state.userTeamId);
+  const isUserPlayer = team?.id === state.userTeamId;
+  const scoutingView = getPlayerScoutingView(player, team?.id, state.scouting, state.userTeamId);
   const recruitmentTag = getRecruitmentTag(state.recruitment, player.id);
 
   const attrs = [
@@ -241,13 +248,13 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
       {/* Navigation */}
       <div className="flex items-center justify-between mb-6">
         <button
-          onClick={() => navigate(`/team/${team.id}`)}
+          onClick={() => navigate(team ? `/team/${team.id}` : "/ratings")}
           className="text-th-muted hover:text-th-primary text-sm font-display flex items-center gap-1.5 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Back to {team.shortName}
+          Back to {team ? team.shortName : "Ratings"}
         </button>
         <div className="flex items-center gap-2">
           {prevPlayer && (
@@ -278,22 +285,32 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
       {/* Player Bio Header */}
       <div
         className="rounded-2xl p-5 sm:p-6 mb-6 border border-th relative overflow-hidden"
-        style={{ background: `linear-gradient(135deg, ${team.config.primaryColor}12, transparent 60%)` }}
+        style={{ background: team ? `linear-gradient(135deg, ${team.config.primaryColor}12, transparent 60%)` : "linear-gradient(135deg, rgba(245, 158, 11, 0.12), transparent 60%)" }}
       >
-        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: team.config.primaryColor }} />
+        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: team?.config.primaryColor ?? "#f59e0b" }} />
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <TeamBadge teamId={team.id} shortName={team.shortName} primaryColor={team.config.primaryColor} size="md" />
-          <PlayerAvatar name={player.name} imageUrl={player.imageUrl} size="lg" teamColor={team.config.primaryColor} />
+          {team ? (
+            <TeamBadge teamId={team.id} shortName={team.shortName} primaryColor={team.config.primaryColor} size="md" />
+          ) : (
+            <div className="h-14 min-w-[56px] rounded-2xl border border-amber-500/20 bg-amber-500/10 px-3 flex items-center justify-center text-amber-300 font-display font-semibold">
+              FA
+            </div>
+          )}
+          <PlayerAvatar name={player.name} imageUrl={player.imageUrl} size="lg" teamColor={team?.config.primaryColor} />
           <div className="flex-1">
             <h2 className="text-2xl sm:text-3xl font-display font-extrabold text-th-primary tracking-tight">{player.name}</h2>
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
-              <Link
-                to={`/team/${team.id}`}
-                className="text-sm font-display font-medium hover:underline"
-                style={{ color: teamLabelColor(team.config.primaryColor) }}
-              >
-                {team.name}
-              </Link>
+              {team ? (
+                <Link
+                  to={`/team/${team.id}`}
+                  className="text-sm font-display font-medium hover:underline"
+                  style={{ color: teamLabelColor(team.config.primaryColor) }}
+                >
+                  {team.name}
+                </Link>
+              ) : (
+                <span className="text-sm font-display font-medium text-amber-300">Free Agent Market</span>
+              )}
               <span className="text-th-faint">|</span>
               <span className={`text-xs font-display font-semibold px-2 py-0.5 rounded-full border ${rb.bg} ${rb.text}`}>
                 {roleLabel(player.role)}
@@ -421,7 +438,9 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
             <div>
               <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Scouting Dossier</h3>
               <div className="text-th-faint text-xs mt-1">
-                Conditioning, training plans, and medical details stay private to the owning club.
+                {fromPool
+                  ? "Unsigned players only surface through scouting-level reports until you bring them in."
+                  : "Conditioning, training plans, and medical details stay private to the owning club."}
               </div>
             </div>
             <div className="flex flex-col items-end gap-2">
@@ -474,7 +493,7 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
                 { label: "ECN", value: scoutingView.attributes.economy.barValue },
                 { label: "ACC", value: scoutingView.attributes.accuracy.barValue },
               ]}
-              teamColor={team?.config.primaryColor}
+              teamColor={team?.config.primaryColor ?? "#f59e0b"}
               size={200}
             />
           </div>

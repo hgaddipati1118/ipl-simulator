@@ -8,6 +8,7 @@ import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentC
 
 interface Props {
   teams: Team[];
+  playerPool: Player[];
   scouting: ScoutingState;
   userTeamId: string | null;
   recruitment: RecruitmentState;
@@ -20,6 +21,7 @@ type RecruitmentFilter = "all" | "shortlist" | "watchlist";
 
 export function PlayerRatingsPage({
   teams,
+  playerPool,
   scouting,
   userTeamId,
   recruitment,
@@ -35,16 +37,28 @@ export function PlayerRatingsPage({
   const recruitmentCounts = useMemo(() => getRecruitmentCounts(recruitment), [recruitment]);
 
   const allPlayers = useMemo(() => {
-    let result = teams.flatMap(team => team.roster.map(player => ({
-      player,
-      team,
-      scoutingView: getPlayerScoutingView(player, team.id, scouting, userTeamId),
-      recruitmentTag: getRecruitmentTag(recruitment, player.id),
-    })));
+    let result = [
+      ...teams.flatMap(team => team.roster.map(player => ({
+        player,
+        team,
+        teamKey: team.id,
+        teamLabel: team.shortName,
+        scoutingView: getPlayerScoutingView(player, team.id, scouting, userTeamId),
+        recruitmentTag: getRecruitmentTag(recruitment, player.id),
+      }))),
+      ...playerPool.map(player => ({
+        player,
+        team: null,
+        teamKey: "free-agents",
+        teamLabel: "FA",
+        scoutingView: getPlayerScoutingView(player, undefined, scouting, userTeamId),
+        recruitmentTag: getRecruitmentTag(recruitment, player.id),
+      })),
+    ];
     if (filterRole !== "all") result = result.filter(({ player }) => player.role === filterRole);
-    if (filterTeam !== "all") result = result.filter(({ team }) => team.id === filterTeam);
+    if (filterTeam !== "all") result = result.filter(({ teamKey }) => teamKey === filterTeam);
     if (filterRecruitment !== "all") result = result.filter(({ recruitmentTag }) => recruitmentTag === filterRecruitment);
-    if (hideOwned) result = result.filter(({ team }) => team.id !== userTeamId);
+    if (hideOwned) result = result.filter(({ team }) => team?.id !== userTeamId);
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(({ player }) => player.name.toLowerCase().includes(q));
@@ -64,7 +78,7 @@ export function PlayerRatingsPage({
       }
     });
     return result;
-  }, [teams, scouting, userTeamId, recruitment, sortBy, filterRole, filterTeam, filterRecruitment, hideOwned, search]);
+  }, [teams, playerPool, scouting, userTeamId, recruitment, sortBy, filterRole, filterTeam, filterRecruitment, hideOwned, search]);
 
   const SortHeader = ({ label, field, className = "" }: { label: string; field: SortKey; className?: string }) => (
     <th
@@ -121,6 +135,7 @@ export function PlayerRatingsPage({
           className="bg-th-surface border border-th rounded-xl px-3 py-2 text-sm text-th-primary font-display focus:outline-none focus:border-th-strong"
         >
           <option value="all">All Teams</option>
+          <option value="free-agents">Free Agents</option>
           {teams.map(t => (
             <option key={t.id} value={t.id}>{t.shortName}</option>
           ))}
@@ -174,7 +189,7 @@ export function PlayerRatingsPage({
               </tr>
             </thead>
             <tbody>
-              {allPlayers.slice(0, 100).map(({ player: p, team, scoutingView, recruitmentTag }, i) => (
+              {allPlayers.slice(0, 125).map(({ player: p, team, teamLabel, scoutingView, recruitmentTag }, i) => (
                 <tr key={p.id} className="border-t border-th hover:bg-th-hover transition-colors">
                   <td className="px-2 sm:px-4 py-2.5 text-th-faint text-xs stat-num">{i + 1}</td>
                   <td className="text-left px-2 py-2.5">
@@ -184,7 +199,7 @@ export function PlayerRatingsPage({
                     {recruitmentTag && <span className="ml-1"><RecruitmentBadge tier={recruitmentTag} compact /></span>}
                     {/* Show team + role inline on mobile (hidden in dedicated columns) */}
                     <span className="sm:hidden block text-[10px] text-th-muted mt-0.5">
-                      <span style={{ color: teamLabelColor(team.config.primaryColor) }}>{team.shortName}</span>
+                      <span style={{ color: team ? teamLabelColor(team.config.primaryColor) : "var(--th-text-secondary)" }}>{teamLabel}</span>
                       {" "}<span className={p.role === "bowler" ? "text-purple-400/70" : p.role === "all-rounder" ? "text-emerald-400/70" : "text-orange-400/70"}>{roleLabel(p.role)}</span>
                       {" "}<span className="text-th-faint">| {scoutingView.confidenceLabel}</span>
                     </span>
@@ -192,9 +207,9 @@ export function PlayerRatingsPage({
                   <td className="text-center px-2 py-2.5 hidden sm:table-cell">
                     <span
                       className="text-xs font-display font-medium"
-                      style={{ color: teamLabelColor(team.config.primaryColor) }}
+                      style={{ color: team ? teamLabelColor(team.config.primaryColor) : "var(--th-text-secondary)" }}
                     >
-                      {team.shortName}
+                      {teamLabel}
                     </span>
                   </td>
                   <td className="text-center px-2 py-2.5 hidden sm:table-cell">
@@ -205,7 +220,7 @@ export function PlayerRatingsPage({
                     }`}>{roleLabel(p.role)}</span>
                   </td>
                   <td className="text-center px-2 py-2.5 hidden md:table-cell">
-                    {team.id !== userTeamId ? (
+                    {team?.id !== userTeamId ? (
                       <RecruitmentActions
                         tier={recruitmentTag}
                         compact
