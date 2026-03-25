@@ -6,6 +6,7 @@
  */
 
 import type { BowlingStyle } from "./player.js";
+import type { RNG } from "./rng.js";
 
 // ── Dismissal Types ─────────────────────────────────────────────────────
 
@@ -25,8 +26,9 @@ export function determineDismissalType(params: {
   fieldingQuality: number;  // 0-99 avg fielding of bowling team
   isSpinner: boolean;
   batterRuns: number;       // current score (set batters less likely run out)
+  rng?: RNG;
 }): DismissalType {
-  const { bowlingStyle, batterRunning, fieldingQuality, isSpinner, batterRuns } = params;
+  const { bowlingStyle, batterRunning, fieldingQuality, isSpinner, batterRuns, rng = Math.random } = params;
 
   // Base probabilities (must sum to 1.0)
   let bowled = 0.15;
@@ -65,7 +67,7 @@ export function determineDismissalType(params: {
 
   // Normalize
   const total = bowled + caught + caughtBehind + lbw + runOut + stumped + hitWicket;
-  const rand = Math.random() * total;
+  const rand = rng() * total;
 
   let cumulative = 0;
   if ((cumulative += bowled) > rand) return "bowled";
@@ -84,8 +86,9 @@ export function isCatchDropped(params: {
   fieldingQuality: number;  // 0-99
   matchPressure: number;    // 0-1 (higher = more pressure, e.g. death overs in close chase)
   isEdge: boolean;          // edge catches are harder
+  rng?: RNG;
 }): boolean {
-  const { fieldingQuality, matchPressure, isEdge } = params;
+  const { fieldingQuality, matchPressure, isEdge, rng = Math.random } = params;
 
   // Base drop rate: ~8% for average fielders
   let dropChance = 0.08;
@@ -102,7 +105,7 @@ export function isCatchDropped(params: {
   // Cap at 25% max drop rate
   dropChance = Math.min(0.25, Math.max(0.02, dropChance));
 
-  return Math.random() < dropChance;
+  return rng() < dropChance;
 }
 
 // ── Wide Types ──────────────────────────────────────────────────────────
@@ -110,24 +113,24 @@ export function isCatchDropped(params: {
 export type WideType = "down-leg" | "outside-off" | "bouncer-wide";
 
 /** Determine the type of wide delivery */
-export function determineWideType(bowlingStyle: BowlingStyle, over: number): WideType {
+export function determineWideType(bowlingStyle: BowlingStyle, over: number, rng: RNG = Math.random): WideType {
   const isPace = ["right-arm-fast", "left-arm-fast", "right-arm-medium", "left-arm-medium"].includes(bowlingStyle);
   const isDeath = over >= 16;
 
   if (isPace && isDeath) {
     // Pace bowlers try yorkers in death → wides down leg
-    return Math.random() < 0.7 ? "down-leg" : "bouncer-wide";
+    return rng() < 0.7 ? "down-leg" : "bouncer-wide";
   }
   if (isPace) {
-    return Math.random() < 0.5 ? "down-leg" : "outside-off";
+    return rng() < 0.5 ? "down-leg" : "outside-off";
   }
   // Spin
-  return Math.random() < 0.6 ? "outside-off" : "down-leg";
+  return rng() < 0.6 ? "outside-off" : "down-leg";
 }
 
 /** Can runs be scored off a wide? (1-2 extra byes) */
-export function runsOffWide(): number {
-  const rand = Math.random();
+export function runsOffWide(rng: RNG = Math.random): number {
+  const rand = rng();
   if (rand < 0.05) return 4; // Wide to boundary (~5%)
   if (rand < 0.15) return 2; // Keeper misses, run 2 (~10%)
   if (rand < 0.30) return 1; // Run 1 bye off wide (~15%)
@@ -139,17 +142,17 @@ export function runsOffWide(): number {
 export type NoBallType = "front-foot" | "bouncer" | "beamer";
 
 /** Determine the type of no ball */
-export function determineNoBallType(bouncersThisOver: number, maxBouncersPerOver: number): NoBallType {
-  const rand = Math.random();
+export function determineNoBallType(bouncersThisOver: number, maxBouncersPerOver: number, rng: RNG = Math.random): NoBallType {
+  const rand = rng();
   if (bouncersThisOver >= maxBouncersPerOver && rand < 0.3) return "bouncer";
   if (rand < 0.03) return "beamer"; // Very rare
   return "front-foot"; // Most common
 }
 
 /** Can runs be scored off a no ball? */
-export function runsOffNoBall(): number {
+export function runsOffNoBall(rng: RNG = Math.random): number {
   // Batters often swing at no-balls
-  const rand = Math.random();
+  const rand = rng();
   if (rand < 0.12) return 6; // Big hit off no-ball
   if (rand < 0.25) return 4; // Boundary off no-ball
   if (rand < 0.45) return 1; // Single off no-ball
@@ -176,16 +179,17 @@ export function canBeDismissedOnFreeHit(dismissalType: DismissalType): boolean {
 export function determineLegByes(params: {
   batterRunning: number;
   isPace: boolean;
+  rng?: RNG;
 }): number {
-  const { batterRunning, isPace } = params;
+  const { batterRunning, isPace, rng = Math.random } = params;
 
   // Leg byes more common off pace (ball deflects off pads)
   const baseProbability = isPace ? 0.04 : 0.02;
 
-  if (Math.random() > baseProbability) return 0;
+  if (rng() > baseProbability) return 0;
 
   // Running quality affects how many leg byes
-  if (batterRunning > 70 && Math.random() < 0.3) return 2;
+  if (batterRunning > 70 && rng() < 0.3) return 2;
   return 1;
 }
 

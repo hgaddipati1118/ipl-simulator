@@ -53,9 +53,9 @@ export function normSInv(p: number): number {
 }
 
 /** Box-Muller transform for normal distribution sampling */
-export function randomNormal(mean = 0, stdDev = 1): number {
-  const u1 = Math.random();
-  const u2 = Math.random();
+export function randomNormal(mean = 0, stdDev = 1, rng: () => number = Math.random): number {
+  const u1 = rng();
+  const u2 = rng();
   const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   return mean + stdDev * z;
 }
@@ -66,9 +66,9 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 /** Weighted random selection from an array of [item, weight] pairs */
-export function weightedRandom<T>(items: [T, number][]): T {
+export function weightedRandom<T>(items: [T, number][], rng: () => number = Math.random): T {
   const total = items.reduce((sum, [, w]) => sum + w, 0);
-  let r = Math.random() * total;
+  let r = rng() * total;
   for (const [item, weight] of items) {
     r -= weight;
     if (r <= 0) return item;
@@ -77,9 +77,9 @@ export function weightedRandom<T>(items: [T, number][]): T {
 }
 
 /** Shuffle array in place (Fisher-Yates) */
-export function shuffle<T>(arr: T[]): T[] {
+export function shuffle<T>(arr: T[], rng: () => number = Math.random): T[] {
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
