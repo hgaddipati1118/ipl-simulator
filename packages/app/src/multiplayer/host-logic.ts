@@ -349,16 +349,33 @@ export class HostGameLogic {
 
   private handleMessage(peerId: string, msg: GuestMessage) {
     switch (msg.type) {
-      case "join":
-        this.players.push({
-          peerId,
-          name: msg.name,
-          teamId: null,
-          isHost: false,
-          isCPU: false,
-        });
+      case "join": {
+        // Check if this is a reconnecting player (same name, currently CPU)
+        const reconnecting = this.players.find(p =>
+          p.isCPU && p.name.includes(msg.name) && p.teamId
+        );
+        if (reconnecting) {
+          // Restore human control
+          reconnecting.peerId = peerId;
+          reconnecting.name = msg.name;
+          reconnecting.isCPU = false;
+          console.log(`[HostLogic] Player reconnected: ${msg.name} → team ${reconnecting.teamId}`);
+        } else {
+          this.players.push({
+            peerId,
+            name: msg.name,
+            teamId: null,
+            isHost: false,
+            isCPU: false,
+          });
+        }
+        // Send full state to reconnecting player
         this.broadcastLobbyState();
+        if (this.phase === "auction") {
+          this.host.sendTo(peerId, { type: "auction-state", state: this.getAuctionState() } satisfies HostMessage);
+        }
         break;
+      }
 
       case "pick-team": {
         const player = this.players.find(p => p.peerId === peerId);
@@ -396,13 +413,53 @@ export class HostGameLogic {
   private handleDisconnect(peerId: string) {
     const player = this.players.find(p => p.peerId === peerId);
     if (player?.teamId) {
-      // Convert to CPU
+      // Convert to CPU but keep the player name for reconnection matching
+      const originalName = player.name;
       player.isCPU = true;
-      player.name = `CPU (${this.teams.find(t => t.id === player.teamId)?.shortName ?? "?"})`;
+      player.name = `CPU (${originalName})`;
+      console.log(`[HostLogic] Player disconnected: ${originalName} → CPU on ${player.teamId}`);
     } else {
       this.players = this.players.filter(p => p.peerId !== peerId);
     }
     this.broadcastLobbyState();
+
+    // Auto-save state in case host also disconnects
+    this.autoSave();
+  }
+
+  /** Save current state to localStorage for crash recovery */
+  private autoSave() {
+    try {
+      const state = {
+        phase: this.phase,
+        players: this.players,
+        currentPlayerIdx: this.currentPlayerIdx,
+        currentBid: this.currentBid,
+        currentBidderTeamId: this.currentBidderTeamId,
+        recentSales: this.recentSales,
+        roomCode: this.host.roomCode,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem("ipl-multiplayer-autosave", JSON.stringify(state));
+    } catch {
+      // localStorage may not be available
+    }
+  }
+
+  /** Check if there's a saved state to resume from */
+  static hasSavedState(): boolean {
+    try {
+      const saved = localStorage.getItem("ipl-multiplayer-autosave");
+      if (!saved) return false;
+      const state = JSON.parse(saved);
+      // Only valid if less than 1 hour old
+      return Date.now() - state.timestamp < 3600000;
+    } catch { return false; }
+  }
+
+  /** Clear saved state */
+  static clearSavedState() {
+    try { localStorage.removeItem("ipl-multiplayer-autosave"); } catch {}
   }
 
   // ── State Broadcasting ────────────────────────────────────────────────

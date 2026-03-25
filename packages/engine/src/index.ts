@@ -6,6 +6,9 @@
  */
 
 export { Player } from "./player.js";
+export { createRNG, randomSeed, randInt, randPick, randWeighted } from "./rng.js";
+export { shuffle as rngShuffle } from "./rng.js";
+export type { RNG } from "./rng.js";
 export {
   calculateBattingOverall,
   calculateBowlingOverall,
