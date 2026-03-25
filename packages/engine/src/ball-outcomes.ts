@@ -201,8 +201,9 @@ export function checkRunOut(params: {
   batterRunning: number;    // 0-99
   nonStrikerRunning: number; // 0-99
   fieldingQuality: number;   // 0-99
+  rng?: RNG;
 }): boolean {
-  const { runsAttempted, batterRunning, nonStrikerRunning, fieldingQuality } = params;
+  const { runsAttempted, batterRunning, nonStrikerRunning, fieldingQuality, rng = Math.random } = params;
 
   if (runsAttempted <= 0) return false;
 
@@ -222,16 +223,16 @@ export function checkRunOut(params: {
   // Fielding quality increases risk
   chance *= fieldingQuality / 60;
 
-  return Math.random() < chance;
+  return rng() < chance;
 }
 
 // ── Overthrows ──────────────────────────────────────────────────────────
 
 /** Rare overthrow — misfield sends ball to boundary */
-export function checkOverthrow(fieldingQuality: number): { happened: boolean; extraRuns: number } {
+export function checkOverthrow(fieldingQuality: number, rng: RNG = Math.random): { happened: boolean; extraRuns: number } {
   // Base 1% chance, reduced by fielding quality
   const chance = 0.01 * (100 - fieldingQuality) / 50;
-  if (Math.random() < chance) {
+  if (rng() < chance) {
     return { happened: true, extraRuns: 4 }; // Overthrow to boundary
   }
   return { happened: false, extraRuns: 0 };
@@ -247,8 +248,9 @@ export function checkMidMatchInjury(params: {
   isBowling: boolean;
   oversBowled: number;
   isSprinting: boolean; // running between wickets
+  rng?: RNG;
 }): { injured: boolean; type: MatchInjuryType } | null {
-  const { playerAge, isBowling, oversBowled, isSprinting } = params;
+  const { playerAge, isBowling, oversBowled, isSprinting, rng = Math.random } = params;
 
   // Very rare event: ~0.5% per ball for bowlers, ~0.1% for batters
   let baseChance = isBowling ? 0.005 : 0.001;
@@ -263,7 +265,7 @@ export function checkMidMatchInjury(params: {
   // Sprinting increases injury risk
   if (isSprinting) baseChance *= 2.0;
 
-  if (Math.random() < baseChance) {
+  if (rng() < baseChance) {
     // Determine injury type
     const types: [MatchInjuryType, number][] = [
       ["hamstring", 0.30],
@@ -273,7 +275,7 @@ export function checkMidMatchInjury(params: {
       ["finger", 0.08],
       ["concussion", 0.02],
     ];
-    const rand = Math.random();
+    const rand = rng();
     let cum = 0;
     for (const [type, prob] of types) {
       cum += prob;
@@ -295,7 +297,7 @@ export type InjuryResponse =
   | "continues";         // Minor, player plays on
 
 /** Determine the response to a mid-match injury */
-export function determineInjuryResponse(injuryType: MatchInjuryType, isBatting: boolean): InjuryResponse {
+export function determineInjuryResponse(injuryType: MatchInjuryType, isBatting: boolean, rng: RNG = Math.random): InjuryResponse {
   if (injuryType === "concussion") return "concussion-sub";
 
   if (isBatting) {
@@ -306,9 +308,9 @@ export function determineInjuryResponse(injuryType: MatchInjuryType, isBatting: 
       case "ankle":
         return "retired-hurt";
       case "side-strain":
-        return Math.random() < 0.5 ? "retired-hurt" : "continues";
+        return rng() < 0.5 ? "retired-hurt" : "continues";
       case "finger":
-        return Math.random() < 0.3 ? "retired-hurt" : "continues";
+        return rng() < 0.3 ? "retired-hurt" : "continues";
       default:
         return "continues";
     }
@@ -320,9 +322,9 @@ export function determineInjuryResponse(injuryType: MatchInjuryType, isBatting: 
       case "side-strain":
         return "bowling-breakdown";
       case "ankle":
-        return Math.random() < 0.7 ? "bowling-breakdown" : "continues";
+        return rng() < 0.7 ? "bowling-breakdown" : "continues";
       case "finger":
-        return Math.random() < 0.4 ? "bowling-breakdown" : "continues";
+        return rng() < 0.4 ? "bowling-breakdown" : "continues";
       default:
         return "continues";
     }
@@ -378,8 +380,9 @@ export interface DRSResult {
 export function processDRSReview(params: {
   dismissalType: DismissalType;
   reviewsRemaining: number;
+  rng?: RNG;
 }): DRSResult {
-  const { dismissalType, reviewsRemaining } = params;
+  const { dismissalType, reviewsRemaining, rng = Math.random } = params;
 
   if (reviewsRemaining <= 0) {
     return { reviewed: false, overturned: false, umpiresCall: false, reviewsRemaining: 0 };
@@ -406,7 +409,7 @@ export function processDRSReview(params: {
       return { reviewed: false, overturned: false, umpiresCall: false, reviewsRemaining };
   }
 
-  const rand = Math.random();
+  const rand = rng();
   if (rand < overturnChance) {
     // Overturned — batter survives, review retained
     return { reviewed: true, overturned: true, umpiresCall: false, reviewsRemaining };

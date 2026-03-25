@@ -5,6 +5,8 @@
  * that considers bowling style, match situation, milestones, and phase.
  */
 
+import type { RNG } from "./rng.js";
+
 type BowlingStyleCategory = "pace" | "spin" | "medium" | "unknown";
 
 function classifyBowlingStyle(bowlingStyle?: string): BowlingStyleCategory {
@@ -15,8 +17,8 @@ function classifyBowlingStyle(bowlingStyle?: string): BowlingStyleCategory {
   return "unknown";
 }
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+function pick<T>(arr: T[], rng: RNG = Math.random): T {
+  return arr[Math.floor(rng() * arr.length)];
 }
 
 export interface BallCommentaryParams {
@@ -37,13 +39,15 @@ export interface BallCommentaryParams {
   fielderName?: string;
   /** Random boundary shot description (from the existing randomBoundaryShot function) */
   boundaryShot?: string;
+  /** Seeded RNG for deterministic commentary */
+  rng?: RNG;
 }
 
 export function generateBallCommentary(params: BallCommentaryParams): string {
   const {
     bowlerName: bowler, batterName: batter, outcome, over, score, wickets,
     isSecondInnings, target, bowlingStyle, batterRuns = 0, batterBalls = 0,
-    wicketType, fielderName, boundaryShot,
+    wicketType, fielderName, boundaryShot, rng = Math.random,
   } = params;
 
   const style = classifyBowlingStyle(bowlingStyle);
@@ -78,34 +82,34 @@ export function generateBallCommentary(params: BallCommentaryParams): string {
 
   switch (outcome) {
     case "dot":
-      commentary = generateDotCommentary(prefix, batter, bowler, style, phase);
+      commentary = generateDotCommentary(prefix, batter, bowler, style, phase, rng);
       break;
     case "1":
-      commentary = generateSingleCommentary(prefix, batter, bowler, style);
+      commentary = generateSingleCommentary(prefix, batter, bowler, style, rng);
       break;
     case "2":
-      commentary = generateTwoCommentary(prefix, batter, bowler);
+      commentary = generateTwoCommentary(prefix, batter, bowler, rng);
       break;
     case "3":
-      commentary = generateThreeCommentary(prefix, batter, bowler);
+      commentary = generateThreeCommentary(prefix, batter, bowler, rng);
       break;
     case "4":
-      commentary = generateFourCommentary(prefix, batter, bowler, style, phase, boundaryShot);
+      commentary = generateFourCommentary(prefix, batter, bowler, style, phase, boundaryShot, rng);
       break;
     case "6":
-      commentary = generateSixCommentary(prefix, batter, bowler, style, phase, boundaryShot);
+      commentary = generateSixCommentary(prefix, batter, bowler, style, phase, boundaryShot, rng);
       break;
     case "wicket":
-      commentary = generateWicketCommentary(prefix, batter, bowler, style, wicketType, fielderName, batterRuns, batterBalls);
+      commentary = generateWicketCommentary(prefix, batter, bowler, style, wicketType, fielderName, batterRuns, batterBalls, rng);
       break;
     case "wide":
-      commentary = generateWideCommentary(prefix, batter, bowler, style);
+      commentary = generateWideCommentary(prefix, batter, bowler, style, rng);
       break;
     case "noball":
-      commentary = generateNoBallCommentary(prefix, batter, bowler);
+      commentary = generateNoBallCommentary(prefix, batter, bowler, rng);
       break;
     case "legbye":
-      commentary = generateLegbyeCommentary(prefix, batter, bowler, style);
+      commentary = generateLegbyeCommentary(prefix, batter, bowler, style, rng);
       break;
     default:
       commentary = `${prefix}, no run.`;
@@ -116,7 +120,7 @@ export function generateBallCommentary(params: BallCommentaryParams): string {
 
 /* ─────────────────── Outcome-specific generators ─────────────────── */
 
-function generateDotCommentary(prefix: string, batter: string, bowler: string, style: BowlingStyleCategory, phase: string): string {
+function generateDotCommentary(prefix: string, batter: string, bowler: string, style: BowlingStyleCategory, phase: string, rng: RNG = Math.random): string {
   const paceTemplates = [
     `${prefix}, no run. Good length outside off, left alone`,
     `${prefix}, no run. Defended solidly back down the pitch`,
@@ -151,18 +155,18 @@ function generateDotCommentary(prefix: string, batter: string, bowler: string, s
   ];
 
   if (phase === "death" && (style === "pace" || style === "medium")) {
-    return pick([...deathTemplates, ...(style === "pace" ? paceTemplates.slice(0, 3) : mediumTemplates.slice(0, 3))]);
+    return pick([...deathTemplates, ...(style === "pace" ? paceTemplates.slice(0, 3) : mediumTemplates.slice(0, 3))], rng);
   }
 
   switch (style) {
-    case "pace": return pick(paceTemplates);
-    case "spin": return pick(spinTemplates);
-    case "medium": return pick(mediumTemplates);
-    default: return pick([...paceTemplates.slice(0, 3), ...spinTemplates.slice(0, 2)]);
+    case "pace": return pick(paceTemplates, rng);
+    case "spin": return pick(spinTemplates, rng);
+    case "medium": return pick(mediumTemplates, rng);
+    default: return pick([...paceTemplates.slice(0, 3), ...spinTemplates.slice(0, 2)], rng);
   }
 }
 
-function generateSingleCommentary(prefix: string, batter: string, bowler: string, style: BowlingStyleCategory): string {
+function generateSingleCommentary(prefix: string, batter: string, bowler: string, style: BowlingStyleCategory, rng: RNG = Math.random): string {
   const templates = [
     `${prefix}, 1 run. Worked away to midwicket for a single`,
     `${prefix}, 1 run. Nudged to the leg side, quick single taken`,
@@ -178,32 +182,32 @@ function generateSingleCommentary(prefix: string, batter: string, bowler: string
     `${prefix}, 1 run. Uses the crease well, dabbed to point for a single`,
   ];
 
-  if (style === "spin") return pick([...templates, ...spinSingles]);
-  return pick(templates);
+  if (style === "spin") return pick([...templates, ...spinSingles], rng);
+  return pick(templates, rng);
 }
 
-function generateTwoCommentary(prefix: string, batter: string, _bowler: string): string {
+function generateTwoCommentary(prefix: string, batter: string, _bowler: string, rng: RNG = Math.random): string {
   return pick([
     `${prefix}, 2 runs. Pushed into the gap, they come back for two`,
     `${prefix}, 2 runs. Driven wide of mid-off, good running between the wickets`,
     `${prefix}, 2 runs. Worked square, misfield and they get a second`,
     `${prefix}, 2 runs. Placed through the covers, excellent running`,
     `${prefix}, 2 runs. Pulled to deep midwicket, comfortable two`,
-  ]);
+  ], rng);
 }
 
-function generateThreeCommentary(prefix: string, batter: string, _bowler: string): string {
+function generateThreeCommentary(prefix: string, batter: string, _bowler: string, rng: RNG = Math.random): string {
   return pick([
     `${prefix}, 3 runs. Driven to the deep, misfield and they get three!`,
     `${prefix}, 3 runs. Placed into the gap, excellent running gets them back for the third`,
     `${prefix}, 3 runs. Sliced to the deep, slight fumble allows the third`,
     `${prefix}, 3 runs. Lofted just short of the fielder, three taken with sharp running`,
-  ]);
+  ], rng);
 }
 
 function generateFourCommentary(
   prefix: string, batter: string, bowler: string,
-  style: BowlingStyleCategory, phase: string, boundaryShot?: string,
+  style: BowlingStyleCategory, phase: string, boundaryShot?: string, rng: RNG = Math.random,
 ): string {
   const shot = boundaryShot ?? "races away to the boundary";
 
@@ -225,14 +229,14 @@ function generateFourCommentary(
     `${prefix}, FOUR! ${batter} takes advantage of the powerplay, ${shot}!`,
   ];
 
-  if (phase === "death") return pick([...templates, ...deathFours]);
-  if (phase === "powerplay") return pick([...templates, ...powerplayFours]);
-  return pick(templates);
+  if (phase === "death") return pick([...templates, ...deathFours], rng);
+  if (phase === "powerplay") return pick([...templates, ...powerplayFours], rng);
+  return pick(templates, rng);
 }
 
 function generateSixCommentary(
   prefix: string, batter: string, bowler: string,
-  style: BowlingStyleCategory, phase: string, boundaryShot?: string,
+  style: BowlingStyleCategory, phase: string, boundaryShot?: string, rng: RNG = Math.random,
 ): string {
   const shot = boundaryShot ?? "launched into the stands";
 
@@ -254,16 +258,16 @@ function generateSixCommentary(
     `${prefix}, SIX! Down the track and ${shot}! ${batter} reads the spin perfectly!`,
   ];
 
-  if (phase === "death") return pick([...templates, ...deathSixes]);
-  if (style === "spin") return pick([...templates, ...spinSixes]);
-  return pick(templates);
+  if (phase === "death") return pick([...templates, ...deathSixes], rng);
+  if (style === "spin") return pick([...templates, ...spinSixes], rng);
+  return pick(templates, rng);
 }
 
 function generateWicketCommentary(
   prefix: string, batter: string, bowler: string,
   style: BowlingStyleCategory,
   wicketType?: string, fielderName?: string,
-  batterRuns?: number, batterBalls?: number,
+  batterRuns?: number, batterBalls?: number, rng: RNG = Math.random,
 ): string {
   const isDuck = (batterRuns ?? 0) === 0;
   const isSetBatter = (batterRuns ?? 0) >= 30;

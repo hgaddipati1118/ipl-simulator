@@ -488,6 +488,32 @@ function runOneBall(
     }
   }
 
+  // ── Batter "setting in" — eye in effect ──
+  // First 10 balls: +15% wicket (vulnerable), After 20+ balls: -10% wicket, +8% boundary (set)
+  if (batterBalls < 10) {
+    probs.wicket *= 1.15;
+    probs["4"] *= 0.92;
+    probs["6"] *= 0.90;
+  } else if (batterBalls >= 20) {
+    const setBatterBonus = Math.min((batterBalls - 20) / 30, 0.15); // caps at 15% after 50 balls
+    probs.wicket *= (1 - 0.10 - setBatterBonus);
+    probs["4"] *= (1 + 0.08 + setBatterBonus * 0.5);
+    probs["6"] *= (1 + 0.06 + setBatterBonus * 0.5);
+    probs.dot *= (1 - 0.05);
+  }
+
+  // ── Bowler fatigue — stamina degrades over spell ──
+  // oversBowled > 2: slight decline. Pace bowlers tire faster than spin.
+  const bowlerOversBowled = legalBallInOver === 0 ? 0 : 0; // TODO: pass actual overs bowled
+  // For now use a simplified approach based on the over number of the match
+  const isPaceBowler = ["right-arm-fast", "left-arm-fast", "right-arm-medium", "left-arm-medium"]
+    .includes(bowler.bowlingStyle);
+  if (over >= 16 && isPaceBowler) {
+    // Death overs fatigue for pace
+    probs.wide *= 1.08; // more wides under pressure
+    probs.noball *= 1.10; // more no-balls
+  }
+
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
   const outcome = weightedRandom(entries);
