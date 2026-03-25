@@ -11,7 +11,9 @@ import {
 import { useNavigate } from "react-router-dom";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
+import { PlayerAvatar } from "../components/PlayerAvatar";
 import { getTeamLogo } from "../team-logos";
+import { roleLabel } from "../ui-utils";
 
 interface Props {
   state: GameState;
@@ -21,9 +23,10 @@ interface Props {
   onSimBatch?: (count: number) => void;
   onSimToPlayoffs?: () => void;
   onViewResults?: () => void;
+  onPromoteProspect?: (index: number) => void;
 }
 
-export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMatch, onSimBatch, onSimToPlayoffs, onViewResults }: Props) {
+export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMatch, onSimBatch, onSimToPlayoffs, onViewResults, onPromoteProspect }: Props) {
   const navigate = useNavigate();
   const standings = useMemo(() =>
     [...state.teams].sort((a, b) => b.points !== a.points ? b.points - a.points : b.nrr - a.nrr),
@@ -125,6 +128,34 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
               <div className="text-[10px] text-th-muted uppercase font-display tracking-wider">NRR</div>
               <div className="text-th-secondary font-display font-bold stat-num text-sm">{userTeam.nrr >= 0 ? "+" : ""}{userTeam.nrr.toFixed(3)}</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Board Expectations card */}
+      {state.boardState && (
+        <div className="rounded-xl border border-th bg-th-surface p-4 mb-4">
+          <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-2">Board Expectations</h3>
+          <div className="space-y-1.5">
+            {state.boardState.objectives.map((obj, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400/60" />
+                <span className="text-th-secondary font-display">{obj.description}</span>
+              </div>
+            ))}
+          </div>
+          {state.boardState.message && (
+            <p className="text-xs text-th-muted mt-2 font-display italic">{state.boardState.message}</p>
+          )}
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-[10px] text-th-muted">Satisfaction:</span>
+            <div className="flex-1 h-1.5 rounded-full bg-white/[0.06]">
+              <div className="h-full rounded-full transition-all" style={{
+                width: `${state.boardState.satisfaction}%`,
+                background: state.boardState.satisfaction > 60 ? '#34d399' : state.boardState.satisfaction > 30 ? '#fbbf24' : '#ef4444'
+              }} />
+            </div>
+            <span className="text-[10px] text-th-muted stat-num">{state.boardState.satisfaction}%</span>
           </div>
         </div>
       )}
@@ -598,6 +629,32 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
             <SquadStat label="Budget" value={`${userTeam.totalSpent.toFixed(1)} Cr`} />
             <SquadStat label="Power" value={String(userTeam.powerRating)} />
           </div>
+        </div>
+      )}
+
+      {/* Youth Academy */}
+      {state.youthProspects && state.youthProspects.length > 0 && (
+        <div className="rounded-2xl border border-th bg-th-surface p-4 mt-4 mb-4">
+          <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-3">Youth Academy</h3>
+          {state.youthProspects.map((prospect, i) => (
+            <div key={i} className="flex items-center gap-3 py-2 border-t border-th">
+              <PlayerAvatar name={prospect.player.name} size="sm" />
+              <div className="flex-1">
+                <span className="text-sm text-th-primary font-display">{prospect.player.name}</span>
+                <span className="text-[10px] text-th-muted ml-2">Age {prospect.player.age} &bull; {roleLabel(prospect.player.role)}</span>
+              </div>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                prospect.scoutRating === "Diamond" ? "bg-cyan-500/15 text-cyan-400" :
+                prospect.scoutRating === "Gold" ? "bg-amber-500/15 text-amber-400" :
+                prospect.scoutRating === "Silver" ? "bg-gray-500/15 text-gray-400" :
+                "bg-orange-900/15 text-orange-400"
+              }`}>{prospect.scoutRating}</span>
+              <span className="text-xs text-th-muted stat-num">{prospect.player.overall} OVR</span>
+              {onPromoteProspect && (
+                <button onClick={() => onPromoteProspect(i)} className="px-3 py-1 text-xs bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">Promote</button>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

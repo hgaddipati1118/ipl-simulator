@@ -316,6 +316,7 @@ export function createPlayerFromData(data: {
   isWicketKeeper?: boolean;
   bowlingStyle?: BowlingStyle;
   battingHand?: BattingHand;
+  careerStats?: { m: number; r: number; avg: number; sr: number; w: number; econ: number };
   battingIQ: number;
   timing: number;
   power: number;
@@ -357,6 +358,7 @@ export function createPlayerFromData(data: {
     isWicketKeeper,
     bowlingStyle: data.bowlingStyle,
     battingHand: data.battingHand,
+    careerStats: data.careerStats,
     teamId: data.teamId,
     bid: data.bid,
     injured: false,

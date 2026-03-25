@@ -822,6 +822,23 @@ export function LiveMatchPage({
             </div>
           </div>
 
+          {/* Rain delay banner */}
+          {state.rainDelay && (
+            <div className="mt-3 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center gap-2 animate-fade-in">
+              <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+              </svg>
+              <span className="text-xs text-blue-300 font-display font-semibold">RAIN DELAY</span>
+              <span className="text-xs text-th-muted font-display">{state.rainDelay.narrative}</span>
+              {state.rainDelay.revisedTarget && (
+                <span className="text-xs text-amber-400 font-display font-semibold ml-auto">Target: {state.rainDelay.revisedTarget}</span>
+              )}
+              {state.maxOvers < 20 && (
+                <span className="text-[10px] text-th-faint font-display ml-auto">{state.maxOvers} ov match</span>
+              )}
+            </div>
+          )}
+
           {/* Current batters */}
           <div className="mt-3 pt-3 border-t border-th flex flex-wrap gap-x-6 gap-y-1 items-center text-sm">
             {state.batterStats.filter(b => !b.isOut).slice(-2).map(b => {

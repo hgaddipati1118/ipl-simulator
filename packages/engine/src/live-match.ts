@@ -25,6 +25,7 @@ import {
   type PitchType,
 } from "./matchups.js";
 import { generateBallCommentary } from "./commentary.js";
+import { checkRainInterruption, calculateDLSTarget, canProduceResult, getRainDelayNarrative } from "./dls.js";
 import type {
   BallOutcome,
   BallEvent,
@@ -207,6 +208,17 @@ export interface MatchState {
     home: { used: boolean; over?: number };
     away: { used: boolean; over?: number };
   };
+
+  // DLS rain delay info (set when rain interrupts play)
+  maxOvers: number;               // current max overs for this innings (default 20, reduced by rain)
+  rainDelay?: {
+    oversLost: number;
+    narrative: string;
+    innings: 1 | 2;
+    revisedTarget?: number;       // set only for 2nd innings rain
+  };
+  /** Whether rain has already been checked this innings (only once per innings) */
+  rainChecked?: boolean;
 
   // Internal state (for serialization, not for UI display)
   _internal: MatchStateInternal;
@@ -833,6 +845,8 @@ export function createMatchState(
       home: { used: false },
       away: { used: false },
     },
+    maxOvers: 20,
+    rainChecked: false,
 
     _internal: {
       matchId,
@@ -913,7 +927,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   const int = state._internal;
   const pm = int.playerDataMap;
   const isSecondInnings = state.innings === 2;
-  const maxOvers = 20;
+  const maxOvers = state.maxOvers;
 
   // Get current players
   const strikerId = int.battingOrderIds[state.strikerIdx];
@@ -1282,6 +1296,67 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     ni.currentOverLegalBalls = 0;
     rawInnings.overs = newState.overs;
     rawInnings.balls = 0;
+
+    // ── Rain check (once per innings, between overs 8-15) ───────────────────────────
+    if (!newState.rainChecked && newState.overs >= 8 && newState.overs <= 15) {
+      // Dew factor increases rain probability: heavy = 3x, moderate = 2x, none = 1x
+      const dewMultiplier = ni.dewFactor === "heavy" ? 3.0 : ni.dewFactor === "moderate" ? 2.0 : 1.0;
+      const oversLost = checkRainInterruption(newState.overs, rng);
+      // Apply dew multiplier by re-rolling if the base check failed and dew is present
+      const effectiveOversLost = oversLost > 0 ? oversLost :
+        (dewMultiplier > 1 && rng() < 0.003 * dewMultiplier) ? Math.ceil(rng() * 5) : 0;
+
+      if (effectiveOversLost > 0) {
+        newState.rainChecked = true;
+        const oversAvailable = maxOvers - newState.overs;
+        const actualOversLost = Math.min(effectiveOversLost, oversAvailable);
+        const newMaxOvers = maxOvers - actualOversLost;
+        const remainingOvers = newMaxOvers - newState.overs;
+
+        if (!canProduceResult(newMaxOvers, !isSecondInnings)) {
+          // Abandoned — fewer than 5 overs available total
+          newState.maxOvers = newMaxOvers;
+          newState.result = "Match abandoned due to rain";
+          newState.status = "completed";
+          newState.rainDelay = {
+            oversLost: actualOversLost,
+            narrative: `Heavy rain! Match abandoned — only ${newMaxOvers} overs possible.`,
+            innings: newState.innings,
+          };
+          return { state: newState, ball: detailedBall };
+        }
+
+        newState.maxOvers = newMaxOvers;
+        const narrative = getRainDelayNarrative(actualOversLost, remainingOvers);
+
+        if (isSecondInnings && newState.innings1Score != null) {
+          // Recalculate DLS target for 2nd innings
+          const inn1Overs = state.innings1Overs
+            ? parseFloat(state.innings1Overs)
+            : 20;
+          const revisedTarget = calculateDLSTarget(
+            newState.innings1Score,
+            remainingOvers + newState.overs,  // total overs available to team 2
+            newState.wickets,
+            Math.floor(inn1Overs),
+          );
+          newState.target = revisedTarget;
+          newState.rainDelay = {
+            oversLost: actualOversLost,
+            narrative: `${narrative} Revised target: ${revisedTarget}.`,
+            innings: 2,
+            revisedTarget,
+          };
+        } else {
+          // 1st innings: just reduce available overs
+          newState.rainDelay = {
+            oversLost: actualOversLost,
+            narrative,
+            innings: 1,
+          };
+        }
+      }
+    }
 
     // Swap strike at end of over
     const temp = newState.strikerIdx;
@@ -2134,6 +2209,17 @@ export function startSecondInnings(state: MatchState): MatchState {
     home: { used: false },
     away: { used: false },
   };
+
+  // Reset rain state for 2nd innings (allow a new rain event)
+  newState.rainChecked = false;
+  // If 1st innings was rain-reduced, 2nd innings keeps the same max overs
+  // (unless further rain reduces it). Reset maxOvers to match 1st innings max.
+  if (!newState.rainDelay || newState.rainDelay.innings === 1) {
+    // 2nd innings starts with the same reduced max overs as 1st innings ended with
+    // (already set on maxOvers by the rain delay logic)
+  }
+  // Clear the rain delay display (it was for 1st innings)
+  newState.rainDelay = undefined;
 
   // Recompute innings 2 orders from current XI (accounts for impact subs applied during break)
   const battingXIIds = newBattingTeamId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;

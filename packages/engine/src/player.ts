@@ -88,6 +88,7 @@ export interface PlayerData {
   isWicketKeeper?: boolean; // WK is a tag, not a role
   bowlingStyle?: BowlingStyle;
   battingHand?: BattingHand;
+  careerStats?: { m: number; r: number; avg: number; sr: number; w: number; econ: number };
   teamId?: string;
   bid?: number; // auction price in crores
   injured: boolean;
@@ -255,6 +256,7 @@ export class Player implements PlayerData {
   bowlingStyle: BowlingStyle;
   battingHand: BattingHand;
   battingPosition: BattingPosition;
+  careerStats?: { m: number; r: number; avg: number; sr: number; w: number; econ: number };
   teamId?: string;
   bid: number;
   injured: boolean;
@@ -283,6 +285,7 @@ export class Player implements PlayerData {
     this.bowlingStyle = data.bowlingStyle ?? "unknown";
     this.battingHand = data.battingHand ?? "right";
     this.battingPosition = data.battingPosition ?? inferBattingPosition(data);
+    this.careerStats = data.careerStats;
     this.teamId = data.teamId;
     this.bid = data.bid ?? 0;
     this.injured = data.injured ?? false;

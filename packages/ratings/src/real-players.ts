@@ -42,6 +42,7 @@ export interface RealPlayerData {
   teamId: string;
   bid?: number;  // auction/retention price in crores
   imageUrl?: string; // ESPN player photo path
+  careerStats?: { m: number; r: number; avg: number; sr: number; w: number; econ: number };
 }
 
 /**
@@ -70,6 +71,7 @@ export function getRealPlayers(): RealPlayerData[] {
       teamId: p.teamId,
       bid: p.bid,
       imageUrl: p.imageUrl,
+      careerStats: (p as any).careerStats,
     }));
 }
 

@@ -1051,7 +1051,8 @@ function generateTypeScriptModule(players: RatedPlayer[]): void {
     ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
     isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}
     bowlingStyle: ${JSON.stringify(p.bowlingStyle)},
-    battingHand: ${JSON.stringify(p.battingHand)},${p.imageUrl ? `\n    imageUrl: ${JSON.stringify(p.imageUrl)},` : ""}${teamIdLine}${bidLine}
+    battingHand: ${JSON.stringify(p.battingHand)},${p.imageUrl ? `\n    imageUrl: ${JSON.stringify(p.imageUrl)},` : ""}
+    careerStats: { m: ${p.sourceStats?.t20Matches ?? 0}, r: ${p.sourceStats?.t20Runs ?? 0}, avg: ${Number(p.sourceStats?.t20Average ?? 0).toFixed(1)}, sr: ${Number(p.sourceStats?.t20StrikeRate ?? 0).toFixed(1)}, w: ${p.sourceStats?.t20Wickets ?? 0}, econ: ${Number(p.sourceStats?.t20Economy ?? 0).toFixed(2)} },${teamIdLine}${bidLine}
   }`;
   }).join(",\n");
 
@@ -1338,7 +1339,8 @@ function generateWPLTypeScriptModule(players: RatedPlayer[]): void {
     ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
     isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}
     bowlingStyle: ${JSON.stringify(p.bowlingStyle)},
-    battingHand: ${JSON.stringify(p.battingHand)},${p.imageUrl ? `\n    imageUrl: ${JSON.stringify(p.imageUrl)},` : ""}${teamIdLine}${bidLine}
+    battingHand: ${JSON.stringify(p.battingHand)},${p.imageUrl ? `\n    imageUrl: ${JSON.stringify(p.imageUrl)},` : ""}
+    careerStats: { m: ${p.sourceStats?.t20Matches ?? 0}, r: ${p.sourceStats?.t20Runs ?? 0}, avg: ${Number(p.sourceStats?.t20Average ?? 0).toFixed(1)}, sr: ${Number(p.sourceStats?.t20StrikeRate ?? 0).toFixed(1)}, w: ${p.sourceStats?.t20Wickets ?? 0}, econ: ${Number(p.sourceStats?.t20Economy ?? 0).toFixed(2)} },${teamIdLine}${bidLine}
   }`;
   }).join(",\n");
 
