@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Team, Player } from "@ipl-sim/engine";
-import { ovrBgClass, roleLabel, teamLabelColor } from "../ui-utils";
+import { ovrBgClass, roleLabel, teamLabelColor, battingPositionLabel, battingPositionColor } from "../ui-utils";
 import { PlayerLink } from "../components/PlayerLink";
 import { getPlayerScoutingView, type ScoutingState } from "../scouting";
 import { getRecruitmentCounts, getRecruitmentTag, type RecruitmentState } from "../recruitment";
@@ -196,11 +196,19 @@ export function PlayerRatingsPage({
                     <PlayerLink playerId={p.id} className="text-th-primary font-display text-xs sm:text-sm">{p.name}</PlayerLink>
                     {p.isInternational && <span className="text-blue-400/60 text-[10px] ml-1 font-semibold">OS</span>}
                     {p.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] ml-1 font-semibold">WK</span>}
+                    {p.battingPosition && battingPositionLabel(p.battingPosition) && (
+                      <span className={`text-[10px] ml-1 font-semibold px-1 rounded ${battingPositionColor(p.battingPosition)}`}>
+                        {battingPositionLabel(p.battingPosition)}
+                      </span>
+                    )}
                     {recruitmentTag && <span className="ml-1"><RecruitmentBadge tier={recruitmentTag} compact /></span>}
                     {/* Show team + role inline on mobile (hidden in dedicated columns) */}
                     <span className="sm:hidden block text-[10px] text-th-muted mt-0.5">
                       <span style={{ color: team ? teamLabelColor(team.config.primaryColor) : "var(--th-text-secondary)" }}>{teamLabel}</span>
                       {" "}<span className={p.role === "bowler" ? "text-purple-400/70" : p.role === "all-rounder" ? "text-emerald-400/70" : "text-orange-400/70"}>{roleLabel(p.role)}</span>
+                      {p.battingPosition && battingPositionLabel(p.battingPosition) && (
+                        <>{" "}<span className={battingPositionColor(p.battingPosition)}>{battingPositionLabel(p.battingPosition)}</span></>
+                      )}
                       {" "}<span className="text-th-faint">| {scoutingView.confidenceLabel}</span>
                     </span>
                   </td>

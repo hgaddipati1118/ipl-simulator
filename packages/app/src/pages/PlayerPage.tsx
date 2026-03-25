@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { GameState } from "../game-state";
-import { ovrBgClass, roleLabel, teamLabelColor, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
+import { ovrBgClass, roleLabel, teamLabelColor, bowlingStyleLabel, battingHandLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { RadarChart } from "../components/RadarChart";
 import { PlayerAvatar } from "../components/PlayerAvatar";
@@ -315,6 +315,13 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
               <span className={`text-xs font-display font-semibold px-2 py-0.5 rounded-full border ${rb.bg} ${rb.text}`}>
                 {roleLabel(player.role)}
               </span>
+              {player.battingPosition && battingPositionLabel(player.battingPosition) && (
+                <>
+                  <span className={`text-[10px] font-display font-semibold px-1.5 py-0.5 rounded ${battingPositionColor(player.battingPosition)}`}>
+                    {battingPositionLabel(player.battingPosition)}
+                  </span>
+                </>
+              )}
               <span className="text-th-faint">|</span>
               <span className="text-th-muted text-sm font-display">Age {scoutingView.ageDisplay}</span>
               <span className="text-th-faint">|</span>
@@ -564,6 +571,21 @@ export function PlayerPage({ state, onScoutPlayer, onToggleShortlist, onToggleWa
           </div>
         )}
       </div>
+
+      {/* T20 Career Record */}
+      {player.careerStats && player.careerStats.m > 0 && (
+        <div className="rounded-2xl border border-th bg-th-surface p-4 sm:p-5 mb-6">
+          <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-3">T20 Career Record</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <MiniStat label="Matches" value={String(player.careerStats.m)} />
+            <MiniStat label="Runs" value={String(player.careerStats.r)} highlight />
+            <MiniStat label="Average" value={String(player.careerStats.avg)} />
+            <MiniStat label="Strike Rate" value={String(player.careerStats.sr)} />
+            <MiniStat label="Wickets" value={String(player.careerStats.w)} highlight />
+            <MiniStat label="Economy" value={String(player.careerStats.econ)} />
+          </div>
+        </div>
+      )}
 
       {/* Match-by-Match Performance Log */}
       {matchLog.length > 0 && (

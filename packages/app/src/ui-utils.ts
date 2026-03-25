@@ -88,6 +88,30 @@ export function battingHandLabel(hand: string): string {
   return hand === "left" ? "LHB" : "RHB";
 }
 
+/** Batting position short label */
+export function battingPositionLabel(pos: string): string {
+  const labels: Record<string, string> = {
+    "opener": "OPN",
+    "top-order": "TOP",
+    "middle-order": "MID",
+    "finisher": "FIN",
+    "lower-order": "LOW",
+  };
+  return labels[pos] || "";
+}
+
+/** Batting position color classes */
+export function battingPositionColor(pos: string): string {
+  switch (pos) {
+    case "opener": return "text-sky-400 bg-sky-500/10";
+    case "top-order": return "text-blue-400 bg-blue-500/10";
+    case "middle-order": return "text-amber-400 bg-amber-500/10";
+    case "finisher": return "text-red-400 bg-red-500/10";
+    case "lower-order": return "text-gray-400 bg-gray-500/10";
+    default: return "text-th-muted";
+  }
+}
+
 /** Get player photo URL from ESPN CDN. Returns null if no image available. */
 export function getPlayerImageUrl(imageUrl?: string): string | null {
   if (!imageUrl || imageUrl.length < 5) return null;

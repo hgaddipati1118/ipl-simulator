@@ -422,6 +422,16 @@ function PlayingXITab({
                       <span className="text-th-primary font-medium">{p.name}</span>
                       <FormIndicator player={p} />
                       <ConditionBadge player={p} />
+                      <span className={`w-2 h-2 rounded-full inline-block ${
+                        p.morale > 70 ? "bg-emerald-400" : p.morale > 40 ? "bg-amber-400" : "bg-red-400"
+                      }`} title={`Morale: ${p.morale}`} />
+                      {p.contractYears !== undefined && (
+                        <span className={`text-[9px] px-1 rounded ${
+                          p.contractYears <= 0 ? "text-red-400 bg-red-500/10" :
+                          p.contractYears === 1 ? "text-amber-400 bg-amber-500/10" :
+                          "text-th-faint bg-th-hover"
+                        }`}>{p.contractYears <= 0 ? "FA" : p.contractYears + "yr"}</span>
+                      )}
                       {p.isInternational && (
                         <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
                       )}

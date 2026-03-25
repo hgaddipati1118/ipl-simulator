@@ -142,8 +142,10 @@ export function getAuctionType(seasonNumber: number, rules: RuleSet): AuctionTyp
   return (seasonNumber - 1) % cycle === 0 ? "mega" : "mini";
 }
 
-/** Get max retentions for the current auction type */
+/** Get max retentions for the current auction type.
+ *  Mega: max 6 retentions (all others released, full auction pool).
+ *  Mini: unlimited retentions — teams keep their roster, only release voluntarily. */
 export function getMaxRetentions(auctionType: AuctionType, rules: RuleSet): number {
   if (auctionType === "mega") return rules.maxRetentions ?? 6;
-  return rules.maxMiniRetentions ?? 4; // Mini auctions: keep most of roster, retain fewer
+  return rules.maxMiniRetentions ?? 25; // Mini: keep full roster (effectively unlimited)
 }

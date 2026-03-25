@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { type Player, type AuctionState, getBidIncrement, getBasePrice } from "@ipl-sim/engine";
 import { GameState } from "../game-state";
-import { ovrColorClass, roleLabel, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
+import { ovrColorClass, roleLabel, bowlingStyleLabel, battingHandLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerAvatar } from "../components/PlayerAvatar";
 import { getPlayerScoutingView, type ScoutingState } from "../scouting";
@@ -263,6 +263,11 @@ export function AuctionPage({
                   <div className="flex items-center gap-3 mt-1">
                     <span className={`text-sm font-bold ${ovrColorClass(currentPlayerView?.overall.sortValue ?? currentPlayer.overall)}`}>{currentPlayerView?.overall.display ?? currentPlayer.overall} OVR</span>
                     <span className="text-xs text-th-muted font-display">{roleLabel(currentPlayer.role)}</span>
+                    {currentPlayer.battingPosition && battingPositionLabel(currentPlayer.battingPosition) && (
+                      <span className={`text-[10px] font-display font-semibold px-1.5 py-0.5 rounded ${battingPositionColor(currentPlayer.battingPosition)}`}>
+                        {battingPositionLabel(currentPlayer.battingPosition)}
+                      </span>
+                    )}
                     {currentPlayerView?.showStyleDetails && currentPlayer.battingHand && (
                       <span className="text-[10px] text-th-muted font-display font-semibold bg-th-body px-1.5 py-0.5 rounded border border-th">
                         {battingHandLabel(currentPlayer.battingHand)}
@@ -301,6 +306,20 @@ export function AuctionPage({
                 <AttributeBar label="Accuracy" value={currentPlayerView?.attributes.accuracy.barValue ?? currentPlayer.ratings.accuracy} valueLabel={currentPlayerView?.attributes.accuracy.display ?? String(currentPlayer.ratings.accuracy)} />
                 <AttributeBar label="Clutch" value={currentPlayerView?.attributes.clutch.barValue ?? currentPlayer.ratings.clutch} valueLabel={currentPlayerView?.attributes.clutch.display ?? String(currentPlayer.ratings.clutch)} />
               </div>
+
+              {currentPlayer.careerStats && currentPlayer.careerStats.m > 0 && (
+                <div className="rounded-xl bg-th-raised p-3 mb-4">
+                  <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-2">T20 Career</div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div><span className="text-th-muted">M:</span> <span className="text-th-primary stat-num">{currentPlayer.careerStats.m}</span></div>
+                    <div><span className="text-th-muted">Runs:</span> <span className="text-orange-300 stat-num">{currentPlayer.careerStats.r}</span></div>
+                    <div><span className="text-th-muted">Avg:</span> <span className="text-th-primary stat-num">{currentPlayer.careerStats.avg}</span></div>
+                    <div><span className="text-th-muted">SR:</span> <span className="text-th-primary stat-num">{currentPlayer.careerStats.sr}</span></div>
+                    <div><span className="text-th-muted">Wkts:</span> <span className="text-purple-300 stat-num">{currentPlayer.careerStats.w}</span></div>
+                    <div><span className="text-th-muted">Econ:</span> <span className="text-th-primary stat-num">{currentPlayer.careerStats.econ}</span></div>
+                  </div>
+                </div>
+              )}
 
               {currentPlayerView && (
                 <div className="rounded-xl border border-th bg-th-raised px-4 py-3 mb-5">
@@ -417,6 +436,11 @@ export function AuctionPage({
                   {recruitmentTag && <RecruitmentBadge tier={recruitmentTag} compact />}
                   <span className={`text-xs font-bold ${ovrColorClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
                   <span className="text-[10px] text-th-muted font-display">{roleLabel(player.role)}</span>
+                  {player.battingPosition && battingPositionLabel(player.battingPosition) && (
+                    <span className={`text-[9px] font-display font-semibold px-1 py-0.5 rounded ${battingPositionColor(player.battingPosition)}`}>
+                      {battingPositionLabel(player.battingPosition)}
+                    </span>
+                  )}
                   <span className="text-[10px] text-th-faint font-mono stat-num">{scoutingView.marketValue.compactDisplay}</span>
                 </div>
               ))}

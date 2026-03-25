@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Team, type RuleSet, DEFAULT_RULES } from "@ipl-sim/engine";
-import { ovrBgClass, roleLabel, bowlingStyleLabel } from "../ui-utils";
+import { ovrBgClass, roleLabel, bowlingStyleLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
 import { PlayerAvatar } from "../components/PlayerAvatar";
@@ -134,6 +134,11 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, recruitment, 
                       {p.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] font-display font-semibold bg-cyan-500/10 px-1 rounded">WK</span>}
                       {p.injured && <span className="text-red-400 text-[10px] font-display font-semibold bg-red-500/10 px-1 rounded" aria-label="Player is injured">INJ</span>}
                       {xiIds.has(p.id) && <span className="text-emerald-400/70 text-[10px] font-display font-semibold bg-emerald-500/10 px-1 rounded">XI</span>}
+                      {p.battingPosition && battingPositionLabel(p.battingPosition) && (
+                        <span className={`text-[10px] font-display font-semibold px-1 rounded ${battingPositionColor(p.battingPosition)}`}>
+                          {battingPositionLabel(p.battingPosition)}
+                        </span>
+                      )}
                       {isUserTeam && <MoraleDot morale={p.morale} />}
                       {isUserTeam && p.contractYears >= 0 && (
                         <span className={`text-[10px] font-display font-semibold px-1 rounded ${
