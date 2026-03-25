@@ -41,8 +41,8 @@ export interface SeasonResult {
   schedule: ScheduledMatch[];
   standings: StandingsEntry[];
   champion: string;
-  orangeCap: { playerId: string; runs: number; strikeRate: number };
-  purpleCap: { playerId: string; wickets: number; economy: number };
+  orangeCap: { playerId: string; name: string; runs: number; strikeRate: number };
+  purpleCap: { playerId: string; name: string; wickets: number; economy: number };
   mvp: { name: string; points: number };
 }
 
@@ -775,14 +775,14 @@ export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): Season
     (best, p) => {
       const sr = p.stats.ballsFaced > 0 ? (p.stats.runs / p.stats.ballsFaced) * 100 : 0;
       if (p.stats.runs > best.runs) {
-        return { playerId: p.id, runs: p.stats.runs, strikeRate: sr };
+        return { playerId: p.id, name: p.name, runs: p.stats.runs, strikeRate: sr };
       }
       if (p.stats.runs === best.runs && sr > best.strikeRate) {
-        return { playerId: p.id, runs: p.stats.runs, strikeRate: sr };
+        return { playerId: p.id, name: p.name, runs: p.stats.runs, strikeRate: sr };
       }
       return best;
     },
-    { playerId: "", runs: 0, strikeRate: 0 },
+    { playerId: "", name: "", runs: 0, strikeRate: 0 },
   );
 
   // Purple Cap: most wickets, tiebreaker = lower economy rate
@@ -794,14 +794,14 @@ export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): Season
       const totalOvers = intOvers + fracBalls / 6;
       const econ = totalOvers > 0 ? p.stats.runsConceded / totalOvers : 99;
       if (p.stats.wickets > best.wickets) {
-        return { playerId: p.id, wickets: p.stats.wickets, economy: econ };
+        return { playerId: p.id, name: p.name, wickets: p.stats.wickets, economy: econ };
       }
       if (p.stats.wickets === best.wickets && econ < best.economy) {
-        return { playerId: p.id, wickets: p.stats.wickets, economy: econ };
+        return { playerId: p.id, name: p.name, wickets: p.stats.wickets, economy: econ };
       }
       return best;
     },
-    { playerId: "", wickets: 0, economy: 99 },
+    { playerId: "", name: "", wickets: 0, economy: 99 },
   );
 
   // MVP points: accumulate across all group + playoff matches
