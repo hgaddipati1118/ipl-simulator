@@ -441,7 +441,7 @@ function ProposeTrade({ state, scouting, recruitment, onPropose, onScoutTeam }: 
           <button
             onClick={handleSubmit}
             disabled={selectedUserPlayers.size === 0 || selectedTargetPlayers.size === 0}
-            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-display font-semibold text-white shadow-lg shadow-blue-500/20 transition-all duration-200 hover:from-blue-500 hover:to-indigo-500 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-600 disabled:shadow-none sm:w-auto"
+            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-display font-semibold text-white shadow-lg shadow-blue-500/20 transition-all duration-200 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:shadow-none sm:w-auto"
           >
             Propose Trade
           </button>

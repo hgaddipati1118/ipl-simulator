@@ -419,7 +419,7 @@ export function AuctionPage({
                     <button
                       onClick={onUserBid}
                       disabled={!canUserBid}
-                      className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500 text-white text-sm font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/20 disabled:shadow-none flex-1 sm:flex-none"
+                      className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 text-white text-sm font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/20 disabled:shadow-none flex-1 sm:flex-none"
                     >
                       Bid {nextBidAmount.toFixed(2)} Cr
                     </button>

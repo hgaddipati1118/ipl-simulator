@@ -685,16 +685,16 @@ export function LiveMatchPage({
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="rounded-2xl border border-white/[0.06] bg-gray-900/50 p-6 mb-6">
+        <div className="rounded-2xl border border-th bg-th-surface p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
-            <div className="h-8 w-32 bg-gray-800 rounded animate-pulse" />
-            <div className="h-6 w-20 bg-gray-800 rounded animate-pulse" />
-            <div className="h-8 w-32 bg-gray-800 rounded animate-pulse" />
+            <div className="h-8 w-32 bg-th-raised rounded animate-pulse" />
+            <div className="h-6 w-20 bg-th-raised rounded animate-pulse" />
+            <div className="h-8 w-32 bg-th-raised rounded animate-pulse" />
           </div>
-          <div className="h-12 w-48 mx-auto bg-gray-800 rounded animate-pulse mb-4" />
+          <div className="h-12 w-48 mx-auto bg-th-raised rounded animate-pulse mb-4" />
           <div className="space-y-2">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-5 bg-gray-800/50 rounded" style={{ width: `${70 + Math.random() * 30}%` }} />
+              <div key={i} className="h-5 bg-th-raised/50 rounded" style={{ width: `${70 + Math.random() * 30}%` }} />
             ))}
           </div>
         </div>
@@ -931,7 +931,7 @@ export function LiveMatchPage({
       {/* Milestone celebration popup */}
       {milestoneAlert && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-fade-in">
-          <div className="bg-gray-900 border border-th rounded-2xl px-6 py-4 text-center shadow-2xl">
+          <div className="bg-th-surface border border-th rounded-2xl px-6 py-4 text-center shadow-2xl">
             <div className={`text-lg font-display font-extrabold ${milestoneAlert.color}`}>
               {milestoneAlert.text}
             </div>
@@ -1890,11 +1890,11 @@ export function LiveMatchPage({
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-th bg-gray-950/30 px-3 py-3">
+                  <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
                     <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">On-Field Call</div>
                     <div className="mt-1 text-sm font-display font-semibold text-th-primary">{onFieldCallLabel}</div>
                   </div>
-                  <div className="rounded-xl border border-th bg-gray-950/30 px-3 py-3">
+                  <div className="rounded-xl border border-th bg-th-raised px-3 py-3">
                     <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Reviews Left</div>
                     <div className="mt-1 text-sm font-display font-semibold text-th-primary">
                       {reviewsLeft} review{reviewsLeft !== 1 ? "s" : ""}
@@ -1904,7 +1904,7 @@ export function LiveMatchPage({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="rounded-xl border border-th bg-gray-950/30 px-4 py-3">
+                <div className="rounded-xl border border-th bg-th-raised px-4 py-3">
                   <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Appeal On</div>
                   <div className="mt-1 text-sm font-display font-semibold text-th-primary">
                     {drsCtx?.batterName ?? striker?.playerName ?? "Batter"}
@@ -1920,7 +1920,7 @@ export function LiveMatchPage({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-th bg-gray-950/30 px-4 py-3">
+                <div className="rounded-xl border border-th bg-th-raised px-4 py-3">
                   <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Bowler</div>
                   <div className="mt-1 text-sm font-display font-semibold text-th-primary">{currentBowler}</div>
                   <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-th-muted font-mono">
@@ -1932,7 +1932,7 @@ export function LiveMatchPage({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="rounded-xl border border-th bg-gray-950/30 px-4 py-3">
+                <div className="rounded-xl border border-th bg-th-raised px-4 py-3">
                   <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Match Context</div>
                   <div className="mt-1 text-sm font-display font-semibold text-th-primary">
                     {phaseLabel} • {oversDisplay} ov
@@ -1944,7 +1944,7 @@ export function LiveMatchPage({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-th bg-gray-950/30 px-4 py-3">
+                <div className="rounded-xl border border-th bg-th-raised px-4 py-3">
                   <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">If Overturned</div>
                   <div className="mt-1 text-sm font-display font-semibold text-th-primary">
                     {reviewKind === "lbw" ? `${battingTeam.shortName} ${wicketIfOverturned}` : extraScoreIfOverturned}

@@ -126,7 +126,7 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
         <button
           onClick={onFinishRetention}
           disabled={!retention.cpuDone}
-          className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500 text-white font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-orange-500/20 disabled:shadow-none w-full sm:w-auto"
+          className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-40 text-white font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-orange-500/20 disabled:shadow-none w-full sm:w-auto"
         >
           Finish Retentions & Start Auction
         </button>

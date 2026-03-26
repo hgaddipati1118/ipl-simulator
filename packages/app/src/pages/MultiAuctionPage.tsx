@@ -429,7 +429,7 @@ export function MultiAuctionPage() {
                         ? isUrgent
                           ? "bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 shadow-lg shadow-red-500/20 animate-pulse"
                           : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-blue-500/20"
-                        : "bg-gray-700 text-gray-500 cursor-not-allowed"
+                        : "bg-th-raised text-th-faint cursor-not-allowed"
                     }`}
                   >
                     Bid {nextBidAmount.toFixed(2)} Cr

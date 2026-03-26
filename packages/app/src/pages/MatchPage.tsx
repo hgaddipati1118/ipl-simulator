@@ -76,16 +76,16 @@ export function MatchPage({ state }: Props) {
   if (!immediateDetailed && idbLoading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="rounded-2xl border border-white/[0.06] bg-gray-900/50 p-6 space-y-4">
+        <div className="rounded-2xl border border-th bg-th-surface p-6 space-y-4">
           <div className="flex justify-between">
-            <div className="h-6 w-24 bg-gray-800 rounded animate-pulse" />
-            <div className="h-6 w-16 bg-gray-800 rounded animate-pulse" />
-            <div className="h-6 w-24 bg-gray-800 rounded animate-pulse" />
+            <div className="h-6 w-24 bg-th-raised rounded animate-pulse" />
+            <div className="h-6 w-16 bg-th-raised rounded animate-pulse" />
+            <div className="h-6 w-24 bg-th-raised rounded animate-pulse" />
           </div>
-          <div className="h-4 w-64 mx-auto bg-gray-800 rounded animate-pulse" />
+          <div className="h-4 w-64 mx-auto bg-th-raised rounded animate-pulse" />
           <div className="space-y-2 mt-6">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-8 bg-gray-800/40 rounded" />
+              <div key={i} className="h-8 bg-th-raised/40 rounded" />
             ))}
           </div>
         </div>
