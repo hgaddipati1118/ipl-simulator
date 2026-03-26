@@ -179,9 +179,9 @@ export interface MatchOptions {
  * Target avg innings score: 160-175
  */
 const PHASE_MULTIPLIERS: Record<"powerplay" | "middle" | "death", Partial<Record<BallOutcome, number>>> = {
-  powerplay: { dot: 0.85, "1": 1.0, "2": 0.9, "3": 1.0, "4": 1.3, "6": 1.1, wicket: 0.9, wide: 1.1, noball: 1.0 },
-  middle:    { dot: 1.1,  "1": 1.1, "2": 1.0, "3": 1.0, "4": 0.9, "6": 0.85, wicket: 1.0, wide: 0.9, noball: 1.0 },
-  death:     { dot: 0.8,  "1": 0.9, "2": 1.1, "3": 1.1, "4": 1.2, "6": 1.25, wicket: 1.2, wide: 1.2, noball: 1.1 },
+  powerplay: { dot: 0.85, "1": 1.0, "2": 0.9, "3": 1.0, "4": 1.25, "6": 1.08, wicket: 0.9, wide: 1.1, noball: 1.0 },
+  middle:    { dot: 1.12, "1": 1.08, "2": 1.0, "3": 1.0, "4": 0.88, "6": 0.80, wicket: 1.02, wide: 0.9, noball: 1.0 },
+  death:     { dot: 0.82, "1": 0.9, "2": 1.1, "3": 1.1, "4": 1.18, "6": 1.20, wicket: 1.2, wide: 1.2, noball: 1.1 },
 };
 
 /** Generate base outcome probabilities from batter and bowler ratings */
@@ -199,13 +199,13 @@ function baseOutcomeProbabilities(
   //   IPL 2025 had 52 scores above 200, avg innings ~178-182
   //   Target avg innings score: 175-185 (Impact Player era, flat pitches)
   return {
-    dot:    clamp(0.36 - balance * 0.12, 0.18, 0.52),
+    dot:    clamp(0.37 - balance * 0.11, 0.20, 0.53),
     "1":    clamp(0.28 + balance * 0.02, 0.20, 0.38),
     "2":    clamp(0.05 + balance * 0.015, 0.02, 0.10),
     "3":    clamp(0.01, 0.005, 0.025),
-    "4":    clamp(0.12 + balance * 0.04 + (batter.ratings.timing / 100) * 0.02, 0.04, 0.20),
-    "6":    clamp(0.055 + balance * 0.03 + (batter.ratings.power / 100) * 0.025, 0.01, 0.14),
-    wicket: clamp(0.045 - balance * 0.025 + (bowler.ratings.wicketTaking / 100) * 0.02, 0.015, 0.10),
+    "4":    clamp(0.105 + balance * 0.035 + (batter.ratings.timing / 100) * 0.017, 0.035, 0.18),
+    "6":    clamp(0.045 + balance * 0.025 + (batter.ratings.power / 100) * 0.020, 0.01, 0.12),
+    wicket: clamp(0.046 - balance * 0.025 + (bowler.ratings.wicketTaking / 100) * 0.02, 0.015, 0.10),
     wide:   clamp(0.03 - (bowler.ratings.accuracy / 100) * 0.012, 0.008, 0.06),
     noball:  clamp(0.005 - (bowler.ratings.accuracy / 100) * 0.003, 0.001, 0.02),
     legbye: 0.015,
@@ -224,17 +224,20 @@ function chaseAdjustment(
 
   const adjusted = { ...probs };
   if (pressure > 0) {
-    // Need to accelerate — capped to avoid runaway boundary inflation
+    // Need to accelerate — modest boosts, significant wicket risk
     const cappedPressure = Math.min(pressure, 1.5);
-    adjusted["4"] *= 1 + cappedPressure * 0.2;
-    adjusted["6"] *= 1 + cappedPressure * 0.3;
-    adjusted.dot *= 1 - cappedPressure * 0.15;
-    adjusted.wicket *= 1 + cappedPressure * 0.2 + wicketPressure;
+    adjusted["4"] *= 1 + cappedPressure * 0.10;
+    adjusted["6"] *= 1 + cappedPressure * 0.15;
+    adjusted.dot *= 1 - cappedPressure * 0.08;
+    adjusted.wicket *= 1 + cappedPressure * 0.30 + wicketPressure;
   } else {
-    // Comfortable position, play safe
-    adjusted.dot *= 1 + Math.abs(pressure) * 0.1;
-    adjusted["1"] *= 1 + Math.abs(pressure) * 0.1;
-    adjusted.wicket *= 1 - Math.abs(pressure) * 0.1;
+    // Comfortable position — play safe, suppress boundaries, protect wickets
+    const comfort = Math.min(Math.abs(pressure), 1.5);
+    adjusted.dot *= 1 + comfort * 0.18;
+    adjusted["1"] *= 1 + comfort * 0.12;
+    adjusted["4"] *= 1 - comfort * 0.12;
+    adjusted["6"] *= 1 - comfort * 0.18;
+    adjusted.wicket *= 1 - comfort * 0.12;
   }
 
   return adjusted;
