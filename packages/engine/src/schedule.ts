@@ -129,8 +129,9 @@ function applyPostMatchCondition(result: MatchResult, teams: Team[]): void {
 
   for (const team of teams) {
     if (!involvedTeamIds.has(team.id)) {
+      // Full rest day — team not playing
       for (const player of team.roster) {
-        player.recoverCondition(10);
+        player.recoverCondition(5);
       }
       continue;
     }
@@ -140,7 +141,8 @@ function applyPostMatchCondition(result: MatchResult, teams: Team[]): void {
 
     for (const player of team.roster) {
       if (!xiIds.has(player.id)) {
-        player.recoverCondition(6);
+        // Benched — light recovery (traveled with team, trained lightly)
+        player.recoverCondition(3);
         continue;
       }
 

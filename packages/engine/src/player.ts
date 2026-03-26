@@ -59,6 +59,10 @@ export type BowlingStyle =
   | "off-spin" | "left-arm-orthodox" | "leg-spin" | "left-arm-wrist-spin"
   | "unknown";
 
+function isPaceBowlerStyle(style: BowlingStyle): boolean {
+  return style.includes("fast") || style === "right-arm-medium" || style === "left-arm-medium";
+}
+
 export type BattingHand = "right" | "left";
 
 export type BattingPosition = "opener" | "top-order" | "middle-order" | "finisher" | "lower-order";
@@ -424,9 +428,19 @@ export class Player implements PlayerData {
     }
   }
 
-  /** Recover fatigue during rest periods or between fixtures. */
-  recoverCondition(amount = 10): void {
-    this.fatigue = clamp(Math.round(this.fatigue - amount), 0, 100);
+  /** Recover fatigue during rest periods or between fixtures.
+   *  Base amount is modified by age, role, and training focus:
+   *  - Young players (< 25) recover +1 faster
+   *  - Veterans (> 32) recover 1 slower
+   *  - Fast bowlers recover 1 slower (physical toll)
+   *  - Fitness training focus gives +1 recovery bonus */
+  recoverCondition(amount = 5): void {
+    let recovery = amount;
+    if (this.age < 25) recovery += 1;
+    if (this.age > 32) recovery -= 1;
+    if (this.role === "bowler" && isPaceBowlerStyle(this.bowlingStyle)) recovery -= 1;
+    if (this.trainingFocus === "fitness") recovery += 1;
+    this.fatigue = clamp(Math.round(this.fatigue - Math.max(1, recovery)), 0, 100);
   }
 
   /** Fully reset condition for a new season. */
