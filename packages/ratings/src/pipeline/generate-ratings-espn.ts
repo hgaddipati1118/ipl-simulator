@@ -7,8 +7,8 @@
  * but leverages REAL fours/sixes data (fo/si fields) instead of estimating them.
  *
  * Also generates women's ratings from the same ESPN data:
- *   - Uses cl=10 (WT20I) instead of cl=6/cl=3 for T20 stats
- *   - Minimum 10 WT20I matches
+ *   - Uses women's T20 rows (prefers cl=9, falls back to cl=10)
+ *   - Current WPL roster players can still rate from thinner recent data
  *   - Same rating formula (z-scores naturally produce lower ratings for women)
  *   - Age 38+ hard cutoff for retirement
  *
@@ -21,8 +21,9 @@
  * Usage: npx tsx src/pipeline/generate-ratings-espn.ts
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
 import { join, dirname } from "path";
+import { pathToFileURL } from "url";
 import { calculateRatings, inferRole, type GenderPop, type CalculatedRatings } from "../calculator.js";
 import { OUTPUT_DIR } from "./config.js";
 import { IPL_2026_ROSTERS } from "../ipl-rosters.js";
@@ -43,6 +44,7 @@ const OUTPUT_JSON = join(OUTPUT_DIR, "espn-ratings.json");
 const OUTPUT_JSON_WOMEN = join(OUTPUT_DIR, "espn-ratings-women.json");
 const OUTPUT_TS = join(dirname(OUTPUT_DIR), "..", "src", "all-players.ts");
 const OUTPUT_TS_WOMEN = join(dirname(OUTPUT_DIR), "..", "src", "wpl-players.ts");
+const CRICSHEET_T20I_DIR = join(OUTPUT_DIR, "..", "cricsheet", "t20s_json");
 
 // ── ESPN data types ───────────────────────────────────────────────────
 
@@ -142,10 +144,41 @@ interface RatedPlayer {
     t20Sixes: number;
     t20Wickets: number;
     t20Economy: number;
-    statClass: number;  // which cl was used (6 = all T20s, 3 = T20I)
+    statClass: number;  // which cl was used (6 = all T20s, 3 = T20I, 9/10 = women's T20s)
   };
   espnId: number;
 }
+
+interface EliteTournamentPlayerStats {
+  matches: number;
+  weightedMatches: number;
+  knockoutMatches: number;
+  battingInnings: number;
+  notOuts: number;
+  runs: number;
+  ballsFaced: number;
+  fours: number;
+  sixes: number;
+  bowlingInnings: number;
+  ballsBowled: number;
+  runsConceded: number;
+  wickets: number;
+}
+
+interface EliteTournamentWeight {
+  weight: number;
+  isKnockout: boolean;
+}
+
+let eliteTournamentStatsCache:
+  | { male: Map<string, EliteTournamentPlayerStats>; female: Map<string, EliteTournamentPlayerStats> }
+  | null = null;
+
+let recentInternationalStatsCache:
+  | { male: Map<string, EliteTournamentPlayerStats>; female: Map<string, EliteTournamentPlayerStats> }
+  | null = null;
+
+let recentWomenT20StatsCache: Map<string, EliteTournamentPlayerStats> | null = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -209,7 +242,7 @@ function extractCountry(profile: EspnProfile): string {
 /**
  * Get a stat record for a given type and class from the career stats array.
  * For men: Prefers cl=6 (all T20s), falls back to cl=3 (T20I).
- * For women: Uses cl=10 (WT20I) — women's T20 stats are stored separately on ESPN.
+ * For women: Prefers cl=9 (women's T20s), falls back to cl=10 (WT20I).
  */
 function getT20Stat(
   stats: EspnCareerStat[],
@@ -217,7 +250,8 @@ function getT20Stat(
   gender: "M" | "F" = "M",
 ): { stat: EspnCareerStat; cl: number } | null {
   if (gender === "F") {
-    // Women's T20I stats are in cl=10 (WT20I)
+    const cl9 = stats.find(s => s.type === type && s.cl === 9);
+    if (cl9) return { stat: cl9, cl: 9 };
     const cl10 = stats.find(s => s.type === type && s.cl === 10);
     if (cl10) return { stat: cl10, cl: 10 };
     return null;
@@ -276,6 +310,268 @@ function mapBowlingStyle(espnStyle: string): BowlingStyle {
   return "unknown";
 }
 
+function isSpinBowlingStyle(style: BowlingStyle): boolean {
+  return (
+    style === "off-spin" ||
+    style === "leg-spin" ||
+    style === "left-arm-orthodox" ||
+    style === "left-arm-wrist-spin"
+  );
+}
+
+function normalizePlayerName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\u00a0/g, " ")
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getNormalizedNameTokens(name: string): string[] {
+  return normalizePlayerName(name).split(" ").filter(Boolean);
+}
+
+function levenshteinDistance(a: string, b: string, maxDistance = Number.POSITIVE_INFINITY): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1;
+
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+
+  for (let i = 0; i < a.length; i++) {
+    const current = [i + 1];
+    let rowMin = current[0];
+
+    for (let j = 0; j < b.length; j++) {
+      const cost = a[i] === b[j] ? 0 : 1;
+      const value = Math.min(
+        previous[j + 1] + 1,
+        current[j] + 1,
+        previous[j] + cost,
+      );
+      current.push(value);
+      if (value < rowMin) rowMin = value;
+    }
+
+    if (rowMin > maxDistance) return maxDistance + 1;
+    previous = current;
+  }
+
+  return previous[previous.length - 1];
+}
+
+function isMinorNameVariant(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length === 1) return b.startsWith(a);
+  if (b.length === 1) return a.startsWith(b);
+  const maxDistance = Math.max(a.length, b.length) >= 8 ? 2 : 1;
+  return levenshteinDistance(a, b, maxDistance) <= maxDistance;
+}
+
+function areNearFullNames(tokensA: string[], tokensB: string[]): boolean {
+  if (tokensA.length !== tokensB.length || tokensA.length < 2) return false;
+
+  const candidateOrders = [tokensB];
+  if (tokensB.length === 2) {
+    candidateOrders.push([tokensB[1], tokensB[0]]);
+  }
+
+  for (const candidateTokens of candidateOrders) {
+    let exactMatches = 0;
+    let compatible = true;
+
+    for (let i = 0; i < tokensA.length; i++) {
+      if (tokensA[i] === candidateTokens[i]) {
+        exactMatches += 1;
+        continue;
+      }
+      if (!isMinorNameVariant(tokensA[i], candidateTokens[i])) {
+        compatible = false;
+        break;
+      }
+    }
+
+    if (compatible && exactMatches >= tokensA.length - 1) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getGivenNameInitials(tokens: string[]): string {
+  return tokens
+    .slice(0, -1)
+    .map((token) => (token.length <= 2 ? token : token[0]))
+    .join("");
+}
+
+function hasAbbreviatedGivenTokens(tokens: string[]): boolean {
+  return tokens.slice(0, -1).some((token) => token.length <= 2);
+}
+
+function sharesExpandedGivenToken(aTokens: string[], bTokens: string[]): boolean {
+  const aExpanded = new Set(aTokens.slice(0, -1).filter((token) => token.length > 2));
+  const bExpanded = bTokens.slice(0, -1).filter((token) => token.length > 2);
+  return bExpanded.some((token) => aExpanded.has(token));
+}
+
+function areNamesCompatible(a: string, b: string): boolean {
+  const normalizedA = normalizePlayerName(a);
+  const normalizedB = normalizePlayerName(b);
+  if (!normalizedA || !normalizedB) return false;
+  if (normalizedA === normalizedB) return true;
+
+  const tokensA = getNormalizedNameTokens(normalizedA);
+  const tokensB = getNormalizedNameTokens(normalizedB);
+  if (areNearFullNames(tokensA, tokensB)) return true;
+  if (tokensA.length < 2 || tokensB.length < 2) return false;
+
+  const surnameA = tokensA[tokensA.length - 1];
+  const surnameB = tokensB[tokensB.length - 1];
+  if (surnameA !== surnameB) return false;
+
+  if (!hasAbbreviatedGivenTokens(tokensA) && !hasAbbreviatedGivenTokens(tokensB)) {
+    return false;
+  }
+
+  if (sharesExpandedGivenToken(tokensA, tokensB)) return true;
+
+  const initialsA = getGivenNameInitials(tokensA);
+  const initialsB = getGivenNameInitials(tokensB);
+  if (!initialsA || !initialsB) return false;
+
+  return (
+    initialsA === initialsB ||
+    initialsA.startsWith(initialsB) ||
+    initialsB.startsWith(initialsA)
+  );
+}
+
+function buildNameCandidatesFromString(name: string): string[] {
+  const candidates = new Set<string>();
+  const normalized = normalizePlayerName(name);
+  if (normalized) candidates.add(normalized);
+
+  const parts = normalized.split(" ").filter(Boolean);
+  if (parts.length >= 2) {
+    const lastName = parts[parts.length - 1];
+    const initials = parts
+      .slice(0, -1)
+      .map((part) => (part.length <= 2 ? part : part[0]))
+      .join("");
+    candidates.add(`${parts[0][0]} ${lastName}`);
+    candidates.add(`${initials} ${lastName}`);
+  }
+
+  return [...candidates];
+}
+
+function createEmptyEliteTournamentStats(): EliteTournamentPlayerStats {
+  return {
+    matches: 0,
+    weightedMatches: 0,
+    knockoutMatches: 0,
+    battingInnings: 0,
+    notOuts: 0,
+    runs: 0,
+    ballsFaced: 0,
+    fours: 0,
+    sixes: 0,
+    bowlingInnings: 0,
+    ballsBowled: 0,
+    runsConceded: 0,
+    wickets: 0,
+  };
+}
+
+function getOrCreateEliteTournamentStats(
+  map: Map<string, EliteTournamentPlayerStats>,
+  playerName: string,
+): EliteTournamentPlayerStats {
+  const normalizedName = normalizePlayerName(playerName);
+  const existing = map.get(normalizedName);
+  if (existing) return existing;
+
+  const created = createEmptyEliteTournamentStats();
+  map.set(normalizedName, created);
+  return created;
+}
+
+function getEliteTournamentWeight(info: Record<string, any> | undefined): EliteTournamentWeight | null {
+  const event = info?.event;
+  const eventName = typeof event === "string" ? event : event?.name ?? "";
+  if (!eventName) return null;
+
+  if (/qualifier|region|sub regional|division/i.test(eventName)) {
+    return null;
+  }
+
+  let baseWeight = 0;
+  if (/icc (men'?s|women'?s) t20 world cup|world twenty20|women's world t20|world t20/i.test(eventName)) {
+    baseWeight = 1.0;
+  } else if (/asia cup/i.test(eventName) && /t20/i.test(eventName)) {
+    baseWeight = 0.82;
+  } else {
+    return null;
+  }
+
+  const stageText = `${info?.stage ?? ""} ${typeof event === "object" ? event?.stage ?? "" : ""}`.trim();
+  const groupText = typeof event === "object" ? event?.group ?? "" : "";
+
+  let stageWeight = 1.0;
+  if (/final/i.test(stageText)) {
+    stageWeight = 1.4;
+  } else if (/semi/i.test(stageText)) {
+    stageWeight = 1.22;
+  } else if (/super/i.test(groupText)) {
+    stageWeight = 1.08;
+  }
+
+  return {
+    weight: baseWeight * stageWeight,
+    isKnockout: /semi|final/i.test(stageText),
+  };
+}
+
+function isBowlerCreditedDismissal(kind: string | undefined): boolean {
+  if (!kind) return false;
+  const normalized = kind.toLowerCase();
+  return !(
+    normalized === "run out" ||
+    normalized === "retired hurt" ||
+    normalized === "retired out" ||
+    normalized === "obstructing the field"
+  );
+}
+
+function buildEliteTournamentNameCandidates(player: EspnPlayer): string[] {
+  const candidates = new Set<string>();
+  const add = (value: string | undefined) => {
+    if (!value) return;
+    candidates.add(normalizePlayerName(value));
+  };
+
+  add(player.profile.longName);
+  add(player.profile.name);
+
+  const fullName = player.profile.longName || player.profile.name;
+  if (fullName) {
+    const parts = fullName.replace(/\./g, "").split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const lastName = parts[parts.length - 1];
+      const initials = parts.slice(0, -1).map((part) => part[0]).join("");
+      add(`${parts[0][0]} ${lastName}`);
+      add(`${initials} ${lastName}`);
+    }
+  }
+
+  return [...candidates];
+}
+
 function getEspnRoleHint(espnRoles: string[]): "batsman" | "bowler" | "all-rounder" | undefined {
   const normalized = espnRoles.map((role) => role.toLowerCase().replace(/-/g, " ").trim());
 
@@ -324,6 +620,84 @@ function resolveRoleFromHint(
   return ratings.bowlingOvr >= ratings.battingOvr || bowlingCloseCall ? "bowler" : inferredRole;
 }
 
+function resolveWomenRoleFromHint(
+  hintedRole: "batsman" | "bowler" | "all-rounder" | undefined,
+  inferredRole: "batsman" | "bowler" | "all-rounder",
+  ratings: CalculatedRatings,
+  input: {
+    matches: number;
+    battingInnings: number;
+    runs: number;
+    ballsFaced: number;
+    bowlingInnings: number;
+    ballsBowled: number;
+    wickets: number;
+  },
+): "batsman" | "bowler" | "all-rounder" {
+  const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
+  const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
+  const diff = Math.abs(ratings.battingOvr - ratings.bowlingOvr);
+  const bowlShare = input.matches > 0 ? input.bowlingInnings / input.matches : 0;
+  const batShare = input.matches > 0 ? input.battingInnings / input.matches : 0;
+  const ballsPerMatch = input.matches > 0 ? input.ballsBowled / input.matches : 0;
+  const wicketsPerMatch = input.matches > 0 ? input.wickets / input.matches : 0;
+  const runsPerMatch = input.matches > 0 ? input.runs / input.matches : 0;
+  const bowlingWorkload =
+    input.bowlingInnings >= Math.max(8, Math.round(input.matches * 0.35)) &&
+    input.ballsBowled >= 60 &&
+    input.wickets >= 8;
+
+  const hintedAllRounderProfile =
+    bowlingWorkload &&
+    weaker >= 56 &&
+    stronger >= 68 &&
+    diff <= 30;
+
+  const battingAllRounderProfile =
+    ratings.battingOvr >= 72 &&
+    ratings.bowlingOvr >= 54 &&
+    bowlingWorkload &&
+    bowlShare >= 0.35 &&
+    ballsPerMatch >= 4 &&
+    wicketsPerMatch >= 0.2;
+
+  const bowlingAllRounderProfile =
+    ratings.bowlingOvr >= 70 &&
+    ratings.battingOvr >= 58 &&
+    batShare >= 0.35 &&
+    runsPerMatch >= 7;
+
+  if (!hintedRole) {
+    if (battingAllRounderProfile || bowlingAllRounderProfile) {
+      return "all-rounder";
+    }
+    return inferredRole;
+  }
+
+  if (hintedRole === "all-rounder") {
+    if (hintedAllRounderProfile || battingAllRounderProfile || bowlingAllRounderProfile) {
+      return "all-rounder";
+    }
+    return inferredRole;
+  }
+
+  if (hintedRole === "batsman") {
+    if (battingAllRounderProfile) {
+      return "all-rounder";
+    }
+    return ratings.battingOvr >= ratings.bowlingOvr ? "batsman" : inferredRole;
+  }
+
+  if (bowlingAllRounderProfile) {
+    return "all-rounder";
+  }
+
+  const bowlingCloseCall =
+    ratings.bowlingOvr >= 58 &&
+    ratings.battingOvr - ratings.bowlingOvr <= 8;
+  return ratings.bowlingOvr >= ratings.battingOvr || bowlingCloseCall ? "bowler" : inferredRole;
+}
+
 /**
  * Convert ESPN player data to the calculator input format.
  * Uses REAL fours and sixes from ESPN data (fo/si fields).
@@ -335,8 +709,10 @@ function toCalculatorInput(player: EspnPlayer, gender: "M" | "F" = "M") {
   const bat = batResult?.stat ?? null;
   const bowl = bowlResult?.stat ?? null;
 
-  const matches = bat ? bat.mt : 0;
-  const battingInnings = bat ? bat.in : 0;
+  const battingMatches = bat ? safeNum(bat.mt) : 0;
+  const bowlingMatches = bowl ? safeNum(bowl.mt) : 0;
+  const matches = Math.max(battingMatches, bowlingMatches);
+  const battingInnings = bat ? safeNum(bat.in) : 0;
   const notOuts = bat ? safeNum(bat.no) : 0;
   const runs = bat ? safeNum(bat.rn) : 0;
   let ballsFaced = bat ? safeNum(bat.bl) : 0;
@@ -410,6 +786,490 @@ function toCalculatorInput(player: EspnPlayer, gender: "M" | "F" = "M") {
     wickets: hasMeaningfulBowling ? wickets : 0,
     catches: bat ? safeNum(bat.ct) : 0,
   };
+}
+
+function loadRecentInternationalT20Stats():
+  { male: Map<string, EliteTournamentPlayerStats>; female: Map<string, EliteTournamentPlayerStats> } {
+  if (recentInternationalStatsCache) return recentInternationalStatsCache;
+
+  const empty = {
+    male: new Map<string, EliteTournamentPlayerStats>(),
+    female: new Map<string, EliteTournamentPlayerStats>(),
+  };
+
+  if (!existsSync(CRICSHEET_T20I_DIR)) {
+    recentInternationalStatsCache = empty;
+    return empty;
+  }
+
+  const files = readdirSync(CRICSHEET_T20I_DIR).filter((file) => file.endsWith(".json") && !file.startsWith("README"));
+
+  for (const file of files) {
+    try {
+      const match = JSON.parse(readFileSync(join(CRICSHEET_T20I_DIR, file), "utf-8"));
+      const info = match.info as Record<string, any> | undefined;
+      const matchDate = info?.dates?.[0];
+      if (!matchDate || parseInt(String(matchDate).slice(0, 4), 10) < 2021) continue;
+
+      const statsByName = info?.gender === "female" ? empty.female : empty.male;
+      const matchPlayers = new Set<string>();
+      const infoPlayers = info?.players ?? {};
+      for (const teamPlayers of Object.values(infoPlayers)) {
+        if (!Array.isArray(teamPlayers)) continue;
+        for (const playerName of teamPlayers) {
+          if (typeof playerName !== "string") continue;
+          matchPlayers.add(normalizePlayerName(playerName));
+        }
+      }
+
+      for (const playerName of matchPlayers) {
+        const playerStats = getOrCreateEliteTournamentStats(statsByName, playerName);
+        playerStats.matches += 1;
+        playerStats.weightedMatches += 1;
+      }
+
+      for (const inning of match.innings ?? []) {
+        const battingThisInnings = new Set<string>();
+        const dismissedThisInnings = new Set<string>();
+        const bowlingThisInnings = new Set<string>();
+
+        for (const over of inning.overs ?? []) {
+          for (const delivery of over.deliveries ?? []) {
+            const batterName = typeof delivery.batter === "string" ? normalizePlayerName(delivery.batter) : "";
+            const bowlerName = typeof delivery.bowler === "string" ? normalizePlayerName(delivery.bowler) : "";
+            const extras = delivery.extras ?? {};
+            const batterRuns = safeNum(delivery.runs?.batter);
+            const totalRuns = safeNum(delivery.runs?.total);
+
+            if (batterName) {
+              battingThisInnings.add(batterName);
+              const batterStats = getOrCreateEliteTournamentStats(statsByName, batterName);
+              batterStats.runs += batterRuns;
+              if (!extras.wides) batterStats.ballsFaced += 1;
+              if (batterRuns === 4) batterStats.fours += 1;
+              if (batterRuns === 6) batterStats.sixes += 1;
+            }
+
+            if (bowlerName) {
+              bowlingThisInnings.add(bowlerName);
+              const bowlerStats = getOrCreateEliteTournamentStats(statsByName, bowlerName);
+              if (!extras.wides && !extras.noballs) {
+                bowlerStats.ballsBowled += 1;
+              }
+              const byes = safeNum(extras.byes);
+              const legByes = safeNum(extras.legbyes);
+              bowlerStats.runsConceded += Math.max(0, totalRuns - byes - legByes);
+            }
+
+            for (const wicket of delivery.wickets ?? []) {
+              const playerOut = typeof wicket.player_out === "string" ? normalizePlayerName(wicket.player_out) : "";
+              if (playerOut) dismissedThisInnings.add(playerOut);
+              if (bowlerName && isBowlerCreditedDismissal(wicket.kind)) {
+                getOrCreateEliteTournamentStats(statsByName, bowlerName).wickets += 1;
+              }
+            }
+          }
+        }
+
+        const battingInningsPlayers = new Set([...battingThisInnings, ...dismissedThisInnings]);
+        for (const playerName of battingInningsPlayers) {
+          const playerStats = getOrCreateEliteTournamentStats(statsByName, playerName);
+          playerStats.battingInnings += 1;
+          if (!dismissedThisInnings.has(playerName)) {
+            playerStats.notOuts += 1;
+          }
+        }
+
+        for (const playerName of bowlingThisInnings) {
+          getOrCreateEliteTournamentStats(statsByName, playerName).bowlingInnings += 1;
+        }
+      }
+    } catch {
+      // Ignore malformed Cricsheet files and keep generation deterministic.
+    }
+  }
+
+  recentInternationalStatsCache = empty;
+  return empty;
+}
+
+function loadRecentWomenT20Stats(): Map<string, EliteTournamentPlayerStats> {
+  if (recentWomenT20StatsCache) return recentWomenT20StatsCache;
+
+  const statsByName = new Map<string, EliteTournamentPlayerStats>();
+  if (!existsSync(CRICSHEET_T20I_DIR)) {
+    recentWomenT20StatsCache = statsByName;
+    return statsByName;
+  }
+
+  const files = readdirSync(CRICSHEET_T20I_DIR).filter((file) => file.endsWith(".json") && !file.startsWith("README"));
+
+  for (const file of files) {
+    try {
+      const match = JSON.parse(readFileSync(join(CRICSHEET_T20I_DIR, file), "utf-8"));
+      const info = match.info as Record<string, any> | undefined;
+      const matchDate = info?.dates?.[0];
+      if (info?.gender !== "female") continue;
+      if (!matchDate || parseInt(String(matchDate).slice(0, 4), 10) < 2023) continue;
+
+      const matchPlayers = new Set<string>();
+      const infoPlayers = info?.players ?? {};
+      for (const teamPlayers of Object.values(infoPlayers)) {
+        if (!Array.isArray(teamPlayers)) continue;
+        for (const playerName of teamPlayers) {
+          if (typeof playerName !== "string") continue;
+          matchPlayers.add(normalizePlayerName(playerName));
+        }
+      }
+
+      for (const playerName of matchPlayers) {
+        const playerStats = getOrCreateEliteTournamentStats(statsByName, playerName);
+        playerStats.matches += 1;
+        playerStats.weightedMatches += 1;
+      }
+
+      for (const inning of match.innings ?? []) {
+        const battingThisInnings = new Set<string>();
+        const dismissedThisInnings = new Set<string>();
+        const bowlingThisInnings = new Set<string>();
+
+        for (const over of inning.overs ?? []) {
+          for (const delivery of over.deliveries ?? []) {
+            const batterName = typeof delivery.batter === "string" ? normalizePlayerName(delivery.batter) : "";
+            const bowlerName = typeof delivery.bowler === "string" ? normalizePlayerName(delivery.bowler) : "";
+            const extras = delivery.extras ?? {};
+            const batterRuns = safeNum(delivery.runs?.batter);
+            const totalRuns = safeNum(delivery.runs?.total);
+
+            if (batterName) {
+              battingThisInnings.add(batterName);
+              const batterStats = getOrCreateEliteTournamentStats(statsByName, batterName);
+              batterStats.runs += batterRuns;
+              if (!extras.wides) batterStats.ballsFaced += 1;
+              if (batterRuns === 4) batterStats.fours += 1;
+              if (batterRuns === 6) batterStats.sixes += 1;
+            }
+
+            if (bowlerName) {
+              bowlingThisInnings.add(bowlerName);
+              const bowlerStats = getOrCreateEliteTournamentStats(statsByName, bowlerName);
+              if (!extras.wides && !extras.noballs) {
+                bowlerStats.ballsBowled += 1;
+              }
+              const byes = safeNum(extras.byes);
+              const legByes = safeNum(extras.legbyes);
+              bowlerStats.runsConceded += Math.max(0, totalRuns - byes - legByes);
+            }
+
+            for (const wicket of delivery.wickets ?? []) {
+              const playerOut = typeof wicket.player_out === "string" ? normalizePlayerName(wicket.player_out) : "";
+              if (playerOut) dismissedThisInnings.add(playerOut);
+              if (bowlerName && isBowlerCreditedDismissal(wicket.kind)) {
+                getOrCreateEliteTournamentStats(statsByName, bowlerName).wickets += 1;
+              }
+            }
+          }
+        }
+
+        const battingInningsPlayers = new Set([...battingThisInnings, ...dismissedThisInnings]);
+        for (const playerName of battingInningsPlayers) {
+          const playerStats = getOrCreateEliteTournamentStats(statsByName, playerName);
+          playerStats.battingInnings += 1;
+          if (!dismissedThisInnings.has(playerName)) {
+            playerStats.notOuts += 1;
+          }
+        }
+
+        for (const playerName of bowlingThisInnings) {
+          getOrCreateEliteTournamentStats(statsByName, playerName).bowlingInnings += 1;
+        }
+      }
+    } catch {
+      // Ignore malformed Cricsheet files and keep generation deterministic.
+    }
+  }
+
+  recentWomenT20StatsCache = statsByName;
+  return statsByName;
+}
+
+function applyWomenRosterRecentT20Fallback(
+  input: ReturnType<typeof toCalculatorInput>,
+  recentStats: EliteTournamentPlayerStats | null,
+): ReturnType<typeof toCalculatorInput> {
+  if (!recentStats) return input;
+
+  const hasRecentBatting = recentStats.battingInnings >= 2 && recentStats.ballsFaced >= 18 && recentStats.runs >= 20;
+  const hasRecentBowling = recentStats.bowlingInnings >= 2 && recentStats.ballsBowled >= 24;
+
+  const merged = {
+    ...input,
+    matches: Math.max(input.matches, recentStats.matches),
+  };
+
+  const shouldUseBatting =
+    hasRecentBatting &&
+    (input.battingInnings === 0 || recentStats.battingInnings > input.battingInnings || recentStats.ballsFaced > input.ballsFaced);
+  if (shouldUseBatting) {
+    merged.battingInnings = recentStats.battingInnings;
+    merged.notOuts = recentStats.notOuts;
+    merged.runs = recentStats.runs;
+    merged.ballsFaced = recentStats.ballsFaced;
+    merged.fours = recentStats.fours;
+    merged.sixes = recentStats.sixes;
+  }
+
+  const shouldUseBowling =
+    hasRecentBowling &&
+    (input.bowlingInnings === 0 || recentStats.bowlingInnings > input.bowlingInnings || recentStats.ballsBowled > input.ballsBowled);
+  if (shouldUseBowling) {
+    merged.bowlingInnings = recentStats.bowlingInnings;
+    merged.ballsBowled = recentStats.ballsBowled;
+    merged.runsConceded = recentStats.runsConceded;
+    merged.wickets = recentStats.wickets;
+  }
+
+  return merged;
+}
+
+function applyRecentInternationalFallback(
+  input: ReturnType<typeof toCalculatorInput>,
+  recentStats: EliteTournamentPlayerStats | null,
+): ReturnType<typeof toCalculatorInput> {
+  if (!recentStats) return input;
+
+  const hasRecentBatting = recentStats.battingInnings >= 2 && recentStats.ballsFaced >= 18 && recentStats.runs >= 20;
+  const hasRecentBowling = recentStats.bowlingInnings >= 2 && recentStats.ballsBowled >= 24 && recentStats.wickets >= 1;
+
+  const merged = {
+    ...input,
+    matches: Math.max(input.matches, recentStats.matches),
+  };
+
+  if (input.battingInnings === 0 && hasRecentBatting) {
+    merged.battingInnings = recentStats.battingInnings;
+    merged.notOuts = recentStats.notOuts;
+    merged.runs = recentStats.runs;
+    merged.ballsFaced = recentStats.ballsFaced;
+    merged.fours = recentStats.fours;
+    merged.sixes = recentStats.sixes;
+  }
+
+  if (input.bowlingInnings === 0 && hasRecentBowling) {
+    merged.bowlingInnings = recentStats.bowlingInnings;
+    merged.ballsBowled = recentStats.ballsBowled;
+    merged.runsConceded = recentStats.runsConceded;
+    merged.wickets = recentStats.wickets;
+  }
+
+  return merged;
+}
+
+function loadEliteTournamentStats():
+  { male: Map<string, EliteTournamentPlayerStats>; female: Map<string, EliteTournamentPlayerStats> } {
+  if (eliteTournamentStatsCache) return eliteTournamentStatsCache;
+
+  const empty = {
+    male: new Map<string, EliteTournamentPlayerStats>(),
+    female: new Map<string, EliteTournamentPlayerStats>(),
+  };
+
+  if (!existsSync(CRICSHEET_T20I_DIR)) {
+    eliteTournamentStatsCache = empty;
+    return empty;
+  }
+
+  const files = readdirSync(CRICSHEET_T20I_DIR).filter((file) => file.endsWith(".json") && !file.startsWith("README"));
+
+  for (const file of files) {
+    try {
+      const match = JSON.parse(readFileSync(join(CRICSHEET_T20I_DIR, file), "utf-8"));
+      const info = match.info as Record<string, any> | undefined;
+      const matchDate = info?.dates?.[0];
+      if (!matchDate || parseInt(String(matchDate).slice(0, 4), 10) < 2021) continue;
+
+      const tournamentWeight = getEliteTournamentWeight(info);
+      if (!tournamentWeight) continue;
+
+      const statsByName = info?.gender === "female" ? empty.female : empty.male;
+      const matchPlayers = new Set<string>();
+      const infoPlayers = info?.players ?? {};
+      for (const teamPlayers of Object.values(infoPlayers)) {
+        if (!Array.isArray(teamPlayers)) continue;
+        for (const playerName of teamPlayers) {
+          if (typeof playerName !== "string") continue;
+          matchPlayers.add(normalizePlayerName(playerName));
+        }
+      }
+
+      for (const playerName of matchPlayers) {
+        const playerStats = getOrCreateEliteTournamentStats(statsByName, playerName);
+        playerStats.matches += 1;
+        playerStats.weightedMatches += tournamentWeight.weight;
+        if (tournamentWeight.isKnockout) playerStats.knockoutMatches += 1;
+      }
+
+      for (const inning of match.innings ?? []) {
+        const battingThisInnings = new Set<string>();
+        const dismissedThisInnings = new Set<string>();
+        const bowlingThisInnings = new Set<string>();
+
+        for (const over of inning.overs ?? []) {
+          for (const delivery of over.deliveries ?? []) {
+            const batterName = typeof delivery.batter === "string" ? normalizePlayerName(delivery.batter) : "";
+            const bowlerName = typeof delivery.bowler === "string" ? normalizePlayerName(delivery.bowler) : "";
+            const extras = delivery.extras ?? {};
+            const batterRuns = safeNum(delivery.runs?.batter);
+            const totalRuns = safeNum(delivery.runs?.total);
+
+            if (batterName) {
+              battingThisInnings.add(batterName);
+              const batterStats = getOrCreateEliteTournamentStats(statsByName, batterName);
+              batterStats.runs += batterRuns;
+              if (!extras.wides) batterStats.ballsFaced += 1;
+              if (batterRuns === 4) batterStats.fours += 1;
+              if (batterRuns === 6) batterStats.sixes += 1;
+            }
+
+            if (bowlerName) {
+              bowlingThisInnings.add(bowlerName);
+              const bowlerStats = getOrCreateEliteTournamentStats(statsByName, bowlerName);
+              if (!extras.wides && !extras.noballs) {
+                bowlerStats.ballsBowled += 1;
+              }
+              const byes = safeNum(extras.byes);
+              const legByes = safeNum(extras.legbyes);
+              bowlerStats.runsConceded += Math.max(0, totalRuns - byes - legByes);
+            }
+
+            for (const wicket of delivery.wickets ?? []) {
+              const playerOut = typeof wicket.player_out === "string" ? normalizePlayerName(wicket.player_out) : "";
+              if (playerOut) dismissedThisInnings.add(playerOut);
+              if (bowlerName && isBowlerCreditedDismissal(wicket.kind)) {
+                getOrCreateEliteTournamentStats(statsByName, bowlerName).wickets += 1;
+              }
+            }
+          }
+        }
+
+        const battingInningsPlayers = new Set([...battingThisInnings, ...dismissedThisInnings]);
+        for (const playerName of battingInningsPlayers) {
+          const playerStats = getOrCreateEliteTournamentStats(statsByName, playerName);
+          playerStats.battingInnings += 1;
+          if (!dismissedThisInnings.has(playerName)) {
+            playerStats.notOuts += 1;
+          }
+        }
+
+        for (const playerName of bowlingThisInnings) {
+          getOrCreateEliteTournamentStats(statsByName, playerName).bowlingInnings += 1;
+        }
+      }
+    } catch {
+      // Ignore malformed Cricsheet files and keep generation deterministic.
+    }
+  }
+
+  eliteTournamentStatsCache = empty;
+  return empty;
+}
+
+function findEliteTournamentStatsForPlayer(
+  player: EspnPlayer,
+  statsByName: Map<string, EliteTournamentPlayerStats>,
+): EliteTournamentPlayerStats | null {
+  for (const candidate of buildEliteTournamentNameCandidates(player)) {
+    const match = statsByName.get(candidate);
+    if (match) return match;
+  }
+  return null;
+}
+
+function applyEliteTournamentAdjustment(
+  ratings: CalculatedRatings,
+  baseInput: ReturnType<typeof toCalculatorInput>,
+  eliteStats: EliteTournamentPlayerStats | null,
+  gender: "M" | "F" = "M",
+): void {
+  if (!eliteStats || eliteStats.matches < 2) return;
+
+  const hasEliteBatting = eliteStats.battingInnings >= 2 && eliteStats.ballsFaced >= 20 && eliteStats.runs > 0;
+  const hasEliteBowling = eliteStats.bowlingInnings >= 2 && eliteStats.ballsBowled >= 24 && eliteStats.wickets > 0;
+  if (!hasEliteBatting && !hasEliteBowling) return;
+
+  const eliteInput = {
+    ...baseInput,
+    matches: eliteStats.matches,
+    battingInnings: eliteStats.battingInnings,
+    notOuts: eliteStats.notOuts,
+    runs: eliteStats.runs,
+    ballsFaced: eliteStats.ballsFaced,
+    fours: eliteStats.fours,
+    sixes: eliteStats.sixes,
+    bowlingInnings: eliteStats.bowlingInnings,
+    ballsBowled: eliteStats.ballsBowled,
+    runsConceded: eliteStats.runsConceded,
+    wickets: eliteStats.wickets,
+    catches: 0,
+  };
+  const eliteRatings = calculateRatings(eliteInput, gender === "F" ? "women" : "men");
+
+  const volumeFactor = Math.min(1, eliteStats.weightedMatches / 9);
+  const knockoutLift = Math.min(0.08, eliteStats.knockoutMatches * 0.02);
+  const blend = Math.min(0.28, 0.08 + volumeFactor * 0.14 + knockoutLift);
+
+  let clutchBonus = 0;
+
+  if (hasEliteBatting && eliteRatings.battingOvr > ratings.battingOvr + 2) {
+    const battingWeight = Math.max(0, eliteRatings.battingOvr - ratings.battingOvr) * blend;
+    ratings.battingIQ = clamp(
+      ratings.battingIQ + Math.max(0, Math.min(4, Math.round((eliteRatings.battingIQ - ratings.battingIQ) * blend * 0.55))),
+      15,
+      99,
+    );
+    ratings.timing = clamp(
+      ratings.timing + Math.max(0, Math.min(4, Math.round((eliteRatings.timing - ratings.timing) * blend * 0.55))),
+      15,
+      99,
+    );
+    ratings.power = clamp(
+      ratings.power + Math.max(0, Math.min(3, Math.round((eliteRatings.power - ratings.power) * blend * 0.4))),
+      15,
+      99,
+    );
+    ratings.running = clamp(
+      ratings.running + Math.max(0, Math.min(2, Math.round((eliteRatings.running - ratings.running) * blend * 0.3))),
+      15,
+      99,
+    );
+    clutchBonus = Math.max(clutchBonus, Math.round(battingWeight * 0.8));
+  }
+
+  if (hasEliteBowling && eliteRatings.bowlingOvr > ratings.bowlingOvr + 2) {
+    const bowlingWeight = Math.max(0, eliteRatings.bowlingOvr - ratings.bowlingOvr) * blend;
+    ratings.wicketTaking = clamp(
+      ratings.wicketTaking + Math.max(0, Math.min(4, Math.round((eliteRatings.wicketTaking - ratings.wicketTaking) * blend * 0.6))),
+      15,
+      99,
+    );
+    ratings.economy = clamp(
+      ratings.economy + Math.max(0, Math.min(4, Math.round((eliteRatings.economy - ratings.economy) * blend * 0.55))),
+      15,
+      99,
+    );
+    ratings.accuracy = clamp(
+      ratings.accuracy + Math.max(0, Math.min(4, Math.round((eliteRatings.accuracy - ratings.accuracy) * blend * 0.6))),
+      15,
+      99,
+    );
+    clutchBonus = Math.max(clutchBonus, Math.round(bowlingWeight * 0.85));
+  }
+
+  if (clutchBonus > 0) {
+    ratings.clutch = clamp(ratings.clutch + Math.min(6, clutchBonus + eliteStats.knockoutMatches), 15, 99);
+  }
+
+  recomputeOveralls(ratings);
 }
 
 function applyBattingProfileAdjustment(
@@ -493,6 +1353,162 @@ function applyBattingProfileAdjustment(
   ratings.timing = clamp(ratings.timing + timingDelta, 15, 99);
   ratings.power = clamp(ratings.power + powerDelta, 15, 99);
   ratings.clutch = clamp(ratings.clutch + clutchDelta, 15, 99);
+  recomputeOveralls(ratings);
+}
+
+function applyBowlingRoleAdjustment(
+  ratings: CalculatedRatings,
+  input: {
+    matches: number;
+    bowlingInnings: number;
+    ballsBowled: number;
+    runsConceded: number;
+    wickets: number;
+  },
+  espnRoles: string[],
+  bowlingStyle: BowlingStyle,
+): void {
+  if (input.matches === 0 || input.ballsBowled === 0 || input.wickets === 0) return;
+
+  const normalizedRoles = espnRoles.map((role) => role.toLowerCase().replace(/-/g, " ").trim());
+  const bowlShare = input.bowlingInnings / input.matches;
+  const ballsPerMatch = input.ballsBowled / input.matches;
+  const strikeRate = input.ballsBowled / input.wickets;
+  const economyRate = input.runsConceded / Math.max(1, input.ballsBowled / 6);
+  const wicketsPerMatch = input.wickets / input.matches;
+
+  const isBowlingPrimary = normalizedRoles.some(
+    (role) => role.includes("bowler") || role.includes("bowling allrounder"),
+  );
+  const isBattingPrimary = normalizedRoles.some((role) =>
+    role.includes("batter") ||
+    role.includes("batting allrounder") ||
+    role.includes("middle order") ||
+    role.includes("top order") ||
+    role.includes("opening") ||
+    role.includes("keeper"),
+  );
+  const isBattingAllRounder = normalizedRoles.some((role) => role.includes("batting allrounder"));
+
+  const frontlineBowler =
+    isBowlingPrimary ||
+    (bowlShare >= 0.82 && ballsPerMatch >= 18 && wicketsPerMatch >= 0.75);
+  const isSpinBowler = isSpinBowlingStyle(bowlingStyle);
+
+  if (frontlineBowler) {
+    let bowlingFloor = Math.round(
+      48 +
+      wicketsPerMatch * 16 +
+      Math.max(0, 22 - strikeRate) * 1.2 -
+      Math.max(0, economyRate - 8.4) * 7,
+    );
+    bowlingFloor = clamp(bowlingFloor, 56, 72);
+    if (economyRate <= 8.8 && wicketsPerMatch >= 1.0) {
+      bowlingFloor = Math.min(74, bowlingFloor + 2);
+    }
+
+    const gap = bowlingFloor - ratings.bowlingOvr;
+    if (gap > 0) {
+      ratings.wicketTaking = clamp(ratings.wicketTaking + Math.round(gap * 1.2), 15, 99);
+      ratings.economy = clamp(ratings.economy + Math.round(gap * 0.8), 15, 99);
+      ratings.accuracy = clamp(ratings.accuracy + Math.round(gap * 0.9), 15, 99);
+      ratings.clutch = clamp(ratings.clutch + Math.round(gap * 0.7), 15, 99);
+      recomputeOveralls(ratings);
+    }
+  }
+
+  const lowExperienceSpecialistSpin =
+    frontlineBowler &&
+    isSpinBowler &&
+    input.matches < 40 &&
+    bowlShare >= 0.82 &&
+    ballsPerMatch >= 16;
+
+  if (lowExperienceSpecialistSpin) {
+    let bowlingCap = Math.round(
+      68 +
+      Math.max(0, input.matches - 10) * 0.18 +
+      Math.max(0, wicketsPerMatch - 0.8) * 4 -
+      Math.max(0, economyRate - 7.8) * 2,
+    );
+    bowlingCap = clamp(bowlingCap, 68, 74);
+    if (input.matches < 24) bowlingCap = Math.min(bowlingCap, 71);
+    else if (input.matches < 36) bowlingCap = Math.min(bowlingCap, 72);
+
+    const gap = ratings.bowlingOvr - bowlingCap;
+    if (gap > 0) {
+      ratings.wicketTaking = clamp(ratings.wicketTaking - Math.round(gap * 1.0), 15, 99);
+      ratings.economy = clamp(ratings.economy - Math.round(gap * 0.7), 15, 99);
+      ratings.accuracy = clamp(ratings.accuracy - Math.round(gap * 0.9), 15, 99);
+      ratings.clutch = clamp(ratings.clutch - Math.round(gap * 0.6), 15, 99);
+      recomputeOveralls(ratings);
+    }
+  }
+
+  if (isBattingPrimary && !isBowlingPrimary) {
+    let bowlingCap = Math.round(50 + ballsPerMatch * 1.5 + bowlShare * 10.5);
+    bowlingCap = clamp(bowlingCap, 42, 74);
+    if (isBattingAllRounder && ballsPerMatch >= 6 && wicketsPerMatch >= 0.25) {
+      bowlingCap = Math.max(bowlingCap, 66);
+    }
+
+    const gap = ratings.bowlingOvr - bowlingCap;
+    if (gap > 0) {
+      ratings.wicketTaking = clamp(ratings.wicketTaking - Math.round(gap * 1.0), 15, 99);
+      ratings.economy = clamp(ratings.economy - Math.round(gap * 0.75), 15, 99);
+      ratings.accuracy = clamp(ratings.accuracy - Math.round(gap * 0.85), 15, 99);
+      ratings.clutch = clamp(ratings.clutch - Math.round(gap * 0.55), 15, 99);
+      recomputeOveralls(ratings);
+    }
+  }
+}
+
+function applyWomenAllRounderFloor(
+  ratings: CalculatedRatings,
+  input: {
+    matches: number;
+    battingInnings: number;
+    bowlingInnings: number;
+  },
+  espnRoles: string[],
+): void {
+  if (getEspnRoleHint(espnRoles) !== "all-rounder") return;
+
+  const weaker = Math.min(ratings.battingOvr, ratings.bowlingOvr);
+  const stronger = Math.max(ratings.battingOvr, ratings.bowlingOvr);
+  const diff = Math.abs(ratings.battingOvr - ratings.bowlingOvr);
+  const battingShare = input.matches > 0 ? input.battingInnings / input.matches : 0;
+  const bowlingShare = input.matches > 0 ? input.bowlingInnings / input.matches : 0;
+  const dualDisciplineUsage =
+    battingShare >= 0.35 &&
+    bowlingShare >= 0.3 &&
+    input.battingInnings >= 8 &&
+    input.bowlingInnings >= 8;
+
+  if (!dualDisciplineUsage) return;
+  if (weaker < 56 || diff > 24) return;
+  if (weaker >= 60 && stronger >= 72) return;
+
+  if (ratings.battingOvr >= ratings.bowlingOvr) {
+    const bowlingGap = Math.max(0, 60 - ratings.bowlingOvr);
+    const battingGap = Math.max(0, 72 - ratings.battingOvr);
+    ratings.wicketTaking = clamp(ratings.wicketTaking + Math.min(5, Math.round(bowlingGap * 1.0)), 15, 99);
+    ratings.economy = clamp(ratings.economy + Math.min(4, Math.round(bowlingGap * 0.7)), 15, 99);
+    ratings.accuracy = clamp(ratings.accuracy + Math.min(4, Math.round(bowlingGap * 0.8)), 15, 99);
+    ratings.battingIQ = clamp(ratings.battingIQ + Math.min(2, Math.round(battingGap * 0.5)), 15, 99);
+    ratings.timing = clamp(ratings.timing + Math.min(2, Math.round(battingGap * 0.5)), 15, 99);
+  } else {
+    const battingGap = Math.max(0, 60 - ratings.battingOvr);
+    const bowlingGap = Math.max(0, 72 - ratings.bowlingOvr);
+    ratings.battingIQ = clamp(ratings.battingIQ + Math.min(4, Math.round(battingGap * 0.8)), 15, 99);
+    ratings.timing = clamp(ratings.timing + Math.min(4, Math.round(battingGap * 0.8)), 15, 99);
+    ratings.power = clamp(ratings.power + Math.min(3, Math.round(battingGap * 0.5)), 15, 99);
+    ratings.running = clamp(ratings.running + Math.min(2, Math.round(battingGap * 0.4)), 15, 99);
+    ratings.wicketTaking = clamp(ratings.wicketTaking + Math.min(2, Math.round(bowlingGap * 0.4)), 15, 99);
+    ratings.economy = clamp(ratings.economy + Math.min(2, Math.round(bowlingGap * 0.3)), 15, 99);
+    ratings.accuracy = clamp(ratings.accuracy + Math.min(2, Math.round(bowlingGap * 0.4)), 15, 99);
+  }
+
   recomputeOveralls(ratings);
 }
 
@@ -676,6 +1692,7 @@ const ROSTER_NAME_ALIASES: Record<string, string> = {
  * Roster entry with team and price info.
  */
 interface RosterEntry {
+  name: string;
   teamId: string;
   price: number;
 }
@@ -692,7 +1709,7 @@ function buildRosterTeamMap(): Map<string, RosterEntry> {
       const lowerName = player.name.toLowerCase();
       // Check if there's an alias
       const espnName = ROSTER_NAME_ALIASES[lowerName] ?? lowerName;
-      map.set(espnName, { teamId: roster.teamId, price: player.price });
+      map.set(espnName, { name: player.name, teamId: roster.teamId, price: player.price });
     }
   }
 
@@ -706,6 +1723,7 @@ function buildRosterTeamMap(): Map<string, RosterEntry> {
 function findRosterEntry(
   playerName: string,
   rosterMap: Map<string, RosterEntry>,
+  options?: { allowFuzzyInitialMatch?: boolean },
 ): RosterEntry | undefined {
   const lower = playerName.toLowerCase();
 
@@ -722,7 +1740,49 @@ function findRosterEntry(
     if (normalized === normalizedRoster) return entry;
   }
 
-  return undefined;
+  if (!options?.allowFuzzyInitialMatch) return undefined;
+
+  const fuzzyMatches = [...rosterMap.entries()].filter(([rosterName]) => areNamesCompatible(playerName, rosterName));
+  return fuzzyMatches.length === 1 ? fuzzyMatches[0][1] : undefined;
+}
+
+function findStatsForName(
+  playerName: string,
+  statsByName: Map<string, EliteTournamentPlayerStats>,
+): EliteTournamentPlayerStats | null {
+  for (const candidate of buildNameCandidatesFromString(playerName)) {
+    const exact = statsByName.get(candidate);
+    if (exact) return exact;
+  }
+
+  let fuzzyMatch: EliteTournamentPlayerStats | null = null;
+  for (const [candidateName, stats] of statsByName.entries()) {
+    if (!areNamesCompatible(playerName, candidateName)) continue;
+    if (fuzzyMatch) return null;
+    fuzzyMatch = stats;
+  }
+
+  return fuzzyMatch;
+}
+
+function findWomenProfileByName(
+  playerName: string,
+  femalePlayers: EspnPlayer[],
+): EspnPlayer | undefined {
+  const exactCandidates = new Set(buildNameCandidatesFromString(playerName));
+  const exact = femalePlayers.find((player) =>
+    [player.profile.longName, player.profile.name]
+      .filter(Boolean)
+      .some((candidate) => exactCandidates.has(normalizePlayerName(candidate!))),
+  );
+  if (exact) return exact;
+
+  const fuzzy = femalePlayers.filter((player) =>
+    [player.profile.longName, player.profile.name]
+      .filter(Boolean)
+      .some((candidate) => areNamesCompatible(playerName, candidate!)),
+  );
+  return fuzzy.length === 1 ? fuzzy[0] : undefined;
 }
 
 // ── Manual Player Entries ────────────────────────────────────────────
@@ -860,6 +1920,7 @@ export function generateAllRatings(): RatedPlayer[] {
   console.log(`Total scraped: ${allPlayers.length} (male: ${malePlayers.length}, female: ${allPlayers.length - malePlayers.length})`);
 
   const rated: RatedPlayer[] = [];
+  const eliteTournamentStats = loadEliteTournamentStats().male;
 
   for (const player of malePlayers) {
     const batResult = getT20Stat(player.careerStats, "BATTING");
@@ -895,18 +1956,21 @@ export function generateAllRatings(): RatedPlayer[] {
 
     // Use ESPN's playingRoles to detect wicket-keepers (inferRole can't distinguish them)
     const espnRoles = player.profile.playingRoles ?? [];
+    const bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
     applyBattingProfileAdjustment(ratings, input, espnRoles);
+    applyBowlingRoleAdjustment(ratings, input, espnRoles, bowlingStyle);
+    applyEliteTournamentAdjustment(ratings, input, findEliteTournamentStatsForPlayer(player, eliteTournamentStats));
     const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
     const role = resolveRoleFromHint(getEspnRoleHint(espnRoles), inferRole(ratings), ratings);
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
 
     const battingHand = mapBattingHand(player.profile.battingStyles?.[0] ?? "unknown");
-    let bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
+    let resolvedBowlingStyle = bowlingStyle;
     // Infer bowling style from economy when ESPN has no data but player has bowling stats
-    if (bowlingStyle === "unknown" && role === "bowler" && input.wickets > 0) {
+    if (resolvedBowlingStyle === "unknown" && role === "bowler" && input.wickets > 0) {
       const econ = input.ballsBowled > 0 ? (input.runsConceded / input.ballsBowled) * 6 : 99;
-      bowlingStyle = econ < 7.0 ? "off-spin" : "right-arm-medium";
+      resolvedBowlingStyle = econ < 7.0 ? "off-spin" : "right-arm-medium";
     }
 
     rated.push({
@@ -916,7 +1980,7 @@ export function generateAllRatings(): RatedPlayer[] {
       age,
       country,
       battingHand,
-      bowlingStyle,
+      bowlingStyle: resolvedBowlingStyle,
       role,
       isWicketKeeper: isWicketKeeper || undefined,
       isInternational: country !== "India",
@@ -1076,9 +2140,12 @@ function generateTypeScriptModule(players: RatedPlayer[]): void {
 
 import type { PlayerData } from "@ipl-sim/engine";
 
-export const ALL_PLAYERS: Omit<PlayerData, "injured" | "injuryGamesLeft">[] = [
+type PlayerEntry = Omit<PlayerData, "injured" | "injuryGamesLeft">;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const ALL_PLAYERS: PlayerEntry[] = (([
 ${entries}
-];
+]) as any) as PlayerEntry[];
 
 export const PLAYER_COUNT = ${players.length};
 `;
@@ -1130,6 +2197,289 @@ function getCompetitionQualityWomen(player: EspnPlayer): number {
   return 0.65;
 }
 
+function createCalculatedRatingsFromAttributes(
+  ratings: Omit<CalculatedRatings, "battingOvr" | "bowlingOvr" | "overall">,
+): CalculatedRatings {
+  const calculated: CalculatedRatings = {
+    ...ratings,
+    battingOvr: 0,
+    bowlingOvr: 0,
+    overall: 0,
+  };
+  recomputeOveralls(calculated);
+  return calculated;
+}
+
+function inferWomenRosterFallbackRole(
+  hintedRole: "batsman" | "bowler" | "all-rounder" | undefined,
+  input: ReturnType<typeof toCalculatorInput>,
+  bowlingStyle: BowlingStyle,
+  isWicketKeeper: boolean,
+  price: number,
+): "batsman" | "bowler" | "all-rounder" {
+  if (isWicketKeeper) return "batsman";
+  if (hintedRole) return hintedRole;
+
+  const battingSignal =
+    input.battingInnings >= Math.max(2, Math.round(input.matches * 0.35)) &&
+    (input.runs >= 35 || input.ballsFaced >= 24);
+  const bowlingSignal =
+    input.bowlingInnings >= Math.max(2, Math.round(input.matches * 0.25)) &&
+    input.ballsBowled >= 24;
+
+  if (battingSignal && bowlingSignal && (input.wickets >= 2 || input.runs >= 60)) {
+    return "all-rounder";
+  }
+
+  if (bowlingStyle !== "unknown" && (bowlingSignal || input.wickets > 0)) {
+    return battingSignal && input.runs >= 45 ? "all-rounder" : "bowler";
+  }
+
+  if (bowlingSignal && input.wickets >= 2) return battingSignal ? "all-rounder" : "bowler";
+  if (price >= 0.8) return "batsman";
+  return battingSignal ? "batsman" : "bowler";
+}
+
+function createWomenRosterFallbackBaseRatings(
+  role: "batsman" | "bowler" | "all-rounder",
+  price: number,
+  isInternational: boolean,
+  isWicketKeeper: boolean,
+): CalculatedRatings {
+  const boost = clamp(Math.round(Math.max(0, price - 0.1) * 8), 0, 16);
+
+  const base = isWicketKeeper
+    ? createCalculatedRatingsFromAttributes({
+        battingIQ: 60 + boost,
+        timing: 58 + boost,
+        power: 46 + Math.round(boost * 0.8),
+        running: 64 + Math.round(boost * 0.4),
+        wicketTaking: 22,
+        economy: 22,
+        accuracy: 24,
+        clutch: 54 + Math.round(boost * 0.6),
+      })
+    : role === "batsman"
+      ? createCalculatedRatingsFromAttributes({
+          battingIQ: 56 + boost,
+          timing: 54 + boost,
+          power: 48 + Math.round(boost * 0.8),
+          running: 60 + Math.round(boost * 0.4),
+          wicketTaking: 24 + Math.round(boost * 0.2),
+          economy: 24 + Math.round(boost * 0.2),
+          accuracy: 26 + Math.round(boost * 0.25),
+          clutch: 50 + Math.round(boost * 0.6),
+        })
+      : role === "bowler"
+        ? createCalculatedRatingsFromAttributes({
+            battingIQ: 26 + Math.round(boost * 0.15),
+            timing: 25 + Math.round(boost * 0.15),
+            power: 24 + Math.round(boost * 0.2),
+            running: 42 + Math.round(boost * 0.3),
+            wicketTaking: 59 + boost,
+            economy: 58 + Math.round(boost * 0.8),
+            accuracy: 55 + Math.round(boost * 0.8),
+            clutch: 52 + Math.round(boost * 0.6),
+          })
+        : createCalculatedRatingsFromAttributes({
+            battingIQ: 50 + Math.round(boost * 0.75),
+            timing: 48 + Math.round(boost * 0.75),
+            power: 46 + Math.round(boost * 0.65),
+            running: 58 + Math.round(boost * 0.4),
+            wicketTaking: 49 + Math.round(boost * 0.75),
+            economy: 50 + Math.round(boost * 0.65),
+            accuracy: 46 + Math.round(boost * 0.7),
+            clutch: 53 + Math.round(boost * 0.6),
+          });
+
+  if (!isInternational) return base;
+
+  const adjusted = createCalculatedRatingsFromAttributes({
+    battingIQ: base.battingIQ + (role === "bowler" ? 1 : 2),
+    timing: base.timing + (role === "bowler" ? 1 : 2),
+    power: base.power + (role === "bowler" ? 0 : 1),
+    running: base.running + 1,
+    wicketTaking: base.wicketTaking + (role === "batsman" ? 1 : 2),
+    economy: base.economy + (role === "batsman" ? 1 : 2),
+    accuracy: base.accuracy + (role === "batsman" ? 1 : 2),
+    clutch: base.clutch + 2,
+  });
+  return adjusted;
+}
+
+function blendCalculatedRatings(
+  base: CalculatedRatings,
+  sample: CalculatedRatings,
+  sampleWeight: number,
+): CalculatedRatings {
+  const weight = clamp(sampleWeight, 0.15, 0.75);
+  return createCalculatedRatingsFromAttributes({
+    battingIQ: Math.round(base.battingIQ * (1 - weight) + sample.battingIQ * weight),
+    timing: Math.round(base.timing * (1 - weight) + sample.timing * weight),
+    power: Math.round(base.power * (1 - weight) + sample.power * weight),
+    running: Math.round(base.running * (1 - weight) + sample.running * weight),
+    wicketTaking: Math.round(base.wicketTaking * (1 - weight) + sample.wicketTaking * weight),
+    economy: Math.round(base.economy * (1 - weight) + sample.economy * weight),
+    accuracy: Math.round(base.accuracy * (1 - weight) + sample.accuracy * weight),
+    clutch: Math.round(base.clutch * (1 - weight) + sample.clutch * weight),
+  });
+}
+
+function createInputFromEliteTournamentStats(
+  name: string,
+  age: number,
+  country: string,
+  stats: EliteTournamentPlayerStats,
+): ReturnType<typeof toCalculatorInput> {
+  return {
+    name,
+    age,
+    country,
+    matches: stats.matches,
+    battingInnings: stats.battingInnings,
+    notOuts: stats.notOuts,
+    runs: stats.runs,
+    ballsFaced: stats.ballsFaced,
+    fours: stats.fours,
+    sixes: stats.sixes,
+    bowlingInnings: stats.bowlingInnings,
+    ballsBowled: stats.ballsBowled,
+    runsConceded: stats.runsConceded,
+    wickets: stats.wickets,
+    catches: 0,
+  };
+}
+
+function makeSyntheticEspnId(name: string): number {
+  let hash = 0;
+  for (const ch of normalizePlayerName(name)) {
+    hash = (hash * 31 + ch.charCodeAt(0)) % 100000000;
+  }
+  return 1500000000 + hash;
+}
+
+function createWomenRosterFallbackPlayer(
+  rosterName: string,
+  entry: RosterEntry,
+  femalePlayers: EspnPlayer[],
+  recentInternationalStats: Map<string, EliteTournamentPlayerStats>,
+  recentWomenT20Stats: Map<string, EliteTournamentPlayerStats>,
+): RatedPlayer {
+  const profile = findWomenProfileByName(rosterName, femalePlayers);
+  const recentIntl = profile
+    ? findEliteTournamentStatsForPlayer(profile, recentInternationalStats)
+    : findStatsForName(rosterName, recentInternationalStats);
+  const recentT20 = profile
+    ? findEliteTournamentStatsForPlayer(profile, recentWomenT20Stats)
+    : findStatsForName(rosterName, recentWomenT20Stats);
+
+  const age = profile ? calculateAge(profile.profile.dateOfBirth) : 24;
+  const country = profile ? extractCountry(profile.profile) : "India";
+  const isInternational = country !== "India";
+  const battingHand = profile ? mapBattingHand(profile.profile.battingStyles?.[0] ?? "unknown") : "right";
+  const espnRoles = profile?.profile.playingRoles ?? [];
+  const isWicketKeeper = espnRoles.some((role) => role.toLowerCase().includes("keeper"));
+  const mappedBowlingStyle = profile ? mapBowlingStyle(profile.profile.bowlingStyles?.[0] ?? "unknown") : "unknown";
+
+  let input = profile
+    ? toCalculatorInput(profile, "F")
+    : recentT20
+      ? createInputFromEliteTournamentStats(rosterName, age, country, recentT20)
+      : createInputFromEliteTournamentStats(rosterName, age, country, createEmptyEliteTournamentStats());
+
+  input = applyRecentInternationalFallback(input, recentIntl);
+  input = applyWomenRosterRecentT20Fallback(input, recentT20);
+
+  const fallbackRole = inferWomenRosterFallbackRole(
+    getEspnRoleHint(espnRoles),
+    input,
+    mappedBowlingStyle,
+    isWicketKeeper,
+    entry.price,
+  );
+  const baseRatings = createWomenRosterFallbackBaseRatings(fallbackRole, entry.price, isInternational, isWicketKeeper);
+
+  let ratings = baseRatings;
+  if (input.matches > 0 || input.battingInnings > 0 || input.bowlingInnings > 0) {
+    const sampleRatings = calculateRatings(input, "women");
+    ratings = blendCalculatedRatings(baseRatings, sampleRatings, input.matches / 8);
+  }
+
+  if (profile) {
+    const qualityFactor = getCompetitionQualityWomen(profile);
+    if (qualityFactor < 1.0) {
+      ratings.battingIQ = Math.round(50 + (ratings.battingIQ - 50) * qualityFactor);
+      ratings.timing = Math.round(50 + (ratings.timing - 50) * qualityFactor);
+      ratings.power = Math.round(50 + (ratings.power - 50) * qualityFactor);
+      ratings.running = Math.round(50 + (ratings.running - 50) * qualityFactor);
+      ratings.wicketTaking = Math.round(50 + (ratings.wicketTaking - 50) * qualityFactor);
+      ratings.economy = Math.round(50 + (ratings.economy - 50) * qualityFactor);
+      ratings.accuracy = Math.round(50 + (ratings.accuracy - 50) * qualityFactor);
+      ratings.clutch = Math.round(50 + (ratings.clutch - 50) * qualityFactor);
+      recomputeOveralls(ratings);
+    }
+  }
+
+  applyBowlingRoleAdjustment(ratings, input, espnRoles, mappedBowlingStyle);
+  applyWomenAllRounderFloor(ratings, input, espnRoles);
+  applyEliteTournamentAdjustment(ratings, input, recentIntl, "F");
+
+  const role = profile
+    ? resolveWomenRoleFromHint(getEspnRoleHint(espnRoles), inferRole(ratings), ratings, input)
+    : resolveWomenRoleFromHint(fallbackRole, inferRole(ratings), ratings, input);
+
+  let bowlingStyle = mappedBowlingStyle;
+  if (bowlingStyle === "unknown" && (role === "bowler" || role === "all-rounder") && input.ballsBowled > 0) {
+    const econ = input.runsConceded > 0 && input.ballsBowled > 0
+      ? (input.runsConceded / input.ballsBowled) * 6
+      : 99;
+    bowlingStyle = econ < 7.0 ? "off-spin" : "right-arm-medium";
+  }
+
+  return {
+    id: profile ? `espn_${profile.profile.espnId}` : `wpl_fallback_${normalizePlayerName(entry.name).replace(/\s+/g, "_")}`,
+    name: entry.name,
+    fullName: entry.name,
+    age,
+    country,
+    battingHand,
+    bowlingStyle,
+    role,
+    isWicketKeeper: isWicketKeeper || undefined,
+    isInternational,
+    teamId: entry.teamId,
+    price: entry.price,
+    imageUrl: profile?.profile.imageUrl || undefined,
+    ratings: {
+      battingIQ: ratings.battingIQ,
+      timing: ratings.timing,
+      power: ratings.power,
+      running: ratings.running,
+      wicketTaking: ratings.wicketTaking,
+      economy: ratings.economy,
+      accuracy: ratings.accuracy,
+      clutch: ratings.clutch,
+    },
+    overalls: {
+      battingOvr: ratings.battingOvr,
+      bowlingOvr: ratings.bowlingOvr,
+      overall: ratings.overall,
+    },
+    sourceStats: {
+      t20Matches: input.matches,
+      t20Runs: input.runs,
+      t20Average: input.battingInnings > input.notOuts ? input.runs / Math.max(1, input.battingInnings - input.notOuts) : input.runs,
+      t20StrikeRate: input.ballsFaced > 0 ? (input.runs / input.ballsFaced) * 100 : 0,
+      t20Fours: input.fours,
+      t20Sixes: input.sixes,
+      t20Wickets: input.wickets,
+      t20Economy: input.ballsBowled > 0 ? (input.runsConceded / input.ballsBowled) * 6 : 0,
+      statClass: profile ? (getT20Stat(profile.careerStats, "BATTING", "F")?.cl ?? getT20Stat(profile.careerStats, "BOWLING", "F")?.cl ?? 90) : 90,
+    },
+    espnId: profile?.profile.espnId ?? makeSyntheticEspnId(entry.name),
+  };
+}
+
 // ── WPL Roster Matching ──────────────────────────────────────────────
 
 /**
@@ -1152,7 +2502,7 @@ function buildWPLRosterTeamMap(): Map<string, RosterEntry> {
     for (const player of roster.players) {
       const lowerName = player.name.toLowerCase();
       const espnName = WPL_ROSTER_NAME_ALIASES[lowerName] ?? lowerName;
-      map.set(espnName, { teamId: roster.teamId, price: player.price });
+      map.set(espnName, { name: player.name, teamId: roster.teamId, price: player.price });
     }
   }
 
@@ -1163,7 +2513,7 @@ function buildWPLRosterTeamMap(): Map<string, RosterEntry> {
 
 /**
  * Generate ratings for all female ESPN-scraped players.
- * Uses cl=10 (WT20I) stats, minimum 10 matches, age < 38 cutoff.
+ * Uses cl=10 (WT20I) stats, recent Cricsheet T20I support, and WPL roster fallbacks.
  */
 export function generateWomenRatings(): RatedPlayer[] {
   if (!existsSync(ESPN_FILE)) {
@@ -1177,22 +2527,51 @@ export function generateWomenRatings(): RatedPlayer[] {
   console.log(`Total female players scraped: ${femalePlayers.length}`);
 
   const rated: RatedPlayer[] = [];
+  const rosterMap = buildWPLRosterTeamMap();
+  const eliteTournamentStats = loadEliteTournamentStats().female;
+  const recentInternationalStats = loadRecentInternationalT20Stats().female;
+  const recentWomenT20Stats = loadRecentWomenT20Stats();
 
   for (const player of femalePlayers) {
     const batResult = getT20Stat(player.careerStats, "BATTING", "F");
     const bowlResult = getT20Stat(player.careerStats, "BOWLING", "F");
     const bat = batResult?.stat ?? null;
     const bowl = bowlResult?.stat ?? null;
-
-    // Require at least 10 WT20I matches for meaningful ratings
-    const matches = bat ? bat.mt : 0;
-    if (matches < 10) continue;
+    const rosterEntry = findRosterEntry(player.profile.longName || player.profile.name, rosterMap, { allowFuzzyInitialMatch: true });
 
     // Filter out retired players
-    if (isRetiredWomen(player)) continue;
+    if (isRetiredWomen(player) && !rosterEntry) continue;
 
-    const input = toCalculatorInput(player, "F");
-    const ratings = calculateRatings(input, "women");
+    let input = toCalculatorInput(player, "F");
+    input = applyRecentInternationalFallback(input, findEliteTournamentStatsForPlayer(player, recentInternationalStats));
+    if (rosterEntry) {
+      input = applyWomenRosterRecentT20Fallback(input, findEliteTournamentStatsForPlayer(player, recentWomenT20Stats));
+    }
+
+    // Require a real WT20I sample, but be slightly more permissive for current WPL roster players.
+    const matches = input.matches;
+    const minMatches = rosterEntry ? 1 : 10;
+    if (matches < minMatches) continue;
+
+    let ratings = calculateRatings(input, "women");
+    if (rosterEntry && matches < 8) {
+      const country = extractCountry(player.profile);
+      const isWicketKeeper = (player.profile.playingRoles ?? []).some((r: string) => r.toLowerCase().includes("keeper"));
+      const fallbackRole = inferWomenRosterFallbackRole(
+        getEspnRoleHint(player.profile.playingRoles ?? []),
+        input,
+        mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown"),
+        isWicketKeeper,
+        rosterEntry.price,
+      );
+      const baseRatings = createWomenRosterFallbackBaseRatings(
+        fallbackRole,
+        rosterEntry.price,
+        country !== "India",
+        isWicketKeeper,
+      );
+      ratings = blendCalculatedRatings(baseRatings, ratings, matches / 8);
+    }
 
     // Competition quality adjustment
     const qualityFactor = getCompetitionQualityWomen(player);
@@ -1212,17 +2591,21 @@ export function generateWomenRatings(): RatedPlayer[] {
 
     // Use ESPN's playingRoles to detect wicket-keepers (inferRole can't distinguish them)
     const espnRoles = player.profile.playingRoles ?? [];
+    const bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
+    applyBowlingRoleAdjustment(ratings, input, espnRoles, bowlingStyle);
+    applyWomenAllRounderFloor(ratings, input, espnRoles);
+    applyEliteTournamentAdjustment(ratings, input, findEliteTournamentStatsForPlayer(player, eliteTournamentStats), "F");
     const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
-    const role = resolveRoleFromHint(getEspnRoleHint(espnRoles), inferRole(ratings), ratings);
+    const role = resolveWomenRoleFromHint(getEspnRoleHint(espnRoles), inferRole(ratings), ratings, input);
     const age = calculateAge(player.profile.dateOfBirth);
     const country = extractCountry(player.profile);
 
     const battingHand = mapBattingHand(player.profile.battingStyles?.[0] ?? "unknown");
-    let bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
+    let resolvedBowlingStyle = bowlingStyle;
     // Infer bowling style from economy when ESPN has no data but player has bowling stats
-    if (bowlingStyle === "unknown" && role === "bowler" && input.wickets > 0) {
+    if (resolvedBowlingStyle === "unknown" && (role === "bowler" || role === "all-rounder") && input.wickets > 0) {
       const econ = input.ballsBowled > 0 ? (input.runsConceded / input.ballsBowled) * 6 : 99;
-      bowlingStyle = econ < 7.0 ? "off-spin" : "right-arm-medium";
+      resolvedBowlingStyle = econ < 7.0 ? "off-spin" : "right-arm-medium";
     }
 
     rated.push({
@@ -1232,7 +2615,7 @@ export function generateWomenRatings(): RatedPlayer[] {
       age,
       country,
       battingHand,
-      bowlingStyle,
+      bowlingStyle: resolvedBowlingStyle,
       role,
       isWicketKeeper: isWicketKeeper || undefined,
       isInternational: country !== "India",
@@ -1267,12 +2650,11 @@ export function generateWomenRatings(): RatedPlayer[] {
   }
 
   // ── Assign teamId + price from WPL 2025 rosters ──────────────────
-  const rosterMap = buildWPLRosterTeamMap();
   let rosterMatches = 0;
   const unmatchedRoster = new Set(rosterMap.keys());
 
   for (const p of rated) {
-    const entry = findRosterEntry(p.name, rosterMap);
+    const entry = findRosterEntry(p.name, rosterMap, { allowFuzzyInitialMatch: true });
     if (entry) {
       p.teamId = entry.teamId;
       p.price = entry.price;
@@ -1288,10 +2670,27 @@ export function generateWomenRatings(): RatedPlayer[] {
     }
   }
 
+  const rosterFallbacks: RatedPlayer[] = [];
+  for (const [rosterName, entry] of rosterMap.entries()) {
+    if (!unmatchedRoster.has(rosterName)) continue;
+    rosterFallbacks.push(
+      createWomenRosterFallbackPlayer(
+        rosterName,
+        entry,
+        femalePlayers,
+        recentInternationalStats,
+        recentWomenT20Stats,
+      ),
+    );
+    unmatchedRoster.delete(rosterName);
+  }
+
+  rated.push(...rosterFallbacks);
+
   // Sort by overall rating descending
   rated.sort((a, b) => b.overalls.overall - a.overalls.overall);
 
-  console.log(`Rated women players (10+ WT20I matches): ${rated.length}`);
+  console.log(`Generated women players (WT20I-led + WPL fallbacks): ${rated.length}`);
   console.log(`\nTop 20 women:`);
   for (const p of rated.slice(0, 20)) {
     const team = p.teamId ? ` [${p.teamId}]` : "";
@@ -1304,6 +2703,7 @@ export function generateWomenRatings(): RatedPlayer[] {
   const rosterPlayers = rated.filter(p => p.teamId);
   console.log(`\n=== WPL 2025 Roster Matching ===`);
   console.log(`Roster players matched to ESPN data: ${rosterMatches}`);
+  console.log(`Roster fallbacks generated: ${rosterFallbacks.length}`);
   console.log(`Total players with teamId: ${rosterPlayers.length}`);
   if (unmatchedRoster.size > 0) {
     console.log(`Unmatched WPL roster names (${unmatchedRoster.size}):`);
@@ -1370,9 +2770,12 @@ function generateWPLTypeScriptModule(players: RatedPlayer[]): void {
 import type { PlayerData } from "@ipl-sim/engine";
 import type { BowlingStyle, BattingHand } from "@ipl-sim/engine";
 
-export const WPL_PLAYERS: Omit<PlayerData, "injured" | "injuryGamesLeft">[] = [
+type WPLPlayerEntry = Omit<PlayerData, "injured" | "injuryGamesLeft">;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const WPL_PLAYERS: WPLPlayerEntry[] = (([
 ${entries}
-];
+]) as any) as WPLPlayerEntry[];
 
 export const WPL_PLAYER_COUNT = ${players.length};
 
@@ -1425,10 +2828,17 @@ export function getWPLPlayers(): WPLPlayerData[] {
 
 // ── CLI entry point ───────────────────────────────────────────────────
 
-if (
-  process.argv[1]?.endsWith("generate-ratings-espn.ts") ||
-  process.argv[1]?.endsWith("generate-ratings-espn.js")
-) {
+const isDirectExecution = (() => {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return import.meta.url === pathToFileURL(entry).href;
+  } catch {
+    return false;
+  }
+})();
+
+if (isDirectExecution) {
   generateAllRatings();
   generateWomenRatings();
 }

@@ -15,11 +15,15 @@
  *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts [--limit N] [--resume]
  *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --index-only
  *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --skip-index --resume
+ *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --skip-index --ids 883413,944373
+ *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --normalize-only
+ *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --resolve-wpl-only
  */
 
 import { chromium, type BrowserContext, type Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
+import { WPL_2025_ROSTERS } from '../wpl-rosters.js';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -85,6 +89,9 @@ const DATA_DIR = path.resolve('packages/ratings/data/scraped');
 const ESPN_PLAYERS_FILE = path.join(DATA_DIR, 'espn-players.json');
 const ESPN_INDEX_FILE = path.join(DATA_DIR, 'espn-player-index.json');
 const BROWSER_PROFILE_DIR = '/tmp/pw-espncricinfo-profile';
+const WOMEN_TEAM_PATTERN = /\bwomen\b|\(women\)|supernovas|trailblazers|velocity\b|girls\b/i;
+const SEARCH_USER_AGENT = 'Mozilla/5.0';
+const WPL_SEARCH_SOURCE = 'wpl-search';
 
 // All countries with active cricketers on ESPNCricinfo
 // Includes ICC Full Members, Associates, and Affiliates with T20I status
@@ -166,19 +173,48 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function profileLooksFemale(teams: string[]): boolean {
+  return teams.some(team => WOMEN_TEAM_PATTERN.test(team));
+}
+
+function normalizeProfileGender(rawGender: string, teams: string[]): "M" | "F" {
+  if (profileLooksFemale(teams)) return "F";
+  return rawGender === "F" ? "F" : "M";
+}
+
+function normalizePlayerData(player: ESPNPlayerData): ESPNPlayerData {
+  return {
+    ...player,
+    profile: {
+      ...player.profile,
+      gender: normalizeProfileGender(player.profile.gender, player.profile.teams),
+    },
+  };
+}
+
+function hasUsableT20Stats(player: ESPNPlayerData): boolean {
+  const gender = normalizeProfileGender(player.profile.gender, player.profile.teams);
+  return player.careerStats.some((stat) => {
+    if (stat.mt <= 0) return false;
+    if (gender === "F") return stat.cl === 9 || stat.cl === 10;
+    return stat.cl === 3 || stat.cl === 6;
+  });
+}
+
 function loadExistingData(): Map<number, ESPNPlayerData> {
   const map = new Map<number, ESPNPlayerData>();
   if (fs.existsSync(ESPN_PLAYERS_FILE)) {
     const data: ESPNPlayerData[] = JSON.parse(fs.readFileSync(ESPN_PLAYERS_FILE, 'utf-8'));
     for (const p of data) {
-      map.set(p.profile.espnId, p);
+      const normalized = normalizePlayerData(p);
+      map.set(normalized.profile.espnId, normalized);
     }
   }
   return map;
 }
 
 function saveData(players: Map<number, ESPNPlayerData>): void {
-  const arr = Array.from(players.values());
+  const arr = Array.from(players.values()).map(normalizePlayerData);
   fs.writeFileSync(ESPN_PLAYERS_FILE, JSON.stringify(arr, null, 2));
 }
 
@@ -195,6 +231,264 @@ function loadIndex(): Map<number, PlayerIndexEntry> {
 
 function saveIndex(index: Map<number, PlayerIndexEntry>): void {
   fs.writeFileSync(ESPN_INDEX_FILE, JSON.stringify(Array.from(index.values()), null, 2));
+}
+
+function normalizeSearchName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\u00a0/g, ' ')
+    .replace(/-/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tokenizeSearchName(name: string): string[] {
+  return normalizeSearchName(name).split(' ').filter(Boolean);
+}
+
+function levenshteinDistance(a: string, b: string, maxDistance = Number.POSITIVE_INFINITY): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1;
+
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+
+  for (let i = 0; i < a.length; i++) {
+    const current = [i + 1];
+    let rowMin = current[0];
+
+    for (let j = 0; j < b.length; j++) {
+      const cost = a[i] === b[j] ? 0 : 1;
+      const value = Math.min(
+        previous[j + 1] + 1,
+        current[j] + 1,
+        previous[j] + cost,
+      );
+      current.push(value);
+      if (value < rowMin) rowMin = value;
+    }
+
+    if (rowMin > maxDistance) return maxDistance + 1;
+    previous = current;
+  }
+
+  return previous[previous.length - 1];
+}
+
+function isMinorTokenVariant(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length === 1) return b.startsWith(a);
+  if (b.length === 1) return a.startsWith(b);
+  const maxDistance = Math.max(a.length, b.length) >= 8 ? 2 : 1;
+  return levenshteinDistance(a, b, maxDistance) <= maxDistance;
+}
+
+function areSearchNamesCompatible(a: string, b: string): boolean {
+  const tokensA = tokenizeSearchName(a);
+  const tokensB = tokenizeSearchName(b);
+  if (tokensA.length === 0 || tokensB.length === 0) return false;
+  if (tokensA.length !== tokensB.length) return false;
+
+  const candidateOrders = [tokensB];
+  if (tokensB.length === 2) {
+    candidateOrders.push([tokensB[1], tokensB[0]]);
+  }
+
+  for (const candidateTokens of candidateOrders) {
+    let exactMatches = 0;
+    let compatible = true;
+    for (let i = 0; i < tokensA.length; i++) {
+      if (tokensA[i] === candidateTokens[i]) {
+        exactMatches += 1;
+        continue;
+      }
+      if (!isMinorTokenVariant(tokensA[i], candidateTokens[i])) {
+        compatible = false;
+        break;
+      }
+    }
+
+    if (compatible && exactMatches >= tokensA.length - 1) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function buildSearchQueries(name: string): string[] {
+  const tokens = tokenizeSearchName(name);
+  const queries = new Set<string>();
+  const normalized = tokens.join(' ');
+  if (normalized) queries.add(normalized);
+  if (tokens.length >= 2) {
+    queries.add([...tokens].reverse().join(' '));
+  }
+  for (const token of tokens) {
+    if (token.length >= 4) queries.add(token);
+  }
+  return [...queries];
+}
+
+function cleanSearchDisplayName(name: string): string {
+  return name
+    .replace(/&nbsp;/g, ' ')
+    .replace(/,\s*\d{4}.*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildAnchorNameCandidates(anchorName: string): string[] {
+  const cleaned = cleanSearchDisplayName(anchorName);
+  const candidates = new Set<string>();
+  if (cleaned) candidates.add(cleaned);
+
+  if (!cleaned.includes(',')) return [...candidates];
+
+  const [left, right] = cleaned.split(',').map((part) => part.trim()).filter(Boolean);
+  if (!left || !right) return [...candidates];
+
+  candidates.add(`${right} ${left}`);
+
+  const leftTokens = tokenizeSearchName(left);
+  const rightTokens = tokenizeSearchName(right);
+  if (leftTokens.length > 0 && rightTokens.length > 0) {
+    candidates.add(`${rightTokens.join(' ')} ${leftTokens[leftTokens.length - 1]}`);
+  }
+
+  return [...candidates];
+}
+
+function extractSearchCandidates(html: string): Array<{ entry: PlayerIndexEntry; candidateNames: string[] }> {
+  const candidates = new Map<number, { entry: PlayerIndexEntry; candidateNames: Set<string> }>();
+
+  for (const blockMatch of html.matchAll(/<li>[\s\S]*?<\/li>/g)) {
+    const block = blockMatch[0];
+    const hrefMatch = block.match(/(?:https:\/\/www\.espncricinfo\.com)?\/cricketers\/([a-z0-9-]+)-(\d+)/);
+    if (!hrefMatch) continue;
+
+    const slug = hrefMatch[1];
+    const espnId = parseInt(hrefMatch[2], 10);
+    if (!slug || !Number.isFinite(espnId)) continue;
+
+    const alphabeticalName = block.match(/class="alphabetical-name">([^<]+)</)?.[1];
+    const anchorName = block.match(/<a [^>]*>([^<]+)<\/a>/)?.[1];
+    const entry = candidates.get(espnId) ?? {
+      entry: {
+        name: cleanSearchDisplayName(alphabeticalName ?? slug.replace(/-/g, ' ')),
+        slug,
+        espnId,
+        source: WPL_SEARCH_SOURCE,
+      },
+      candidateNames: new Set<string>(),
+    };
+
+    entry.candidateNames.add(slug.replace(/-/g, ' '));
+    if (alphabeticalName) entry.candidateNames.add(cleanSearchDisplayName(alphabeticalName));
+    if (anchorName) {
+      for (const candidateName of buildAnchorNameCandidates(anchorName)) {
+        entry.candidateNames.add(candidateName);
+      }
+    }
+
+    candidates.set(espnId, entry);
+  }
+
+  return [...candidates.values()].map(({ entry, candidateNames }) => ({
+    entry,
+    candidateNames: [...candidateNames].filter(Boolean),
+  }));
+}
+
+function hasIndexedNameMatch(index: Map<number, PlayerIndexEntry>, playerName: string): boolean {
+  for (const entry of index.values()) {
+    if (areSearchNamesCompatible(playerName, entry.name)) return true;
+  }
+  return false;
+}
+
+async function searchPlayerByName(playerName: string): Promise<PlayerIndexEntry | null> {
+  const scores = new Map<number, { entry: PlayerIndexEntry; score: number }>();
+  const queries = buildSearchQueries(playerName);
+
+  for (const [queryIndex, query] of queries.entries()) {
+    try {
+      const response = await fetch(
+        `https://search.espncricinfo.com/ci/content/site/search.html?search=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            'user-agent': SEARCH_USER_AGENT,
+            'accept-language': 'en-US,en;q=0.9',
+          },
+        },
+      );
+      if (!response.ok) continue;
+
+      const html = await response.text();
+      const matches = extractSearchCandidates(html)
+        .filter((candidate) =>
+          candidate.candidateNames.some((candidateName) => areSearchNamesCompatible(playerName, candidateName)),
+        )
+        .map((candidate) => candidate.entry);
+      const weight = queryIndex === 0 ? 4 : queryIndex === 1 ? 3 : 1;
+
+      for (const match of matches) {
+        const current = scores.get(match.espnId);
+        scores.set(match.espnId, {
+          entry: match,
+          score: (current?.score ?? 0) + weight,
+        });
+      }
+    } catch {
+      // Ignore search failures and keep the index build deterministic.
+    }
+  }
+
+  const ranked = [...scores.values()].sort((a, b) => b.score - a.score || a.entry.espnId - b.entry.espnId);
+  if (ranked.length === 0) return null;
+  if (ranked.length > 1 && ranked[0].score === ranked[1].score) return null;
+  return ranked[0].entry;
+}
+
+async function resolveWPLPlayersFromSearch(index: Map<number, PlayerIndexEntry>): Promise<void> {
+  const rosterNames = [...new Set(WPL_2025_ROSTERS.flatMap((roster) => roster.players.map((player) => player.name)))];
+  const unresolved: string[] = [];
+  let alreadyIndexed = 0;
+  let added = 0;
+
+  console.log('\n━━━ Resolving WPL Players from ESPN Search ━━━');
+
+  for (const playerName of rosterNames) {
+    if (hasIndexedNameMatch(index, playerName)) {
+      alreadyIndexed += 1;
+      continue;
+    }
+
+    const resolved = await searchPlayerByName(playerName);
+    if (!resolved) {
+      unresolved.push(playerName);
+      continue;
+    }
+
+    if (!index.has(resolved.espnId)) {
+      index.set(resolved.espnId, resolved);
+      added += 1;
+    }
+
+    await delay(250 + Math.random() * 250);
+  }
+
+  saveIndex(index);
+  console.log(`  Already indexed via team pages/search: ${alreadyIndexed}`);
+  console.log(`  Added from WPL search: ${added}`);
+  if (unresolved.length > 0) {
+    console.log(`  Still unresolved (${unresolved.length}): ${unresolved.join(', ')}`);
+  } else {
+    console.log('  All WPL roster names resolved to ESPN ids');
+  }
 }
 
 async function launchBrowser(): Promise<BrowserContext> {
@@ -321,6 +615,7 @@ async function buildPlayerIndex(page: Page): Promise<Map<number, PlayerIndexEntr
     await delay(2000 + Math.random() * 1000);
   }
 
+  await resolveWPLPlayersFromSearch(index);
   saveIndex(index);
   console.log(`\n  Total unique players indexed: ${index.size}`);
   return index;
@@ -387,10 +682,10 @@ async function scrapePlayerProfile(page: Page, espnId: number, slug: string): Pr
 
     if (!data) return null;
 
-    return {
+    return normalizePlayerData({
       ...data,
       scrapedAt: new Date().toISOString(),
-    };
+    });
   } catch (err) {
     console.log(`    ⚠ Error: ${(err as Error).message.slice(0, 80)}`);
     return null;
@@ -446,7 +741,7 @@ async function scrapeAllProfiles(
         existing.set(data.profile.espnId, data);
         scraped++;
         consecutiveBlocks = 0;
-        const hasT20 = data.careerStats.some(s => (s.cl === 3 || s.cl === 6) && s.mt > 0);
+        const hasT20 = hasUsableT20Stats(data);
         if (hasT20) t20Active++;
       } else {
         failed++;
@@ -492,13 +787,40 @@ async function main() {
   const resume = args.includes('--resume');
   const skipIndex = args.includes('--skip-index');
   const indexOnly = args.includes('--index-only');
+  const normalizeOnly = args.includes('--normalize-only');
+  const resolveWplOnly = args.includes('--resolve-wpl-only');
   const concurrency = args.includes('--concurrency') ? parseInt(args[args.indexOf('--concurrency') + 1]) : 4;
+  const targetedIds = args.includes('--ids')
+    ? args[args.indexOf('--ids') + 1]
+      .split(',')
+      .map(v => parseInt(v.trim(), 10))
+      .filter(v => Number.isFinite(v))
+    : [];
 
   console.log('╔══════════════════════════════════════════════╗');
   console.log('║  ESPNCricinfo Playwright Scraper             ║');
   console.log('╚══════════════════════════════════════════════╝');
   console.log(`Options: limit=${limit || 'none'}, resume=${resume}, concurrency=${concurrency}`);
+  if (targetedIds.length > 0) console.log(`Targeted ids: ${targetedIds.join(', ')}`);
+  if (normalizeOnly) console.log('Mode: normalize cached player data only');
+  if (resolveWplOnly) console.log('Mode: resolve missing WPL roster players in index only');
   console.log(`Browser profile: ${BROWSER_PROFILE_DIR}`);
+
+  if (normalizeOnly) {
+    const existing = loadExistingData();
+    saveData(existing);
+    console.log(`  Rewrote normalized cache for ${existing.size} players`);
+    console.log(`  Output: ${ESPN_PLAYERS_FILE}`);
+    return;
+  }
+
+  if (resolveWplOnly) {
+    const index = loadIndex();
+    console.log(`  Loaded existing index: ${index.size} players`);
+    await resolveWPLPlayersFromSearch(index);
+    console.log(`  Output: ${ESPN_INDEX_FILE}`);
+    return;
+  }
 
   // Use headed Chrome with persistent profile to bypass Akamai
   const browser = await launchBrowser();
@@ -526,8 +848,13 @@ async function main() {
       return;
     }
 
+    if (targetedIds.length > 0) {
+      index = new Map([...index.entries()].filter(([id]) => targetedIds.includes(id)));
+      console.log(`  Filtered index to ${index.size} targeted players`);
+    }
+
     // Step 2: Scrape profiles with parallel tabs
-    await scrapeAllProfiles(browser, index, { limit, resume, concurrency });
+    await scrapeAllProfiles(browser, index, { limit, resume: targetedIds.length > 0 ? false : resume, concurrency });
 
   } finally {
     await browser.close();

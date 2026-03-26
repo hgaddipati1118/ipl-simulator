@@ -108,10 +108,23 @@ describe("getRealPlayers", () => {
     const cummins = players.find(p => p.name === "Pat Cummins")!;
     expect(cummins.role).toBe("bowler");
   });
+
+  it("adds a modest elite-tournament bump from cricsheet data", () => {
+    const players = getRealPlayers();
+    const tilak = players.find(p => p.name === "Tilak Varma")!;
+    const arshdeep = players.find(p => p.name === "Arshdeep Singh")!;
+
+    expect(tilak.role).toBe("batsman");
+    expect(tilak.clutch).toBeGreaterThanOrEqual(88);
+    expect(arshdeep.role).toBe("bowler");
+    expect(arshdeep.wicketTaking).toBeGreaterThanOrEqual(92);
+    expect(arshdeep.accuracy).toBeGreaterThanOrEqual(64);
+  });
 });
 
 describe("runtime realism integration", () => {
   const runtimePlayers = getRealPlayers().map(createPlayerFromData);
+  const runtimeByName = new Map(runtimePlayers.map((player) => [player.name, player]));
 
   it("keeps Rohit Sharma as a batting specialist at runtime", () => {
     const rohit = runtimePlayers.find((p) => p.name === "Rohit Sharma")!;
@@ -127,7 +140,7 @@ describe("runtime realism integration", () => {
   });
 
   it("keeps Pat Cummins from collapsing into a batting specialist at runtime", () => {
-    const cummins = runtimePlayers.find((p) => p.name === "Pat Cummins")!;
+    const cummins = runtimeByName.get("Pat Cummins")!;
     expect(cummins.role).toBe("bowler");
     expect(cummins.bowlingOvr).toBeGreaterThan(cummins.battingOvr);
   });
@@ -155,5 +168,62 @@ describe("runtime realism integration", () => {
       (p) => p.role === "batsman" && p.battingOvr >= 75 && p.ratings.clutch < 55,
     );
     expect(lowClutchBatters).toHaveLength(0);
+  });
+
+  it("keeps proven IPL pace attacks out of the low-tier bowling bucket", () => {
+    expect(runtimeByName.get("Arshdeep Singh")!.bowlingOvr).toBeGreaterThanOrEqual(72);
+    expect(runtimeByName.get("Avesh Khan")!.bowlingOvr).toBeGreaterThanOrEqual(70);
+    expect(runtimeByName.get("Mohammed Shami")!.bowlingOvr).toBeGreaterThanOrEqual(72);
+    expect(runtimeByName.get("Mohammed Siraj")!.bowlingOvr).toBeGreaterThanOrEqual(70);
+    expect(runtimeByName.get("Pat Cummins")!.bowlingOvr).toBeGreaterThanOrEqual(70);
+    expect(runtimeByName.get("Prasidh Krishna")!.bowlingOvr).toBeGreaterThanOrEqual(66);
+    expect(runtimeByName.get("T Natarajan")!.bowlingOvr).toBeGreaterThanOrEqual(68);
+    expect(runtimeByName.get("Vaibhav Arora")!.bowlingOvr).toBeGreaterThanOrEqual(68);
+    expect(runtimeByName.get("Yash Dayal")!.bowlingOvr).toBeGreaterThanOrEqual(60);
+    expect(runtimeByName.get("Mukesh Kumar")!.bowlingOvr).toBeGreaterThanOrEqual(60);
+  });
+
+  it("keeps batting-primary spin options below frontline seamer levels", () => {
+    const nitish = runtimeByName.get("Nitish Rana")!;
+    const tilak = runtimeByName.get("Tilak Varma")!;
+    const abhishek = runtimeByName.get("Abhishek Sharma")!;
+    const will = runtimeByName.get("Will Jacks")!;
+    const rachin = runtimeByName.get("Rachin Ravindra")!;
+    const prasidh = runtimeByName.get("Prasidh Krishna")!;
+
+    expect(nitish.role).toBe("batsman");
+    expect(tilak.role).toBe("batsman");
+    expect(nitish.bowlingOvr).toBeLessThan(50);
+    expect(tilak.bowlingOvr).toBeLessThan(50);
+
+    expect(abhishek.role).toBe("all-rounder");
+    expect(will.role).toBe("all-rounder");
+    expect(rachin.role).toBe("all-rounder");
+    expect(abhishek.bowlingOvr).toBeGreaterThanOrEqual(64);
+    expect(will.bowlingOvr).toBeGreaterThanOrEqual(66);
+    expect(rachin.bowlingOvr).toBeGreaterThanOrEqual(70);
+    expect(will.bowlingOvr).toBeLessThanOrEqual(prasidh.bowlingOvr + 2);
+  });
+
+  it("keeps low-experience specialist spinners below established IPL spin leaders", () => {
+    const kuldeep = runtimeByName.get("Kuldeep Yadav")!;
+    const noor = runtimeByName.get("Noor Ahmad")!;
+    const shreyas = runtimeByName.get("Shreyas Gopal")!;
+    const vipraj = runtimeByName.get("Vipraj Nigam")!;
+    const praveen = runtimeByName.get("Praveen Dubey")!;
+    const siddharth = runtimeByName.get("Manimaran Siddharth")!;
+    const digvesh = runtimeByName.get("Digvesh Rathi")!;
+
+    expect(kuldeep.bowlingOvr).toBeGreaterThanOrEqual(82);
+    expect(noor.bowlingOvr).toBeGreaterThanOrEqual(80);
+    expect(shreyas.bowlingOvr).toBeGreaterThan(vipraj.bowlingOvr);
+    expect(shreyas.bowlingOvr).toBeLessThan(kuldeep.bowlingOvr);
+
+    expect(vipraj.bowlingOvr).toBeLessThanOrEqual(72);
+    expect(praveen.bowlingOvr).toBeLessThanOrEqual(73);
+    expect(siddharth.bowlingOvr).toBeLessThanOrEqual(73);
+    expect(digvesh.bowlingOvr).toBeLessThanOrEqual(71);
+    expect(vipraj.bowlingOvr).toBeLessThan(noor.bowlingOvr);
+    expect(digvesh.bowlingOvr).toBeLessThan(shreyas.bowlingOvr);
   });
 });
