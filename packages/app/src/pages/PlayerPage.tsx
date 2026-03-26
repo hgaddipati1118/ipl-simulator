@@ -730,8 +730,8 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
               </div>
             )}
 
-            {/* Contract & Value */}
-            <div className="mt-4 pt-4 border-t border-th grid grid-cols-3 gap-3">
+            {/* Value */}
+            <div className="mt-4 pt-4 border-t border-th grid grid-cols-2 gap-3">
               <div>
                 <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Auction Price</div>
                 <div className="text-th-primary font-display font-semibold stat-num">{player.bid > 0 ? `${player.bid.toFixed(1)} Cr` : "Unsold"}</div>
@@ -739,12 +739,6 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
               <div>
                 <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Market Value</div>
                 <div className="text-th-primary font-display font-semibold stat-num">{player.marketValue.toFixed(1)} Cr</div>
-              </div>
-              <div>
-                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Contract</div>
-                <div className={`font-display font-semibold ${player.contractYears <= 0 ? "text-red-400" : player.contractYears === 1 ? "text-amber-400" : "text-th-primary"}`}>
-                  {player.contractYears <= 0 ? "Free Agent" : `${player.contractYears}yr`}
-                </div>
               </div>
             </div>
           </div>
