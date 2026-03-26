@@ -1050,6 +1050,7 @@ export function nextSeason(state: GameState): GameState {
       const progress = player.progress({
         focus: player.trainingFocus,
         intensity: team.trainingIntensity,
+        seasonNumber: state.seasonNumber,
       });
       trainingReport.push({
         playerId: player.id,

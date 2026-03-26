@@ -105,6 +105,7 @@ export interface PlayerData {
   fatigue?: number;             // 0-100 accumulated workload, lower is fresher
   workloadHistory?: number[];   // last 5 workload scores for management surfaces
   potential?: number;           // 0-99 ceiling for youth academy prospects (higher = develops faster)
+  ratingHistory?: { season: number; overall: number; batting: number; bowling: number }[];
   morale?: number;              // 0-100 player happiness, affects clutch (default 70)
   contractYears?: number;       // years remaining on contract (0 = free agent)
 }
@@ -273,6 +274,7 @@ export class Player implements PlayerData {
   fatigue: number;
   workloadHistory: number[];
   potential?: number;
+  ratingHistory: { season: number; overall: number; batting: number; bowling: number }[];
   morale: number;
   contractYears: number;
   stats: PlayerStats;
@@ -302,6 +304,7 @@ export class Player implements PlayerData {
     this.fatigue = data.fatigue ?? 0;
     this.workloadHistory = data.workloadHistory ? [...data.workloadHistory] : [];
     this.potential = data.potential;
+    this.ratingHistory = data.ratingHistory ? [...data.ratingHistory] : [];
     this.morale = data.morale ?? 70;
     this.contractYears = data.contractYears ?? 1; // IPL annual contracts
     this.stats = this.emptyStats();
@@ -496,7 +499,17 @@ export class Player implements PlayerData {
   progress(input?: {
     focus?: TrainingFocus;
     intensity?: TrainingIntensity;
+    seasonNumber?: number;
   }): PlayerProgressReport {
+    // Snapshot current ratings before progression
+    this.ratingHistory.push({
+      season: input?.seasonNumber ?? this.ratingHistory.length + 1,
+      overall: this.overall,
+      batting: this.battingOvr,
+      bowling: this.bowlingOvr,
+    });
+    if (this.ratingHistory.length > 10) this.ratingHistory = this.ratingHistory.slice(-10);
+
     this.age++;
     let ageBias = (30 - this.age) * 0.3; // positive for young, negative for old
     const deviation = Math.pow(Math.abs(30 - this.age), 0.7);
@@ -591,6 +604,7 @@ export class Player implements PlayerData {
       fatigue: this.fatigue,
       workloadHistory: [...this.workloadHistory],
       potential: this.potential,
+      ratingHistory: [...this.ratingHistory],
       morale: this.morale,
       contractYears: this.contractYears,
       stats: this.stats,

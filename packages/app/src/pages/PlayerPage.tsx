@@ -642,6 +642,115 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
         </div>
       )}
 
+      {/* Rating Projection */}
+      {isUserPlayer && scoutingView.exactRatings && (() => {
+        const ageBias = (30 - (player.age + 1)) * 0.3;
+        const potBoost = player.potential !== undefined
+          ? (player.potential > 90 && player.age < 22 ? 4.5
+            : player.potential > 80 && player.age < 24 ? 3
+            : player.potential > 70 && player.age < 26 ? 1.5 : 0)
+          : 0;
+        const declineExtra = player.age >= 32 ? (player.age - 31) * 0.25 : 0;
+        const netChange = ageBias + potBoost - declineExtra;
+        const projectedOvr = Math.round(Math.min(99, Math.max(15, player.overall + netChange)));
+        const trajectory = netChange >= 2 ? "Developing" : netChange >= 0.3 ? "Steady growth" : netChange >= -0.5 ? "Peak years" : netChange >= -2 ? "Gradual decline" : "Sharp decline";
+        const trajectoryColor = netChange >= 2 ? "text-emerald-400" : netChange >= 0.3 ? "text-emerald-300/70" : netChange >= -0.5 ? "text-amber-400" : netChange >= -2 ? "text-orange-400" : "text-red-400";
+        const peakAge = player.potential !== undefined && player.potential > 80 ? "25-29" : "27-31";
+
+        return (
+          <div className="rounded-2xl border border-th bg-th-surface p-4 sm:p-5 mb-6">
+            <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-3">Rating Projection</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="rounded-xl border border-th bg-th-raised px-3 py-2.5">
+                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Current</div>
+                <div className={`font-display font-bold text-lg stat-num ${ovrBgClass(player.overall).includes("amber") ? "text-amber-400" : "text-th-primary"}`}>{player.overall}</div>
+              </div>
+              <div className="rounded-xl border border-th bg-th-raised px-3 py-2.5">
+                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Next Season Est.</div>
+                <div className={`font-display font-bold text-lg stat-num ${ovrBgClass(projectedOvr).includes("amber") ? "text-amber-400" : "text-th-primary"}`}>
+                  ~{projectedOvr}
+                  <span className={`text-xs ml-1 ${netChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {netChange >= 0 ? "+" : ""}{netChange.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+              <div className="rounded-xl border border-th bg-th-raised px-3 py-2.5">
+                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Trajectory</div>
+                <div className={`font-display font-semibold text-sm mt-0.5 ${trajectoryColor}`}>{trajectory}</div>
+              </div>
+              <div className="rounded-xl border border-th bg-th-raised px-3 py-2.5">
+                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Est. Peak Window</div>
+                <div className="text-th-secondary font-display font-semibold text-sm mt-0.5">Age {peakAge}</div>
+              </div>
+            </div>
+            {player.potential !== undefined && (
+              <div className="flex items-center gap-3 text-xs text-th-muted">
+                <span className="font-display font-semibold text-th-faint uppercase tracking-wider">Potential</span>
+                <div className="flex-1 bg-th-raised rounded-full h-2 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${player.potential >= 85 ? "bg-emerald-500" : player.potential >= 70 ? "bg-amber-500" : "bg-th-muted"}`}
+                    style={{ width: `${player.potential}%` }}
+                  />
+                </div>
+                <span className="stat-num font-bold text-th-secondary">{player.potential}</span>
+              </div>
+            )}
+            {!player.potential && (
+              <div className="text-xs text-th-faint font-display">
+                Age {player.age} — {player.age <= 28 ? "still in development window" : player.age <= 32 ? "peak years, expect stability" : "veteran phase, expect gradual decline"}
+              </div>
+            )}
+
+            {/* Rating History */}
+            {player.ratingHistory.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-th">
+                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display font-semibold mb-2">Season-by-Season</div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {player.ratingHistory.map((h, i) => {
+                    const prev = i > 0 ? player.ratingHistory[i - 1].overall : h.overall;
+                    const change = h.overall - prev;
+                    return (
+                      <div key={h.season} className="flex-shrink-0 rounded-lg border border-th bg-th-body px-3 py-2 text-center min-w-[70px]">
+                        <div className="text-[9px] text-th-faint font-display">S{h.season}</div>
+                        <div className="font-display font-bold text-th-primary stat-num">{h.overall}</div>
+                        {i > 0 && <div className={`text-[9px] font-mono ${change > 0 ? "text-emerald-400" : change < 0 ? "text-red-400" : "text-th-faint"}`}>{change > 0 ? "+" : ""}{change}</div>}
+                      </div>
+                    );
+                  })}
+                  <div className="flex-shrink-0 rounded-lg border border-orange-500/30 bg-orange-500/5 px-3 py-2 text-center min-w-[70px]">
+                    <div className="text-[9px] text-orange-400/70 font-display">Now</div>
+                    <div className="font-display font-bold text-orange-400 stat-num">{player.overall}</div>
+                    {player.ratingHistory.length > 0 && (() => {
+                      const lastH = player.ratingHistory[player.ratingHistory.length - 1].overall;
+                      const ch = player.overall - lastH;
+                      return <div className={`text-[9px] font-mono ${ch > 0 ? "text-emerald-400" : ch < 0 ? "text-red-400" : "text-th-faint"}`}>{ch > 0 ? "+" : ""}{ch}</div>;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Contract & Value */}
+            <div className="mt-4 pt-4 border-t border-th grid grid-cols-3 gap-3">
+              <div>
+                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Auction Price</div>
+                <div className="text-th-primary font-display font-semibold stat-num">{player.bid > 0 ? `${player.bid.toFixed(1)} Cr` : "Unsold"}</div>
+              </div>
+              <div>
+                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Market Value</div>
+                <div className="text-th-primary font-display font-semibold stat-num">{player.marketValue.toFixed(1)} Cr</div>
+              </div>
+              <div>
+                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Contract</div>
+                <div className={`font-display font-semibold ${player.contractYears <= 0 ? "text-red-400" : player.contractYears === 1 ? "text-amber-400" : "text-th-primary"}`}>
+                  {player.contractYears <= 0 ? "Free Agent" : `${player.contractYears}yr`}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Match-by-Match Performance Log */}
       {matchLog.length > 0 && (
         <div className="rounded-2xl border border-th overflow-hidden bg-th-surface mb-6">
