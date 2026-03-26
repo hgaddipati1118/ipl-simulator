@@ -1,6 +1,20 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { getRealPlayers, REAL_PLAYERS } from "../real-players.js";
 import { createPlayerFromData } from "@ipl-sim/engine";
+
+interface GeneratedMenRating {
+  name: string;
+  teamId?: string;
+  overalls: {
+    overall: number;
+  };
+  sourceStats: {
+    t20Matches: number;
+  };
+}
 
 describe("REAL_PLAYERS data", () => {
   it("has at least 40 players", () => {
@@ -225,5 +239,30 @@ describe("runtime realism integration", () => {
     expect(digvesh.bowlingOvr).toBeLessThanOrEqual(71);
     expect(vipraj.bowlingOvr).toBeLessThan(noor.bowlingOvr);
     expect(digvesh.bowlingOvr).toBeLessThan(shreyas.bowlingOvr);
+  });
+});
+
+describe("generated men pool", () => {
+  const ratingsPath = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "data",
+    "scraped",
+    "espn-ratings.json",
+  );
+  const generatedRatings = JSON.parse(readFileSync(ratingsPath, "utf-8")) as GeneratedMenRating[];
+
+  it("keeps low-sample men in the export instead of dropping them", () => {
+    const lowSamplePlayers = generatedRatings.filter(
+      (player) => player.sourceStats.t20Matches >= 1 && player.sourceStats.t20Matches < 10,
+    );
+    const lowSampleRosterPlayers = lowSamplePlayers.filter((player) => player.teamId);
+    const highestLowSampleOverall = Math.max(...lowSampleRosterPlayers.map((player) => player.overalls.overall));
+
+    expect(generatedRatings.length).toBeGreaterThanOrEqual(3400);
+    expect(lowSamplePlayers.length).toBeGreaterThanOrEqual(1000);
+    expect(lowSampleRosterPlayers.length).toBeGreaterThanOrEqual(15);
+    expect(highestLowSampleOverall).toBeLessThanOrEqual(75);
   });
 });

@@ -692,6 +692,15 @@ function resolveWomenRoleFromHint(
     return "all-rounder";
   }
 
+  const hintedBowlerProfile =
+    bowlingWorkload &&
+    bowlShare >= 0.45 &&
+    wicketsPerMatch >= 0.35 &&
+    ratings.bowlingOvr >= 55;
+  if (hintedBowlerProfile) {
+    return "bowler";
+  }
+
   const bowlingCloseCall =
     ratings.bowlingOvr >= 58 &&
     ratings.battingOvr - ratings.bowlingOvr <= 8;
@@ -993,7 +1002,7 @@ function loadRecentWomenT20Stats(): Map<string, EliteTournamentPlayerStats> {
   return statsByName;
 }
 
-function applyWomenRosterRecentT20Fallback(
+function applyWomenRecentT20Fallback(
   input: ReturnType<typeof toCalculatorInput>,
   recentStats: EliteTournamentPlayerStats | null,
 ): ReturnType<typeof toCalculatorInput> {
@@ -1928,15 +1937,26 @@ export function generateAllRatings(): RatedPlayer[] {
     const bat = batResult?.stat ?? null;
     const bowl = bowlResult?.stat ?? null;
 
-    // Require at least 10 T20 matches for meaningful ratings
-    const matches = bat ? bat.mt : 0;
-    if (matches < 10) continue;
-
     // Filter out retired players
     if (isRetired(player)) continue;
 
     const input = toCalculatorInput(player);
-    const ratings = calculateRatings(input);
+    const matches = input.matches;
+    if (matches < 1) continue;
+
+    let ratings = calculateRatings(input);
+    if (matches < 10) {
+      const espnRoles = player.profile.playingRoles ?? [];
+      const hintedRole = getEspnRoleHint(espnRoles);
+      const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
+      const baseRatings = createLowSampleBaseRatings(
+        resolveRoleFromHint(hintedRole, inferRole(ratings), ratings),
+        "M",
+        extractCountry(player.profile) !== "India",
+        isWicketKeeper,
+      );
+      ratings = blendCalculatedRatings(baseRatings, ratings, matches / 10);
+    }
 
     // Competition quality adjustment — regress individual attributes for weak leagues
     const qualityFactor = getCompetitionQuality(player);
@@ -2057,7 +2077,7 @@ export function generateAllRatings(): RatedPlayer[] {
   // Sort by overall rating descending
   rated.sort((a, b) => b.overalls.overall - a.overalls.overall);
 
-  console.log(`Rated players (10+ T20 matches, male): ${rated.length}`);
+    console.log(`Rated players (1+ T20 matches, male): ${rated.length}`);
   console.log(`\nTop 20:`);
   for (const p of rated.slice(0, 20)) {
     const team = p.teamId ? ` [${p.teamId}]` : "";
@@ -2307,6 +2327,80 @@ function createWomenRosterFallbackBaseRatings(
   return adjusted;
 }
 
+function createMenLowSampleBaseRatings(
+  role: "batsman" | "bowler" | "all-rounder",
+  isInternational: boolean,
+  isWicketKeeper: boolean,
+): CalculatedRatings {
+  const base = isWicketKeeper
+    ? createCalculatedRatingsFromAttributes({
+        battingIQ: 58,
+        timing: 56,
+        power: 48,
+        running: 62,
+        wicketTaking: 22,
+        economy: 22,
+        accuracy: 24,
+        clutch: 52,
+      })
+    : role === "batsman"
+      ? createCalculatedRatingsFromAttributes({
+          battingIQ: 54,
+          timing: 52,
+          power: 50,
+          running: 58,
+          wicketTaking: 22,
+          economy: 22,
+          accuracy: 24,
+          clutch: 48,
+        })
+      : role === "bowler"
+        ? createCalculatedRatingsFromAttributes({
+            battingIQ: 24,
+            timing: 24,
+            power: 26,
+            running: 42,
+            wicketTaking: 57,
+            economy: 56,
+            accuracy: 54,
+            clutch: 49,
+          })
+        : createCalculatedRatingsFromAttributes({
+            battingIQ: 48,
+            timing: 46,
+            power: 46,
+            running: 56,
+            wicketTaking: 47,
+            economy: 48,
+            accuracy: 46,
+            clutch: 50,
+          });
+
+  if (!isInternational) return base;
+
+  return createCalculatedRatingsFromAttributes({
+    battingIQ: base.battingIQ + (role === "bowler" ? 1 : 2),
+    timing: base.timing + (role === "bowler" ? 1 : 2),
+    power: base.power + (role === "bowler" ? 1 : 2),
+    running: base.running + 1,
+    wicketTaking: base.wicketTaking + (role === "batsman" ? 1 : 2),
+    economy: base.economy + (role === "batsman" ? 1 : 2),
+    accuracy: base.accuracy + (role === "batsman" ? 1 : 2),
+    clutch: base.clutch + 2,
+  });
+}
+
+function createLowSampleBaseRatings(
+  role: "batsman" | "bowler" | "all-rounder",
+  gender: "M" | "F",
+  isInternational: boolean,
+  isWicketKeeper: boolean,
+): CalculatedRatings {
+  return gender === "F"
+    ? createWomenRosterFallbackBaseRatings(role, 0.1, isInternational, isWicketKeeper)
+    : createMenLowSampleBaseRatings(role, isInternational, isWicketKeeper);
+}
+
 function blendCalculatedRatings(
   base: CalculatedRatings,
   sample: CalculatedRatings,
@@ -2388,7 +2482,7 @@ function createWomenRosterFallbackPlayer(
       : createInputFromEliteTournamentStats(rosterName, age, country, createEmptyEliteTournamentStats());
 
   input = applyRecentInternationalFallback(input, recentIntl);
-  input = applyWomenRosterRecentT20Fallback(input, recentT20);
+  input = applyWomenRecentT20Fallback(input, recentT20);
 
   const fallbackRole = inferWomenRosterFallbackRole(
     getEspnRoleHint(espnRoles),
@@ -2513,7 +2607,7 @@ function buildWPLRosterTeamMap(): Map<string, RosterEntry> {
 
 /**
  * Generate ratings for all female ESPN-scraped players.
- * Uses cl=10 (WT20I) stats, recent Cricsheet T20I support, and WPL roster fallbacks.
+ * Uses women's T20 stats, recent Cricsheet T20 support, and WPL roster fallbacks.
  */
 export function generateWomenRatings(): RatedPlayer[] {
   if (!existsSync(ESPN_FILE)) {
@@ -2544,14 +2638,11 @@ export function generateWomenRatings(): RatedPlayer[] {
 
     let input = toCalculatorInput(player, "F");
     input = applyRecentInternationalFallback(input, findEliteTournamentStatsForPlayer(player, recentInternationalStats));
-    if (rosterEntry) {
-      input = applyWomenRosterRecentT20Fallback(input, findEliteTournamentStatsForPlayer(player, recentWomenT20Stats));
-    }
+    input = applyWomenRecentT20Fallback(input, findEliteTournamentStatsForPlayer(player, recentWomenT20Stats));
 
-    // Require a real WT20I sample, but be slightly more permissive for current WPL roster players.
+    // Keep any real women's-T20 sample in the pool, but regress very small samples heavily.
     const matches = input.matches;
-    const minMatches = rosterEntry ? 1 : 10;
-    if (matches < minMatches) continue;
+    if (matches < 1) continue;
 
     let ratings = calculateRatings(input, "women");
     if (rosterEntry && matches < 8) {
@@ -2571,6 +2662,18 @@ export function generateWomenRatings(): RatedPlayer[] {
         isWicketKeeper,
       );
       ratings = blendCalculatedRatings(baseRatings, ratings, matches / 8);
+    } else if (matches < 10) {
+      const country = extractCountry(player.profile);
+      const espnRoles = player.profile.playingRoles ?? [];
+      const isWicketKeeper = espnRoles.some((r: string) => r.toLowerCase().includes("keeper"));
+      const hintedRole = getEspnRoleHint(espnRoles);
+      const baseRatings = createLowSampleBaseRatings(
+        resolveWomenRoleFromHint(hintedRole, inferRole(ratings), ratings, input),
+        "F",
+        country !== "India",
+        isWicketKeeper,
+      );
+      ratings = blendCalculatedRatings(baseRatings, ratings, matches / 10);
     }
 
     // Competition quality adjustment
@@ -2659,11 +2762,12 @@ export function generateWomenRatings(): RatedPlayer[] {
       p.teamId = entry.teamId;
       p.price = entry.price;
       rosterMatches++;
-      const lower = p.name.toLowerCase();
-      unmatchedRoster.delete(lower);
-      for (const [rosterName] of rosterMap.entries()) {
-        const normalizedRoster = rosterName.replace(/\s+/g, " ").trim();
-        if (lower.replace(/\s+/g, " ").trim() === normalizedRoster) {
+      for (const [rosterName, rosterEntry] of rosterMap.entries()) {
+        if (
+          rosterEntry.name === entry.name &&
+          rosterEntry.teamId === entry.teamId &&
+          rosterEntry.price === entry.price
+        ) {
           unmatchedRoster.delete(rosterName);
         }
       }
@@ -2690,7 +2794,7 @@ export function generateWomenRatings(): RatedPlayer[] {
   // Sort by overall rating descending
   rated.sort((a, b) => b.overalls.overall - a.overalls.overall);
 
-  console.log(`Generated women players (WT20I-led + WPL fallbacks): ${rated.length}`);
+  console.log(`Generated women players (women's-T20-led + WPL fallbacks): ${rated.length}`);
   console.log(`\nTop 20 women:`);
   for (const p of rated.slice(0, 20)) {
     const team = p.teamId ? ` [${p.teamId}]` : "";

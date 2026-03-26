@@ -18,6 +18,7 @@
  *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --skip-index --ids 883413,944373
  *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --normalize-only
  *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --resolve-wpl-only
+ *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --resolve-women-elite-only
  */
 
 import { chromium, type BrowserContext, type Page } from 'playwright';
@@ -88,10 +89,37 @@ interface PlayerIndexEntry {
 const DATA_DIR = path.resolve('packages/ratings/data/scraped');
 const ESPN_PLAYERS_FILE = path.join(DATA_DIR, 'espn-players.json');
 const ESPN_INDEX_FILE = path.join(DATA_DIR, 'espn-player-index.json');
+const CRICSHEET_T20I_DIR = path.resolve('packages/ratings/data/cricsheet/t20s_json');
 const BROWSER_PROFILE_DIR = '/tmp/pw-espncricinfo-profile';
 const WOMEN_TEAM_PATTERN = /\bwomen\b|\(women\)|supernovas|trailblazers|velocity\b|girls\b/i;
 const SEARCH_USER_AGENT = 'Mozilla/5.0';
-const WPL_SEARCH_SOURCE = 'wpl-search';
+const SEARCH_SOURCE = 'search';
+const WOMEN_WORLD_CUP_EVENT_NAMES = new Set([
+  "ICC Women's T20 World Cup",
+  "ICC Women's World Twenty20",
+  "Women's World T20",
+  "Women's World Twenty20",
+]);
+const WBBL_TEAM_SOURCES = [
+  { label: 'Adelaide Strikers', baseUrl: 'https://www.adelaidestrikers.com.au' },
+  { label: 'Brisbane Heat', baseUrl: 'https://www.brisbaneheat.com.au' },
+  { label: 'Hobart Hurricanes', baseUrl: 'https://www.hobarthurricanes.com.au' },
+  { label: 'Melbourne Renegades', baseUrl: 'https://www.melbournerenegades.com.au' },
+  { label: 'Melbourne Stars', baseUrl: 'https://www.melbournestars.com.au' },
+  { label: 'Perth Scorchers', baseUrl: 'https://www.perthscorchers.com.au' },
+  { label: 'Sydney Sixers', baseUrl: 'https://www.sydneysixers.com.au' },
+  { label: 'Sydney Thunder', baseUrl: 'https://www.sydneythunder.com.au' },
+];
+const HUNDRED_TEAM_SLUGS = [
+  'birmingham-phoenix',
+  'london-spirit',
+  'manchester-super-giants',
+  'mi-london',
+  'southern-brave',
+  'sunrisers-leeds',
+  'trent-rockets',
+  'welsh-fire',
+];
 
 // All countries with active cricketers on ESPNCricinfo
 // Includes ICC Full Members, Associates, and Affiliates with T20I status
@@ -171,6 +199,231 @@ const TEAM_PAGES = [
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&ndash;/gi, '-')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+}
+
+function stripHtmlTags(value: string): string {
+  return decodeHtmlEntities(value).replace(/<[^>]+>/g, ' ');
+}
+
+function cleanCompetitionPlayerName(name: string): string {
+  return stripHtmlTags(name)
+    .replace(/\bCaptain\b/gi, ' ')
+    .replace(/\bOverseas\b/gi, ' ')
+    .replace(/^\d+\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractAttributeValue(attrs: string, attribute: string): string | null {
+  const quoted = attrs.match(new RegExp(`\\b${attribute}=(["'])([\\s\\S]*?)\\1`, 'i'));
+  if (quoted) return decodeHtmlEntities(quoted[2]).trim();
+  const unquoted = attrs.match(new RegExp(`\\b${attribute}=([^\\s>]+)`, 'i'));
+  if (!unquoted) return null;
+  return decodeHtmlEntities(unquoted[1]).trim();
+}
+
+function extractPlayerNamesFromAnchors(
+  html: string,
+  hrefPattern: RegExp,
+  options?: { useTitleFirst?: boolean },
+): string[] {
+  const names = new Set<string>();
+  const anchorPattern = /<a\b([^>]*?)href=(["']?)([^"'\s>]+)\2([^>]*)>([\s\S]*?)<\/a>/gi;
+
+  for (const match of html.matchAll(anchorPattern)) {
+    const attrs = `${match[1]} ${match[4]}`;
+    const href = decodeHtmlEntities(match[3]);
+    if (!hrefPattern.test(href)) continue;
+
+    const title = extractAttributeValue(attrs, 'title');
+    const rawName = options?.useTitleFirst && title ? title : title || match[5];
+    const cleanedName = cleanCompetitionPlayerName(rawName);
+    if (!cleanedName) continue;
+    names.add(cleanedName);
+  }
+
+  return [...names];
+}
+
+function extractHundredSquadNames(html: string): string[] {
+  const yearMarkers = [...html.matchAll(/data-squad-year="(\d+)"/gi)]
+    .map((match) => ({
+      year: parseInt(match[1], 10),
+      index: match.index ?? 0,
+    }))
+    .filter((marker) => Number.isFinite(marker.year));
+  const currentYear = yearMarkers.reduce((max, marker) => Math.max(max, marker.year), 0);
+  const names = new Set<string>();
+
+  if (currentYear > 0) {
+    for (let i = 0; i < yearMarkers.length; i++) {
+      const marker = yearMarkers[i];
+      if (marker.year !== currentYear) continue;
+      const nextIndex = yearMarkers[i + 1]?.index ?? html.length;
+      const yearChunk = html.slice(marker.index, nextIndex);
+      for (const squadItem of yearChunk.matchAll(/<li[^>]*class="[^"]*team-squad-list__player[^"]*"[^>]*data-team-type="women"[^>]*>[\s\S]*?<\/li>/gi)) {
+        for (const playerName of extractPlayerNamesFromAnchors(squadItem[0], /\/players\/\d+\//i)) {
+          names.add(playerName);
+        }
+      }
+    }
+  }
+
+  if (names.size === 0) {
+    for (const squadItem of html.matchAll(/<li[^>]*class="[^"]*team-squad-list__player[^"]*"[^>]*data-team-type="women"[^>]*>[\s\S]*?<\/li>/gi)) {
+      for (const playerName of extractPlayerNamesFromAnchors(squadItem[0], /\/players\/\d+\//i)) {
+        names.add(playerName);
+      }
+    }
+  }
+
+  if (names.size === 0) {
+    for (const squadItem of html.matchAll(/<li[^>]*class="[^"]*team-squad-list__player[^"]*"[^>]*>[\s\S]*?<\/li>/gi)) {
+      if (!/data-team-type="women"/i.test(squadItem[0])) continue;
+      for (const playerName of extractPlayerNamesFromAnchors(squadItem[0], /\/players\/\d+\//i)) {
+        names.add(playerName);
+      }
+    }
+  }
+
+  return [...names];
+}
+
+async function fetchCompetitionHtml(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'user-agent': SEARCH_USER_AGENT,
+        'accept-language': 'en-US,en;q=0.9',
+      },
+    });
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+function loadLatestWomenWorldCupNamesFromCricsheet(): string[] {
+  if (!fs.existsSync(CRICSHEET_T20I_DIR)) return [];
+
+  let latestYear = 0;
+  const namesByYear = new Map<number, Set<string>>();
+  const files = fs.readdirSync(CRICSHEET_T20I_DIR).filter((file) => file.endsWith('.json') && !file.startsWith('README'));
+
+  for (const file of files) {
+    try {
+      const match = JSON.parse(fs.readFileSync(path.join(CRICSHEET_T20I_DIR, file), 'utf-8'));
+      const info = match?.info as Record<string, any> | undefined;
+      if (info?.gender !== 'female') continue;
+
+      const eventName = info?.event?.name;
+      if (!WOMEN_WORLD_CUP_EVENT_NAMES.has(eventName)) continue;
+
+      const matchDate = String(info?.dates?.[0] ?? '');
+      const year = parseInt(matchDate.slice(0, 4), 10);
+      if (!Number.isFinite(year)) continue;
+
+      latestYear = Math.max(latestYear, year);
+      const yearNames = namesByYear.get(year) ?? new Set<string>();
+      const players = info?.players ?? {};
+      for (const teamPlayers of Object.values(players)) {
+        if (!Array.isArray(teamPlayers)) continue;
+        for (const playerName of teamPlayers) {
+          if (typeof playerName !== 'string') continue;
+          const cleanedName = cleanCompetitionPlayerName(playerName);
+          if (cleanedName) yearNames.add(cleanedName);
+        }
+      }
+      namesByYear.set(year, yearNames);
+    } catch {
+      // Ignore malformed Cricsheet files and keep indexing deterministic.
+    }
+  }
+
+  return latestYear > 0 ? [...(namesByYear.get(latestYear) ?? new Set<string>())] : [];
+}
+
+function loadAllWomenCricsheetNames(): string[] {
+  if (!fs.existsSync(CRICSHEET_T20I_DIR)) return [];
+
+  const names = new Set<string>();
+  const files = fs.readdirSync(CRICSHEET_T20I_DIR).filter((file) => file.endsWith('.json') && !file.startsWith('README'));
+
+  for (const file of files) {
+    try {
+      const match = JSON.parse(fs.readFileSync(path.join(CRICSHEET_T20I_DIR, file), 'utf-8'));
+      const info = match?.info as Record<string, any> | undefined;
+      if (info?.gender !== 'female') continue;
+
+      const players = info?.players ?? {};
+      for (const teamPlayers of Object.values(players)) {
+        if (!Array.isArray(teamPlayers)) continue;
+        for (const playerName of teamPlayers) {
+          if (typeof playerName !== 'string') continue;
+          const cleanedName = cleanCompetitionPlayerName(playerName);
+          if (cleanedName) names.add(cleanedName);
+        }
+      }
+    } catch {
+      // Ignore malformed Cricsheet files and keep indexing deterministic.
+    }
+  }
+
+  return [...names];
+}
+
+async function loadWBBLPlayerNamesFromClubPages(): Promise<string[]> {
+  const names = new Set<string>();
+
+  for (const team of WBBL_TEAM_SOURCES) {
+    let bestNames: string[] = [];
+
+    for (const route of ['/players/wbbl', '/wbbl-players', '/players']) {
+      const html = await fetchCompetitionHtml(`${team.baseUrl}${route}`);
+      if (!html) continue;
+
+      const extracted = extractPlayerNamesFromAnchors(html, /\/players\/CA:/i, { useTitleFirst: true });
+      if (route !== '/players' && extracted.length >= 12) {
+        bestNames = extracted;
+        break;
+      }
+      if (extracted.length > bestNames.length) {
+        bestNames = extracted;
+      }
+    }
+
+    for (const playerName of bestNames) {
+      names.add(playerName);
+    }
+  }
+
+  return [...names];
+}
+
+async function loadHundredSquadPlayerNames(): Promise<string[]> {
+  const names = new Set<string>();
+
+  for (const teamSlug of HUNDRED_TEAM_SLUGS) {
+    const html = await fetchCompetitionHtml(`https://www.thehundred.com/teams/${teamSlug}/squad`);
+    if (!html) continue;
+
+    for (const playerName of extractHundredSquadNames(html)) {
+      names.add(playerName);
+    }
+  }
+
+  return [...names];
 }
 
 function profileLooksFemale(teams: string[]): boolean {
@@ -280,8 +533,6 @@ function levenshteinDistance(a: string, b: string, maxDistance = Number.POSITIVE
 function isMinorTokenVariant(a: string, b: string): boolean {
   if (!a || !b) return false;
   if (a === b) return true;
-  if (a.length === 1) return b.startsWith(a);
-  if (b.length === 1) return a.startsWith(b);
   const maxDistance = Math.max(a.length, b.length) >= 8 ? 2 : 1;
   return levenshteinDistance(a, b, maxDistance) <= maxDistance;
 }
@@ -362,7 +613,10 @@ function buildAnchorNameCandidates(anchorName: string): string[] {
   return [...candidates];
 }
 
-function extractSearchCandidates(html: string): Array<{ entry: PlayerIndexEntry; candidateNames: string[] }> {
+function extractSearchCandidates(
+  html: string,
+  source: string = SEARCH_SOURCE,
+): Array<{ entry: PlayerIndexEntry; candidateNames: string[] }> {
   const candidates = new Map<number, { entry: PlayerIndexEntry; candidateNames: Set<string> }>();
 
   for (const blockMatch of html.matchAll(/<li>[\s\S]*?<\/li>/g)) {
@@ -381,7 +635,7 @@ function extractSearchCandidates(html: string): Array<{ entry: PlayerIndexEntry;
         name: cleanSearchDisplayName(alphabeticalName ?? slug.replace(/-/g, ' ')),
         slug,
         espnId,
-        source: WPL_SEARCH_SOURCE,
+        source,
       },
       candidateNames: new Set<string>(),
     };
@@ -410,7 +664,7 @@ function hasIndexedNameMatch(index: Map<number, PlayerIndexEntry>, playerName: s
   return false;
 }
 
-async function searchPlayerByName(playerName: string): Promise<PlayerIndexEntry | null> {
+async function searchPlayerByName(playerName: string, source: string = SEARCH_SOURCE): Promise<PlayerIndexEntry | null> {
   const scores = new Map<number, { entry: PlayerIndexEntry; score: number }>();
   const queries = buildSearchQueries(playerName);
 
@@ -428,7 +682,7 @@ async function searchPlayerByName(playerName: string): Promise<PlayerIndexEntry 
       if (!response.ok) continue;
 
       const html = await response.text();
-      const matches = extractSearchCandidates(html)
+      const matches = extractSearchCandidates(html, source)
         .filter((candidate) =>
           candidate.candidateNames.some((candidateName) => areSearchNamesCompatible(playerName, candidateName)),
         )
@@ -453,21 +707,24 @@ async function searchPlayerByName(playerName: string): Promise<PlayerIndexEntry 
   return ranked[0].entry;
 }
 
-async function resolveWPLPlayersFromSearch(index: Map<number, PlayerIndexEntry>): Promise<void> {
-  const rosterNames = [...new Set(WPL_2025_ROSTERS.flatMap((roster) => roster.players.map((player) => player.name)))];
+async function resolvePlayerNamesFromSearch(
+  index: Map<number, PlayerIndexEntry>,
+  playerNames: string[],
+  options: { label: string; source: string },
+): Promise<void> {
   const unresolved: string[] = [];
   let alreadyIndexed = 0;
   let added = 0;
 
-  console.log('\n━━━ Resolving WPL Players from ESPN Search ━━━');
+  console.log(`\n━━━ Resolving ${options.label} from ESPN Search ━━━`);
 
-  for (const playerName of rosterNames) {
+  for (const playerName of playerNames) {
     if (hasIndexedNameMatch(index, playerName)) {
       alreadyIndexed += 1;
       continue;
     }
 
-    const resolved = await searchPlayerByName(playerName);
+    const resolved = await searchPlayerByName(playerName, options.source);
     if (!resolved) {
       unresolved.push(playerName);
       continue;
@@ -482,13 +739,43 @@ async function resolveWPLPlayersFromSearch(index: Map<number, PlayerIndexEntry>)
   }
 
   saveIndex(index);
+  console.log(`  Candidate names: ${playerNames.length}`);
   console.log(`  Already indexed via team pages/search: ${alreadyIndexed}`);
-  console.log(`  Added from WPL search: ${added}`);
+  console.log(`  Added from ESPN search: ${added}`);
   if (unresolved.length > 0) {
     console.log(`  Still unresolved (${unresolved.length}): ${unresolved.join(', ')}`);
   } else {
-    console.log('  All WPL roster names resolved to ESPN ids');
+    console.log(`  All ${options.label.toLowerCase()} resolved to ESPN ids`);
   }
+}
+
+async function resolveWPLPlayersFromSearch(index: Map<number, PlayerIndexEntry>): Promise<void> {
+  const rosterNames = [...new Set(WPL_2025_ROSTERS.flatMap((roster) => roster.players.map((player) => player.name)))];
+  await resolvePlayerNamesFromSearch(index, rosterNames, {
+    label: 'WPL Players',
+    source: 'wpl-search',
+  });
+}
+
+async function resolveWomenElitePlayersFromSearch(index: Map<number, PlayerIndexEntry>): Promise<void> {
+  const [allCricsheetNames, worldCupNames, wbblNames, hundredNames] = await Promise.all([
+    Promise.resolve(loadAllWomenCricsheetNames()),
+    Promise.resolve(loadLatestWomenWorldCupNamesFromCricsheet()),
+    loadWBBLPlayerNamesFromClubPages(),
+    loadHundredSquadPlayerNames(),
+  ]);
+  const eliteNames = [...new Set([...allCricsheetNames, ...wbblNames, ...hundredNames])];
+
+  console.log('\n━━━ Women Elite Source Summary ━━━');
+  console.log(`  Full women Cricsheet names: ${allCricsheetNames.length}`);
+  console.log(`  World Cup names: ${worldCupNames.length}`);
+  console.log(`  WBBL source names: ${wbblNames.length}`);
+  console.log(`  Hundred source names: ${hundredNames.length}`);
+
+  await resolvePlayerNamesFromSearch(index, eliteNames, {
+    label: "Women's full Cricsheet / WBBL / Hundred Players",
+    source: 'women-elite-search',
+  });
 }
 
 async function launchBrowser(): Promise<BrowserContext> {
@@ -616,6 +903,7 @@ async function buildPlayerIndex(page: Page): Promise<Map<number, PlayerIndexEntr
   }
 
   await resolveWPLPlayersFromSearch(index);
+  await resolveWomenElitePlayersFromSearch(index);
   saveIndex(index);
   console.log(`\n  Total unique players indexed: ${index.size}`);
   return index;
@@ -789,7 +1077,8 @@ async function main() {
   const indexOnly = args.includes('--index-only');
   const normalizeOnly = args.includes('--normalize-only');
   const resolveWplOnly = args.includes('--resolve-wpl-only');
-  const concurrency = args.includes('--concurrency') ? parseInt(args[args.indexOf('--concurrency') + 1]) : 4;
+  const resolveWomenEliteOnly = args.includes('--resolve-women-elite-only');
+  const concurrency = args.includes('--concurrency') ? parseInt(args[args.indexOf('--concurrency') + 1]) : 1;
   const targetedIds = args.includes('--ids')
     ? args[args.indexOf('--ids') + 1]
       .split(',')
@@ -804,6 +1093,7 @@ async function main() {
   if (targetedIds.length > 0) console.log(`Targeted ids: ${targetedIds.join(', ')}`);
   if (normalizeOnly) console.log('Mode: normalize cached player data only');
   if (resolveWplOnly) console.log('Mode: resolve missing WPL roster players in index only');
+  if (resolveWomenEliteOnly) console.log("Mode: resolve women's elite competition players in index only");
   console.log(`Browser profile: ${BROWSER_PROFILE_DIR}`);
 
   if (normalizeOnly) {
@@ -818,6 +1108,14 @@ async function main() {
     const index = loadIndex();
     console.log(`  Loaded existing index: ${index.size} players`);
     await resolveWPLPlayersFromSearch(index);
+    console.log(`  Output: ${ESPN_INDEX_FILE}`);
+    return;
+  }
+
+  if (resolveWomenEliteOnly) {
+    const index = loadIndex();
+    console.log(`  Loaded existing index: ${index.size} players`);
+    await resolveWomenElitePlayersFromSearch(index);
     console.log(`  Output: ${ESPN_INDEX_FILE}`);
     return;
   }
