@@ -245,7 +245,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
               {seasonDone && onViewResults && (
                 <button
                   onClick={onViewResults}
-                  className="px-6 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-500 text-gray-900 font-display font-semibold rounded-xl transition-all text-sm w-full sm:w-auto"
+                  className="px-6 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-500 text-black font-display font-semibold rounded-xl transition-all text-sm w-full sm:w-auto"
                 >
                   View Results
                 </button>

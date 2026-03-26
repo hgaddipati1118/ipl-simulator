@@ -11,13 +11,17 @@
     "ratings:generate": "npm run generate --workspace=packages/ratings",
     "ratings:snapshot": "npm run snapshot --workspace=packages/ratings",
     "engine:test": "npm test --workspace=packages/engine",
+    "lint": "eslint packages/app/src/",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npx playwright test"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
+    "eslint-plugin-tailwind-ban": "^1.0.1",
     "ts-node": "^10.9.2",
+    "typescript-eslint": "^8.57.2",
     "vitest": "^4.1.0"
   }
 }

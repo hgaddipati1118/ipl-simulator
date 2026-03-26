@@ -2189,7 +2189,7 @@ export function LiveMatchPage({
       {/* Innings break overlay */}
       {showInningsBreak && state.status === "innings_break" && !showImpactSubModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-40 flex items-center justify-center animate-fade-in">
-          <div className="bg-gray-900 rounded-2xl border border-th p-6 sm:p-8 max-w-md w-full mx-4 text-center shadow-2xl">
+          <div className="bg-th-surface rounded-2xl border border-th p-6 sm:p-8 max-w-md w-full mx-4 text-center shadow-2xl">
             <div className="text-xs text-th-muted uppercase tracking-widest font-display mb-4">Innings Break</div>
             <div className="text-3xl font-display font-extrabold text-white mb-1">
               {state._internal.battingFirstId === state.homeTeam.id ? state.homeTeam.shortName : state.awayTeam.shortName}{" "}
@@ -2236,7 +2236,7 @@ export function LiveMatchPage({
 
         return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-40 flex items-center justify-center animate-fade-in">
-          <div className="bg-gray-900 rounded-2xl border border-th p-6 sm:p-8 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-th-surface rounded-2xl border border-th p-6 sm:p-8 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="text-center">
               <div className="text-xs text-th-muted uppercase tracking-widest font-display mb-3">Match Complete</div>
 
@@ -2294,7 +2294,7 @@ export function LiveMatchPage({
             {/* Top performers per team */}
             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Batting-first team performers */}
-              <div className="rounded-xl border border-th bg-gray-800 p-3">
+              <div className="rounded-xl border border-th bg-th-raised p-3">
                 <div className="text-xs uppercase tracking-wider font-display font-bold mb-2" style={{ color: battingFirstTeam.primaryColor }}>
                   {battingFirstTeam.shortName}
                 </div>
@@ -2319,7 +2319,7 @@ export function LiveMatchPage({
               </div>
 
               {/* Bowling-first team performers */}
-              <div className="rounded-xl border border-th bg-gray-800 p-3">
+              <div className="rounded-xl border border-th bg-th-raised p-3">
                 <div className="text-xs uppercase tracking-wider font-display font-bold mb-2" style={{ color: bowlingFirstTeam.primaryColor }}>
                   {bowlingFirstTeam.shortName}
                 </div>
@@ -2553,10 +2553,10 @@ export function LiveMatchPage({
 function DecisionModal({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in p-4">
-      <div className="bg-gray-900 rounded-2xl border border-gray-700/50 w-full max-w-lg mx-auto max-h-[90vh] flex flex-col overflow-hidden lg:max-h-[80vh]">
-        <div className="px-5 pt-5 pb-3 border-b border-gray-800">
-          <h2 className="text-lg font-display font-bold text-white">{title}</h2>
-          {subtitle && <p className="text-xs text-gray-400 font-mono mt-1">{subtitle}</p>}
+      <div className="bg-th-surface rounded-2xl border border-th w-full max-w-lg mx-auto max-h-[90vh] flex flex-col overflow-hidden lg:max-h-[80vh]">
+        <div className="px-5 pt-5 pb-3 border-b border-th">
+          <h2 className="text-lg font-display font-bold text-th-primary">{title}</h2>
+          {subtitle && <p className="text-xs text-th-muted font-mono mt-1">{subtitle}</p>}
         </div>
         <div className="px-5 py-4 overflow-y-auto flex-1">
           {children}
