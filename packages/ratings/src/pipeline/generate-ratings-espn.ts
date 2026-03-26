@@ -255,13 +255,17 @@ function mapBattingHand(espnStyle: string): BattingHand {
 function mapBowlingStyle(espnStyle: string): BowlingStyle {
   const s = espnStyle.toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ").trim();
 
-  // Right-arm pace
-  if (s === "right arm fast" || s === "right arm fast medium") return "right-arm-fast";
-  if (s === "right arm medium" || s === "right arm medium fast") return "right-arm-medium";
+  // Right-arm pace — preserve ESPN's granularity
+  if (s === "right arm fast") return "right-arm-fast";
+  if (s === "right arm fast medium") return "right-arm-fast-medium";
+  if (s === "right arm medium fast") return "right-arm-medium-fast";
+  if (s === "right arm medium") return "right-arm-medium";
 
   // Left-arm pace
-  if (s === "left arm fast" || s === "left arm fast medium") return "left-arm-fast";
-  if (s === "left arm medium" || s === "left arm medium fast") return "left-arm-medium";
+  if (s === "left arm fast") return "left-arm-fast";
+  if (s === "left arm fast medium") return "left-arm-fast-medium";
+  if (s === "left arm medium fast") return "left-arm-medium-fast";
+  if (s === "left arm medium") return "left-arm-medium";
 
   // Spin
   if (s === "right arm offbreak" || s === "right arm off break") return "off-spin";
@@ -380,8 +384,9 @@ function toCalculatorInput(player: EspnPlayer, gender: "M" | "F" = "M") {
   // Must have bowled minimum balls AND taken minimum wickets to count as a bowler.
   // Men: 300 balls (50 overs) + 15 wickets — filters out part-timers like SKY, Babar.
   // Women: 150 balls (25 overs) + 8 wickets — lower thresholds due to fewer matches.
-  const minBalls = gender === "F" ? 150 : 300;
-  const minWickets = gender === "F" ? 8 : 15;
+  // All-rounders get relaxed thresholds (they bowl regularly but may not hit strict minimums).
+  const minBalls = hasBowlingRoleHint ? (gender === "F" ? 100 : 150) : (gender === "F" ? 150 : 300);
+  const minWickets = hasBowlingRoleHint ? (gender === "F" ? 4 : 8) : (gender === "F" ? 8 : 15);
   const minBowlShare = gender === "F" ? 0.2 : 0.25;
   const hasMeaningfulBowling =
     bowlBalls >= minBalls &&
@@ -897,7 +902,12 @@ export function generateAllRatings(): RatedPlayer[] {
     const country = extractCountry(player.profile);
 
     const battingHand = mapBattingHand(player.profile.battingStyles?.[0] ?? "unknown");
-    const bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
+    let bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
+    // Infer bowling style from economy when ESPN has no data but player has bowling stats
+    if (bowlingStyle === "unknown" && role === "bowler" && input.wickets > 0) {
+      const econ = input.ballsBowled > 0 ? (input.runsConceded / input.ballsBowled) * 6 : 99;
+      bowlingStyle = econ < 7.0 ? "off-spin" : "right-arm-medium";
+    }
 
     rated.push({
       id: `espn_${player.profile.espnId}`,
@@ -1208,7 +1218,12 @@ export function generateWomenRatings(): RatedPlayer[] {
     const country = extractCountry(player.profile);
 
     const battingHand = mapBattingHand(player.profile.battingStyles?.[0] ?? "unknown");
-    const bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
+    let bowlingStyle = mapBowlingStyle(player.profile.bowlingStyles?.[0] ?? "unknown");
+    // Infer bowling style from economy when ESPN has no data but player has bowling stats
+    if (bowlingStyle === "unknown" && role === "bowler" && input.wickets > 0) {
+      const econ = input.ballsBowled > 0 ? (input.runsConceded / input.ballsBowled) * 6 : 99;
+      bowlingStyle = econ < 7.0 ? "off-spin" : "right-arm-medium";
+    }
 
     rated.push({
       id: `espn_${player.profile.espnId}`,

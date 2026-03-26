@@ -235,7 +235,7 @@ The current match engine is already significantly better than the original. The 
 | `packages/engine/src/player.ts` | Add `isCapped`, port NormSInv progression |
 | `packages/engine/src/team.ts` | Add squad validation, budget tracking |
 | `packages/engine/src/match.ts` | Add free hit state, impact sub support |
-| `packages/engine/src/schedule.ts` | Fix to 74 matches, neutral playoff venues |
+| `packages/engine/src/schedule.ts` | Fix to 70 league matches, official group matrix, neutral playoff venues |
 | `packages/engine/src/auction.ts` | Refactor to support mega/mini via rules config |
 | `packages/engine/src/math.ts` | Add NormSInv, normalDist functions |
 | `packages/app/src/game-state.ts` | Multi-season state, retention/auction flow |

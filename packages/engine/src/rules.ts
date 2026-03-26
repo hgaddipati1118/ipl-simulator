@@ -88,7 +88,7 @@ export const RULE_PRESETS = {
   } satisfies RuleSet,
 
   modern2026: {
-    name: "IPL 2026+",
+    name: "IPL 2026",
     league: "ipl",
     teamIds: IPL_10_TEAM_IDS,
     impactPlayer: true,
@@ -98,7 +98,8 @@ export const RULE_PRESETS = {
     maxOverseasInXI: 4,
     maxOverseasInSquad: 8,
     maxSquadSize: 25,
-    matchesPerTeam: 16,
+    // BCCI's March 11, 2026 first-phase schedule still allocates 7 home matches per franchise.
+    matchesPerTeam: 14,
     playoffTeams: 4,
     playoffFormat: "eliminator",
     scoringMultiplier: 1.0,
@@ -136,7 +137,7 @@ export type AuctionType = "mega" | "mini";
  *  Mega auctions happen in season 1 and every `megaAuctionCycle` seasons.
  *  Mini auctions happen in between. */
 export function getAuctionType(seasonNumber: number, rules: RuleSet): AuctionType {
-  const cycle = rules.megaAuctionCycle ?? 3; // IPL: every 3 seasons
+  const cycle = rules.megaAuctionCycle ?? 3; // IPL: every 3 seasons (2022→2025→2028)
   // Season 1 is always mega. Then mega at season 4, 7, 10, etc.
   if (seasonNumber === 1) return "mega";
   return (seasonNumber - 1) % cycle === 0 ? "mega" : "mini";
@@ -148,4 +149,44 @@ export function getAuctionType(seasonNumber: number, rules: RuleSet): AuctionTyp
 export function getMaxRetentions(auctionType: AuctionType, rules: RuleSet): number {
   if (auctionType === "mega") return rules.maxRetentions ?? 6;
   return rules.maxMiniRetentions ?? 25; // Mini: keep full roster (effectively unlimited)
+}
+
+/** Get the effective salary cap for a given season.
+ *  Matches real IPL pattern: big jump at mega auctions (~15-20 Cr),
+ *  small increase in mini auction years (~5 Cr).
+ *  Real IPL: 2025=120Cr, 2026=125Cr, 2027=130Cr → 2028 mega=150Cr */
+export function getSeasonSalaryCap(seasonNumber: number, rules: RuleSet): number {
+  const baseCap = rules.salaryCap;
+  const cycle = rules.megaAuctionCycle ?? 3;
+  let cap = baseCap;
+
+  for (let s = 2; s <= seasonNumber; s++) {
+    const isMega = (s - 1) % cycle === 0;
+    if (isMega) {
+      cap += 20; // Big jump at mega auction (~15-20 Cr, matching 90→110→120→150 pattern)
+    } else {
+      cap += 5;  // Small annual increase (~5 Cr, matching 120→125→130 pattern)
+    }
+  }
+
+  return Math.round(cap / 5) * 5; // Round to nearest 5
+}
+
+/** Get the effective retention count for a given mega auction season.
+ *  IPL history: 2022=4 retentions, 2025=6 retentions.
+ *  We start at 6 (current rules) and increase by 1 every 3 mega cycles. */
+export function getScaledRetentions(seasonNumber: number, rules: RuleSet): number {
+  const base = rules.maxRetentions ?? 6;
+  const cycle = rules.megaAuctionCycle ?? 3;
+  const megaNumber = Math.floor((seasonNumber - 1) / cycle); // 0-indexed mega auction count
+  const bonus = Math.floor(megaNumber / 3); // +1 every 3 mega auctions (~9 seasons)
+  return Math.min(base + bonus, 8); // cap at 8 retentions
+}
+
+/** Get the auction pool size for a season.
+ *  Pool grows over time as more players enter the system. */
+export function getAuctionPoolSize(seasonNumber: number, rules: RuleSet): number {
+  const basePool = rules.teamIds.length * rules.maxSquadSize; // enough for full squads
+  // Pool grows ~5% per season as more players become available
+  return Math.round(basePool * (1 + (seasonNumber - 1) * 0.05));
 }

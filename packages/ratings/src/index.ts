@@ -14,7 +14,7 @@ export {
 } from "./snapshot.js";
 export type { PlayerRatingSnapshot, RatingSnapshot } from "./snapshot.js";
 
-export { getRealPlayers, REAL_PLAYERS } from "./real-players.js";
+export { getRealPlayers, getPoolPlayers, REAL_PLAYERS } from "./real-players.js";
 export type { RealPlayerData } from "./real-players.js";
 
 export { ALL_PLAYERS, PLAYER_COUNT } from "./all-players.js";

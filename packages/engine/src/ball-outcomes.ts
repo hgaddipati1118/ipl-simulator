@@ -114,7 +114,10 @@ export type WideType = "down-leg" | "outside-off" | "bouncer-wide";
 
 /** Determine the type of wide delivery */
 export function determineWideType(bowlingStyle: BowlingStyle, over: number, rng: RNG = Math.random): WideType {
-  const isPace = ["right-arm-fast", "left-arm-fast", "right-arm-medium", "left-arm-medium"].includes(bowlingStyle);
+  const isPace = [
+    "right-arm-fast", "right-arm-fast-medium", "right-arm-medium-fast", "right-arm-medium",
+    "left-arm-fast", "left-arm-fast-medium", "left-arm-medium-fast", "left-arm-medium",
+  ].includes(bowlingStyle);
   const isDeath = over >= 16;
 
   if (isPace && isDeath) {
@@ -252,8 +255,8 @@ export function checkMidMatchInjury(params: {
 }): { injured: boolean; type: MatchInjuryType } | null {
   const { playerAge, isBowling, oversBowled, isSprinting, rng = Math.random } = params;
 
-  // Very rare event: ~0.5% per ball for bowlers, ~0.1% for batters
-  let baseChance = isBowling ? 0.005 : 0.001;
+  // Very rare event: ~0.05% per ball for bowlers, ~0.01% for batters
+  let baseChance = isBowling ? 0.0005 : 0.0001;
 
   // Age increases risk
   if (playerAge > 34) baseChance *= 2.0;

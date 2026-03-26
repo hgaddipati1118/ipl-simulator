@@ -6,23 +6,24 @@
 
 ### IPL 2025 Format
 - **10 teams**
-- **74 league matches** (each team plays 14)
+- **70 league matches** (each team plays 14)
 - Each team plays every other team **at least once**
-- Some matchups played **twice** (home and away)
-- Each team: approximately 7 home + 7 away matches
+- Each team plays **5 opponents twice** and **4 opponents once**
+- Each team has **7 home + 7 away matches**
 
 ### Schedule Generation Logic
-With 10 teams, there are 45 unique pairings (10 choose 2). Each pair plays at least once = 45 matches minimum. The remaining 29 matches are second matchups (reverse fixture). Not all pairs get a return fixture.
+With 10 teams, IPL uses **two virtual groups of five**. Each team plays:
+- The other four teams in its own group **twice**
+- The same-row team in the other group **twice**
+- The remaining four teams in the other group **once**
 
 ```
-Total pairings: C(10,2) = 45
-First leg: 45 matches (each pair once)
-Second leg: 29 matches (selected pairs play return)
-Total: 74 matches
+League matches: 10 teams × 14 matches / 2 = 70
 
 Each team plays: 14 matches
-  = 9 first-leg matches (vs each of 9 opponents)
-  + 5 second-leg matches (vs 5 of 9 opponents)
+  = 8 matches inside its virtual group
+  + 2 matches against its same-row opponent in the other group
+  + 4 one-off matches against the remaining other-group teams
 ```
 
 ### Home/Away Balance
@@ -45,9 +46,8 @@ Each team plays: 14 matches
 ### Tiebreaker Order (for standings)
 1. **Points** (higher is better)
 2. **Net Run Rate (NRR)** (higher is better)
-3. **Head-to-head record** (if only 2 teams tied)
-4. **Most wins** (if >2 teams tied)
-5. If still tied: **NRR in matches between tied teams**
+3. **Higher wickets taken per fair balls bowled**
+4. If still tied: **drawing of lots**
 
 ---
 
@@ -117,9 +117,7 @@ FINAL:        Winner Q1 vs Winner Q2 → CHAMPION
 - No home advantage in playoffs (neutral venue)
 
 ### Implementation Note
-Current engine correctly implements this format. The key fix needed is:
-- Playoff matches should use neutral stadium rating (1.0) instead of home team's
-- Currently using `homeTeam.config.stadiumBowlingRating` which gives unfair advantage
+Current engine should keep playoff matches neutral and should not let playoff wins/losses mutate the league table.
 
 ---
 
@@ -155,7 +153,7 @@ mvpScore = (runs * 1.0) + (wickets * 20) + (catches * 10)
 ```
 Start with real IPL 2025 rosters (pre-loaded)
 → Skip auction (teams already formed from real mega auction)
-→ Play 74 league matches + playoffs
+→ Play 70 league matches + playoffs
 → Awards & history recording
 → End of season
 ```
@@ -167,7 +165,7 @@ Player progression (age + rating changes)
 → Release window (teams drop 3-5 players)
 → New young players enter pool
 → Mini auction (released + new players)
-→ Play 74 league matches + playoffs
+→ Play 70 league matches + playoffs
 → Awards & history recording
 → End of season
 ```

@@ -53,9 +53,9 @@ describe("Matchups – hand vs bowling style", () => {
     expect(mod.wicketMod).toBeGreaterThan(1.0);
   });
 
-  it("leg spin vs left-hand batter reduces wicket probability", () => {
+  it("leg spin vs left-hand batter increases wicket probability (turns into bat, LBW/bowled threat)", () => {
     const mod = getHandMatchupModifier("leg-spin", "left");
-    expect(mod.wicketMod).toBeLessThan(1.0);
+    expect(mod.wicketMod).toBeGreaterThan(1.0);
   });
 
   it("off-spin vs left-hand batter increases wicket probability", () => {
@@ -63,9 +63,9 @@ describe("Matchups – hand vs bowling style", () => {
     expect(mod.wicketMod).toBeGreaterThan(1.0);
   });
 
-  it("left-arm-orthodox vs left-hand batter reduces wicket probability (turns into bat)", () => {
+  it("left-arm-orthodox vs left-hand batter increases wicket probability (turns into bat, LBW/bowled threat)", () => {
     const mod = getHandMatchupModifier("left-arm-orthodox", "left");
-    expect(mod.wicketMod).toBeLessThan(1.0);
+    expect(mod.wicketMod).toBeGreaterThan(1.0);
   });
 
   it("unknown bowling style returns neutral modifiers", () => {

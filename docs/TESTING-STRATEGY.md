@@ -130,15 +130,15 @@ Every module shipped must have corresponding unit tests. This document defines w
 ## Phase 4: Season System
 
 ### 4A: Schedule (`packages/engine/src/__tests__/schedule.test.ts`)
-- [ ] Generates exactly 74 league matches
+- [ ] Generates exactly 70 league matches
 - [ ] Each team plays exactly 14 matches
 - [ ] Each team plays every other team at least once
-- [ ] Some matchups occur twice (home/away)
+- [ ] Official two-group matrix is respected
 - [ ] No team plays itself
 - [ ] Playoff bracket: correct format (Q1, Elim, Q2, Final)
 - [ ] Top 4 teams qualify for playoffs
 - [ ] Playoff winners advance correctly
-- [ ] Total matches: 74 + 4 = 78
+- [ ] Total matches: 70 + 4 = 74
 
 ### 4B: Multi-Season Loop (`packages/engine/src/__tests__/season-loop.test.ts`)
 - [ ] Season 1 (2025): starts with real rosters, no auction
@@ -154,10 +154,10 @@ Every module shipped must have corresponding unit tests. This document defines w
 ### 4C: SeasonRules Config (`packages/engine/src/__tests__/rules-config.test.ts`)
 - [ ] 2021 config: 8 teams, 56 matches, no impact player, 1 DRS, ₹85Cr
 - [ ] 2022 config: 10 teams, 70 matches, no impact player, 4 retentions max, ₹90Cr, new team draft for GT/LSG
-- [ ] 2023 config: 10 teams, 74 matches, impact player ENABLED, 2 DRS, ₹95Cr
-- [ ] 2024 config: 10 teams, 74 matches, impact player, ₹100Cr, ₹110Cr total cap
-- [ ] 2025 config: 10 teams, 74 matches, mega auction, ₹120Cr, 6 retentions, RTM, impact sub
-- [ ] 2026 config: 10 teams, 84 matches, double round-robin, ₹125Cr, overseas salary cap ₹18Cr
+- [ ] 2023 config: 10 teams, 70 league matches + 4 playoffs, impact player ENABLED, 2 DRS, ₹95Cr
+- [ ] 2024 config: 10 teams, 70 league matches + 4 playoffs, impact player, ₹100Cr, ₹110Cr total cap
+- [ ] 2025 config: 10 teams, 70 league matches + 4 playoffs, mega auction, ₹120Cr, 6 retentions, RTM, impact sub
+- [ ] 2026 config: 10 teams, 70 league matches + 4 playoffs, ₹125Cr purse, 7 home matches per franchise
 - [ ] 2027 config: 10 teams, 84 matches, ₹157Cr total cap
 - [ ] 2028 config: mega auction, 94? matches
 - [ ] All config fields have valid values
@@ -220,7 +220,7 @@ Every module shipped must have corresponding unit tests. This document defines w
 ## Integration Tests (`packages/engine/src/__tests__/integration/`)
 
 ### Full Season Simulation
-- [ ] Complete season (74 matches + playoffs) runs without errors
+- [ ] Complete season (70 league matches + playoffs) runs without errors
 - [ ] All players accumulate stats
 - [ ] Standings are consistent (total wins + losses + ties = matches played)
 - [ ] NRR calculation is correct

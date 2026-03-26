@@ -3,7 +3,7 @@
  * Ported and modernized from IndianCricketLeague/PlayerClass.js
  */
 
-import { clamp, randomNormal } from "./math.js";
+import { clamp, randomNormal, displayOversToReal } from "./math.js";
 
 export interface PlayerRatings {
   battingIQ: number;    // 0-99: shot selection, rotation, game sense
@@ -54,7 +54,8 @@ export interface MatchPerformance {
 export type PlayerRole = "batsman" | "bowler" | "all-rounder" | "wicket-keeper";
 
 export type BowlingStyle =
-  | "right-arm-fast" | "right-arm-medium" | "left-arm-fast" | "left-arm-medium"
+  | "right-arm-fast" | "right-arm-fast-medium" | "right-arm-medium-fast" | "right-arm-medium" | "right-arm-slow"
+  | "left-arm-fast" | "left-arm-fast-medium" | "left-arm-medium-fast" | "left-arm-medium" | "left-arm-slow"
   | "off-spin" | "left-arm-orthodox" | "leg-spin" | "left-arm-wrist-spin"
   | "unknown";
 
@@ -298,7 +299,7 @@ export class Player implements PlayerData {
     this.workloadHistory = data.workloadHistory ? [...data.workloadHistory] : [];
     this.potential = data.potential;
     this.morale = data.morale ?? 70;
-    this.contractYears = data.contractYears ?? 2;
+    this.contractYears = data.contractYears ?? 1; // IPL annual contracts
     this.stats = this.emptyStats();
   }
 
@@ -377,14 +378,16 @@ export class Player implements PlayerData {
 
   /** Bowling economy rate */
   get economyRate(): number {
-    return this.stats.overs > 0 ? this.stats.runsConceded / this.stats.overs : 0;
+    if (this.stats.overs <= 0) return 0;
+    const realOvers = displayOversToReal(this.stats.overs);
+    return realOvers > 0 ? this.stats.runsConceded / realOvers : 0;
   }
 
   /** Bowling strike rate (balls per wicket) */
   get bowlingStrikeRate(): number {
-    return this.stats.wickets > 0
-      ? (this.stats.overs * 6) / this.stats.wickets
-      : 999;
+    if (this.stats.wickets <= 0) return 999;
+    const realOvers = displayOversToReal(this.stats.overs);
+    return (realOvers * 6) / this.stats.wickets;
   }
 
   /** Rolling form from last 5 matches (0-100, 50 = neutral) */
@@ -436,6 +439,28 @@ export class Player implements PlayerData {
   applyPreseasonTrainingLoad(intensity: TrainingIntensity): void {
     this.resetCondition();
     this.fatigue = getTrainingCampFatigue(this.trainingFocus, intensity);
+  }
+
+  /** Mid-season training tick: small attribute boost based on training focus.
+   *  Called every ~5 matches to simulate ongoing practice between games.
+   *  Returns changes for inbox notifications (empty if no meaningful change). */
+  applyMidSeasonTraining(): { attr: string; from: number; to: number }[] {
+    const focus = this.trainingFocus ?? "balanced";
+    const bias = TRAINING_FOCUS_BIAS[focus];
+    const changes: { attr: string; from: number; to: number }[] = [];
+    for (const [attr, weight] of Object.entries(bias) as [keyof PlayerRatings, number][]) {
+      if (weight > 0) {
+        const from = this.ratings[attr];
+        const gain = Math.round(randomNormal(weight * 0.4, 0.3));
+        if (gain > 0) {
+          this.ratings[attr] = clamp(from + gain, 15, 99);
+          if (this.ratings[attr] !== from) {
+            changes.push({ attr, from, to: this.ratings[attr] });
+          }
+        }
+      }
+    }
+    return changes;
   }
 
   /** Calculate form score from match stats */

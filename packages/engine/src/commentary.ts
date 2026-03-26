@@ -11,8 +11,8 @@ type BowlingStyleCategory = "pace" | "spin" | "medium" | "unknown";
 
 function classifyBowlingStyle(bowlingStyle?: string): BowlingStyleCategory {
   if (!bowlingStyle) return "unknown";
-  if (["right-arm-fast", "left-arm-fast"].includes(bowlingStyle)) return "pace";
-  if (["right-arm-medium", "left-arm-medium"].includes(bowlingStyle)) return "medium";
+  if (["right-arm-fast", "right-arm-fast-medium", "left-arm-fast", "left-arm-fast-medium"].includes(bowlingStyle)) return "pace";
+  if (["right-arm-medium-fast", "right-arm-medium", "left-arm-medium-fast", "left-arm-medium", "right-arm-slow", "left-arm-slow"].includes(bowlingStyle)) return "medium";
   if (["off-spin", "left-arm-orthodox", "leg-spin", "left-arm-wrist-spin"].includes(bowlingStyle)) return "spin";
   return "unknown";
 }

@@ -411,25 +411,26 @@ describe("checkMidMatchInjury", () => {
   it("bowlers more likely than batters", () => {
     const bowlerResults = sample(
       () => checkMidMatchInjury({ ...baseParams, isBowling: true, oversBowled: 2 }),
-      20_000,
+      100_000,
     );
     const batterResults = sample(
       () => checkMidMatchInjury({ ...baseParams, isBowling: false }),
-      20_000,
+      100_000,
     );
     const bowlerInjuries = bowlerResults.filter(r => r !== null).length;
     const batterInjuries = batterResults.filter(r => r !== null).length;
+    // Bowler base rate (0.0005) is 5x higher than batter (0.0001)
     expect(bowlerInjuries).toBeGreaterThan(batterInjuries);
   });
 
   it("age increases risk", () => {
     const youngResults = sample(
       () => checkMidMatchInjury({ ...baseParams, playerAge: 22, isBowling: true, oversBowled: 2 }),
-      20_000,
+      100_000,
     );
     const oldResults = sample(
       () => checkMidMatchInjury({ ...baseParams, playerAge: 36, isBowling: true, oversBowled: 2 }),
-      20_000,
+      100_000,
     );
     const youngInjuries = youngResults.filter(r => r !== null).length;
     const oldInjuries = oldResults.filter(r => r !== null).length;

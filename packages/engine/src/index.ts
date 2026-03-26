@@ -34,7 +34,7 @@ export type {
 export { Team, IPL_TEAMS, WPL_TEAMS } from "./team.js";
 export type { TeamConfig, BowlingPlan } from "./team.js";
 
-export { getMatchupModifiers, getMatchPhase, isPaceBowler, isSpinBowler, getBatterAffinityModifier } from "./matchups.js";
+export { getMatchupModifiers, getMatchPhase, isPaceBowler, isFastBowler, isSpinBowler, isSlowBowler, getBatterAffinityModifier } from "./matchups.js";
 export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";
 
 export { calculateWinProbability } from "./win-probability.js";
@@ -60,6 +60,7 @@ export {
   runAuction, retainPlayers,
   initAuction, userBid, userDropBid, cpuBidRound,
   nextPlayer, simCurrentPlayer, simRemainingAuction,
+  rtmAccept, rtmDecline,
   getBasePrice, getBidIncrement,
   evaluateRetentionSelection,
   isCappedRetentionPlayer,
@@ -100,9 +101,9 @@ export type {
 
 export { generateRandomPlayer, generatePlayerPool, createPlayerFromData, nextPlayerId } from "./create-player.js";
 
-export { randomNormal, clamp, weightedRandom, shuffle, normSInv } from "./math.js";
+export { randomNormal, clamp, weightedRandom, shuffle, normSInv, displayOversToReal } from "./math.js";
 
-export { RULE_PRESETS, DEFAULT_RULES, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_IDS, ALL_TEAM_IDS, getAuctionType, getMaxRetentions } from "./rules.js";
+export { RULE_PRESETS, DEFAULT_RULES, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_IDS, ALL_TEAM_IDS, getAuctionType, getMaxRetentions, getSeasonSalaryCap, getScaledRetentions, getAuctionPoolSize } from "./rules.js";
 export type { RuleSet, LeagueType, PlayoffFormat, GenderOption, PlayerSource, AuctionType } from "./rules.js";
 
 export {

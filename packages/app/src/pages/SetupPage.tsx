@@ -258,7 +258,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
   const isWPL = rules.league === "wpl";
   const isCustom = rules.league === "custom";
   const isModern = rules.name === "IPL Modern (2023+)" || (rules.impactPlayer && rules.matchesPerTeam === 14 && rules.league === "ipl");
-  const is2026 = rules.name === "IPL 2026+" || (rules.impactPlayer && rules.matchesPerTeam === 16 && rules.league === "ipl");
+  const is2026 = rules.name === "IPL 2026" || (rules.impactPlayer && rules.matchesPerTeam === 14 && rules.salaryCap === 125 && rules.league === "ipl");
   const isClassic = !isModern && !is2026 && !isWPL && !isCustom;
   const [showCustom, setShowCustom] = useState(isCustom);
 
@@ -289,7 +289,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
       <fieldset className="flex justify-center gap-2 mb-6 border-0 p-0 m-0">
         <legend className="sr-only">Select league type</legend>
         <button
-          onClick={() => { setShowCustom(false); onRulesChange(RULE_PRESETS.modern); }}
+          onClick={() => { setShowCustom(false); onRulesChange(RULE_PRESETS.modern2026); }}
           className={`px-5 py-2.5 rounded-lg text-sm font-display font-semibold transition-all duration-200 border ${
             !isWPL && !isCustom && !showCustom
               ? "bg-blue-600/90 border-blue-500/50 text-white shadow-lg shadow-blue-500/20"
@@ -363,7 +363,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
                   : "bg-transparent text-th-muted hover:text-th-primary hover:bg-th-hover"
               }`}
             >
-              IPL 2026+
+              IPL 2026
             </button>
           </div>
         </div>
@@ -417,7 +417,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
       )}
 
       {/* Team grid */}
-      <div className={`grid gap-3 sm:gap-4 stagger ${teams.length <= 5 ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-5" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-5"}`}>
+      <div className="grid gap-3 sm:gap-4 stagger grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
         {teams.map(team => (
           <button
             key={team.id}
@@ -431,7 +431,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
               className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10 blur-xl"
               style={{ background: `${team.config.primaryColor}15` }}
             />
-            <div className="mx-auto mb-3">
+            <div className="flex justify-center mb-3">
               <TeamBadge teamId={team.id} shortName={team.shortName} primaryColor={team.config.primaryColor} />
             </div>
             <div className="text-th-primary text-sm font-display font-semibold text-center leading-tight">{team.name}</div>
@@ -478,7 +478,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
             ? `Custom league \u2022 ${teams.length} teams \u2022 ${rules.matchesPerTeam} matches/team`
             : isWPL
               ? "Auction \u2022 8-match season \u2022 Top 3 Playoffs \u2022 Multi-season"
-              : "Auction \u2022 70-match season \u2022 Playoffs \u2022 Multi-season progression"}
+              : `Auction \u2022 ${rules.teamIds.length * rules.matchesPerTeam / 2}-match season \u2022 Playoffs \u2022 Multi-season progression`}
         </p>
       </div>
     </div>

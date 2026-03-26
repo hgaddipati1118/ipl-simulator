@@ -36,7 +36,10 @@ function isBowlingOption(player: Player): boolean {
 }
 
 function isPace(style: Player["bowlingStyle"]): boolean {
-  return ["right-arm-fast", "right-arm-medium", "left-arm-fast", "left-arm-medium"].includes(style);
+  return [
+    "right-arm-fast", "right-arm-fast-medium", "right-arm-medium-fast", "right-arm-medium",
+    "left-arm-fast", "left-arm-fast-medium", "left-arm-medium-fast", "left-arm-medium",
+  ].includes(style);
 }
 
 function isSpin(style: Player["bowlingStyle"]): boolean {

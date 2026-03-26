@@ -185,11 +185,11 @@ Draft rules: max 2 Indian capped + 1 overseas (or combination with uncapped)
 ## IPL 2025 (MEGA AUCTION — Current Season)
 
 ### Format
-- **74 league matches**
+- **70 league matches + 4 playoffs**
 - **14 matches per team**
 - 2 groups of 5, with crossover matches:
-  - Group A: CSK, RCB, RR, PBKS, KKR
-  - Group B: MI, GT, DC, SRH, LSG
+  - Group A: MI, KKR, RR, DC, LSG
+  - Group B: CSK, SRH, RCB, PBKS, GT
   - Each team plays 4 group opponents twice (8 matches) + 1 designated crossover twice (2) + 4 other group once (4) = 14
 - Top 4 playoffs
 
@@ -335,10 +335,10 @@ interface SeasonRules {
 Each historical SeasonRules config must be validated:
 - 2021: 8 teams, 56 matches, no impact player, 1 DRS
 - 2022: 10 teams, 70 matches, no impact player, 4 retentions max, new team draft
-- 2023: 10 teams, 74 matches, IMPACT PLAYER, 2 DRS, ₹95Cr
-- 2024: 10 teams, 74 matches, impact player, ₹100Cr, ₹110Cr total cap
-- 2025: 10 teams, 74 matches, impact player, ₹120Cr, 6 retentions, RTM
-- 2026: 10 teams, 84 matches, impact player, ₹125Cr, overseas cap ₹18Cr
+- 2023: 10 teams, 70 league matches + 4 playoffs, IMPACT PLAYER, 2 DRS, ₹95Cr
+- 2024: 10 teams, 70 league matches + 4 playoffs, impact player, ₹100Cr, ₹110Cr total cap
+- 2025: 10 teams, 70 league matches + 4 playoffs, impact player, ₹120Cr, 6 retentions, RTM
+- 2026: 10 teams, 70 league matches + 4 playoffs, impact player, ₹125Cr purse
 - 2027: 10 teams, 84 matches, impact player, ₹157Cr total cap
 - 2028: 10 teams, 94? matches, TBD rules
 

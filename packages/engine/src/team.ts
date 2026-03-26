@@ -64,6 +64,7 @@ export class Team {
   ballsFacedFor: number;
   runsAgainst: number;
   ballsFacedAgainst: number;
+  wicketsTaken: number;
 
   // user lineup management (from WT3)
   isUserControlled: boolean;
@@ -71,6 +72,10 @@ export class Team {
   userBattingOrder?: string[];   // player IDs in batting order
   userBowlingOrder?: string[];   // player IDs for bowling rotation
   bowlingPlan?: BowlingPlan;     // phase-specific bowling preferences
+  /** Per-batter aggression presets (0-100, 50=normal). Applied when batter comes in. */
+  batterAggression?: Record<string, number>;
+  /** Per-bowler default field setting. Applied when bowler starts an over. */
+  bowlerFieldSettings?: Record<string, "aggressive" | "standard" | "defensive" | "spin-attack" | "boundary-save">;
   trainingIntensity: TrainingIntensity;
 
   constructor(config: TeamConfig, salaryCap = 120) {
@@ -86,6 +91,7 @@ export class Team {
     this.ballsFacedFor = 0;
     this.runsAgainst = 0;
     this.ballsFacedAgainst = 0;
+    this.wicketsTaken = 0;
     this.isUserControlled = false;
     this.trainingIntensity = "balanced";
   }
@@ -93,7 +99,7 @@ export class Team {
   get id(): string { return this.config.id; }
   get name(): string { return this.config.name; }
   get shortName(): string { return this.config.shortName; }
-  get points(): number { return this.wins * 2; }
+  get points(): number { return this.wins * 2 + this.ties; } // IPL: 2 for win, 1 for tie/NR
   get matchesPlayed(): number { return this.wins + this.losses + this.ties; }
   get remainingBudget(): number { return this.salaryCap - this.totalSpent; }
 
@@ -205,17 +211,20 @@ export class Team {
     return this.autoBattingOrder(xi);
   }
 
-  /** Auto-generate batting order from playing XI */
+  /** Auto-generate batting order from playing XI.
+   *  Sorts by batting ability: all-rounders with strong batting
+   *  slot in alongside pure batsmen rather than always batting below them. */
   autoBattingOrder(xi: Player[]): Player[] {
     return [...xi].sort((a, b) => {
-      // Wicket-keeper bats 1-3
-      if (a.isWicketKeeper && !b.isWicketKeeper) return -1;
-      if (b.isWicketKeeper && !a.isWicketKeeper) return 1;
-      // Batsmen first, then all-rounders, then bowlers
-      const roleOrder: Record<string, number> = { batsman: 0, "all-rounder": 1, bowler: 2 };
-      const diff = (roleOrder[a.role] ?? 2) - (roleOrder[b.role] ?? 2);
-      if (diff !== 0) return diff;
-      // Within same role, higher batting OVR first
+      // Wicket-keepers who are primary batsmen bat top 3
+      if (a.isWicketKeeper && !b.isWicketKeeper && a.battingOvr >= 60) return -1;
+      if (b.isWicketKeeper && !a.isWicketKeeper && b.battingOvr >= 60) return 1;
+      // Pure bowlers always bat last
+      const aIsBowler = a.role === "bowler";
+      const bIsBowler = b.role === "bowler";
+      if (aIsBowler && !bIsBowler) return 1;
+      if (bIsBowler && !aIsBowler) return -1;
+      // Among batsmen and all-rounders, sort by batting OVR
       return b.battingOvr - a.battingOvr;
     });
   }
@@ -235,20 +244,25 @@ export class Team {
     return this.autoBowlingOrder(xi);
   }
 
-  /** Auto-generate bowling order from playing XI */
+  /** Auto-generate bowling order from playing XI.
+   *  Includes bowlers/ARs plus part-timers who can genuinely contribute.
+   *  Excludes the wicket keeper. Targets 5-6 bowlers. */
   autoBowlingOrder(xi: Player[]): Player[] {
     const bowlers = xi
-      .filter(p => p.role === "bowler" || p.role === "all-rounder")
+      .filter(p => (p.role === "bowler" || p.role === "all-rounder") && !p.isWicketKeeper)
       .sort((a, b) => b.bowlingOvr - a.bowlingOvr);
 
-    // Need at least 5 bowlers for 20 overs (max 4 each)
-    // If fewer than 5 role-based bowlers, add best part-timers
-    if (bowlers.length < 5) {
-      const partTimers = xi
-        .filter(p => p.role === "batsman")
-        .sort((a, b) => b.bowlingOvr - a.bowlingOvr);
-      while (bowlers.length < 5 && partTimers.length > 0) {
-        bowlers.push(partTimers.shift()!);
+    // Part-time batsmen: only genuine contributors (ovr >= 50),
+    // or emergency padding to 5 bowlers (ovr >= 35). Never the WK.
+    const partTimers = xi
+      .filter(p => p.role === "batsman" && !p.isWicketKeeper)
+      .sort((a, b) => b.bowlingOvr - a.bowlingOvr);
+
+    for (const pt of partTimers) {
+      if (pt.bowlingOvr >= 50) {
+        bowlers.push(pt);
+      } else if (bowlers.length < 5 && pt.bowlingOvr >= 35) {
+        bowlers.push(pt);
       }
     }
 
@@ -286,6 +300,7 @@ export class Team {
     this.ballsFacedFor = 0;
     this.runsAgainst = 0;
     this.ballsFacedAgainst = 0;
+    this.wicketsTaken = 0;
     // Clear lineup selections (user can re-set each season)
     this.userPlayingXI = undefined;
     this.userBattingOrder = undefined;
@@ -303,7 +318,7 @@ export class Team {
   }
 
   /** Get impact player substitutes (best available non-XI players) */
-  getImpactSubs(xi: Player[], count = 4): Player[] {
+  getImpactSubs(xi: Player[], count = 5): Player[] {
     const xiIds = new Set(xi.map(p => p.id));
     const available = this.roster.filter(p => !p.injured && !xiIds.has(p.id));
     return [...available].sort((a, b) => b.overall - a.overall).slice(0, count);

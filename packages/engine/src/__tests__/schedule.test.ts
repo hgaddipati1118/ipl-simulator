@@ -8,6 +8,9 @@ import {
 import { simulateMatch } from "../match.js";
 import { RULE_PRESETS } from "../rules.js";
 
+const OFFICIAL_GROUP_A = ["mi", "kkr", "rr", "dc", "lsg"];
+const OFFICIAL_GROUP_B = ["csk", "srh", "rcb", "pbks", "gt"];
+
 function makePlayer(id: string, role: "batsman" | "bowler" | "all-rounder", isWicketKeeper = false): Player {
   const batHeavy = role === "batsman";
   const bowlHeavy = role === "bowler";
@@ -47,12 +50,10 @@ function buildTeams(): Team[] {
 }
 
 describe("generateIPLSchedule", () => {
-  it("generates around 70 matches", () => {
+  it("generates exactly 70 modern IPL league matches", () => {
     const teams = buildTeams();
     const schedule = generateIPLSchedule(teams);
-    // Should be ~70, might be slightly less due to balancing
-    expect(schedule.length).toBeGreaterThanOrEqual(60);
-    expect(schedule.length).toBeLessThanOrEqual(90);
+    expect(schedule.length).toBe(70);
   });
 
   it("all matches have valid team ids", () => {
@@ -67,7 +68,7 @@ describe("generateIPLSchedule", () => {
     }
   });
 
-  it("each team plays a reasonable number of matches (10-18)", () => {
+  it("each team plays exactly 14 league matches", () => {
     const teams = buildTeams();
     const schedule = generateIPLSchedule(teams);
 
@@ -78,9 +79,35 @@ describe("generateIPLSchedule", () => {
     }
 
     for (const [, count] of matchCounts) {
-      // Scheduler targets 14 per team but randomized balancing can overshoot
-      expect(count).toBeGreaterThanOrEqual(10);
-      expect(count).toBeLessThanOrEqual(18);
+      expect(count).toBe(14);
+    }
+  });
+
+  it("matches the official virtual-group matrix", () => {
+    const teams = buildTeams();
+    const schedule = generateIPLSchedule(teams);
+    const matchupCounts = new Map<string, number>();
+
+    for (const match of schedule) {
+      const key = [match.homeTeamId, match.awayTeamId].sort().join(":");
+      matchupCounts.set(key, (matchupCounts.get(key) ?? 0) + 1);
+    }
+
+    for (let i = 0; i < OFFICIAL_GROUP_A.length; i++) {
+      for (let j = i + 1; j < OFFICIAL_GROUP_A.length; j++) {
+        expect(matchupCounts.get([OFFICIAL_GROUP_A[i], OFFICIAL_GROUP_A[j]].sort().join(":"))).toBe(2);
+      }
+      for (let j = i + 1; j < OFFICIAL_GROUP_B.length; j++) {
+        expect(matchupCounts.get([OFFICIAL_GROUP_B[i], OFFICIAL_GROUP_B[j]].sort().join(":"))).toBe(2);
+      }
+      expect(matchupCounts.get([OFFICIAL_GROUP_A[i], OFFICIAL_GROUP_B[i]].sort().join(":"))).toBe(2);
+    }
+
+    for (const a of OFFICIAL_GROUP_A) {
+      for (const b of OFFICIAL_GROUP_B) {
+        if (OFFICIAL_GROUP_A.indexOf(a) === OFFICIAL_GROUP_B.indexOf(b)) continue;
+        expect(matchupCounts.get([a, b].sort().join(":"))).toBe(1);
+      }
     }
   });
 
@@ -118,6 +145,27 @@ describe("getStandings", () => {
     const teams = buildTeams();
     const standings = getStandings(teams);
     expect(standings).toHaveLength(10);
+  });
+
+  it("breaks remaining ties on wickets per fair ball bowled", () => {
+    const teams = buildTeams();
+    teams[0].wins = 7;
+    teams[1].wins = 7;
+    teams[0].runsFor = 980;
+    teams[0].ballsFacedFor = 840;
+    teams[0].runsAgainst = 910;
+    teams[0].ballsFacedAgainst = 840;
+    teams[0].wicketsTaken = 62;
+    teams[0].updateNRR();
+    teams[1].runsFor = 980;
+    teams[1].ballsFacedFor = 840;
+    teams[1].runsAgainst = 910;
+    teams[1].ballsFacedAgainst = 840;
+    teams[1].wicketsTaken = 55;
+    teams[1].updateNRR();
+
+    const standings = getStandings(teams);
+    expect(standings[0].teamId).toBe(teams[0].id);
   });
 });
 
@@ -207,20 +255,15 @@ describe("generateSchedule", () => {
     expect(schedule.length).toBe(20);
   });
 
-  it("each team plays a reasonable number of home and away matches", () => {
+  it("each team gets the official seven home and seven away matches", () => {
     const teams = buildTeams();
     const schedule = generateSchedule(teams, 14);
 
     for (const team of teams) {
       const homeMatches = schedule.filter(m => m.homeTeamId === team.id).length;
       const awayMatches = schedule.filter(m => m.awayTeamId === team.id).length;
-      const total = homeMatches + awayMatches;
-      // Scheduler targets 14 per team but randomized balancing can vary
-      expect(total).toBeGreaterThanOrEqual(10);
-      expect(total).toBeLessThanOrEqual(18);
-      // Each team should have some home and some away
-      expect(homeMatches).toBeGreaterThanOrEqual(2);
-      expect(awayMatches).toBeGreaterThanOrEqual(2);
+      expect(homeMatches).toBe(7);
+      expect(awayMatches).toBe(7);
     }
   });
 });
@@ -347,6 +390,38 @@ describe("addPlayoffMatches", () => {
     expect(q1.awayTeamId).toBe(standings[1].teamId);
     expect(elim.homeTeamId).toBe(standings[2].teamId);
     expect(elim.awayTeamId).toBe(standings[3].teamId);
+  });
+
+  it("playoff matches do not alter the league table", () => {
+    const teams = buildTeams();
+    const schedule = generateIPLSchedule(teams, 14);
+
+    for (let i = 0; i < schedule.length; i++) {
+      simulateNextMatch(schedule, i, teams, {
+        ...RULE_PRESETS.modern,
+        injuriesEnabled: false,
+      });
+    }
+
+    const beforePlayoffs = getStandings(teams).map(entry => ({
+      teamId: entry.teamId,
+      points: entry.points,
+      played: entry.played,
+      nrr: entry.nrr,
+    }));
+
+    addPlayoffMatches(schedule, teams);
+    simulateNextMatch(schedule, schedule.length - 2, teams, RULE_PRESETS.modern);
+    simulateNextMatch(schedule, schedule.length - 1, teams, RULE_PRESETS.modern);
+
+    const afterPlayoffs = getStandings(teams).map(entry => ({
+      teamId: entry.teamId,
+      points: entry.points,
+      played: entry.played,
+      nrr: entry.nrr,
+    }));
+
+    expect(afterPlayoffs).toEqual(beforePlayoffs);
   });
 });
 

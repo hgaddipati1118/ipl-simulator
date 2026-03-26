@@ -163,7 +163,8 @@ function stableUnit(seed: string): number {
 
 function uncertaintyMargin(confidence: number): number {
   if (confidence >= FULL_REPORT_CONFIDENCE) return 0;
-  return clamp(Math.round((100 - confidence) / 4), 2, 18);
+  // Minimum ±5 fuzz for any unscouted player, scaling up to ±18 for unknowns
+  return clamp(Math.round((100 - confidence) / 4), 5, 18);
 }
 
 function buildNumericView(
@@ -189,10 +190,11 @@ function buildNumericView(
 
   const margin = uncertaintyMargin(confidence);
   const estimate = clamp(Math.round(actual + stableUnit(seed) * margin), minValue, maxValue);
-  const padding = Math.max(2, Math.round(margin * 0.6));
+  const padding = Math.max(3, Math.round(margin * 0.6));
   const min = clamp(Math.min(actual, estimate) - padding, minValue, maxValue);
   const max = clamp(Math.max(actual, estimate) + padding, minValue, maxValue);
-  const display = confidence >= 74 ? `~${estimate}` : `${min}-${max}`;
+  // Only show ~estimate for strong reports (82+), everyone else gets a range
+  const display = confidence >= 82 ? `~${estimate}` : `${min}-${max}`;
 
   return {
     actual,

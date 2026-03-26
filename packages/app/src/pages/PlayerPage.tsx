@@ -8,6 +8,7 @@ import { PlayerAvatar } from "../components/PlayerAvatar";
 import { getPlayerScoutingView, getScoutingAssignment, MAX_SCOUTING_ASSIGNMENTS } from "../scouting";
 import { getRecruitmentTag } from "../recruitment";
 import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentControls";
+import { displayOversToReal } from "@ipl-sim/engine";
 
 interface Props {
   state: GameState;
@@ -165,7 +166,8 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
     const avg = dismissals > 0 ? s.runs / dismissals : s.runs;
     const sr = s.ballsFaced > 0 ? (s.runs / s.ballsFaced) * 100 : 0;
     const bowlAvg = s.wickets > 0 ? s.runsConceded / s.wickets : 0;
-    const econ = s.overs > 0 ? s.runsConceded / s.overs : 0;
+    const realOvers = displayOversToReal(s.overs);
+    const econ = realOvers > 0 ? s.runsConceded / realOvers : 0;
 
     // Count batting/bowling innings from match log
     const battingInnings = matchLog.filter(m => m.batting !== null).length;
@@ -512,44 +514,72 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
               This card is built from scouting estimates, not internal player data.
             </div>
           )}
-          {/* Radar chart */}
-          <div className="flex justify-center mb-5">
-            <RadarChart
-              attributes={[
-                { label: "CLT", value: scoutingView.attributes.clutch.barValue },
-                { label: "IQ", value: scoutingView.attributes.battingIQ.barValue },
-                { label: "TIM", value: scoutingView.attributes.timing.barValue },
-                { label: "PWR", value: scoutingView.attributes.power.barValue },
-                { label: "RUN", value: scoutingView.attributes.running.barValue },
-                { label: "WKT", value: scoutingView.attributes.wicketTaking.barValue },
-                { label: "ECN", value: scoutingView.attributes.economy.barValue },
-                { label: "ACC", value: scoutingView.attributes.accuracy.barValue },
-              ]}
-              teamColor={team?.config.primaryColor ?? "#f59e0b"}
-              size={200}
-            />
+          {/* Radar charts — batting and bowling */}
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <div className="text-center">
+              <div className="text-[10px] text-th-muted uppercase tracking-wider font-display mb-1">Batting</div>
+              <RadarChart
+                attributes={[
+                  { label: "IQ", value: scoutingView.attributes.battingIQ.barValue },
+                  { label: "TIM", value: scoutingView.attributes.timing.barValue },
+                  { label: "PWR", value: scoutingView.attributes.power.barValue },
+                  { label: "RUN", value: scoutingView.attributes.running.barValue },
+                  { label: "CLT", value: scoutingView.attributes.clutch.barValue },
+                ]}
+                teamColor={team?.config.primaryColor ?? "#f59e0b"}
+                size={150}
+              />
+            </div>
+            <div className="text-center">
+              <div className="text-[10px] text-th-muted uppercase tracking-wider font-display mb-1">Bowling</div>
+              <RadarChart
+                attributes={[
+                  { label: "WKT", value: scoutingView.attributes.wicketTaking.barValue },
+                  { label: "ECN", value: scoutingView.attributes.economy.barValue },
+                  { label: "ACC", value: scoutingView.attributes.accuracy.barValue },
+                  { label: "CLT", value: scoutingView.attributes.clutch.barValue },
+                ]}
+                teamColor="#a78bfa"
+                size={150}
+              />
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {attrs.map(a => (
-              <div key={a.key} className="flex items-center gap-3">
-                <span className="text-th-muted text-xs font-display w-24 flex-shrink-0">{a.label}</span>
-                <div
-                  className="flex-1 h-2 bg-th-raised rounded-full overflow-hidden"
-                  role="progressbar"
-                  aria-valuenow={a.view.barValue}
-                  aria-valuemin={0}
-                  aria-valuemax={99}
-                  aria-label={`${a.label} rating`}
-                >
-                  <div
-                    className={`h-full rounded-full ${attrBarColor(a.view.barValue)} transition-all duration-500`}
-                    style={{ width: `${a.view.barValue}%` }}
-                  />
+          <div className="space-y-4">
+            {[
+              { title: "Batting", groups: ["bat"] },
+              { title: "Bowling", groups: ["bowl"] },
+              { title: "Mental", groups: ["clutch"] },
+            ].map(section => {
+              const sectionAttrs = attrs.filter(a => section.groups.includes(a.group));
+              if (sectionAttrs.length === 0) return null;
+              return (
+                <div key={section.title}>
+                  <div className="text-[10px] text-th-faint uppercase tracking-wider font-display mb-1.5">{section.title}</div>
+                  <div className="space-y-2">
+                    {sectionAttrs.map(a => (
+                      <div key={a.key} className="flex items-center gap-3">
+                        <span className="text-th-muted text-xs font-display w-24 flex-shrink-0">{a.label}</span>
+                        <div
+                          className="flex-1 h-2 bg-th-raised rounded-full overflow-hidden"
+                          role="progressbar"
+                          aria-valuenow={a.view.barValue}
+                          aria-valuemin={0}
+                          aria-valuemax={99}
+                          aria-label={`${a.label} rating`}
+                        >
+                          <div
+                            className={`h-full rounded-full ${attrBarColor(a.view.barValue)} transition-all duration-500`}
+                            style={{ width: `${a.view.barValue}%` }}
+                          />
+                        </div>
+                        <span className={`stat-num text-sm font-bold min-w-[44px] text-right ${attrTextColor(a.view.barValue)}`}>{a.view.display}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <span className={`stat-num text-sm font-bold min-w-[44px] text-right ${attrTextColor(a.view.barValue)}`}>{a.view.display}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

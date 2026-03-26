@@ -32,7 +32,7 @@ const IDB_KEYS = [
   "history", "tradeOffers", "completedTrades",
   "schedule", "matchResults", "recentInjuries", "narrativeEvents", "trainingReport",
   "scouting", "scoutingAssignments", "scoutingInbox", "recruitment", "youthProspects", "fantasyLeaderboard", "boardState",
-  "contractReport", "auctionLiveState",
+  "contractReport", "auctionLiveState", "hallOfFame",
 ] as const;
 
 function slotKey(slotId: string, key: string): string {
@@ -100,6 +100,9 @@ function serializeTeams(teams: Team[]) {
     userBattingOrder: t.userBattingOrder,
     userBowlingOrder: t.userBowlingOrder,
     trainingIntensity: t.trainingIntensity,
+    bowlingPlan: t.bowlingPlan,
+    batterAggression: t.batterAggression,
+    bowlerFieldSettings: t.bowlerFieldSettings,
   }));
 }
 
@@ -121,6 +124,9 @@ function deserializeTeams(data: any[]): Team[] {
     team.userBattingOrder = t.userBattingOrder;
     team.userBowlingOrder = t.userBowlingOrder;
     team.trainingIntensity = t.trainingIntensity ?? "balanced";
+    team.bowlingPlan = t.bowlingPlan;
+    team.batterAggression = t.batterAggression;
+    team.bowlerFieldSettings = t.bowlerFieldSettings;
     return team;
   });
 }
@@ -302,6 +308,7 @@ export async function saveState(state: GameState): Promise<void> {
       set(slotKey(slotId, "contractReport"), state.contractReport, idbStore),
       set(slotKey(slotId, "auctionLiveState"), state.auctionLiveState
         ? serializeAuctionLiveState(state.auctionLiveState) : undefined, idbStore),
+      set(slotKey(slotId, "hallOfFame"), state.hallOfFame ?? [], idbStore),
     ]);
   } catch { /* IDB write failed */ }
 }

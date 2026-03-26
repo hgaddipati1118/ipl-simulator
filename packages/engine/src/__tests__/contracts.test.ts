@@ -44,7 +44,7 @@ function makeTeam(playerOverrides: Partial<PlayerData>[] = []): Team {
     const p = new Player(makePlayerData({
       id: `p_${i}`,
       name: `Player ${i}`,
-      contractYears: 3,
+      contractYears: 1,
       ...(playerOverrides[i] ?? {}),
     }));
     team.addPlayer(p, 1);
@@ -53,25 +53,16 @@ function makeTeam(playerOverrides: Partial<PlayerData>[] = []): Team {
 }
 
 describe("getContractLength", () => {
-  it("returns 3 for retained players", () => {
-    expect(getContractLength("retained")).toBe(3);
-  });
-
-  it("returns 3 for auction buys", () => {
-    expect(getContractLength("auction")).toBe(3);
-  });
-
-  it("returns 2 for mini-auction", () => {
-    expect(getContractLength("mini-auction")).toBe(2);
-  });
-
-  it("returns 1 for free agents", () => {
+  it("returns 1 for all sources (IPL annual)", () => {
+    expect(getContractLength("retained")).toBe(1);
+    expect(getContractLength("auction")).toBe(1);
+    expect(getContractLength("mini-auction")).toBe(1);
     expect(getContractLength("free-agent")).toBe(1);
   });
 });
 
 describe("assignTeamContracts", () => {
-  it("assigns contract years to all players with 0 contracts", () => {
+  it("activates all players with expired contracts", () => {
     const team = makeTeam([
       { contractYears: 0 },
       { contractYears: 0 },
@@ -79,47 +70,31 @@ describe("assignTeamContracts", () => {
     ]);
     assignTeamContracts(team, "retained");
     for (const p of team.roster) {
-      expect(p.contractYears).toBe(3);
+      expect(p.contractYears).toBe(1);
     }
   });
 
-  it("does not overwrite existing contracts", () => {
+  it("does not overwrite active contracts", () => {
     const team = makeTeam([
-      { contractYears: 5 },
+      { contractYears: 1 },
     ]);
     assignTeamContracts(team, "retained");
-    expect(team.roster[0].contractYears).toBe(5);
+    expect(team.roster[0].contractYears).toBe(1);
   });
 });
 
 describe("tickContracts", () => {
-  it("decreases contract years by 1", () => {
+  it("expires all contracts (1 → 0)", () => {
     const team = makeTeam([
-      { contractYears: 3 },
-      { contractYears: 2 },
+      { contractYears: 1 },
+      { contractYears: 1 },
       { contractYears: 1 },
     ]);
-    tickContracts(team);
-    expect(team.roster[0].contractYears).toBe(2);
-    expect(team.roster[1].contractYears).toBe(1);
+    const report = tickContracts(team);
+    expect(team.roster[0].contractYears).toBe(0);
+    expect(team.roster[1].contractYears).toBe(0);
     expect(team.roster[2].contractYears).toBe(0);
-  });
-
-  it("reports final year players", () => {
-    const team = makeTeam([
-      { contractYears: 2 },
-    ]);
-    const report = tickContracts(team);
-    expect(report.finalYear.length).toBe(1);
-    expect(report.finalYear[0].playerName).toBe("Player 0");
-  });
-
-  it("reports free agents", () => {
-    const team = makeTeam([
-      { contractYears: 1 },
-    ]);
-    const report = tickContracts(team);
-    expect(report.freeAgents.length).toBe(1);
+    expect(report.freeAgents.length).toBe(3);
   });
 
   it("does not go below 0", () => {
@@ -132,25 +107,24 @@ describe("tickContracts", () => {
 });
 
 describe("getExpiringContracts", () => {
-  it("returns correct report without modifying data", () => {
+  it("reports players with expired contracts without modifying data", () => {
     const team = makeTeam([
       { contractYears: 1 },
-      { contractYears: 3 },
+      { contractYears: 0 },
       { contractYears: 0 },
     ]);
     const report = getExpiringContracts(team);
-    expect(report.finalYear.length).toBe(1);
-    expect(report.freeAgents.length).toBe(1);
+    expect(report.freeAgents.length).toBe(2);
     // Data unchanged
     expect(team.roster[0].contractYears).toBe(1);
-    expect(team.roster[2].contractYears).toBe(0);
+    expect(team.roster[1].contractYears).toBe(0);
   });
 });
 
 describe("releaseFreeAgents", () => {
-  it("removes players with 0 contract years", () => {
+  it("removes players with contractYears=0", () => {
     const team = makeTeam([
-      { contractYears: 2 },
+      { contractYears: 1 },
       { contractYears: 0 },
       { contractYears: 1 },
     ]);
@@ -171,33 +145,30 @@ describe("releaseFreeAgents", () => {
   it("refunds their salary from team spend", () => {
     const team = makeTeam([
       { contractYears: 0 },
-      { contractYears: 3 },
-      { contractYears: 3 },
+      { contractYears: 1 },
+      { contractYears: 1 },
     ]);
 
     expect(team.totalSpent).toBe(3);
-
     releaseFreeAgents(team);
-
     expect(team.totalSpent).toBe(2);
   });
 });
 
 describe("extendContract", () => {
-  it("adds years to existing contract", () => {
-    const p = new Player(makePlayerData({ contractYears: 1 }));
-    extendContract(p, 2);
-    expect(p.contractYears).toBe(3);
+  it("re-signs a player (sets contractYears to 1)", () => {
+    const p = new Player(makePlayerData({ contractYears: 0 }));
+    extendContract(p);
+    expect(p.contractYears).toBe(1);
   });
 });
 
 describe("getContractBadge", () => {
-  it("returns FA for 0 years", () => {
+  it("returns FA for expired contracts", () => {
     expect(getContractBadge(0)).toBe("FA");
   });
 
-  it("returns yr badge for positive years", () => {
-    expect(getContractBadge(2)).toBe("2yr");
-    expect(getContractBadge(1)).toBe("1yr");
+  it("returns empty string for active contracts", () => {
+    expect(getContractBadge(1)).toBe("");
   });
 });

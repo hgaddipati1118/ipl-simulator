@@ -127,6 +127,18 @@ export interface PendingDecisionOption {
   wicketsTaken?: number;
   economy?: number;
   dots?: number;
+  /** Bowling style for bowler selection */
+  bowlingStyle?: string;
+  /** Batting hand */
+  battingHand?: string;
+  /** Granular bowling ratings */
+  wicketTakingRating?: number;
+  economyRating?: number;
+  accuracyRating?: number;
+  /** Granular batting ratings */
+  battingIQRating?: number;
+  timingRating?: number;
+  powerRating?: number;
   /** True if this is a bench player (impact sub option) */
   isBench?: boolean;
 }
@@ -200,7 +212,7 @@ export interface MatchState {
   // Field placement setting per team
   fieldSetting: { home: FieldSetting; away: FieldSetting };
 
-  // DRS reviews remaining per team (start at 1 each)
+  // DRS reviews remaining per team (IPL 2026: 2 per innings)
   drsRemaining: { home: number; away: number };
 
   // Strategic timeouts (IPL: bowling team overs 6-9, batting team overs 13-16)
@@ -208,6 +220,9 @@ export interface MatchState {
     home: { used: boolean; over?: number };
     away: { used: boolean; over?: number };
   };
+
+  // Retired-out count (does NOT count as wickets)
+  retiredOutCount?: number;
 
   // DLS rain delay info (set when rain interrupts play)
   maxOvers: number;               // current max overs for this innings (default 20, reduced by rain)
@@ -286,6 +301,10 @@ interface MatchStateInternal {
   // Phase-specific bowling plans per team
   homeBowlingPlan?: BowlingPlan;
   awayBowlingPlan?: BowlingPlan;
+
+  // Per-player tactical presets (from lineup page)
+  batterAggression?: Record<string, number>;
+  bowlerFieldSettings?: Record<string, FieldSetting>;
 }
 
 interface InningsScoreRaw {
@@ -332,7 +351,7 @@ interface SerializedPlayer {
 const PHASE_MULTIPLIERS: Record<"powerplay" | "middle" | "death", Partial<Record<BallOutcome, number>>> = {
   powerplay: { dot: 0.85, "1": 1.0, "2": 0.9, "3": 1.0, "4": 1.3, "6": 1.1, wicket: 0.9, wide: 1.1, noball: 1.0 },
   middle:    { dot: 1.1,  "1": 1.1, "2": 1.0, "3": 1.0, "4": 0.9, "6": 0.85, wicket: 1.0, wide: 0.9, noball: 1.0 },
-  death:     { dot: 0.8,  "1": 0.9, "2": 1.1, "3": 1.1, "4": 1.2, "6": 1.4, wicket: 1.2, wide: 1.2, noball: 1.1 },
+  death:     { dot: 0.8,  "1": 0.9, "2": 1.1, "3": 1.1, "4": 1.2, "6": 1.25, wicket: 1.2, wide: 1.2, noball: 1.1 },
 };
 
 /** Aggression: 0 = very defensive, 50 = normal, 100 = all-out attack.
@@ -352,17 +371,20 @@ function baseOutcomeProbabilities(
   // Form modifier: ranges from -0.10 (cold) to +0.10 (hot)
   const formMod = (batter.form - 50) / 500;
 
+  // Base probabilities tuned to match modern IPL (2025-2026):
+  // IPL 2025: 52 scores above 200, avg ~178-182, record boundaries
+  // Target average team score: 175-185 (Impact Player era)
   const probs: Record<BallOutcome, number> = {
-    dot:    clamp(0.35 - balance * 0.15 - aggrMod * 0.10, 0.15, 0.55),
+    dot:    clamp(0.36 - balance * 0.15 - aggrMod * 0.10, 0.16, 0.52),
     "1":    clamp(0.28 + balance * 0.03 - aggrMod * 0.03, 0.18, 0.38),
-    "2":    clamp(0.08 + balance * 0.02, 0.03, 0.15),
-    "3":    clamp(0.015, 0.005, 0.03),
-    "4":    clamp(0.10 + balance * 0.06 + (batter.ratings.timing / 100) * 0.04 + aggrMod * 0.04, 0.04, 0.22),
+    "2":    clamp(0.05 + balance * 0.02, 0.02, 0.12),
+    "3":    clamp(0.01, 0.005, 0.025),
+    "4":    clamp(0.12 + balance * 0.06 + (batter.ratings.timing / 100) * 0.04 + aggrMod * 0.04, 0.04, 0.22),
     "6":    clamp(0.05 + balance * 0.05 + (batter.ratings.power / 100) * 0.05 + aggrMod * 0.05, 0.01, 0.18),
     wicket: clamp(0.05 - balance * 0.03 + (bowler.ratings.wicketTaking / 100) * 0.03 + aggrMod * 0.03, 0.01, 0.12),
-    wide:   clamp(0.04 - (bowler.ratings.accuracy / 100) * 0.02, 0.01, 0.08),
-    noball:  clamp(0.01 - (bowler.ratings.accuracy / 100) * 0.005, 0.002, 0.03),
-    legbye: 0.02,
+    wide:   clamp(0.03 - (bowler.ratings.accuracy / 100) * 0.015, 0.008, 0.06),
+    noball:  clamp(0.005 - (bowler.ratings.accuracy / 100) * 0.003, 0.001, 0.02),
+    legbye: 0.015,
   };
 
   // Apply form modifier to boundary and wicket probabilities
@@ -379,18 +401,22 @@ function chaseAdjustment(
   currentRate: number,
   wicketsDown: number,
 ): Record<BallOutcome, number> {
-  const pressure = (requiredRate - currentRate) / 8;
+  // Cap pressure to prevent unrealistic six rates when stacking with death/clutch multipliers
+  const pressure = clamp((requiredRate - currentRate) / 8, -1.5, 1.0);
   const wicketPressure = wicketsDown >= 7 ? 0.3 : wicketsDown >= 5 ? 0.15 : 0;
 
   const adjusted = { ...probs };
   if (pressure > 0) {
     adjusted["4"] *= 1 + pressure * 0.3;
-    adjusted["6"] *= 1 + pressure * 0.5;
+    adjusted["6"] *= 1 + pressure * 0.4; // reduced from 0.5 to prevent six rate stacking
     adjusted.dot *= 1 - pressure * 0.2;
     adjusted.wicket *= 1 + pressure * 0.2 + wicketPressure;
   } else {
-    adjusted.dot *= 1 + Math.abs(pressure) * 0.1;
-    adjusted["1"] *= 1 + Math.abs(pressure) * 0.1;
+    // Easy chase: slow down more aggressively (real teams coast when ahead)
+    adjusted.dot *= 1 + Math.abs(pressure) * 0.2;
+    adjusted["1"] *= 1 + Math.abs(pressure) * 0.15;
+    adjusted["4"] *= 1 - Math.abs(pressure) * 0.1;
+    adjusted["6"] *= 1 - Math.abs(pressure) * 0.15;
     adjusted.wicket *= 1 - Math.abs(pressure) * 0.1;
   }
 
@@ -460,6 +486,14 @@ export function applyLiveBallContextModifiers(
     adjusted.noball *= 1 + fatiguePressure * 1.1;
   }
 
+  // Spinner fatigue: batters read them better in later overs (milder than pace fatigue)
+  if (bowlerOversBowled >= 2 && input.bowlingStyle && isSpinBowler(input.bowlingStyle)) {
+    const spinFatigue = Math.min(0.02 + Math.max(0, bowlerOversBowled - 2) * 0.02, 0.08);
+    adjusted.wicket *= 1 - spinFatigue * 0.3;
+    adjusted["4"] *= 1 + spinFatigue * 0.4;
+    adjusted["6"] *= 1 + spinFatigue * 0.5;
+  }
+
   return adjusted;
 }
 
@@ -495,9 +529,19 @@ function runOneBall(
     probs[key] *= phaseMult[key] ?? 1;
   }
 
-  // Stadium bowling adjustment
+  // Stadium bowling adjustment — bowl-friendly grounds increase wickets/dots, reduce boundaries
   probs.wicket *= stadiumBowlRating;
   probs.dot *= stadiumBowlRating;
+  probs["4"] *= (2 - stadiumBowlRating); // inverse: high bowl rating = fewer fours
+  probs["6"] *= (2 - stadiumBowlRating);
+
+  // Ball change rule (IPL 2026): bowling team can request ball change after over 10 in 2nd innings
+  // Addresses dew — replacement ball has similar wear but is drier, helping pace bowlers grip
+  if (isSecondInnings && over >= 10 && isPaceBowler(bowler.bowlingStyle)) {
+    probs.wicket *= 1.08; // 8% more wickets (drier ball = better grip)
+    probs["4"] *= 0.95;   // slightly harder to time
+    probs.dot *= 1.04;    // more dots due to better control
+  }
 
   // Shared core matchup + venue adjustment
   const matchupMods = getMatchupModifiers({
@@ -840,7 +884,7 @@ export function createMatchState(
     impactSubUsed: { home: false, away: false },
     aggression: { home: 50, away: 50 },
     fieldSetting: { home: "standard", away: "standard" },
-    drsRemaining: { home: 1, away: 1 },
+    drsRemaining: { home: 2, away: 2 }, // IPL 2026: 2 reviews per team per innings
     strategicTimeouts: {
       home: { used: false },
       away: { used: false },
@@ -878,6 +922,8 @@ export function createMatchState(
       dewFactor,
       homeBowlingPlan,
       awayBowlingPlan,
+      batterAggression: { ...homeTeam.batterAggression, ...awayTeam.batterAggression },
+      bowlerFieldSettings: { ...homeTeam.bowlerFieldSettings, ...awayTeam.bowlerFieldSettings },
     },
   };
 }
@@ -931,7 +977,16 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
 
   // Get current players
   const strikerId = int.battingOrderIds[state.strikerIdx];
-  const bowlerId = int.bowlingOrderIds[state.currentBowlerIdx];
+  let bowlerId = int.bowlingOrderIds[state.currentBowlerIdx];
+
+  // Safety: if current bowler has hit max overs or is bowling consecutive overs, auto-swap
+  const bowlerOversSoFar = int.bowlerOvers[bowlerId] ?? 0;
+  if (bowlerOversSoFar >= int.maxOversPerBowler || (int.currentOverLegalBalls === 0 && bowlerId === int.lastBowlerId)) {
+    const nextIdx = pickNextBowler(int.bowlingOrderIds, int.bowlerOvers, int.maxOversPerBowler, int.lastBowlerId, pm, undefined, state.overs);
+    assignNextBowler(state, int, pm, nextIdx);
+    bowlerId = int.bowlingOrderIds[state.currentBowlerIdx];
+  }
+
   const striker = pm[strikerId];
   const bowler = pm[bowlerId];
 
@@ -998,8 +1053,9 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   let wicketType: DetailedBallEvent["wicketType"] = result.wicketType;
   let fielderName: string | undefined;
   let drsOverturned = false;
-  // For DRS user review: store whether it was actually out
+  // For DRS user review: store whether it was actually out, and if marginal (umpire's call)
   let _drsActuallyOut: boolean | undefined;
+  let _drsMarginal: boolean | undefined;
 
   if (result.isWicket) {
     if (wicketType === "caught") {
@@ -1026,7 +1082,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
           result.isWicket = false;
           result.outcome = "dot";
           result.runs = 0;
-          result.commentary = `${bowler.name} to ${striker.name}, given OUT lbw! DRS review... OVERTURNED! Not out. Umpire's call, impact outside off.`;
+          result.commentary = `${bowler.name} to ${striker.name}, given OUT lbw! DRS review... OVERTURNED! Not out — ball missing the stumps.`;
           eventType = "dot";
           wicketType = undefined;
           // DRS retained on successful review
@@ -1038,7 +1094,10 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     const isCloseLbwAppeal = rng() < 0.08;
     if (isCloseLbwAppeal) {
       // 25% of these close calls were actually out (umpire missed it)
+      // Of the 75% not out: 50% are marginal (umpire's call — clipping stumps),
+      // 50% are clearly missing (lose review if taken)
       const wasActuallyOut = rng() < 0.25;
+      const isMarginal = !wasActuallyOut && rng() < 0.5; // only applies when not out
       const bowlingTeamIsHome = newState.bowlingTeamId === newState.homeTeam.id;
       const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
       const drsAvailable = bowlingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
@@ -1046,6 +1105,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       if (drsAvailable > 0 && isUserBowling) {
         // Offer DRS review to user
         _drsActuallyOut = wasActuallyOut;
+        _drsMarginal = isMarginal;
         newState.pendingDecision = {
           type: "drs_review",
           options: ["review", "accept"],
@@ -1066,10 +1126,15 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
             wicketType = "lbw";
             // DRS retained on successful review
           } else {
-            // Failed review: stays not out, lose DRS
-            if (bowlingTeamIsHome) newState.drsRemaining.home--;
-            else newState.drsRemaining.away--;
-            result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... stays NOT OUT. ${bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName} lose their review.`;
+            // Failed review: marginal = umpire's call (retain review), clear miss = lose review
+            const sn = bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+            if (isMarginal) {
+              result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... UMPIRE'S CALL — clipping leg stump. Stays NOT OUT. ${sn} retain their review.`;
+            } else {
+              if (bowlingTeamIsHome) newState.drsRemaining.home--;
+              else newState.drsRemaining.away--;
+              result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... stays NOT OUT. ${sn} lose their review.`;
+            }
           }
         }
       }
@@ -1092,6 +1157,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     commentary: result.commentary,
   };
   if (_drsActuallyOut !== undefined) (rawBall as any)._drsActuallyOut = _drsActuallyOut;
+  if (_drsMarginal !== undefined) (rawBall as any)._drsMarginal = _drsMarginal;
   rawInnings.ballLog.push(rawBall);
 
   if (isExtra) {
@@ -1199,6 +1265,10 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
               battingOvr: p.battingOvr,
               bowlingOvr: p.bowlingOvr,
               overall: p.overall,
+              battingHand: p.battingHand,
+              battingIQRating: p.ratings.battingIQ,
+              timingRating: p.ratings.timing,
+              powerRating: p.ratings.power,
             };
           });
 
@@ -1218,6 +1288,10 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
                   battingOvr: bp.battingOvr,
                   bowlingOvr: bp.bowlingOvr,
                   overall: bp.overall,
+                  battingHand: bp.battingHand,
+                  battingIQRating: bp.ratings.battingIQ,
+                  timingRating: bp.ratings.timing,
+                  powerRating: bp.ratings.power,
                   isBench: true,
                 });
               }
@@ -1366,15 +1440,22 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     newState.strikerName = newState.nonStrikerName;
     newState.nonStrikerName = tempName;
 
-    // ── Retire Out (between overs) ───────────────────────────
-    // Offer tactical retirement when innings is still in progress
+    // ── Retire Out (between overs, death phase only) ─────────
+    // Only offer in overs 16+ when explosive batters are waiting
     if (newState.status !== "waiting_for_decision" &&
-        newState.overs < maxOvers && newState.wickets < 10 &&
+        newState.overs >= 16 && newState.overs < maxOvers && newState.wickets < 10 &&
         !(isSecondInnings && newState.score >= target) &&
         newState.nextBatterIdx < ni.battingOrderIds.length) {
       const isUserBatting = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
 
-      if (isUserBatting) {
+      // Check if explosive batters are actually waiting
+      const waitingBatters = ni.battingOrderIds.slice(newState.nextBatterIdx);
+      const hasExplosiveWaiting = waitingBatters.some(id => {
+        const p = pm[id];
+        return p && p.battingOvr > 75 && p.ratings.power > 65;
+      });
+
+      if (isUserBatting && hasExplosiveWaiting) {
         // Offer retire-out between overs: options are current striker and non-striker (plus "skip")
         const currentStrikerId = ni.battingOrderIds[newState.strikerIdx];
         const currentNonStrikerId = ni.battingOrderIds[newState.nonStrikerIdx];
@@ -1401,23 +1482,15 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
           optionDetails: retireDetails,
         };
         newState.status = "waiting_for_decision";
-      } else {
-        // CPU auto-retire: in death overs (16+), retire batters with SR < 120 who scored 25+
-        // if explosive batters (battingOvr > 80, power > 70) are waiting
-        if (newState.overs >= 16) {
+      } else if (!isUserBatting && hasExplosiveWaiting) {
+        // CPU auto-retire: in death overs, retire batters with SR < 120 who scored 25+
+        {
           const currentStrikerId = ni.battingOrderIds[newState.strikerIdx];
           const currentNonStrikerId = ni.battingOrderIds[newState.nonStrikerIdx];
           const strikerLive = newState.batterStats.find(b => b.playerId === currentStrikerId);
           const nonStrikerLive = newState.batterStats.find(b => b.playerId === currentNonStrikerId);
 
-          // Check if explosive batters are waiting
-          const waitingBatters = ni.battingOrderIds.slice(newState.nextBatterIdx);
-          const hasExplosiveWaiting = waitingBatters.some(id => {
-            const p = pm[id];
-            return p && p.battingOvr > 80 && p.ratings.power > 70;
-          });
-
-          if (hasExplosiveWaiting) {
+          {
             // Check striker for retirement
             let retireId: string | null = null;
             if (strikerLive && strikerLive.runs >= 25 && strikerLive.balls > 0 &&
@@ -1438,8 +1511,9 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
               const rawBat = rawInnings.batterStats[retireId];
               if (rawBat) rawBat.isOut = true;
 
-              newState.wickets++;
-              rawInnings.wickets++;
+              // Retired-out does NOT count as a wicket in cricket,
+              // but we still need to bring in the next batter
+              newState.retiredOutCount = (newState.retiredOutCount ?? 0) + 1;
 
               // Bring in next batter
               if (newState.nextBatterIdx < ni.battingOrderIds.length) {
@@ -1570,6 +1644,8 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
             battingOvr: p.battingOvr,
             bowlingOvr: p.bowlingOvr,
             overall: p.overall,
+            bowlingStyle: p.bowlingStyle,
+            battingHand: p.battingHand,
             oversBowled,
             oversRemaining: ni.maxOversPerBowler - oversBowled,
             runsConceded: liveStat?.runs ?? 0,
@@ -1578,11 +1654,14 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
               ? Math.round((liveStat.runs / (liveStat.overs + liveStat.balls / 6)) * 100) / 100
               : 0,
             dots: liveStat?.dots ?? 0,
+            wicketTakingRating: p.ratings.wicketTaking,
+            economyRating: p.ratings.economy,
+            accuracyRating: p.ratings.accuracy,
           };
         });
         newState.pendingDecision = {
           type: 'choose_bowler',
-          options: eligibleBowlerIds,
+          options: allEligible,
           teamId: newState.bowlingTeamId,
           optionDetails,
         };
@@ -1655,6 +1734,13 @@ function bringInNextBatter(
   state.nextBatterIdx++;
   state.strikerName = nextBatter.name;
 
+  // Auto-apply per-batter aggression preset
+  const batterAggrPreset = ni.batterAggression?.[nextBatterId];
+  if (batterAggrPreset !== undefined) {
+    if (state.battingTeamId === state.homeTeam.id) state.aggression.home = batterAggrPreset;
+    else state.aggression.away = batterAggrPreset;
+  }
+
   if (!state.batterStats.find(b => b.playerId === nextBatterId)) {
     state.batterStats.push({
       playerId: nextBatterId,
@@ -1684,6 +1770,13 @@ function assignNextBowler(
   state.currentBowlerIdx = bowlerIdx;
   const nextBowlerId = ni.bowlingOrderIds[bowlerIdx];
   state.currentBowlerName = pm[nextBowlerId].name;
+
+  // Auto-apply per-bowler field setting preset
+  const bowlerFieldPreset = ni.bowlerFieldSettings?.[nextBowlerId];
+  if (bowlerFieldPreset) {
+    if (state.bowlingTeamId === state.homeTeam.id) state.fieldSetting.home = bowlerFieldPreset;
+    else state.fieldSetting.away = bowlerFieldPreset;
+  }
 
   if (!state.bowlerStats.find(b => b.playerId === nextBowlerId)) {
     state.bowlerStats.push({
@@ -1966,8 +2059,8 @@ export function applyDecision(
         const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
         if (liveBowler) liveBowler.wickets++;
 
-        // Bring in next batter if wickets < 10
-        if (newState.nextBatterIdx < ni.battingOrderIds.length) {
+        // Bring in next batter if innings continues
+        if (newState.wickets < 10 && newState.nextBatterIdx < ni.battingOrderIds.length) {
           bringInNextBatter(newState, ni, pm, rawInnings);
         }
 
@@ -1991,13 +2084,19 @@ export function applyDecision(
           lastLogBall.wicketsSoFar = newState.wickets;
         }
       } else {
-        // Failed review: stays not out, lose DRS
-        if (bowlingTeamIsHome) newState.drsRemaining.home--;
-        else newState.drsRemaining.away--;
+        // Check if the call was marginal (stored when the appeal was generated)
+        const isMarginal = (lastBall as any)?._drsMarginal === true;
 
-        // Update commentary on the last ball
+        if (!isMarginal) {
+          // Clearly missing — lose DRS
+          if (bowlingTeamIsHome) newState.drsRemaining.home--;
+          else newState.drsRemaining.away--;
+        }
+
         const shortName = bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
-        lastBall.commentary += ` DRS review... stays NOT OUT. ${shortName} lose their review.`;
+        lastBall.commentary += isMarginal
+          ? ` DRS review... UMPIRE'S CALL — clipping leg stump. Stays NOT OUT. ${shortName} retain their review.`
+          : ` DRS review... clearly missing off stump. Stays NOT OUT. ${shortName} lose their review.`;
         const lastDetailed = newState.innings === 1
           ? newState.innings1BallLog[newState.innings1BallLog.length - 1]
           : newState.innings2BallLog[newState.innings2BallLog.length - 1];
@@ -2026,8 +2125,8 @@ export function applyDecision(
       const rawBat = rawInnings.batterStats[chosenId];
       if (rawBat) rawBat.isOut = true;
 
-      newState.wickets++;
-      rawInnings.wickets++;
+      // Retired-out does NOT count as a wicket
+      newState.retiredOutCount = (newState.retiredOutCount ?? 0) + 1;
 
       // Bring in next batter
       if (newState.nextBatterIdx < ni.battingOrderIds.length) {
@@ -2080,6 +2179,49 @@ export function applyDecision(
   // Clear the pending decision and resume
   newState.pendingDecision = undefined;
   newState.status = "in_progress";
+
+  // After retire-out or strategic timeout, bowler selection was skipped.
+  // If at the start of a new over (currentOverLegalBalls === 0), trigger bowler selection.
+  if ((pending.type === 'retire_out' || pending.type === 'strategic_timeout') &&
+      ni.currentOverLegalBalls === 0 && newState.overs < 20 && newState.wickets < 10) {
+    const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
+    const eligibleBowlerIds = getEligibleBowlerIds(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId);
+
+    if (isUserBowling && eligibleBowlerIds.length > 1) {
+      const bowlingXIIds = newState.battingTeamId === newState.homeTeam.id
+        ? ni.awayXIIds ?? ni.bowlingOrderIds
+        : ni.homeXIIds ?? ni.bowlingOrderIds;
+      const allEligible = getEligibleBowlerIds(
+        [...new Set([...ni.bowlingOrderIds, ...bowlingXIIds])],
+        ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId
+      );
+      const optionDetails: PendingDecisionOption[] = allEligible.map(id => {
+        const p = pm[id];
+        const oversBowled = ni.bowlerOvers[id] ?? 0;
+        const liveStat = newState.bowlerStats.find(b => b.playerId === id);
+        return {
+          playerId: id, playerName: p.name, role: p.role,
+          battingOvr: p.battingOvr, bowlingOvr: p.bowlingOvr, overall: p.overall,
+          bowlingStyle: p.bowlingStyle, battingHand: p.battingHand, oversBowled,
+          oversRemaining: ni.maxOversPerBowler - oversBowled,
+          runsConceded: liveStat?.runs ?? 0, wicketsTaken: liveStat?.wickets ?? 0,
+          economy: liveStat && (liveStat.overs > 0 || liveStat.balls > 0)
+            ? Math.round((liveStat.runs / (liveStat.overs + liveStat.balls / 6)) * 100) / 100 : 0,
+          dots: liveStat?.dots ?? 0,
+          wicketTakingRating: p.ratings.wicketTaking,
+          economyRating: p.ratings.economy,
+          accuracyRating: p.ratings.accuracy,
+        };
+      });
+      newState.pendingDecision = { type: 'choose_bowler', options: allEligible, teamId: newState.bowlingTeamId, optionDetails };
+      newState.status = "waiting_for_decision";
+    } else {
+      // CPU auto-pick bowler
+      const currentBowlingPlan = newState.bowlingTeamId === newState.homeTeam.id ? ni.homeBowlingPlan : ni.awayBowlingPlan;
+      const nextBowlerIdx = pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm, currentBowlingPlan, newState.overs);
+      assignNextBowler(newState, ni, pm, nextBowlerIdx);
+    }
+  }
 
   return newState;
 }
@@ -2683,10 +2825,11 @@ function pickNextBowler(
 }
 
 function formatOvers(overs: number, ballsInOver: number): string {
+  // If over is complete (6 legal balls bowled) or we're at the start of a new over, show clean overs
   if (ballsInOver === 0 || ballsInOver >= 6) {
-    return `${overs}.0`;
+    return `${overs}`;
   }
-  return `${overs}.${ballsInOver}`;
+  return `${overs - 1}.${ballsInOver}`;
 }
 
 function getBattingTeamName(state: MatchState): string {

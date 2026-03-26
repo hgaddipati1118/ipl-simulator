@@ -47,10 +47,10 @@ describe("RULE_PRESETS", () => {
   it("modern2026 preset has correct values", () => {
     expect(RULE_PRESETS.modern2026.impactPlayer).toBe(true);
     expect(RULE_PRESETS.modern2026.salaryCap).toBe(125);
-    expect(RULE_PRESETS.modern2026.matchesPerTeam).toBe(16);
+    expect(RULE_PRESETS.modern2026.matchesPerTeam).toBe(14);
     expect(RULE_PRESETS.modern2026.superOverTieBreaker).toBe("repeated-super-over");
     expect(RULE_PRESETS.modern2026.maxBouncersPerOver).toBe(2);
-    expect(RULE_PRESETS.modern2026.name).toBe("IPL 2026+");
+    expect(RULE_PRESETS.modern2026.name).toBe("IPL 2026");
   });
 
   it("DEFAULT_RULES equals modern2026", () => {
@@ -98,12 +98,12 @@ describe("Team.getImpactSubs", () => {
     }
   });
 
-  it("returns up to 4 subs", () => {
+  it("returns up to 5 subs", () => {
     const teams = buildTeamsWithRules(RULE_PRESETS.modern);
     const team = teams[0];
     const xi = team.getPlayingXI();
     const subs = team.getImpactSubs(xi);
-    expect(subs.length).toBeLessThanOrEqual(4);
+    expect(subs.length).toBeLessThanOrEqual(5);
     expect(subs.length).toBeGreaterThan(0);
   });
 

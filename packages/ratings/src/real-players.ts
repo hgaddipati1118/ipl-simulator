@@ -39,7 +39,7 @@ export interface RealPlayerData {
   economy: number;
   accuracy: number;
   clutch: number;
-  teamId: string;
+  teamId?: string;
   bid?: number;  // auction/retention price in crores
   imageUrl?: string; // ESPN player photo path
   careerStats?: { m: number; r: number; avg: number; sr: number; w: number; econ: number };
@@ -49,30 +49,47 @@ export interface RealPlayerData {
  * Get all real IPL players that are assigned to a team roster.
  * Sources from the ESPN-generated ALL_PLAYERS, filtered to rostered players.
  */
+function mapPlayer(p: typeof ALL_PLAYERS[number]): RealPlayerData {
+  return {
+    name: p.name,
+    age: p.age,
+    country: p.country,
+    role: p.role,
+    isWicketKeeper: KNOWN_WICKET_KEEPERS.has(p.name),
+    bowlingStyle: p.bowlingStyle,
+    battingHand: p.battingHand,
+    battingIQ: p.ratings.battingIQ,
+    timing: p.ratings.timing,
+    power: p.ratings.power,
+    running: p.ratings.running,
+    wicketTaking: p.ratings.wicketTaking,
+    economy: p.ratings.economy,
+    accuracy: p.ratings.accuracy,
+    clutch: p.ratings.clutch,
+    teamId: p.teamId,
+    bid: p.bid,
+    imageUrl: p.imageUrl,
+    careerStats: (p as any).careerStats,
+  };
+}
+
+/**
+ * Get all real IPL players that are assigned to a team roster.
+ */
 export function getRealPlayers(): RealPlayerData[] {
   return ALL_PLAYERS
     .filter((p): p is typeof p & { teamId: string } => !!p.teamId)
-    .map(p => ({
-      name: p.name,
-      age: p.age,
-      country: p.country,
-      role: p.role,
-      isWicketKeeper: KNOWN_WICKET_KEEPERS.has(p.name),
-      bowlingStyle: p.bowlingStyle,
-      battingHand: p.battingHand,
-      battingIQ: p.ratings.battingIQ,
-      timing: p.ratings.timing,
-      power: p.ratings.power,
-      running: p.ratings.running,
-      wicketTaking: p.ratings.wicketTaking,
-      economy: p.ratings.economy,
-      accuracy: p.ratings.accuracy,
-      clutch: p.ratings.clutch,
-      teamId: p.teamId,
-      bid: p.bid,
-      imageUrl: p.imageUrl,
-      careerStats: (p as any).careerStats,
-    }));
+    .map(mapPlayer);
+}
+
+/**
+ * Get all real players NOT on a team — available for the auction pool.
+ * These are real cricketers from the ESPN database who aren't currently rostered.
+ */
+export function getPoolPlayers(): RealPlayerData[] {
+  return ALL_PLAYERS
+    .filter(p => !p.teamId)
+    .map(mapPlayer);
 }
 
 /**
@@ -84,5 +101,5 @@ export const REAL_PLAYERS: [string, number, string, string, number, number, numb
     p.name, p.age, p.country, p.role,
     p.battingIQ, p.timing, p.power, p.running,
     p.wicketTaking, p.economy, p.accuracy, p.clutch,
-    p.teamId,
+    p.teamId ?? "",
   ]);

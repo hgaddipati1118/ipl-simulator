@@ -30,12 +30,14 @@ function buildTeams() {
 }
 
 describe("Auction Cycle", () => {
-  it("mega auction at season 1, 4, 7, 10", () => {
+  it("mega auction at season 1, 4, 7, 10 (every 3 years)", () => {
     const rules = RULE_PRESETS.modern2026;
     expect(getAuctionType(1, rules)).toBe("mega");
     expect(getAuctionType(2, rules)).toBe("mini");
     expect(getAuctionType(3, rules)).toBe("mini");
     expect(getAuctionType(4, rules)).toBe("mega");
+    expect(getAuctionType(5, rules)).toBe("mini");
+    expect(getAuctionType(6, rules)).toBe("mini");
     expect(getAuctionType(7, rules)).toBe("mega");
     expect(getAuctionType(10, rules)).toBe("mega");
   });
@@ -70,6 +72,7 @@ describe("Board Expectations", () => {
       isChampion: true,
       youthMatchesGiven: 5,
       currentNRR: 1.5,
+      totalTeams: 10,
     });
     expect(result.satisfaction).toBeGreaterThan(0);
     expect(result.budgetModifier).toBeGreaterThanOrEqual(1.0);
@@ -104,41 +107,45 @@ describe("Player Morale", () => {
   });
 
   it("morale modifier is within expected range", () => {
-    const highMorale = getMoraleModifier(90);
-    const lowMorale = getMoraleModifier(20);
+    const teams = buildTeams();
+    const highPlayer = teams[0].roster[0];
+    highPlayer.morale = 90;
+    const lowPlayer = teams[0].roster[1];
+    lowPlayer.morale = 20;
 
-    expect(highMorale).toBeGreaterThanOrEqual(1.0);
-    expect(lowMorale).toBeLessThanOrEqual(1.0);
+    expect(getMoraleModifier(highPlayer)).toBeGreaterThanOrEqual(1.0);
+    expect(getMoraleModifier(lowPlayer)).toBeLessThanOrEqual(1.0);
   });
 });
 
 describe("Contract System", () => {
-  it("assigns contracts based on source", () => {
-    expect(getContractLength("retention")).toBeGreaterThanOrEqual(2);
-    expect(getContractLength("mega-auction")).toBeGreaterThanOrEqual(2);
+  it("assigns 1-year contracts for all sources (IPL annual)", () => {
+    expect(getContractLength("retained")).toBe(1);
+    expect(getContractLength("auction")).toBe(1);
+    expect(getContractLength("mini-auction")).toBe(1);
     expect(getContractLength("free-agent")).toBe(1);
   });
 
   it("tick reduces contract years", () => {
     const teams = buildTeams();
     const team = teams[0];
-    assignTeamContracts(team, "mega-auction");
+    assignTeamContracts(team, "auction");
 
     const initialYears = team.roster[0].contractYears;
+    expect(initialYears).toBe(1); // IPL annual contracts
     tickContracts(team);
-    expect(team.roster[0].contractYears).toBe(initialYears - 1);
+    expect(team.roster[0].contractYears).toBe(0);
   });
 
-  it("identifies expiring contracts", () => {
+  it("identifies players marked for release", () => {
     const teams = buildTeams();
     const team = teams[0];
-    // Set one player to final year
-    team.roster[0].contractYears = 1;
-    team.roster[1].contractYears = 0;
+    team.roster[0].contractYears = 1; // active
+    team.roster[1].contractYears = 0; // marked for release
 
     const report = getExpiringContracts(team);
-    expect(report.finalYear.length).toBeGreaterThanOrEqual(1);
     expect(report.freeAgents.length).toBeGreaterThanOrEqual(1);
+    expect(report.freeAgents.some(c => c.playerName === team.roster[1].name)).toBe(true);
   });
 });
 
@@ -276,6 +283,6 @@ describe("Full Season Flow", { timeout: 30000 }, () => {
     expect(result.mvp.name).toBeTruthy();
     expect(result.mvp.points).toBeGreaterThan(0);
     expect(result.standings.length).toBe(10);
-    expect(result.schedule.filter(m => m.result).length).toBeGreaterThanOrEqual(80);
+    expect(result.schedule.filter(m => m.result).length).toBe(74);
   });
 });

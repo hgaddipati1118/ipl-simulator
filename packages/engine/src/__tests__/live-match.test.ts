@@ -183,7 +183,7 @@ describe("live match venue logic", () => {
   });
 
   it("turning pitches suppress spin-heavy first innings scoring in aggregate", { timeout: 120000 }, () => {
-    const matches = 8;
+    const matches = 16;
     const flat = averageLiveFirstInnings(
       matches,
       () => buildSpinHeavyTeam(0, { pitchType: "flat", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
@@ -225,24 +225,28 @@ describe("applyLiveBallContextModifiers", () => {
     expect(setBatter["6"]).toBeGreaterThan(baseProbs["6"]);
   });
 
-  it("adds extra control risk to long pace spells without touching spin", () => {
+  it("pace fatigue is stronger than spin fatigue", () => {
     const tiredPacer = applyLiveBallContextModifiers(baseProbs, {
       batterBalls: 12,
       bowlerOversBowled: 3,
       bowlingStyle: "right-arm-fast",
       over: 17,
     });
-    const spinner = applyLiveBallContextModifiers(baseProbs, {
+    const tiredSpinner = applyLiveBallContextModifiers(baseProbs, {
       batterBalls: 12,
       bowlerOversBowled: 3,
       bowlingStyle: "off-spin",
       over: 17,
     });
 
+    // Both pace and spin get fatigued, but pace is worse
     expect(tiredPacer.wide).toBeGreaterThan(baseProbs.wide);
     expect(tiredPacer.noball).toBeGreaterThan(baseProbs.noball);
     expect(tiredPacer["4"]).toBeGreaterThan(baseProbs["4"]);
-    expect(spinner.wide).toBe(baseProbs.wide);
-    expect(spinner["4"]).toBe(baseProbs["4"]);
+    // Spinner fatigue is milder — affects boundaries but not wides/noballs
+    expect(tiredSpinner["4"]).toBeGreaterThan(baseProbs["4"]);
+    expect(tiredSpinner["6"]).toBeGreaterThan(baseProbs["6"]);
+    // Pace fatigue on fours should exceed spin fatigue on fours
+    expect(tiredPacer["4"]).toBeGreaterThan(tiredSpinner["4"]);
   });
 });

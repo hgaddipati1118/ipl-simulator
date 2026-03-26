@@ -76,6 +76,17 @@ export function weightedRandom<T>(items: [T, number][], rng: () => number = Math
   return items[items.length - 1][0];
 }
 
+/**
+ * Convert overs stored in "display format" (e.g. 3.4 = 3 overs + 4 balls)
+ * to real decimal overs (e.g. 3.4 → 3 + 4/6 = 3.6667).
+ * Display format uses the fractional part as ball count (0-5), not a decimal fraction.
+ */
+export function displayOversToReal(overs: number): number {
+  const intOvers = Math.floor(overs);
+  const fracBalls = Math.round((overs - intOvers) * 10);
+  return intOvers + fracBalls / 6;
+}
+
 /** Shuffle array in place (Fisher-Yates) */
 export function shuffle<T>(arr: T[], rng: () => number = Math.random): T[] {
   for (let i = arr.length - 1; i > 0; i--) {

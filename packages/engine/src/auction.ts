@@ -344,7 +344,12 @@ export interface AuctionState {
   round: number;
   completedBids: AuctionBid[];
   unsold: Player[];
-  phase: "bidding" | "sold" | "unsold" | "complete";
+  phase: "bidding" | "sold" | "unsold" | "complete" | "rtm";
+  // RTM (Right to Match): former team can match the winning bid
+  rtmTeamId?: string;         // team that holds RTM for current player
+  rtmEligible?: boolean;      // whether RTM is available for this player
+  /** Map of playerId → former teamId for RTM tracking */
+  rtmMap?: Record<string, string>;
 }
 
 /** Initialize a step-by-step auction */
@@ -467,7 +472,30 @@ export function cpuBidRound(
   // If no one bid this round, resolve the player
   if (!anyBid) {
     if (currentBidderId) {
-      // SOLD
+      // Check RTM: if former team is not the winner and has RTM rights
+      const rtmMap = state.rtmMap ?? {};
+      const formerTeamId = rtmMap[player.id];
+      const formerTeam = formerTeamId ? teams.find(t => t.id === formerTeamId) : undefined;
+      const rtmAvailable = formerTeam
+        && formerTeamId !== currentBidderId
+        && formerTeam.roster.length < cfg.maxRosterSize
+        && formerTeam.remainingBudget >= currentBid
+        && (!player.isInternational || formerTeam.internationalCount < cfg.maxInternational);
+
+      if (rtmAvailable) {
+        // Enter RTM phase — former team gets chance to match
+        return {
+          ...state,
+          currentBid,
+          currentBidderId,
+          round,
+          phase: "rtm",
+          rtmTeamId: formerTeamId,
+          rtmEligible: true,
+        };
+      }
+
+      // No RTM — SOLD directly
       const winningTeam = teams.find(t => t.id === currentBidderId);
       if (winningTeam) {
         winningTeam.addPlayer(player, currentBid);
@@ -537,7 +565,57 @@ export function nextPlayer(
   };
 }
 
-/** Simulate the current player's auction to completion */
+/** RTM: former team matches the winning bid — player goes to former team */
+export function rtmAccept(state: AuctionState, teams: Team[]): AuctionState {
+  if (state.phase !== "rtm" || !state.rtmTeamId) return state;
+  const player = state.players[state.currentPlayerIndex];
+  const rtmTeam = teams.find(t => t.id === state.rtmTeamId);
+  if (rtmTeam && player) {
+    rtmTeam.addPlayer(player, state.currentBid);
+    assignAuctionContract(player);
+  }
+  const bid: AuctionBid = {
+    playerId: player.id,
+    playerName: player.name,
+    teamId: state.rtmTeamId,
+    amount: state.currentBid,
+    round: state.round,
+  };
+  return {
+    ...state,
+    completedBids: [...state.completedBids, bid],
+    phase: "sold",
+    rtmTeamId: undefined,
+    rtmEligible: false,
+  };
+}
+
+/** RTM: former team declines — player goes to the original highest bidder */
+export function rtmDecline(state: AuctionState, teams: Team[]): AuctionState {
+  if (state.phase !== "rtm" || !state.currentBidderId) return state;
+  const player = state.players[state.currentPlayerIndex];
+  const winningTeam = teams.find(t => t.id === state.currentBidderId);
+  if (winningTeam && player) {
+    winningTeam.addPlayer(player, state.currentBid);
+    assignAuctionContract(player);
+  }
+  const bid: AuctionBid = {
+    playerId: player.id,
+    playerName: player.name,
+    teamId: state.currentBidderId,
+    amount: state.currentBid,
+    round: state.round,
+  };
+  return {
+    ...state,
+    completedBids: [...state.completedBids, bid],
+    phase: "sold",
+    rtmTeamId: undefined,
+    rtmEligible: false,
+  };
+}
+
+/** Simulate the current player's auction to completion (including RTM) */
 export function simCurrentPlayer(
   state: AuctionState,
   teams: Team[],
@@ -548,6 +626,17 @@ export function simCurrentPlayer(
   while (current.phase === "bidding" && safety < 100) {
     current = cpuBidRound(current, teams, config);
     safety++;
+  }
+  // Auto-resolve RTM for CPU teams (~60% chance CPU matches if affordable)
+  if (current.phase === "rtm" && current.rtmTeamId) {
+    const rtmTeam = teams.find(t => t.id === current.rtmTeamId);
+    const player = current.players[current.currentPlayerIndex];
+    // CPU decides based on player value vs cost
+    const shouldMatch = rtmTeam && player
+      && player.overall >= 70
+      && current.currentBid <= player.marketValue * 1.3
+      && Math.random() < 0.6;
+    current = shouldMatch ? rtmAccept(current, teams) : rtmDecline(current, teams);
   }
   return current;
 }
@@ -563,6 +652,9 @@ export function simRemainingAuction(
   while (current.phase !== "complete" && safety < 10000) {
     if (current.phase === "bidding") {
       current = simCurrentPlayer(current, teams, config);
+    } else if (current.phase === "rtm") {
+      // Auto-resolve RTM (handled inside simCurrentPlayer, but catch standalone)
+      current = rtmDecline(current, teams);
     } else {
       // sold or unsold — move to next
       current = nextPlayer(current, teams, config);

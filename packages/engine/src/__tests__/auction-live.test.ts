@@ -224,7 +224,7 @@ describe("simCurrentPlayer", () => {
     state = simCurrentPlayer(state, teams);
 
     const signedPlayer = teams.flatMap(team => team.roster).find(rosterPlayer => rosterPlayer.id === player.id);
-    expect(signedPlayer?.contractYears).toBe(3);
+    expect(signedPlayer?.contractYears).toBe(1); // IPL annual contracts
   });
 });
 

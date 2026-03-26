@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { type Player, type AuctionState, getBidIncrement, getBasePrice } from "@ipl-sim/engine";
 import { GameState } from "../game-state";
 import { ovrColorClass, roleLabel, bowlingStyleLabel, battingHandLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
@@ -19,6 +19,8 @@ interface Props {
   onSimPlayer: () => void;
   onSimRemaining: () => void;
   onFinishAuction: () => void;
+  onRtmAccept: () => void;
+  onRtmDecline: () => void;
   onScoutPlayers: (playerIds: string[], amount?: number) => void;
   onToggleShortlist: (playerId: string) => void;
   onToggleWatchlist: (playerId: string) => void;
@@ -66,6 +68,8 @@ export function AuctionPage({
   onSimPlayer,
   onSimRemaining,
   onFinishAuction,
+  onRtmAccept,
+  onRtmDecline,
   onScoutPlayers,
   onToggleShortlist,
   onToggleWatchlist,
@@ -75,6 +79,12 @@ export function AuctionPage({
   const autoRunRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const currentPlayer = auction?.players[auction.currentPlayerIndex];
+
+  // Filter/search state for remaining players
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | "batsman" | "bowler" | "all-rounder">("all");
+  const [countryFilter, setCountryFilter] = useState<"all" | "india" | "overseas">("all");
+  const [sortBy, setSortBy] = useState<"overall" | "basePrice" | "age">("overall");
 
   // Auto-run CPU bid rounds when in bidding phase and user is not highest bidder
   useEffect(() => {
@@ -189,9 +199,36 @@ export function AuctionPage({
   const totalPlayers = auction.players.length;
   const completedCount = auction.completedBids.length + auction.unsold.length;
 
-  // Remaining players to show (after current)
-  const remainingPlayers = auction.players.slice(auction.currentPlayerIndex + 1);
-  const remainingPlayerViews = remainingPlayers.slice(0, 50).map(player => ({
+  // Remaining players to show (after current), with search/filter/sort
+  const allRemainingPlayers = auction.players.slice(auction.currentPlayerIndex + 1);
+  const filteredRemainingPlayers = useMemo(() => {
+    let list = allRemainingPlayers;
+    // Text search
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(q));
+    }
+    // Role filter
+    if (roleFilter !== "all") {
+      list = list.filter(p => p.role === roleFilter);
+    }
+    // Country filter
+    if (countryFilter === "india") {
+      list = list.filter(p => !p.isInternational);
+    } else if (countryFilter === "overseas") {
+      list = list.filter(p => p.isInternational);
+    }
+    // Sort
+    list = [...list].sort((a, b) => {
+      if (sortBy === "overall") return b.overall - a.overall;
+      if (sortBy === "basePrice") return getBasePrice(b) - getBasePrice(a);
+      if (sortBy === "age") return a.age - b.age;
+      return 0;
+    });
+    return list;
+  }, [allRemainingPlayers, searchQuery, roleFilter, countryFilter, sortBy]);
+
+  const remainingPlayerViews = filteredRemainingPlayers.slice(0, 50).map(player => ({
     player,
     scoutingView: getPlayerScoutingView(player, player.teamId, scouting, state.userTeamId),
     recruitmentTag: getRecruitmentTag(recruitment, player.id),
@@ -402,6 +439,22 @@ export function AuctionPage({
                   </>
                 )}
 
+                {auction.phase === "rtm" && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-amber-400 text-sm font-display font-semibold animate-pulse">
+                      RTM: {state.teams.find(t => t.id === auction.rtmTeamId)?.name ?? "Former team"} can match!
+                    </span>
+                    {auction.rtmTeamId === state.userTeamId ? (
+                      <>
+                        <button onClick={onRtmAccept} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-display font-semibold rounded-xl">Match Bid</button>
+                        <button onClick={onRtmDecline} className="px-4 py-2 bg-th-raised hover:bg-th-hover text-th-secondary text-sm font-display font-semibold rounded-xl border border-th">Decline</button>
+                      </>
+                    ) : (
+                      <button onClick={onSimPlayer} className="px-4 py-2 bg-th-raised hover:bg-th-hover text-th-secondary text-sm font-display font-semibold rounded-xl border border-th">Continue</button>
+                    )}
+                  </div>
+                )}
+
                 {(auction.phase === "sold" || auction.phase === "unsold") && (
                   <button
                     onClick={onNextPlayer}
@@ -427,9 +480,72 @@ export function AuctionPage({
         <div className="lg:col-span-3">
           <div className="rounded-2xl border border-th bg-th-surface p-4 sticky top-20">
             <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-3">
-              Remaining ({remainingPlayers.length})
+              Remaining ({allRemainingPlayers.length})
             </h3>
-            <div className="space-y-0.5 max-h-[calc(100vh-280px)] overflow-y-auto">
+
+            {/* Search & filter controls */}
+            <div className="space-y-2 mb-3">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search player..."
+                className="w-full px-3 py-1.5 rounded-lg bg-th-raised border border-th text-sm text-th-primary placeholder:text-th-faint font-display focus:outline-none focus:border-blue-500/40 transition-colors"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {(["all", "batsman", "bowler", "all-rounder"] as const).map(r => (
+                  <button
+                    key={r}
+                    onClick={() => setRoleFilter(r)}
+                    className={`px-2 py-1 rounded-md text-[10px] font-display font-semibold transition-colors border ${
+                      roleFilter === r
+                        ? "border-blue-500/40 bg-blue-600/20 text-blue-300"
+                        : "border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
+                    }`}
+                  >
+                    {r === "all" ? "All" : r === "batsman" ? "BAT" : r === "bowler" ? "BWL" : "AR"}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1.5">
+                {(["all", "india", "overseas"] as const).map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setCountryFilter(c)}
+                    className={`px-2 py-1 rounded-md text-[10px] font-display font-semibold transition-colors border ${
+                      countryFilter === c
+                        ? "border-blue-500/40 bg-blue-600/20 text-blue-300"
+                        : "border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
+                    }`}
+                  >
+                    {c === "all" ? "All" : c === "india" ? "India" : "Overseas"}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1.5">
+                {(["overall", "basePrice", "age"] as const).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setSortBy(s)}
+                    className={`px-2 py-1 rounded-md text-[10px] font-display font-semibold transition-colors border ${
+                      sortBy === s
+                        ? "border-orange-500/40 bg-orange-600/20 text-orange-300"
+                        : "border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
+                    }`}
+                  >
+                    {s === "overall" ? "OVR" : s === "basePrice" ? "Price" : "Age"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {(searchQuery || roleFilter !== "all" || countryFilter !== "all") && (
+              <p className="text-[10px] text-th-faint font-display mb-2">
+                Showing {filteredRemainingPlayers.length} of {allRemainingPlayers.length}
+              </p>
+            )}
+
+            <div className="space-y-0.5 max-h-[calc(100vh-480px)] overflow-y-auto">
               {remainingPlayerViews.map(({ player, scoutingView, recruitmentTag }) => (
                 <div key={player.id} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm">
                   <span className="font-display text-th-secondary truncate flex-1">{player.name}</span>
@@ -444,13 +560,15 @@ export function AuctionPage({
                   <span className="text-[10px] text-th-faint font-mono stat-num">{scoutingView.marketValue.compactDisplay}</span>
                 </div>
               ))}
-              {remainingPlayers.length > 50 && (
+              {filteredRemainingPlayers.length > 50 && (
                 <p className="text-xs text-th-muted font-display text-center py-2">
-                  +{remainingPlayers.length - 50} more
+                  +{filteredRemainingPlayers.length - 50} more
                 </p>
               )}
-              {remainingPlayers.length === 0 && (
-                <p className="text-th-muted text-xs font-display py-2">No more players</p>
+              {filteredRemainingPlayers.length === 0 && (
+                <p className="text-th-muted text-xs font-display py-2">
+                  {allRemainingPlayers.length === 0 ? "No more players" : "No players match filters"}
+                </p>
               )}
             </div>
           </div>

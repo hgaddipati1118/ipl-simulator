@@ -1,8 +1,14 @@
 /**
- * Contract system — players have multi-year deals.
+ * Roster management for the IPL auction cycle.
  *
- * When contractYears reaches 0, the player becomes a free agent.
- * Contract length depends on how the player was acquired.
+ * IPL doesn't have multi-year contracts. Players belong to a team
+ * until the next mega auction, when all non-retained players go to
+ * the auction pool. Between mega auctions (mini auction years),
+ * teams keep their full roster.
+ *
+ * The contractYears field is used internally as a release marker:
+ *   1 = on roster (active)
+ *   0 = marked for release / free agent
  */
 
 import type { Player } from "./player.js";
@@ -19,48 +25,32 @@ export interface ContractInfo {
 }
 
 export interface ExpiringContractReport {
-  finalYear: ContractInfo[];   // 1 year remaining (expiring this season)
-  freeAgents: ContractInfo[];  // 0 years remaining (contract expired)
+  finalYear: ContractInfo[];   // unused in annual model, kept for API compat
+  freeAgents: ContractInfo[];  // players marked for release (contractYears=0)
 }
 
-/** Get the initial contract length for a player acquisition */
-export function getContractLength(source: ContractSource): number {
-  switch (source) {
-    case "retained": return 3;
-    case "auction": return 3;
-    case "mini-auction": return 2;
-    case "free-agent": return 1;
-    default: return 2;
-  }
+/** All IPL contracts are annual. */
+export function getContractLength(_source: ContractSource): number {
+  return 1;
 }
 
-/** Assign contracts to all players on a team */
-export function assignTeamContracts(team: Team, source: ContractSource): void {
-  const years = getContractLength(source);
+/** Mark all uncontracted players as active (contractYears = 1) */
+export function assignTeamContracts(team: Team, _source: ContractSource): void {
   for (const player of team.roster) {
     if (player.contractYears <= 0) {
-      player.contractYears = years;
+      player.contractYears = 1;
     }
   }
 }
 
-/** Tick down contracts at season end (reduce by 1) */
+/** At season end, expire all contracts (set to 0 = available for release). */
 export function tickContracts(team: Team): ExpiringContractReport {
-  const finalYear: ContractInfo[] = [];
   const freeAgents: ContractInfo[] = [];
 
   for (const player of team.roster) {
     player.contractYears = Math.max(0, player.contractYears - 1);
 
-    if (player.contractYears === 1) {
-      finalYear.push({
-        playerId: player.id,
-        playerName: player.name,
-        teamId: team.id,
-        yearsRemaining: 1,
-        source: "auction", // source doesn't matter at this point
-      });
-    } else if (player.contractYears === 0) {
+    if (player.contractYears === 0) {
       freeAgents.push({
         playerId: player.id,
         playerName: player.name,
@@ -71,24 +61,15 @@ export function tickContracts(team: Team): ExpiringContractReport {
     }
   }
 
-  return { finalYear, freeAgents };
+  return { finalYear: [], freeAgents };
 }
 
-/** Get a report of expiring contracts (without modifying anything) */
+/** Get a report of players marked for release (without modifying anything) */
 export function getExpiringContracts(team: Team): ExpiringContractReport {
-  const finalYear: ContractInfo[] = [];
   const freeAgents: ContractInfo[] = [];
 
   for (const player of team.roster) {
-    if (player.contractYears === 1) {
-      finalYear.push({
-        playerId: player.id,
-        playerName: player.name,
-        teamId: team.id,
-        yearsRemaining: 1,
-        source: "auction",
-      });
-    } else if (player.contractYears <= 0) {
+    if (player.contractYears <= 0) {
       freeAgents.push({
         playerId: player.id,
         playerName: player.name,
@@ -99,10 +80,10 @@ export function getExpiringContracts(team: Team): ExpiringContractReport {
     }
   }
 
-  return { finalYear, freeAgents };
+  return { finalYear: [], freeAgents };
 }
 
-/** Release all free agents (contractYears === 0) from a team, returning them */
+/** Release all players with contractYears=0 from a team, returning them */
 export function releaseFreeAgents(team: Team): Player[] {
   const freeAgentIds = team.roster
     .filter(player => player.contractYears <= 0)
@@ -117,13 +98,14 @@ export function releaseFreeAgents(team: Team): Player[] {
   return freeAgents;
 }
 
-/** Extend a player's contract */
-export function extendContract(player: Player, years: number): void {
-  player.contractYears += years;
+/** Re-sign a player (set contractYears back to 1 = active) */
+export function extendContract(player: Player, _years?: number): void {
+  player.contractYears = 1;
 }
 
-/** Get contract badge text for UI */
+/** Contract badge — no longer shown since all IPL contracts are annual.
+ *  @deprecated Use roster status instead */
 export function getContractBadge(contractYears: number): string {
   if (contractYears <= 0) return "FA";
-  return `${contractYears}yr`;
+  return ""; // no badge needed — everyone on the roster is contracted
 }

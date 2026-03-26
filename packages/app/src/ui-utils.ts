@@ -29,9 +29,11 @@ export function badgeBorderStyle(primaryColor: string): string {
   return `1px solid ${primaryColor}60`;
 }
 
-/** Team color for labels — dark colors get gray fallback */
+/** Team color for labels — ensure readability on dark backgrounds */
 export function teamLabelColor(primaryColor: string): string {
-  return isDarkColor(primaryColor) ? "#9ca3af" : primaryColor + "aa";
+  if (isDarkColor(primaryColor)) return "#d1d5db";
+  if (getLuminance(primaryColor) < 0.35) return primaryColor + "dd";
+  return primaryColor;
 }
 
 /** OVR color class — 7-tier continuous gradient */
@@ -70,14 +72,20 @@ export function roleLabel(role: string): string {
 /** Short bowling style abbreviation */
 export function bowlingStyleLabel(style: string): string {
   const labels: Record<string, string> = {
-    "right-arm-fast": "RAF",
-    "right-arm-medium": "RAM",
-    "left-arm-fast": "LAF",
-    "left-arm-medium": "LAM",
-    "off-spin": "OFS",
-    "left-arm-orthodox": "LAS",
-    "leg-spin": "LEG",
-    "left-arm-wrist-spin": "LWS",
+    "right-arm-fast": "RF",
+    "right-arm-fast-medium": "RFM",
+    "right-arm-medium-fast": "RMF",
+    "right-arm-medium": "RM",
+    "right-arm-slow": "RS",
+    "left-arm-fast": "LF",
+    "left-arm-fast-medium": "LFM",
+    "left-arm-medium-fast": "LMF",
+    "left-arm-medium": "LM",
+    "left-arm-slow": "LS",
+    "off-spin": "OB",
+    "left-arm-orthodox": "SLA",
+    "leg-spin": "LB",
+    "left-arm-wrist-spin": "SLC",
     "unknown": "",
   };
   return labels[style] || "";

@@ -178,14 +178,8 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
                         </span>
                       )}
                       {isUserTeam && <MoraleDot morale={p.morale} />}
-                      {isUserTeam && p.contractYears >= 0 && (
-                        <span className={`text-[10px] font-display font-semibold px-1 rounded ${
-                          p.contractYears <= 0 ? "text-red-400 bg-red-500/10" :
-                          p.contractYears === 1 ? "text-amber-400 bg-amber-500/10" :
-                          "text-th-muted bg-th-hover"
-                        }`}>
-                          {p.contractYears <= 0 ? "FA" : `${p.contractYears}yr`}
-                        </span>
+                      {isUserTeam && p.contractYears <= 0 && (
+                        <span className="text-[10px] font-display font-semibold px-1 rounded text-red-400 bg-red-500/10">FA</span>
                       )}
                       <RecruitmentBadge tier={getRecruitmentTag(recruitment, p.id)} compact />
                       {!isUserTeam && <span className="text-th-faint text-[10px] font-display">{scoutingView.confidenceLabel}</span>}

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { getContractBadge, type Team, type Player, type TradeOffer } from "@ipl-sim/engine";
+import { useEffect, useState, useMemo } from "react";
+import { type Team, type Player, type TradeOffer } from "@ipl-sim/engine";
 import { GameState } from "../game-state";
-import { ovrColorClass } from "../ui-utils";
+import { ovrColorClass, roleLabel, bowlingStyleLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
 import { getPlayerScoutingView, type PlayerScoutingView, type ScoutingState } from "../scouting";
@@ -21,6 +21,7 @@ interface Props {
   onScoutTeam: (teamId: string, amount?: number) => void;
   onScoutPlayers: (playerIds: string[], amount?: number) => void;
   onPromoteProspect?: (index: number) => void;
+  onSignFreeAgent?: (playerId: string, bid: number) => void;
 }
 
 function ContractDesk({
@@ -100,9 +101,11 @@ function ContractDesk({
                       <div className="flex items-center gap-2">
                         <PlayerLink playerId={player.id} className="text-th-primary font-display font-medium">{player.name}</PlayerLink>
                         <span className={`text-xs font-semibold ${ovrColorClass(player.overall)}`}>{player.overall} OVR</span>
-                        <span className="text-[10px] rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-red-300">
-                          {getContractBadge(player.contractYears)}
-                        </span>
+                        {player.contractYears <= 0 && (
+                          <span className="text-[10px] rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-red-300">
+                            FA
+                          </span>
+                        )}
                       </div>
                       <div className="text-th-muted text-xs mt-1 font-display">
                         {player.role} • Age {player.age} • Last deal {player.bid.toFixed(1)} Cr
@@ -141,9 +144,11 @@ function ContractDesk({
                     <div className="flex items-center gap-2">
                       <PlayerLink playerId={player.id} className="text-th-primary font-display font-medium">{player.name}</PlayerLink>
                       <span className={`text-xs font-semibold ${ovrColorClass(player.overall)}`}>{player.overall} OVR</span>
-                      <span className="text-[10px] rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-amber-300">
-                        {getContractBadge(player.contractYears)}
-                      </span>
+                      {player.contractYears <= 0 && (
+                        <span className="text-[10px] rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-red-300">
+                          FA
+                        </span>
+                      )}
                     </div>
                     <div className="text-th-muted text-xs mt-1 font-display">
                       {player.role} • Age {player.age} • Current bid {player.bid.toFixed(1)} Cr
@@ -537,6 +542,136 @@ function StadiumEditor({ team, onUpdate }: { team: Team; onUpdate: (rating: numb
   );
 }
 
+const COUNTRY_FLAGS: Record<string, string> = {
+  India: "\u{1F1EE}\u{1F1F3}",
+  Australia: "\u{1F1E6}\u{1F1FA}",
+  England: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}",
+  "South Africa": "\u{1F1FF}\u{1F1E6}",
+  "New Zealand": "\u{1F1F3}\u{1F1FF}",
+  "West Indies": "\u{1F3DD}\u{FE0F}",
+  Afghanistan: "\u{1F1E6}\u{1F1EB}",
+  Bangladesh: "\u{1F1E7}\u{1F1E9}",
+  "Sri Lanka": "\u{1F1F1}\u{1F1F0}",
+  Pakistan: "\u{1F1F5}\u{1F1F0}",
+  Zimbabwe: "\u{1F1FF}\u{1F1FC}",
+  Nepal: "\u{1F1F3}\u{1F1F5}",
+  Netherlands: "\u{1F1F3}\u{1F1F1}",
+  Ireland: "\u{1F1EE}\u{1F1EA}",
+  Scotland: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+  USA: "\u{1F1FA}\u{1F1F8}",
+};
+function countryFlag(country: string): string {
+  return COUNTRY_FLAGS[country] ?? "\u{1F3CF}";
+}
+
+function FreeAgentBrowser({
+  state,
+  userTeam,
+  onSignFreeAgent,
+}: {
+  state: GameState;
+  userTeam: Team;
+  onSignFreeAgent: (playerId: string, bid: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const topFreeAgents = useMemo(() => {
+    return [...state.playerPool]
+      .sort((a, b) => b.overall - a.overall)
+      .slice(0, 20);
+  }, [state.playerPool]);
+
+  const rosterFull = userTeam.roster.length >= 25;
+  const overseasCount = userTeam.internationalCount;
+
+  if (topFreeAgents.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6 mb-5">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center justify-between w-full"
+      >
+        <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">
+          Sign Free Agents
+          <span className="ml-2 text-th-faint font-mono stat-num">({state.playerPool.length} available)</span>
+        </h3>
+        <span className="text-th-muted text-sm font-display">{expanded ? "\u25B2" : "\u25BC"}</span>
+      </button>
+
+      {expanded && (
+        <div className="mt-4">
+          <p className="text-th-muted text-sm font-display mb-4">
+            Top available players from the free agent pool. Signing costs their market value.
+          </p>
+
+          {rosterFull && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 mb-4">
+              <span className="text-red-300 text-sm font-display">Roster full (25/25). Release a player before signing.</span>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {topFreeAgents.map(player => {
+              const overseasBlocked = player.isInternational && overseasCount >= 8;
+              const budgetShort = userTeam.remainingBudget < player.marketValue;
+              const canSign = !rosterFull && !overseasBlocked && !budgetShort;
+
+              let disabledReason = "";
+              if (rosterFull) disabledReason = "Roster full";
+              else if (overseasBlocked) disabledReason = "OS limit";
+              else if (budgetShort) disabledReason = "No budget";
+
+              return (
+                <div key={player.id} className="flex items-center justify-between px-4 py-3 rounded-xl bg-th-raised border border-th">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="text-sm" title={player.country}>{countryFlag(player.country)}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-th-primary font-display font-medium text-sm truncate">{player.name}</span>
+                        <span className={`text-xs font-bold ${ovrColorClass(player.overall)}`}>{player.overall}</span>
+                        <span className={`text-[10px] font-display font-semibold px-1.5 py-0.5 rounded ${
+                          player.role === "bowler" ? "bg-purple-500/15 text-purple-400" :
+                          player.role === "all-rounder" ? "bg-emerald-500/15 text-emerald-400" :
+                          "bg-orange-500/15 text-orange-400"
+                        }`}>{roleLabel(player.role)}</span>
+                        {player.isInternational && (
+                          <span className="text-[10px] text-orange-400/70 font-semibold border border-orange-400/20 rounded px-1">OS</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-th-muted text-xs font-display">Age {player.age}</span>
+                        {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
+                          <span className="text-[10px] text-purple-400/70 font-display font-semibold bg-purple-500/10 px-1.5 py-0.5 rounded">
+                            {bowlingStyleLabel(player.bowlingStyle)}
+                          </span>
+                        )}
+                        <span className="text-th-faint text-xs font-mono stat-num">{player.marketValue.toFixed(2)} Cr</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-3">
+                    {!canSign && disabledReason && (
+                      <span className="text-[10px] text-red-400/70 font-display">{disabledReason}</span>
+                    )}
+                    <button
+                      onClick={() => onSignFreeAgent(player.id, player.marketValue)}
+                      disabled={!canSign}
+                      className="px-3 py-1.5 text-xs font-display font-semibold bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-600/30 transition-colors disabled:opacity-40 disabled:hover:bg-emerald-600/20 whitespace-nowrap"
+                    >
+                      Sign
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TradePage({
   state,
   scouting,
@@ -550,6 +685,7 @@ export function TradePage({
   onScoutTeam,
   onScoutPlayers,
   onPromoteProspect,
+  onSignFreeAgent,
 }: Props) {
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
   const tradeLocked = state.contractsResolved === false || !!userTeam?.roster.some(player => player.contractYears <= 0);
@@ -611,6 +747,15 @@ export function TradePage({
           <ProposeTrade state={state} scouting={scouting} recruitment={recruitment} onPropose={onProposeTrade} onScoutTeam={onScoutTeam} />
         )}
       </div>
+
+      {/* Free Agent Browser */}
+      {userTeam && onSignFreeAgent && !tradeLocked && (
+        <FreeAgentBrowser
+          state={state}
+          userTeam={userTeam}
+          onSignFreeAgent={onSignFreeAgent}
+        />
+      )}
 
       {/* Stadium settings */}
       {userTeam && (

@@ -1,10 +1,12 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, Component, type ReactNode } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
   type RuleSet,
   type MatchState,
   type NarrativeEvent,
   createMatchState,
+  rtmAccept as engineRtmAccept,
+  rtmDecline as engineRtmDecline,
 } from "@ipl-sim/engine";
 import { SetupPage } from "./pages/SetupPage";
 import { SeasonPage } from "./pages/SeasonPage";
@@ -16,13 +18,13 @@ import { RetentionPage } from "./pages/RetentionPage";
 import { AuctionPage } from "./pages/AuctionPage";
 import { SavesPage } from "./pages/SavesPage";
 import { MatchPage } from "./pages/MatchPage";
-import { MatchDetailPage } from "./pages/MatchDetailPage";
 import { PlayerPage } from "./pages/PlayerPage";
 import { LineupPage } from "./pages/LineupPage";
 import { LiveMatchPage } from "./pages/LiveMatchPage";
 import { InboxPage } from "./pages/InboxPage";
 import { PowerRankingsPage } from "./pages/PowerRankingsPage";
 import { TrainingPage } from "./pages/TrainingPage";
+import { HallOfFamePage } from "./pages/HallOfFamePage";
 import { LobbyPage } from "./pages/LobbyPage";
 import { MultiAuctionPage } from "./pages/MultiAuctionPage";
 import { getTeamLogo } from "./team-logos";
@@ -77,7 +79,7 @@ import {
   liveAuctionSimPlayer,
   liveAuctionSimRemaining,
   finalizeLiveAuction,
-  promoteYouthProspect,
+  signFreeAgent,
   type SaveSlotInfo,
 } from "./game-state";
 import { saveState, loadState, clearState } from "./storage";
@@ -201,6 +203,7 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
               {navLink("/inbox", "Inbox")}
               {navLink("/ratings", "Ratings")}
               {navLink(`/team/${state.userTeamId}`, "My Team")}
+              {navLink("/lineup", "Lineup")}
               {navLink("/training", "Training")}
             </>
           )}
@@ -216,6 +219,27 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
       )}
     </nav>
   );
+}
+
+// ── Error Boundary ────────────────────────────────────────────────────
+class PageErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[40vh] p-8 text-center">
+          <div className="text-red-400 text-lg font-display font-bold mb-2">Something went wrong</div>
+          <pre className="text-xs text-th-muted bg-th-raised rounded-xl p-4 max-w-lg overflow-auto mb-4">{this.state.error.message}</pre>
+          <button
+            onClick={() => { this.setState({ error: null }); window.location.hash = "#/"; window.location.reload(); }}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-display font-semibold text-sm transition-colors"
+          >Reload App</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export default function App() {
@@ -440,6 +464,11 @@ export default function App() {
     navigate("/retention");
   };
 
+  const handleSignFreeAgent = (playerId: string, bid: number) => {
+    const next = signFreeAgent(state, playerId, bid);
+    update(next);
+  };
+
   const handleExtendContract = (playerId: string, years: number) => {
     update(extendUserPlayerContract(state, playerId, years));
   };
@@ -540,6 +569,18 @@ export default function App() {
     update(next);
   };
 
+  const handleRtmAccept = () => {
+    if (!state.auctionLiveState) return;
+    const newAuction = engineRtmAccept(state.auctionLiveState, state.teams);
+    update({ ...state, auctionLiveState: newAuction });
+  };
+
+  const handleRtmDecline = () => {
+    if (!state.auctionLiveState) return;
+    const newAuction = engineRtmDecline(state.auctionLiveState, state.teams);
+    update({ ...state, auctionLiveState: newAuction });
+  };
+
   const handleAuctionFinish = () => {
     const next = finalizeLiveAuction(state);
     const afterInit = initSeason(next);
@@ -557,10 +598,7 @@ export default function App() {
     update(next);
   };
 
-  const handlePromoteProspect = (index: number) => {
-    const next = promoteYouthProspect(state, index);
-    update(next);
-  };
+
 
   const handleNewGame = () => {
     // Don't delete the active slot — just deactivate it
@@ -642,6 +680,7 @@ export default function App() {
         themeToggle={themeToggle}
       />
 
+      <PageErrorBoundary>
       <Routes>
         <Route path="/" element={
           <SetupPage
@@ -662,7 +701,6 @@ export default function App() {
             onSimBatch={handleSimBatch}
             onSimToPlayoffs={handleSimToPlayoffs}
             onViewResults={handleViewResults}
-            onPromoteProspect={handlePromoteProspect}
           />
         } />
         <Route path="/inbox" element={<InboxPage state={state} />} />
@@ -682,7 +720,7 @@ export default function App() {
             onUpdateStadium={handleUpdateStadium}
             onScoutTeam={handleScoutTeam}
             onScoutPlayers={handleScoutPlayers}
-            onPromoteProspect={handlePromoteProspect}
+            onSignFreeAgent={handleSignFreeAgent}
           />
         } />
         <Route path="/retention" element={
@@ -705,6 +743,8 @@ export default function App() {
             onSimPlayer={handleAuctionSimPlayer}
             onSimRemaining={handleAuctionSimRemaining}
             onFinishAuction={handleAuctionFinish}
+            onRtmAccept={handleRtmAccept}
+            onRtmDecline={handleRtmDecline}
             onScoutPlayers={handleScoutPlayers}
             onToggleShortlist={handleToggleShortlist}
             onToggleWatchlist={handleToggleWatchlist}
@@ -763,12 +803,16 @@ export default function App() {
         <Route path="/power-rankings" element={
           <PowerRankingsPage teams={state.teams} />
         } />
+        <Route path="/hall-of-fame" element={
+          <HallOfFamePage state={state} />
+        } />
         <Route path="/lineup" element={
           (() => {
             const userTeam = state.teams.find(t => t.id === state.userTeamId);
             return userTeam ? (
               <LineupPage
                 team={userTeam}
+                rules={state.rules}
                 onConfirm={handleConfirmLineup}
               />
             ) : (
@@ -797,7 +841,15 @@ export default function App() {
         } />
         <Route path="/multiplayer" element={<LobbyPage />} />
         <Route path="/multiplayer/auction" element={<MultiAuctionPage />} />
+        <Route path="*" element={
+          <div className="max-w-md mx-auto px-4 py-20 text-center">
+            <h1 className="text-4xl font-display font-extrabold text-th-primary mb-4">404</h1>
+            <p className="text-th-muted mb-6">Page not found</p>
+            <a href="/" className="text-orange-400 hover:text-orange-300 underline underline-offset-2 font-medium">Back to home</a>
+          </div>
+        } />
       </Routes>
+      </PageErrorBoundary>
     </div>
   );
 }

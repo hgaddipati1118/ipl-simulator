@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Team, Player, type BowlingPlan } from "@ipl-sim/engine";
+import { Team, Player, type BowlingPlan, type RuleSet } from "@ipl-sim/engine";
 import { bowlingStyleLabel } from "../ui-utils";
 import {
   buildLineupReport,
@@ -13,10 +13,11 @@ import {
 
 interface Props {
   team: Team;
+  rules: RuleSet;
   onConfirm: (xi: string[], battingOrder: string[], bowlingOrder: string[], bowlingPlan?: BowlingPlan) => void;
 }
 
-export function LineupPage({ team, onConfirm }: Props) {
+export function LineupPage({ team, rules, onConfirm }: Props) {
   const navigate = useNavigate();
   const available = useMemo(() => team.roster.filter(p => !p.injured), [team]);
   const injured = useMemo(() => team.roster.filter(p => p.injured), [team]);
@@ -28,7 +29,7 @@ export function LineupPage({ team, onConfirm }: Props) {
       const valid = team.userPlayingXI.filter(id => available.some(p => p.id === id));
       if (valid.length === 11) return new Set(valid);
     }
-    const autoXI = team.autoSelectPlayingXI();
+    const autoXI = team.autoSelectPlayingXI(rules.maxOverseasInXI);
     return new Set(autoXI.map(p => p.id));
   });
 
@@ -36,7 +37,7 @@ export function LineupPage({ team, onConfirm }: Props) {
     if (team.userBattingOrder && team.userBattingOrder.length > 0) {
       return team.userBattingOrder.filter(id => selectedIds.has(id));
     }
-    const xi = team.autoSelectPlayingXI();
+    const xi = team.autoSelectPlayingXI(rules.maxOverseasInXI);
     return team.autoBattingOrder(xi).map(p => p.id);
   });
 
@@ -44,7 +45,7 @@ export function LineupPage({ team, onConfirm }: Props) {
     if (team.userBowlingOrder && team.userBowlingOrder.length > 0) {
       return team.userBowlingOrder.filter(id => selectedIds.has(id));
     }
-    const xi = team.autoSelectPlayingXI();
+    const xi = team.autoSelectPlayingXI(rules.maxOverseasInXI);
     return team.autoBowlingOrder(xi).map(p => p.id);
   });
 
@@ -56,6 +57,16 @@ export function LineupPage({ team, onConfirm }: Props) {
     if (existing) return existing;
     return { powerplay: [], middle: [], death: [] };
   });
+
+  // Per-batter aggression presets (0-100, 50=normal)
+  const [batterAggression, setBatterAggression] = useState<Record<string, number>>(
+    () => team.batterAggression ?? {}
+  );
+  // Per-bowler default field settings
+  type FieldSettingType = "aggressive" | "standard" | "defensive" | "spin-attack" | "boundary-save";
+  const [bowlerFieldSettings, setBowlerFieldSettings] = useState<Record<string, FieldSettingType>>(
+    () => (team.bowlerFieldSettings ?? {}) as Record<string, FieldSettingType>
+  );
 
   // Derive selected players
   const selectedPlayers = useMemo(
@@ -79,7 +90,7 @@ export function LineupPage({ team, onConfirm }: Props) {
   const validationErrors = useMemo(() => {
     const errors: string[] = [];
     if (selectedIds.size !== 11) errors.push(`Select exactly 11 players (${selectedIds.size}/11)`);
-    if (overseasCount > 4) errors.push(`Max 4 overseas players (${overseasCount}/4)`);
+    if (overseasCount > rules.maxOverseasInXI) errors.push(`Max ${rules.maxOverseasInXI} overseas players (${overseasCount}/${rules.maxOverseasInXI})`);
     if (wkCount < 1) errors.push("Need at least 1 wicket-keeper");
     return errors;
   }, [selectedIds.size, overseasCount, wkCount]);
@@ -116,15 +127,25 @@ export function LineupPage({ team, onConfirm }: Props) {
       const added = Array.from(newIds).filter(id => !kept.includes(id));
       return [...kept, ...added];
     });
-    // Update bowling order: keep bowlers that are still selected
+    // Update bowling order: bowlers/ARs + any batsman with decent bowling (ovr >= 30)
     setBowlingOrder(prev => {
-      const bowlerIds = Array.from(newIds).filter(id => {
-        const p = team.roster.find(r => r.id === id);
-        return p && (p.role === "bowler" || p.role === "all-rounder");
-      });
+      const xiPlayers = Array.from(newIds).map(id => team.roster.find(r => r.id === id)).filter(Boolean) as Player[];
+      const bowlerIds = xiPlayers
+        .filter(p => p.role === "bowler" || p.role === "all-rounder")
+        .map(p => p.id);
       const kept = prev.filter(id => newIds.has(id) && bowlerIds.includes(id));
       const added = bowlerIds.filter(id => !kept.includes(id));
-      return [...kept, ...added];
+      const result = [...kept, ...added];
+      // Add part-timers: pad to 5 minimum, also include any batsman with bowlingOvr >= 30
+      const partTimers = xiPlayers
+        .filter(p => p.role === "batsman" && !result.includes(p.id))
+        .sort((a, b) => b.bowlingOvr - a.bowlingOvr);
+      for (const pt of partTimers) {
+        if (result.length < 5 || pt.bowlingOvr >= 30) {
+          result.push(pt.id);
+        }
+      }
+      return result;
     });
   }, [team]);
 
@@ -143,7 +164,7 @@ export function LineupPage({ team, onConfirm }: Props) {
 
   // Auto-select best XI
   const handleAutoSelect = useCallback(() => {
-    const autoXI = team.autoSelectPlayingXI();
+    const autoXI = team.autoSelectPlayingXI(rules.maxOverseasInXI);
     const ids = new Set(autoXI.map(p => p.id));
     setSelectedIds(ids);
     setBattingOrder(team.autoBattingOrder(autoXI).map(p => p.id));
@@ -182,10 +203,22 @@ export function LineupPage({ team, onConfirm }: Props) {
     // Ensure bowling order only contains selected bowlers
     const finalBowling = bowlingOrder.filter(id => selectedIds.has(id));
 
+    // Save per-player presets to the team
+    const activeAggr: Record<string, number> = {};
+    for (const [id, val] of Object.entries(batterAggression)) {
+      if (selectedIds.has(id) && val !== 50) activeAggr[id] = val;
+    }
+    team.batterAggression = Object.keys(activeAggr).length > 0 ? activeAggr : undefined;
+    const activeFields: Record<string, FieldSettingType> = {};
+    for (const [id, val] of Object.entries(bowlerFieldSettings)) {
+      if (selectedIds.has(id) && val !== "standard") activeFields[id] = val;
+    }
+    team.bowlerFieldSettings = Object.keys(activeFields).length > 0 ? activeFields : undefined;
+
     // Pass bowling plan only if any phase has bowlers assigned
     const hasPlan = bowlingPlanState.powerplay.length > 0 || bowlingPlanState.middle.length > 0 || bowlingPlanState.death.length > 0;
     onConfirm(xiIds, fullBatting, finalBowling, hasPlan ? bowlingPlanState : undefined);
-  }, [selectedIds, battingOrder, bowlingOrder, bowlingPlanState, onConfirm]);
+  }, [selectedIds, battingOrder, bowlingOrder, bowlingPlanState, batterAggression, bowlerFieldSettings, team, onConfirm]);
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
@@ -202,7 +235,7 @@ export function LineupPage({ team, onConfirm }: Props) {
           <button
             onClick={() => {
               // Auto-select best XI and immediately confirm
-              const autoXI = team.autoSelectPlayingXI(4);
+              const autoXI = team.autoSelectPlayingXI(rules.maxOverseasInXI);
               const autoIds = autoXI.map(p => p.id);
               const autoBat = team.autoBattingOrder(autoXI).map(p => p.id);
               const autoBowl = team.autoBowlingOrder(autoXI).map(p => p.id);
@@ -304,19 +337,26 @@ export function LineupPage({ team, onConfirm }: Props) {
             dir
           )}
           onAutoSort={handleAutoSortBatting}
+          batterAggression={batterAggression}
+          onSetAggression={(id, val) => setBatterAggression(prev => ({ ...prev, [id]: val }))}
         />
       )}
 
       {activeTab === "bowling" && (
         <BowlingOrderTab
           bowlingOrder={bowlingOrderPlayers}
+          availableToAdd={selectedPlayers.filter(p => !bowlingOrder.includes(p.id))}
           onMove={(idx, dir) => moveInOrder(
             bowlingOrder.filter(id => selectedIds.has(id)),
             (newOrder) => setBowlingOrder(newOrder),
             idx,
             dir
           )}
+          onAddBowler={(id) => setBowlingOrder(prev => [...prev, id])}
+          onRemoveBowler={(id) => setBowlingOrder(prev => prev.filter(pid => pid !== id))}
           onAutoGenerate={handleAutoSortBowling}
+          bowlerFieldSettings={bowlerFieldSettings}
+          onSetFieldSetting={(id, val) => setBowlerFieldSettings(prev => ({ ...prev, [id]: val as FieldSettingType }))}
         />
       )}
 
@@ -361,10 +401,12 @@ function PlayingXITab({
   onToggle: (id: string) => void;
   onAutoSelect: () => void;
 }) {
+  const navigate = useNavigate();
   const sorted = useMemo(
     () => [...available].sort((a, b) => b.selectionScore - a.selectionScore || b.overall - a.overall),
     [available]
   );
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
     <div>
@@ -396,9 +438,10 @@ function PlayingXITab({
           <tbody>
             {sorted.map(p => {
               const isSelected = selectedIds.has(p.id);
+              const isExpanded = expandedId === p.id;
               return (
+                <React.Fragment key={p.id}>
                 <tr
-                  key={p.id}
                   onClick={() => onToggle(p.id)}
                   className={`border-t border-th cursor-pointer transition-colors ${
                     isSelected
@@ -419,18 +462,19 @@ function PlayingXITab({
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-th-primary font-medium">{p.name}</span>
+                      <span
+                        className="text-th-primary font-medium cursor-pointer hover:text-orange-400 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : p.id); }}
+                        onDoubleClick={(e) => { e.stopPropagation(); navigate(`/player/${p.id}`); }}
+                        title="Click to expand stats, double-click for full profile"
+                      >{p.name}</span>
                       <FormIndicator player={p} />
                       <ConditionBadge player={p} />
                       <span className={`w-2 h-2 rounded-full inline-block ${
                         p.morale > 70 ? "bg-emerald-400" : p.morale > 40 ? "bg-amber-400" : "bg-red-400"
                       }`} title={`Morale: ${p.morale}`} />
-                      {p.contractYears !== undefined && (
-                        <span className={`text-[9px] px-1 rounded ${
-                          p.contractYears <= 0 ? "text-red-400 bg-red-500/10" :
-                          p.contractYears === 1 ? "text-amber-400 bg-amber-500/10" :
-                          "text-th-faint bg-th-hover"
-                        }`}>{p.contractYears <= 0 ? "FA" : p.contractYears + "yr"}</span>
+                      {p.contractYears <= 0 && (
+                        <span className="text-[9px] px-1 rounded text-red-400 bg-red-500/10">FA</span>
                       )}
                       {p.isInternational && (
                         <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
@@ -441,6 +485,13 @@ function PlayingXITab({
                       {p.bowlingStyle && bowlingStyleLabel(p.bowlingStyle) && (
                         <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(p.bowlingStyle)}</span>
                       )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : p.id); }}
+                        className="text-th-faint hover:text-th-secondary text-[10px] ml-1"
+                        title="Show ratings"
+                      >
+                        {isExpanded ? "▾" : "▸"} stats
+                      </button>
                     </div>
                     <span className="text-th-faint text-xs">{p.country}</span>
                   </td>
@@ -456,6 +507,14 @@ function PlayingXITab({
                   <td className={`text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{p.readiness}</td>
                   <td className={`text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{conditionLabel(p.readiness)}</td>
                 </tr>
+                {isExpanded && (
+                  <tr className="border-t border-th/50">
+                    <td colSpan={9} className="px-4 py-3 bg-th-raised/50">
+                      <PlayerRatingBars player={p} />
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               );
             })}
             {/* Injured players (grayed out) */}
@@ -506,11 +565,17 @@ function BattingOrderTab({
   battingOrder,
   onMove,
   onAutoSort,
+  batterAggression,
+  onSetAggression,
 }: {
   battingOrder: Player[];
   onMove: (idx: number, dir: -1 | 1) => void;
   onAutoSort: () => void;
+  batterAggression: Record<string, number>;
+  onSetAggression: (id: string, val: number) => void;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   if (battingOrder.length === 0) {
     return (
       <div className="text-th-muted text-center py-12">
@@ -544,9 +609,10 @@ function BattingOrderTab({
           else if (idx < 8) posLabel = "Middle Order";
           else posLabel = "Lower Order";
 
+          const isExpanded = expandedId === player.id;
           return (
+            <React.Fragment key={player.id}>
             <div
-              key={player.id}
               className="flex items-center gap-3 px-4 py-3 border-t border-th first:border-t-0"
             >
               <span className="text-th-muted font-mono text-sm w-6 text-right">{idx + 1}</span>
@@ -564,10 +630,33 @@ function BattingOrderTab({
                 {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
                   <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
                 )}
+                <button
+                  onClick={() => setExpandedId(isExpanded ? null : player.id)}
+                  className="text-th-faint hover:text-th-secondary text-[10px] ml-1"
+                >
+                  {isExpanded ? "▾" : "▸"} stats
+                </button>
               </div>
               <div className="w-28 text-right">
                 <div className="text-th-faint text-xs">{posLabel}</div>
                 <div className={`text-[10px] inline-flex mt-1 px-1.5 py-0.5 rounded ${fitTone}`}>{slotFit.label}</div>
+              </div>
+              <div className="flex gap-0.5">
+                {([
+                  { val: 25, label: "DEF", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+                  { val: 50, label: "NOR", color: "text-th-secondary bg-th-body border-th" },
+                  { val: 75, label: "ATK", color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
+                ] as const).map(opt => {
+                  const current = batterAggression[player.id] ?? 50;
+                  const isActive = Math.abs(current - opt.val) < 13;
+                  return (
+                    <button
+                      key={opt.val}
+                      onClick={(e) => { e.stopPropagation(); onSetAggression(player.id, opt.val); }}
+                      className={`text-[9px] px-1.5 py-0.5 rounded border font-display font-semibold transition-colors ${isActive ? opt.color + " ring-1 ring-offset-0" : "text-th-faint bg-th-body border-th/50 hover:text-th-secondary"}`}
+                    >{opt.label}</button>
+                  );
+                })}
               </div>
               <span className={`${ovrColor(player.battingOvr)} font-bold text-sm w-8 text-right`}>
                 {player.battingOvr}
@@ -595,6 +684,12 @@ function BattingOrderTab({
                 </button>
               </div>
             </div>
+            {isExpanded && (
+              <div className="px-4 py-3 bg-th-raised/50 border-t border-th/50">
+                <PlayerRatingBars player={player} />
+              </div>
+            )}
+            </React.Fragment>
           );
         })}
       </div>
@@ -604,13 +699,25 @@ function BattingOrderTab({
 
 function BowlingOrderTab({
   bowlingOrder,
+  availableToAdd,
   onMove,
+  onAddBowler,
+  onRemoveBowler,
   onAutoGenerate,
+  bowlerFieldSettings,
+  onSetFieldSetting,
 }: {
   bowlingOrder: Player[];
+  availableToAdd: Player[];
   onMove: (idx: number, dir: -1 | 1) => void;
+  onAddBowler: (id: string) => void;
+  onRemoveBowler: (id: string) => void;
   onAutoGenerate: () => void;
+  bowlerFieldSettings: Record<string, string>;
+  onSetFieldSetting: (id: string, val: string) => void;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   if (bowlingOrder.length === 0) {
     return (
       <div className="text-th-muted text-center py-12">
@@ -624,8 +731,8 @@ function BowlingOrderTab({
     [bowlingOrder],
   );
 
-  // Generate a simple 20-over plan
-  const overPlan = useMemo(() => {
+  // Generate auto plan helper
+  const generateAutoPlan = useCallback(() => {
     if (bowlingOrder.length === 0) return [];
     const plan: string[] = [];
     const bowlerOversUsed = new Map<string, number>();
@@ -637,20 +744,44 @@ function BowlingOrderTab({
         (bowlerOversUsed.get(player.id) ?? 0) < 4 && player.id !== lastBowler
       );
       if (eligible.length === 0) {
-        // Fallback: allow consecutive
         const anyEligible = bowlingOrder.filter(player => (bowlerOversUsed.get(player.id) ?? 0) < 4);
         if (anyEligible.length > 0) {
           plan.push(anyEligible[0].id);
           bowlerOversUsed.set(anyEligible[0].id, (bowlerOversUsed.get(anyEligible[0].id) ?? 0) + 1);
         }
       } else {
-        // Distribute: pick the bowler with fewest overs used so far
         eligible.sort((a, b) => (bowlerOversUsed.get(a.id) ?? 0) - (bowlerOversUsed.get(b.id) ?? 0));
         plan.push(eligible[0].id);
         bowlerOversUsed.set(eligible[0].id, (bowlerOversUsed.get(eligible[0].id) ?? 0) + 1);
       }
     }
     return plan;
+  }, [bowlingOrder]);
+
+  const [overPlan, setOverPlan] = useState<string[]>(() => generateAutoPlan());
+
+  // Cycle bowler for a specific over
+  const cycleBowlerForOver = useCallback((overIdx: number) => {
+    setOverPlan(prev => {
+      const next = [...prev];
+      const currentId = next[overIdx];
+      // Count overs for each bowler excluding this slot
+      const counts = new Map<string, number>();
+      for (const p of bowlingOrder) counts.set(p.id, 0);
+      next.forEach((id, i) => { if (i !== overIdx) counts.set(id, (counts.get(id) ?? 0) + 1); });
+      // Find bowlers who can still bowl (< 4 overs) and are not same as adjacent overs
+      const prevBowler = overIdx > 0 ? next[overIdx - 1] : null;
+      const nextBowler = overIdx < 19 ? next[overIdx + 1] : null;
+      const eligible = bowlingOrder.filter(p =>
+        (counts.get(p.id) ?? 0) < 4 && p.id !== prevBowler && p.id !== nextBowler
+      );
+      if (eligible.length === 0) return prev;
+      // Cycle to next eligible bowler after current
+      const currentIdx = eligible.findIndex(p => p.id === currentId);
+      const nextPlayer = eligible[(currentIdx + 1) % eligible.length];
+      next[overIdx] = nextPlayer.id;
+      return next;
+    });
   }, [bowlingOrder]);
 
   // Count overs per bowler
@@ -685,14 +816,19 @@ function BowlingOrderTab({
           const overs = oversPerBowler.get(player.id) ?? 0;
           const bestPhase = getBestBowlingPhaseFit(player);
           const bestPhaseLabel = bestPhase.phase === "powerplay" ? "PP" : bestPhase.phase === "middle" ? "MID" : "DTH";
+          const isExpanded = expandedId === player.id;
           return (
+            <React.Fragment key={player.id}>
             <div
-              key={player.id}
               className="flex items-center gap-3 px-4 py-3 border-t border-th first:border-t-0"
             >
               <span className="text-th-muted font-mono text-sm w-6 text-right">{idx + 1}</span>
               <div className="flex-1 flex items-center gap-3">
-                <span className="text-th-primary font-medium">{player.name}</span>
+                <span
+                  className="text-th-primary font-medium cursor-pointer hover:text-orange-400 transition-colors"
+                  onClick={() => setExpandedId(isExpanded ? null : player.id)}
+                  title="Click to view ratings"
+                >{player.name}</span>
                 <FormIndicator player={player} />
                 <ConditionBadge player={player} />
                 <RoleBadge role={player.role} />
@@ -702,6 +838,24 @@ function BowlingOrderTab({
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${fitBadgeTone(bestPhase)}`}>
                   Best {bestPhaseLabel}
                 </span>
+              </div>
+              <div className="flex gap-0.5">
+                {([
+                  { val: "aggressive", label: "AGR", color: "text-red-400 bg-red-500/10 border-red-500/20" },
+                  { val: "standard", label: "STD", color: "text-th-secondary bg-th-body border-th" },
+                  { val: "defensive", label: "DEF", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+                  { val: "spin-attack", label: "SPN", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
+                ] as const).map(opt => {
+                  const current = bowlerFieldSettings[player.id] ?? "standard";
+                  const isActive = current === opt.val;
+                  return (
+                    <button
+                      key={opt.val}
+                      onClick={(e) => { e.stopPropagation(); onSetFieldSetting(player.id, opt.val); }}
+                      className={`text-[9px] px-1 py-0.5 rounded border font-display font-semibold transition-colors ${isActive ? opt.color + " ring-1 ring-offset-0" : "text-th-faint bg-th-body border-th/50 hover:text-th-secondary"}`}
+                    >{opt.label}</button>
+                  );
+                })}
               </div>
               <span className={`${ovrColor(player.bowlingOvr)} font-bold text-sm w-8 text-right`}>
                 {player.bowlingOvr}
@@ -729,27 +883,72 @@ function BowlingOrderTab({
                   ▼
                 </button>
               </div>
+              {bowlingOrder.length > 5 && (
+                <button
+                  onClick={() => onRemoveBowler(player.id)}
+                  className="text-red-400/60 hover:text-red-400 text-xs ml-1"
+                  title="Remove from bowling order"
+                >
+                  ✕
+                </button>
+              )}
             </div>
+            {isExpanded && (
+              <div className="px-4 py-3 bg-th-raised/50 border-t border-th/50">
+                <PlayerRatingBars player={player} />
+              </div>
+            )}
+            </React.Fragment>
           );
         })}
       </div>
 
-      {/* 20-over visual plan */}
+      {/* Add bowler from XI */}
+      {availableToAdd.length > 0 && (
+        <div className="mb-6">
+          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display mb-2">Add Bowling Option</div>
+          <div className="flex flex-wrap gap-1.5">
+            {availableToAdd
+              .sort((a, b) => b.bowlingOvr - a.bowlingOvr)
+              .map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => onAddBowler(p.id)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-th bg-th-surface hover:bg-th-hover hover:border-th-strong text-xs transition-all"
+                >
+                  <span className="text-th-primary font-medium">{p.name}</span>
+                  <span className="text-th-faint font-mono">{p.bowlingOvr}</span>
+                  {p.bowlingStyle && bowlingStyleLabel(p.bowlingStyle) && (
+                    <span className="text-purple-400/60 text-[9px] font-semibold">{bowlingStyleLabel(p.bowlingStyle)}</span>
+                  )}
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* 20-over visual plan — click to cycle bowler */}
       <div>
-        <h4 className="text-th-secondary text-xs uppercase tracking-wider mb-2">Over-by-Over Plan</h4>
+        <h4 className="text-th-secondary text-xs uppercase tracking-wider mb-2">
+          Over-by-Over Plan <span className="text-th-faint font-normal">(click to change)</span>
+        </h4>
         <div className="grid grid-cols-10 gap-1.5">
           {overPlan.map((bowlerId, overIdx) => {
             const player = bowlingById.get(bowlerId);
             const phase = overIdx < 6 ? "PP" : overIdx < 15 ? "MID" : "DTH";
             const phaseColor = overIdx < 6 ? "border-blue-600/40" : overIdx < 15 ? "border-th" : "border-orange-600/40";
             return (
-              <div key={overIdx} className={`bg-th-raised rounded p-1.5 text-center border ${phaseColor}`}>
+              <button
+                key={overIdx}
+                onClick={() => cycleBowlerForOver(overIdx)}
+                className={`bg-th-raised rounded p-1.5 text-center border ${phaseColor} hover:bg-th-hover hover:border-orange-500/30 transition-colors cursor-pointer`}
+              >
                 <div className="text-th-faint text-[10px]">Ov {overIdx + 1}</div>
                 <div className="text-th-primary text-xs font-medium truncate">
                   {player?.name.split(" ").pop() ?? "?"}
                 </div>
                 <div className="text-th-faint text-[9px]">{phase}</div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -771,7 +970,7 @@ function SelectionReport({ report }: { report: LineupReport }) {
         <div className="text-th-faint text-xs">{report.venueLabel}</div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
         <MetricCard label="Lineup Score" value={String(report.lineupScore)} accent="text-blue-400" />
         <MetricCard label="Avg Readiness" value={String(report.averageReadiness)} accent="text-cyan-400" />
         <MetricCard label="Hot Starters" value={String(report.hotStarters)} accent="text-green-400" />
@@ -834,6 +1033,38 @@ function MetricCard({ label, value, accent }: { label: string; value: string; ac
 }
 
 // ---- Utility components ----
+
+function PlayerRatingBars({ player }: { player: Player }) {
+  const attrs = [
+    { key: "battingIQ", label: "IQ", color: "bg-orange-400" },
+    { key: "timing", label: "TIM", color: "bg-amber-400" },
+    { key: "power", label: "PWR", color: "bg-red-400" },
+    { key: "running", label: "RUN", color: "bg-emerald-400" },
+    { key: "wicketTaking", label: "WKT", color: "bg-purple-400" },
+    { key: "economy", label: "ECO", color: "bg-blue-400" },
+    { key: "accuracy", label: "ACC", color: "bg-cyan-400" },
+    { key: "clutch", label: "CLT", color: "bg-pink-400" },
+  ] as const;
+
+  return (
+    <div className="grid grid-cols-4 sm:grid-cols-8 gap-x-4 gap-y-2">
+      {attrs.map(({ key, label, color }) => {
+        const val = player.ratings[key];
+        return (
+          <div key={key} className="flex flex-col gap-0.5">
+            <div className="flex justify-between text-[10px]">
+              <span className="text-th-muted">{label}</span>
+              <span className="text-th-primary font-mono font-semibold">{val}</span>
+            </div>
+            <div className="h-1.5 bg-th-overlay rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${color}`} style={{ width: `${val}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function RoleBadge({ role }: { role: string }) {
   const label = roleLabel(role);
@@ -957,7 +1188,7 @@ function BowlingPlanTab({
     const spinIds: string[] = [];
     for (const player of bowlingOrder) {
       const style = player.bowlingStyle;
-      if (["right-arm-fast", "right-arm-medium", "left-arm-fast", "left-arm-medium"].includes(style)) {
+      if (["right-arm-fast", "right-arm-fast-medium", "right-arm-medium-fast", "right-arm-medium", "left-arm-fast", "left-arm-fast-medium", "left-arm-medium-fast", "left-arm-medium"].includes(style)) {
         paceIds.push(player.id);
       } else if (["off-spin", "left-arm-orthodox", "leg-spin", "left-arm-wrist-spin"].includes(style)) {
         spinIds.push(player.id);

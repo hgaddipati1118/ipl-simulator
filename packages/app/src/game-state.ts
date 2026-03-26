@@ -59,7 +59,7 @@ import {
   type ExpiringContractReport,
 } from "@ipl-sim/engine";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
-import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
+import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
 import { buildNarrativeEventsForEngineResult, prependNarrativeEvents, type FeedMatchResult } from "./news-feed";
 import {
@@ -164,6 +164,23 @@ export interface GameState {
   // Contract expiry report (populated at season end)
   contractReport?: ExpiringContractReport;
   contractsResolved?: boolean;
+
+  // Hall of Fame — retired legends with career summaries
+  hallOfFame?: HallOfFameEntry[];
+}
+
+export interface HallOfFameEntry {
+  playerId: string;
+  name: string;
+  country: string;
+  retiredAge: number;
+  retiredSeason: number;
+  lastTeamId?: string;
+  peakOverall: number;
+  careerRuns: number;
+  careerWickets: number;
+  careerMatches: number;
+  imageUrl?: string;
 }
 
 export interface SeasonSummary {
@@ -172,6 +189,7 @@ export interface SeasonSummary {
   orangeCap: { name: string; runs: number };
   purpleCap: { name: string; wickets: number };
   stadiumRating?: number; // user's stadium bowling rating that season
+  userPosition?: number;  // user team's final standings position (1-based)
 }
 
 export interface CompletedTrade {
@@ -245,13 +263,13 @@ function withSyncedScouting(state: GameState, seasonNumber = state.seasonNumber)
     ...state,
     scouting,
     scoutingAssignments: syncScoutingAssignments(
-      state.scoutingAssignments,
+      state.scoutingAssignments ?? [],
       state.teams,
       state.playerPool,
       state.userTeamId,
       getShortlistPlayerIds(recruitment),
     ),
-    scoutingInbox: state.scoutingInbox.slice(0, SCOUTING_INBOX_LIMIT),
+    scoutingInbox: (state.scoutingInbox ?? []).slice(0, SCOUTING_INBOX_LIMIT),
     recruitment,
   };
 }
@@ -377,7 +395,7 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     if (loadMen) {
       const iplPlayers = getRealPlayers();
       for (const data of iplPlayers) {
-        if (!activeIds.has(data.teamId)) continue;
+        if (!data.teamId || !activeIds.has(data.teamId)) continue;
         const player = createPlayerFromData(data);
         const team = teams.find(t => t.id === data.teamId);
         // Use real auction/retention price if available, otherwise fall back to marketValue
@@ -397,9 +415,13 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
   }
   // If playerSource === "generated", skip real players — auction will fill rosters
 
-  // Generate additional random players to fill rosters
-  const poolSize = teams.length <= 5 ? 80 : (teams.length >= 10 ? 200 : 150);
-  const additionalPlayers = generatePlayerPool(poolSize);
+  // Load real unrostered players as the auction pool (2000+ ESPN-rated cricketers)
+  const realPoolData = (!isWPL && (playerSource === "real")) ? getPoolPlayers() : [];
+  const realPoolPlayers = realPoolData.map(data => createPlayerFromData(data));
+
+  // Add a few generated players to supplement if pool is thin
+  const supplementCount = Math.max(0, 50 - realPoolPlayers.length);
+  const additionalPlayers = [...realPoolPlayers, ...generatePlayerPool(supplementCount)];
 
   return {
     phase: "setup",
@@ -465,12 +487,16 @@ export function runSeasonPhase(state: GameState): GameState {
   const championTeam = state.teams.find(t => t.id === result.champion);
 
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
+  const userPos = state.userTeamId
+    ? result.standings.findIndex(s => s.teamId === state.userTeamId) + 1
+    : undefined;
   const summary: SeasonSummary = {
     seasonNumber: state.seasonNumber,
     champion: championTeam?.name ?? result.champion,
     orangeCap: { name: orangePlayer?.name ?? "Unknown", runs: result.orangeCap.runs },
     purpleCap: { name: purplePlayer?.name ?? "Unknown", wickets: result.purpleCap.wickets },
     stadiumRating: userTeam?.config.stadiumBowlingRating,
+    userPosition: userPos && userPos > 0 ? userPos : undefined,
   };
 
   return {
@@ -515,7 +541,7 @@ export function initSeason(state: GameState): GameState {
     const userTeam = state.teams.find(t => t.id === state.userTeamId);
     if (userTeam) {
       const previousPos = state.history.length > 0
-        ? state.history[state.history.length - 1].seasonNumber // approximate
+        ? state.history[state.history.length - 1].userPosition
         : undefined;
       const objectives = generateBoardObjectives({
         seasonNumber: state.seasonNumber,
@@ -655,8 +681,11 @@ export function playNextMatch(state: GameState): {
   if (rawResult.winnerId && matchEntry) {
     const homeTeam = teams.find(t => t.id === matchEntry.homeTeamId);
     const awayTeam = teams.find(t => t.id === matchEntry.awayTeamId);
-    const homeXIIds = new Set(rawResult.innings[0]?.batterStats ? [...rawResult.innings[0].batterStats.keys()] : []);
-    const awayXIIds = new Set(rawResult.innings[1]?.batterStats ? [...rawResult.innings[1].batterStats.keys()] : []);
+    // innings[0] is the batting-first team, not necessarily home — use teamId to match correctly
+    const homeInnings = rawResult.innings.find(inn => inn.teamId === matchEntry.homeTeamId);
+    const awayInnings = rawResult.innings.find(inn => inn.teamId === matchEntry.awayTeamId);
+    const homeXIIds = new Set(homeInnings?.batterStats ? [...homeInnings.batterStats.keys()] : []);
+    const awayXIIds = new Set(awayInnings?.batterStats ? [...awayInnings.batterStats.keys()] : []);
 
     for (const [team, xiIds] of [[homeTeam, homeXIIds], [awayTeam, awayXIIds]] as [Team | undefined, Set<string>][]) {
       if (!team) continue;
@@ -826,6 +855,18 @@ export function applyLiveMatchToState(
     };
   }
 
+  // Accumulate fantasy points for live matches too
+  const liveMatchFantasy = calculateFantasyPoints(rawResult);
+  const liveNameMap = new Map<string, string>();
+  for (const team of teams) {
+    for (const p of team.roster) liveNameMap.set(p.id, p.name);
+  }
+  const enrichedLiveFantasy = enrichFantasyNames(liveMatchFantasy, liveNameMap);
+  nextState = {
+    ...nextState,
+    fantasyLeaderboard: accumulateFantasyPoints(nextState.fantasyLeaderboard, enrichedLiveFantasy),
+  };
+
   nextState = progressStateScoutingAssignments(nextState);
 
   return {
@@ -849,7 +890,8 @@ export function simToMatch(
   const detailedResults: { matchIndex: number; detail: import("@ipl-sim/engine").DetailedMatchResult }[] = [];
 
   while (current.currentMatchIndex < targetIndex && current.currentMatchIndex < current.schedule.length) {
-    if (current.needsLineup && currentMatchInvolvesUser(current)) {
+    // Always stop before user matches — they must be played live or via lineup
+    if (currentMatchInvolvesUser(current)) {
       break;
     }
     const { state: newState, detailed, matchIndex } = playNextMatch(current);
@@ -976,12 +1018,16 @@ export function finalizeSeason(state: GameState): GameState {
   const championTeam = state.teams.find(t => t.id === champion);
 
   const userTeamForSummary = state.teams.find(t => t.id === state.userTeamId);
+  const userPos = state.userTeamId
+    ? standings.findIndex(s => s.teamId === state.userTeamId) + 1
+    : undefined;
   const summary: SeasonSummary = {
     seasonNumber: state.seasonNumber,
     champion: championTeam?.name ?? champion,
     orangeCap: { name: orangePlayer?.name ?? "Unknown", runs: orangeCap.runs },
     purpleCap: { name: purplePlayer?.name ?? "Unknown", wickets: purpleCap.wickets },
     stadiumRating: userTeamForSummary?.config.stadiumBowlingRating,
+    userPosition: userPos && userPos > 0 ? userPos : undefined,
   };
 
   return {
@@ -1019,13 +1065,82 @@ export function nextSeason(state: GameState): GameState {
     }
   }
 
-  // Add new young players to pool
-  const newPlayers = generatePlayerPool(50);
+  // RNG-based retirement — probability increases with age
+  // Mirrors real cricket: some players retire at 33, most by 38, rare exceptions past 40
+  function shouldRetire(p: Player): boolean {
+    const age = p.age;
+    if (age < 30) return false;
+    // Retirement probability starts at 30, max 40%
+    // Real IPL: Dhoni played till 42, Gayle 43 — legends can play long
+    let prob = 0;
+    if (age === 30) prob = 0.01;       // 1% — very rare
+    else if (age === 31) prob = 0.02;  // 2%
+    else if (age === 32) prob = 0.03;  // 3%
+    else if (age === 33) prob = 0.05;  // 5%
+    else if (age === 34) prob = 0.08;  // 8%
+    else if (age === 35) prob = 0.12;  // 12%
+    else if (age === 36) prob = 0.18;  // 18%
+    else if (age === 37) prob = 0.25;  // 25%
+    else if (age === 38) prob = 0.30;  // 30%
+    else if (age === 39) prob = 0.35;  // 35%
+    else prob = 0.40;                  // 40% cap at 40+ (legends can still play)
 
-  // Generate youth academy prospects for the user's team (1-3 players)
-  const youthProspects: YouthProspect[] = state.userTeamId
-    ? generateYouthProspects(state.userTeamId, 1 + Math.floor(Math.random() * 3))
-    : [];
+    // Low-rated older players more likely to retire (no demand from teams)
+    if (p.overall < 50 && age >= 34) prob = Math.min(0.40, prob * 1.5);
+
+    return Math.random() < prob;
+  }
+
+  // Retire from pool (silently — pool players don't get Hall of Fame)
+  const poolRetirees = state.playerPool.filter(p => shouldRetire(p));
+  const prunedPool = state.playerPool.filter(p => !shouldRetire(p));
+
+  // Retire from CPU rosters (user team players never auto-retire)
+  const retiredFromTeams: Player[] = [];
+  for (const team of state.teams) {
+    if (team.id === state.userTeamId) continue;
+    const retiring = team.roster.filter(p => shouldRetire(p));
+    for (const p of retiring) {
+      const removed = team.removePlayer(p.id);
+      if (removed) retiredFromTeams.push(removed);
+    }
+  }
+
+  // Add notable retirees to Hall of Fame (OVR 60+ or significant career stats)
+  const newHallOfFame: HallOfFameEntry[] = [];
+  for (const p of retiredFromTeams) {
+    if (p.overall >= 60 || p.stats.runs >= 500 || p.stats.wickets >= 30) {
+      newHallOfFame.push({
+        playerId: p.id,
+        name: p.name,
+        country: p.country,
+        retiredAge: p.age,
+        retiredSeason: state.seasonNumber,
+        lastTeamId: p.teamId,
+        peakOverall: p.overall,
+        careerRuns: p.stats.runs + (p.careerStats?.r ?? 0),
+        careerWickets: p.stats.wickets + (p.careerStats?.w ?? 0),
+        careerMatches: p.stats.matches + (p.careerStats?.m ?? 0),
+        imageUrl: p.imageUrl,
+      });
+    }
+  }
+
+  // Age pool players by 1 year
+  for (const p of prunedPool) {
+    p.age++;
+  }
+
+  // Add new young players to pool (replaces retired players + fresh talent)
+  const newPlayers = generatePlayerPool(30 + retiredFromTeams.length);
+
+  // Generate youth academy prospects — they enter the auction pool (IPL: all signings via auction)
+  const youthProspects: YouthProspect[] = generateYouthProspects(
+    state.userTeamId ?? state.teams[0]?.id ?? "pool",
+    2 + Math.floor(Math.random() * 3),
+  );
+  // Add youth prospect players to the pool so they're available at next auction
+  const youthPoolPlayers = youthProspects.map(y => y.player);
 
   // Tick contracts (all 1-year contracts expire)
   for (const team of state.teams) {
@@ -1049,31 +1164,22 @@ export function nextSeason(state: GameState): GameState {
   // Handle retention based on auction cycle
   let contractReport: ExpiringContractReport | undefined;
   const releasedFreeAgents: Player[] = [];
-  for (const team of state.teams) {
-    if (auctionType === "mini") {
-      // Mini auction: auto-renew all contracts (unlimited retention)
+  if (auctionType === "mini") {
+    // Mini auction: auto-renew all contracts (unlimited retention)
+    for (const team of state.teams) {
       assignTeamContracts(team, "mini-auction");
-    } else {
-      // Mega auction: CPU teams auto-retain top N by overall, release rest
-      if (team.id !== state.userTeamId) {
-        const sorted = [...team.roster].sort((a, b) => b.overall - a.overall);
-        const retained = sorted.slice(0, maxRetain);
-        const retainedIds = new Set(retained.map(p => p.id));
-        for (const p of team.roster) {
-          if (retainedIds.has(p.id)) {
-            p.contractYears = 1; // Renew retained
-          }
-        }
-        releasedFreeAgents.push(...releaseFreeAgents(team));
-      } else {
-        // User team: show expiry report, let user decide
-        contractReport = getExpiringContracts(team);
-      }
+    }
+  } else {
+    // Mega auction: don't release anyone here.
+    // CPU + user retention happens in the retention phase (startRetention → runCPURetentions → finishRetention).
+    // Just re-activate all players so they're available for retention selection.
+    for (const team of state.teams) {
+      assignTeamContracts(team, "retained");
     }
   }
 
-  const userHasExpiredContracts = auctionType === "mega"
-    && (contractReport?.freeAgents.length ?? 0) > 0;
+  // For mega auction, flag that user needs to go through retention
+  const userHasExpiredContracts = auctionType === "mega";
   const tradeOffers = userHasExpiredContracts ? [] : generateOffseasonTradeOffers(state);
 
   // Evaluate board objectives at season end
@@ -1099,12 +1205,15 @@ export function nextSeason(state: GameState): GameState {
     }
   }
 
-  return progressStateScoutingAssignments(withSyncedScouting({
+  // Mega auction: skip trade phase, go straight to retention
+  const nextPhase = auctionType === "mega" ? "retention" as const : "trade" as const;
+
+  const baseNextState: GameState = {
     ...state,
-    phase: "trade",
+    phase: nextPhase,
     seasonNumber: state.seasonNumber + 1,
     seasonResult: null,
-    playerPool: [...state.playerPool, ...newPlayers, ...releasedFreeAgents],
+    playerPool: [...prunedPool, ...newPlayers, ...youthPoolPlayers, ...releasedFreeAgents],
     tradeOffers,
     completedTrades: [],
     schedule: [],
@@ -1113,14 +1222,40 @@ export function nextSeason(state: GameState): GameState {
     playoffsStarted: false,
     needsLineup: false,
     recentInjuries: [],
-    narrativeEvents: [],
+    narrativeEvents: [
+      ...retiredFromTeams.map(p => ({
+        type: "media" as const,
+        headline: `${p.name} announces retirement from IPL`,
+        body: `${p.name} (${p.age}) has decided to hang up the boots after a distinguished T20 career. The ${p.role} retires with an overall rating of ${p.overall}.`,
+        playerId: p.id,
+      })),
+    ],
     trainingReport,
     youthProspects,
     fantasyLeaderboard: [],
     boardState,
-    contractReport,
-    contractsResolved: !userHasExpiredContracts,
-  }, state.seasonNumber + 1));
+    contractReport: undefined,
+    contractsResolved: true,
+    hallOfFame: [...(state.hallOfFame ?? []), ...newHallOfFame],
+  };
+
+  if (auctionType === "mega") {
+    // Set up retention state for mega auction
+    const userTeam = baseNextState.teams.find(t => t.id === baseNextState.userTeamId);
+    return progressStateScoutingAssignments(withSyncedScouting({
+      ...baseNextState,
+      retentionState: {
+        retained: [],
+        released: userTeam?.roster.map(p => p.id) ?? [],
+        budget: RETENTION_BUDGET,
+        totalCost: 0,
+        costs: {},
+        cpuDone: false,
+      },
+    }, state.seasonNumber + 1));
+  }
+
+  return progressStateScoutingAssignments(withSyncedScouting(baseNextState, state.seasonNumber + 1));
 }
 
 /** Promote a youth prospect to the user's main squad (costs 0 Cr, takes a roster slot) */
@@ -1480,6 +1615,34 @@ export function proposeUserTrade(
 /** Finish the trade window and move to retention */
 export function finishTrades(state: GameState): GameState {
   return startRetention(advanceActiveScoutingAssignments(releaseExpiredUserContracts(state)));
+}
+
+/** Sign a free agent from the player pool to the user's team */
+export function signFreeAgent(state: GameState, playerId: string, bidAmount: number): GameState {
+  if (!state.userTeamId) return state;
+  const userTeam = state.teams.find(t => t.id === state.userTeamId);
+  if (!userTeam) return state;
+
+  // Find player in pool
+  const playerIdx = state.playerPool.findIndex(p => p.id === playerId);
+  if (playerIdx === -1) return state;
+  const player = state.playerPool[playerIdx];
+
+  // Validation: roster size, overseas limit, budget
+  if (userTeam.roster.length >= 25) return state;
+  if (player.isInternational && userTeam.internationalCount >= 8) return state;
+  if (userTeam.remainingBudget < bidAmount) return state;
+
+  // Sign the player
+  const newPool = [...state.playerPool];
+  newPool.splice(playerIdx, 1);
+  userTeam.addPlayer(player, bidAmount);
+  player.contractYears = 1;
+
+  return withSyncedScouting({
+    ...state,
+    playerPool: newPool,
+  });
 }
 
 export function extendUserPlayerContract(

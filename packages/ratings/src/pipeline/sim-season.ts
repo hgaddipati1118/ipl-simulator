@@ -18,6 +18,7 @@ import {
   RULE_PRESETS,
   type MatchResult,
   type InningsScore,
+  displayOversToReal,
 } from "@ipl-sim/engine";
 import { getRealPlayers } from "../real-players.js";
 import { ALL_PLAYERS } from "../all-players.js";
@@ -49,6 +50,7 @@ function buildTeams(): Team[] {
 
   let assignedCount = 0;
   for (const rp of realPlayers) {
+    if (!rp.teamId) continue;
     const team = teamMap.get(rp.teamId);
     if (!team) continue;
 
@@ -229,7 +231,7 @@ function printTopWicketTakers(teams: Team[]): void {
 
   sorted.forEach((p, i) => {
     const avg = p.wickets > 0 ? p.runsConceded / p.wickets : 0;
-    const econ = p.overs > 0 ? p.runsConceded / p.overs : 0;
+    const econ = p.overs > 0 ? p.runsConceded / displayOversToReal(p.overs) : 0;
     console.log(
       `${padNum(i + 1, 3)} ${pad(p.name, 25)} ${pad(p.team, 6)} ${padNum(p.matches, 5)} ${padNum(p.wickets, 6)} ${padNum(avg, 8, 2)} ${padNum(econ, 8, 2)}`,
     );

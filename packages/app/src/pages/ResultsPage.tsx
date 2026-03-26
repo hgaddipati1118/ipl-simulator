@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { GameState } from "../game-state";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
@@ -341,13 +342,21 @@ export function ResultsPage({ state, onNextSeason }: Props) {
         </div>
       )}
 
-      <div className="text-center">
+      <div className="flex items-center justify-center gap-4">
         <button
           onClick={onNextSeason}
           className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
         >
           Next Season
         </button>
+        {(state.hallOfFame?.length ?? 0) > 0 && (
+          <Link
+            to="/hall-of-fame"
+            className="px-6 py-3 border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 font-display font-semibold rounded-xl transition-all text-sm"
+          >
+            Hall of Fame ({state.hallOfFame!.length})
+          </Link>
+        )}
       </div>
     </div>
   );

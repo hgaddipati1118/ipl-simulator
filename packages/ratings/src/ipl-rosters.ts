@@ -284,11 +284,12 @@ export const IPL_2026_ROSTERS: IPLRoster[] = [
       { name: "Shimron Hetmyer", price: 11.0, retained: true },
       { name: "Jofra Archer", price: 12.50, retained: true },
       { name: "Dhruv Jurel", price: 14.0, retained: true },
-      { name: "Fazalhaq Farooqi", price: 2.0, retained: true },
+      { name: "Ravindra Jadeja", price: 16.0 }, // traded from CSK
+      { name: "Sam Curran", price: 11.0 }, // traded from CSK
       { name: "Vaibhav Suryavanshi", price: 1.10, retained: true },
       { name: "Tushar Deshpande", price: 6.50, retained: true },
-      { name: "Kumar Kartikeya Singh", price: 0.30, retained: true },
-      { name: "Akash Madhwal", price: 1.20, retained: true },
+      { name: "Sandeep Sharma", price: 1.50 },
+      { name: "Donovan Ferreira", price: 1.00 }, // traded from DC
       { name: "Kwena Maphaka", price: 1.50, retained: true },
       { name: "Nandre Burger", price: 3.50, retained: true },
       { name: "Shubham Dubey", price: 0.80, retained: true },

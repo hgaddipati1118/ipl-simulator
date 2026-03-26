@@ -13,6 +13,7 @@ import {
   runAuction, runSeason, getStandings, simulateMatch,
   retainPlayers,
   type SeasonResult,
+  displayOversToReal,
 } from "@ipl-sim/engine";
 import { getRealPlayers } from "@ipl-sim/ratings";
 
@@ -268,9 +269,10 @@ describe("season stat consistency", () => {
         expect(p.strikeRate).toBeCloseTo(expectedSR, 5);
       }
 
-      // Economy rate is consistent
+      // Economy rate is consistent (overs stored in display format, e.g. 3.4 = 3o 4b)
       if (p.stats.overs > 0) {
-        const expectedEcon = p.stats.runsConceded / p.stats.overs;
+        const realOvers = displayOversToReal(p.stats.overs);
+        const expectedEcon = realOvers > 0 ? p.stats.runsConceded / realOvers : 0;
         expect(p.economyRate).toBeCloseTo(expectedEcon, 5);
       }
 

@@ -14,6 +14,7 @@ import { PlayerLink } from "../components/PlayerLink";
 import { PlayerAvatar } from "../components/PlayerAvatar";
 import { getTeamLogo } from "../team-logos";
 import { roleLabel } from "../ui-utils";
+import { displayOversToReal } from "@ipl-sim/engine";
 
 interface Props {
   state: GameState;
@@ -317,7 +318,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
               <SquadStat label="Avg Ready" value={String(averageReadiness)} />
               <SquadStat label="Tired" value={String(tiredPlayers)} />
               <SquadStat label="Offers" value={String(pendingOffers)} />
-              <SquadStat label="Stories" value={String(state.narrativeEvents.length)} />
+              <SquadStat label="Training" value={`${5 - (state.currentMatchIndex % 5)}`} hint="matches to next boost" />
               <SquadStat label="Board" value={boardStatus?.label ?? "-"} />
             </div>
 
@@ -328,8 +329,8 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
                   {state.needsLineup
                     ? "Lineup needed before your next match."
                     : nextUserMatch
-                      ? `${nextUserMatch.homeTeamId} vs ${nextUserMatch.awayTeamId} is your next user fixture.`
-                      : "No user fixture is queued right now."}
+                      ? `${nextUserMatch.homeTeamId.toUpperCase()} vs ${nextUserMatch.awayTeamId.toUpperCase()} is your next fixture.`
+                      : "No fixture queued right now."}
                 </div>
                 <div className="text-th-faint text-xs mt-1">
                   {state.needsLineup
@@ -664,9 +665,9 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
   );
 }
 
-function SquadStat({ label, value }: { label: string; value: string }) {
+function SquadStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="bg-th-surface rounded-xl px-3 py-2.5">
+    <div className="bg-th-surface rounded-xl px-3 py-2.5" title={hint}>
       <div className="text-th-muted text-[10px] uppercase font-display tracking-wider">{label}</div>
       <div className="text-th-primary font-display font-semibold text-lg stat-num">{value}</div>
     </div>
@@ -738,7 +739,7 @@ function buildLeaderboards(teams: import("@ipl-sim/engine").Team[]): Leaderboard
   // Best Economy (min 2 overs bowled)
   const qualifiedBowlers = stats.filter(s => s.oversBowled >= 2);
   const bestEconomy: LeaderboardEntry[] = [...qualifiedBowlers]
-    .map(s => ({ ...s, economy: s.runsConceded / s.oversBowled }))
+    .map(s => ({ ...s, economy: s.runsConceded / displayOversToReal(s.oversBowled) }))
     .sort((a, b) => a.economy - b.economy)
     .slice(0, 5)
     .map(s => ({

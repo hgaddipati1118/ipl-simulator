@@ -10,7 +10,7 @@ import { Team } from "./team.js";
 import { MatchResult, simulateMatch, calculateMVPPoints, type InningsScore, type MatchInjuryEvent } from "./match.js";
 import { Player } from "./player.js";
 import { shuffle } from "./math.js";
-import { DEFAULT_RULES, type RuleSet } from "./rules.js";
+import { DEFAULT_RULES, IPL_10_TEAM_IDS, type RuleSet } from "./rules.js";
 import { healInjuries, runPostMatchInjuryChecks } from "./injury.js";
 import type { MatchState } from "./live-match.js";
 
@@ -35,6 +35,8 @@ export interface StandingsEntry {
   ties: number;
   points: number;
   nrr: number;
+  wicketsTaken: number;
+  wicketsPerBall: number;
 }
 
 export interface SeasonResult {
@@ -63,6 +65,25 @@ export interface SerializableMatchResult {
 interface PlayerWorkload {
   ballsFaced: number;
   oversBowled: number;
+}
+
+const OFFICIAL_IPL_GROUP_A = ["mi", "kkr", "rr", "dc", "lsg"] as const;
+const OFFICIAL_IPL_GROUP_B = ["csk", "srh", "rcb", "pbks", "gt"] as const;
+
+function usesOfficialModernIPLMatrix(teams: Team[], matchesPerTeam: number): boolean {
+  if (teams.length !== 10 || matchesPerTeam !== 14) return false;
+  const ids = new Set(teams.map(team => team.id));
+  return IPL_10_TEAM_IDS.every(id => ids.has(id));
+}
+
+function getNRRBallDenominator(
+  innings: Pick<InningsScore, "wickets" | "totalBalls">,
+  maxBalls = 120,
+): number {
+  if (innings.wickets >= 10 && innings.totalBalls < maxBalls) {
+    return maxBalls;
+  }
+  return innings.totalBalls;
 }
 
 function getBattingInnings(result: MatchResult, teamId: string): InningsScore | undefined {
@@ -215,8 +236,127 @@ export function serializeMatchResult(result: MatchResult): SerializableMatchResu
  * Each team plays 14 matches: 7 home, 7 away.
  * Returns the schedule array without any results — ready for match-by-match simulation.
  */
+/**
+ * Spread fixtures so no team plays back-to-back and reverse fixtures
+ * (A vs B / B vs A) are separated. Uses greedy slot-filling with
+ * multiple retry shuffles for best result.
+ */
+function spreadFixtures(fixtures: Array<[string, string]>): Array<[string, string]> {
+  const n = fixtures.length;
+  if (n <= 1) return fixtures;
+
+  const pairKey = (a: string, b: string) => a < b ? `${a}:${b}` : `${b}:${a}`;
+
+  let bestResult = fixtures;
+  let bestScore = Infinity;
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const pool = [...fixtures];
+    shuffle(pool);
+    const result: Array<[string, string]> = [];
+    const remaining = new Set(pool.map((_, i) => i));
+
+    for (let slot = 0; slot < n; slot++) {
+      const prevTeams = new Set<string>();
+      const recentPairs = new Set<string>();
+
+      // Collect teams from previous 1-2 matches to avoid back-to-back
+      for (let back = 1; back <= 2 && slot - back >= 0; back++) {
+        const prev = result[slot - back];
+        prevTeams.add(prev[0]);
+        prevTeams.add(prev[1]);
+        recentPairs.add(pairKey(prev[0], prev[1]));
+      }
+
+      let bestIdx = -1;
+      let bestPenalty = Infinity;
+
+      for (const idx of remaining) {
+        const [h, a] = pool[idx];
+        let penalty = 0;
+        if (prevTeams.has(h)) penalty += 10;
+        if (prevTeams.has(a)) penalty += 10;
+        if (recentPairs.has(pairKey(h, a))) penalty += 5;
+        if (penalty < bestPenalty) {
+          bestPenalty = penalty;
+          bestIdx = idx;
+          if (penalty === 0) break;
+        }
+      }
+
+      remaining.delete(bestIdx);
+      result.push(pool[bestIdx]);
+    }
+
+    // Score: count back-to-back violations
+    let score = 0;
+    for (let i = 1; i < result.length; i++) {
+      const prev = new Set([result[i - 1][0], result[i - 1][1]]);
+      if (prev.has(result[i][0]) || prev.has(result[i][1])) score++;
+    }
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestResult = result;
+      if (score === 0) break;
+    }
+  }
+
+  return bestResult;
+}
+
 export function generateSchedule(teams: Team[], matchesPerTeam = 14): ScheduledMatch[] {
   return generateIPLSchedule(teams, matchesPerTeam);
+}
+
+function generateOfficialModernIPLSchedule(teams: Team[]): ScheduledMatch[] {
+  const teamMap = new Map(teams.map(team => [team.id, team]));
+  const fixtures: Array<[string, string]> = [];
+  const groups = [OFFICIAL_IPL_GROUP_A, OFFICIAL_IPL_GROUP_B];
+
+  const pushFixture = (homeId: string, awayId: string) => {
+    if (!teamMap.has(homeId) || !teamMap.has(awayId)) {
+      throw new Error(`Missing IPL team config for fixture ${homeId} vs ${awayId}`);
+    }
+    fixtures.push([homeId, awayId]);
+  };
+
+  // Teams play everyone in their virtual group home and away.
+  for (const group of groups) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        pushFixture(group[i], group[j]);
+        pushFixture(group[j], group[i]);
+      }
+    }
+  }
+
+  // Same-row opponents across groups are also home and away.
+  for (let i = 0; i < OFFICIAL_IPL_GROUP_A.length; i++) {
+    pushFixture(OFFICIAL_IPL_GROUP_A[i], OFFICIAL_IPL_GROUP_B[i]);
+    pushFixture(OFFICIAL_IPL_GROUP_B[i], OFFICIAL_IPL_GROUP_A[i]);
+  }
+
+  // Remaining cross-group opponents are played once, split 2 home / 2 away per team.
+  for (let i = 0; i < OFFICIAL_IPL_GROUP_A.length; i++) {
+    for (let j = 0; j < OFFICIAL_IPL_GROUP_B.length; j++) {
+      if (i === j) continue;
+
+      const homeIsGroupA = ((j - i + OFFICIAL_IPL_GROUP_A.length) % OFFICIAL_IPL_GROUP_A.length) <= 2;
+      pushFixture(
+        homeIsGroupA ? OFFICIAL_IPL_GROUP_A[i] : OFFICIAL_IPL_GROUP_B[j],
+        homeIsGroupA ? OFFICIAL_IPL_GROUP_B[j] : OFFICIAL_IPL_GROUP_A[i],
+      );
+    }
+  }
+
+  return spreadFixtures(fixtures).map(([homeTeamId, awayTeamId], index) => ({
+    matchNumber: index + 1,
+    homeTeamId,
+    awayTeamId,
+    isPlayoff: false,
+    type: "group" as const,
+  }));
 }
 
 /**
@@ -225,6 +365,10 @@ export function generateSchedule(teams: Team[], matchesPerTeam = 14): ScheduledM
  * WPL: 20 group matches for 5 teams (8 per team, full double round-robin)
  */
 export function generateIPLSchedule(teams: Team[], matchesPerTeam = 14): ScheduledMatch[] {
+  if (usesOfficialModernIPLMatrix(teams, matchesPerTeam)) {
+    return generateOfficialModernIPLSchedule(teams);
+  }
+
   const schedule: ScheduledMatch[] = [];
   const matchups: [string, string][] = [];
 
@@ -266,13 +410,13 @@ export function generateIPLSchedule(teams: Team[], matchesPerTeam = 14): Schedul
     }
   }
 
-  shuffle(selected);
+  const spread = spreadFixtures(selected);
 
-  for (let i = 0; i < selected.length; i++) {
+  for (let i = 0; i < spread.length; i++) {
     schedule.push({
       matchNumber: i + 1,
-      homeTeamId: selected[i][0],
-      awayTeamId: selected[i][1],
+      homeTeamId: spread[i][0],
+      awayTeamId: spread[i][1],
       isPlayoff: false,
       type: "group",
     });
@@ -297,7 +441,10 @@ export function simulateNextMatch(
 
   const home = teamMap.get(match.homeTeamId)!;
   const away = teamMap.get(match.awayTeamId)!;
-  const result = simulateMatch(home, away, rules);
+  const result = simulateMatch(home, away, rules, undefined, {
+    neutralVenue: match.isPlayoff,
+    countTowardStandings: !match.isPlayoff,
+  });
 
   match.result = result;
 
@@ -306,6 +453,15 @@ export function simulateNextMatch(
   // Heal injuries for all teams
   for (const t of teams) {
     healInjuries(t);
+  }
+
+  // Mid-season training tick every 5 matches
+  if ((matchIndex + 1) % 5 === 0) {
+    for (const t of teams) {
+      for (const p of t.roster) {
+        p.applyMidSeasonTraining();
+      }
+    }
   }
 
   return result;
@@ -373,33 +529,38 @@ export function applyLiveResult(
   match.result = result;
 
   // Update team records
-  if (winnerId) {
-    const winner = winnerId === home.id ? home : away;
-    const loser = winner === home ? away : home;
-    winner.wins++;
-    loser.losses++;
-  } else {
-    home.ties++;
-    away.ties++;
+  if (!match.isPlayoff) {
+    if (winnerId) {
+      const winner = winnerId === home.id ? home : away;
+      const loser = winner === home ? away : home;
+      winner.wins++;
+      loser.losses++;
+    } else {
+      home.ties++;
+      away.ties++;
+    }
+
+    // Update NRR components
+    const maxInningsBalls = completedMatch.maxOvers * 6;
+    const homeBattingInnings = battingFirstId === home.id ? innings1 : innings2;
+    const homeBowlingInnings = battingFirstId === home.id ? innings2 : innings1;
+    const awayBattingInnings = battingFirstId === away.id ? innings1 : innings2;
+    const awayBowlingInnings = battingFirstId === away.id ? innings2 : innings1;
+
+    home.runsFor += homeBattingInnings.runs;
+    home.ballsFacedFor += getNRRBallDenominator(homeBattingInnings, maxInningsBalls);
+    home.runsAgainst += homeBowlingInnings.runs;
+    home.ballsFacedAgainst += getNRRBallDenominator(homeBowlingInnings, maxInningsBalls);
+    home.wicketsTaken += homeBowlingInnings.wickets;
+    home.updateNRR();
+
+    away.runsFor += awayBattingInnings.runs;
+    away.ballsFacedFor += getNRRBallDenominator(awayBattingInnings, maxInningsBalls);
+    away.runsAgainst += awayBowlingInnings.runs;
+    away.ballsFacedAgainst += getNRRBallDenominator(awayBowlingInnings, maxInningsBalls);
+    away.wicketsTaken += awayBowlingInnings.wickets;
+    away.updateNRR();
   }
-
-  // Update NRR components
-  const homeBattingInnings = battingFirstId === home.id ? innings1 : innings2;
-  const homeBowlingInnings = battingFirstId === home.id ? innings2 : innings1;
-  const awayBattingInnings = battingFirstId === away.id ? innings1 : innings2;
-  const awayBowlingInnings = battingFirstId === away.id ? innings2 : innings1;
-
-  home.runsFor += homeBattingInnings.runs;
-  home.ballsFacedFor += homeBattingInnings.totalBalls;
-  home.runsAgainst += homeBowlingInnings.runs;
-  home.ballsFacedAgainst += homeBowlingInnings.totalBalls;
-  home.updateNRR();
-
-  away.runsFor += awayBattingInnings.runs;
-  away.ballsFacedFor += awayBattingInnings.totalBalls;
-  away.runsAgainst += awayBowlingInnings.runs;
-  away.ballsFacedAgainst += awayBowlingInnings.totalBalls;
-  away.updateNRR();
 
   // Update player stats — mirrors updatePlayerStats() in match.ts
   const updateBatterStats = (inn: typeof innings1) => {
@@ -443,6 +604,15 @@ export function applyLiveResult(
   // Heal injuries for all teams
   for (const t of teams) {
     healInjuries(t);
+  }
+
+  // Mid-season training tick every 5 matches
+  if ((matchIndex + 1) % 5 === 0) {
+    for (const t of teams) {
+      for (const p of t.roster) {
+        p.applyMidSeasonTraining();
+      }
+    }
   }
 
   return result;
@@ -549,10 +719,13 @@ export function getStandings(teams: Team[]): StandingsEntry[] {
       ties: t.ties,
       points: t.points,
       nrr: t.nrr,
+      wicketsTaken: t.wicketsTaken,
+      wicketsPerBall: t.ballsFacedAgainst > 0 ? t.wicketsTaken / t.ballsFacedAgainst : 0,
     }))
     .sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
-      return b.nrr - a.nrr;
+      if (b.nrr !== a.nrr) return b.nrr - a.nrr;
+      return b.wicketsPerBall - a.wicketsPerBall;
     });
 }
 
@@ -582,7 +755,10 @@ function playAndPush(
 ): MatchResult {
   const home = teamMap.get(match.homeTeamId)!;
   const away = teamMap.get(match.awayTeamId)!;
-  match.result = simulateMatch(home, away, rules);
+  match.result = simulateMatch(home, away, rules, undefined, {
+    neutralVenue: true,
+    countTowardStandings: false,
+  });
   schedule.push(match);
   for (const t of teams) healInjuries(t);
   return match.result;
@@ -829,7 +1005,7 @@ export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): Season
 
   return {
     schedule,
-    standings: getStandings(teams),
+    standings,
     champion,
     orangeCap,
     purpleCap,

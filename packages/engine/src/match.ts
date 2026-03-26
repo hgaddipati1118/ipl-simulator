@@ -22,6 +22,7 @@ import {
   decideTossChoice,
   getMatchPhase,
   getMatchupModifiers,
+  isPaceBowler,
   type BoundarySize,
   type DewFactor,
   type PitchType,
@@ -168,21 +169,19 @@ export interface MatchResult {
   detailed?: DetailedMatchResult; // full scorecard data
 }
 
-/** Phase multipliers for outcome probabilities
- * Tuned to match IPL 2025 real-world benchmarks:
- *   - Avg innings score ~200-210, RR ~10.0-10.4
- *   - Powerplay: more boundaries, fewer dots
- *   - Middle: more dots, fewer boundaries (spin-dominant)
- *   - Death: big sixes, more wickets, more wides
+export interface MatchOptions {
+  neutralVenue?: boolean;
+  countTowardStandings?: boolean;
+  venueName?: string;
+}
+
+/** Phase multipliers for outcome probabilities (aligned with live-match.ts)
+ * Target avg innings score: 160-175
  */
 const PHASE_MULTIPLIERS: Record<"powerplay" | "middle" | "death", Partial<Record<BallOutcome, number>>> = {
-  // Real IPL 2025 phase patterns:
-  // PP (1-6): RR ~9.5, more 4s (fielding restrictions), fewer wickets
-  // Mid (7-15): RR ~8.5, spin-dominant, fewer boundaries, more dots
-  // Death (16-20): RR ~12+, big sixes, more wickets/wides, aggressive batting
-  powerplay: { dot: 0.90, "1": 1.05, "2": 0.85, "3": 0.8, "4": 1.25, "6": 0.90, wicket: 0.80, wide: 1.05, noball: 1.0 },
-  middle:    { dot: 1.10, "1": 1.05, "2": 1.05, "3": 1.0, "4": 0.82, "6": 0.75, wicket: 1.05, wide: 0.85, noball: 0.9 },
-  death:     { dot: 0.85, "1": 0.85, "2": 1.15, "3": 1.3, "4": 1.05, "6": 1.40, wicket: 1.15, wide: 1.20, noball: 1.2 },
+  powerplay: { dot: 0.85, "1": 1.0, "2": 0.9, "3": 1.0, "4": 1.3, "6": 1.1, wicket: 0.9, wide: 1.1, noball: 1.0 },
+  middle:    { dot: 1.1,  "1": 1.1, "2": 1.0, "3": 1.0, "4": 0.9, "6": 0.85, wicket: 1.0, wide: 0.9, noball: 1.0 },
+  death:     { dot: 0.8,  "1": 0.9, "2": 1.1, "3": 1.1, "4": 1.2, "6": 1.25, wicket: 1.2, wide: 1.2, noball: 1.1 },
 };
 
 /** Generate base outcome probabilities from batter and bowler ratings */
@@ -196,20 +195,20 @@ function baseOutcomeProbabilities(
   // Balance between batter and bowler determines distribution
   const balance = batRating - bowlRating; // -1 to 1, positive favors batter
 
-  // Tuned to match real IPL 2025 ball-outcome distributions:
-  //   dots ~38-40%, singles ~30-33%, 2s/3s ~5-7%, 4s ~8-10%, 6s ~5-7%, wickets ~4-5%, wides ~3-4%
-  //   Target avg innings score: ~200-210 (combined ~400-420)
+  // Tuned to match modern IPL (2025-2026) ball-outcome distributions:
+  //   IPL 2025 had 52 scores above 200, avg innings ~178-182
+  //   Target avg innings score: 175-185 (Impact Player era, flat pitches)
   return {
-    dot:    clamp(0.33 - balance * 0.10, 0.18, 0.50),
-    "1":    clamp(0.32 + balance * 0.02, 0.22, 0.40),
-    "2":    clamp(0.07 + balance * 0.02, 0.03, 0.12),
-    "3":    clamp(0.015, 0.005, 0.03),
-    "4":    clamp(0.085 + balance * 0.038 + (batter.ratings.timing / 100) * 0.02, 0.03, 0.16),
-    "6":    clamp(0.058 + balance * 0.034 + (batter.ratings.power / 100) * 0.027, 0.01, 0.14),
-    wicket: clamp(0.04 - balance * 0.025 + (bowler.ratings.wicketTaking / 100) * 0.02, 0.01, 0.10),
-    wide:   clamp(0.04 - (bowler.ratings.accuracy / 100) * 0.015, 0.012, 0.07),
-    noball:  clamp(0.008 - (bowler.ratings.accuracy / 100) * 0.004, 0.002, 0.025),
-    legbye: 0.02,
+    dot:    clamp(0.36 - balance * 0.12, 0.18, 0.52),
+    "1":    clamp(0.28 + balance * 0.02, 0.20, 0.38),
+    "2":    clamp(0.05 + balance * 0.015, 0.02, 0.10),
+    "3":    clamp(0.01, 0.005, 0.025),
+    "4":    clamp(0.12 + balance * 0.04 + (batter.ratings.timing / 100) * 0.02, 0.04, 0.20),
+    "6":    clamp(0.055 + balance * 0.03 + (batter.ratings.power / 100) * 0.025, 0.01, 0.14),
+    wicket: clamp(0.045 - balance * 0.025 + (bowler.ratings.wicketTaking / 100) * 0.02, 0.015, 0.10),
+    wide:   clamp(0.03 - (bowler.ratings.accuracy / 100) * 0.012, 0.008, 0.06),
+    noball:  clamp(0.005 - (bowler.ratings.accuracy / 100) * 0.003, 0.001, 0.02),
+    legbye: 0.015,
   };
 }
 
@@ -281,6 +280,16 @@ function simulateBall(
   probs["4"] *= matchupMods.fourMod;
   probs["6"] *= matchupMods.sixMod;
   probs.dot *= matchupMods.dotMod;
+
+  // Ball change rule (IPL 2026): after over 10 in 2nd innings, drier ball helps pace
+  if (isSecondInnings && over >= 10) {
+    const bowlStyle = bowler.bowlingStyle;
+    if (bowlStyle && isPaceBowler(bowlStyle)) {
+      probs.wicket *= 1.08;
+      probs["4"] *= 0.95;
+      probs.dot *= 1.04;
+    }
+  }
 
   // Chase context
   if (isSecondInnings && ballsRemaining > 0) {
@@ -459,6 +468,35 @@ function emptyInnings(teamId: string): InningsScore {
     batterStats: new Map(),
     bowlerStats: new Map(),
   };
+}
+
+function getVenueContext(
+  homeTeam: Team,
+  rules: RuleSet,
+  options?: MatchOptions,
+): VenueContext {
+  if (options?.neutralVenue) {
+    return {
+      stadiumBowlRating: 1.0 * (2 - rules.scoringMultiplier),
+      pitchType: "balanced",
+      boundarySize: "medium",
+      dewFactor: "none",
+    };
+  }
+
+  return {
+    stadiumBowlRating: (homeTeam.config.stadiumBowlingRating ?? 1.0) * (2 - rules.scoringMultiplier),
+    pitchType: homeTeam.config.pitchType ?? "balanced",
+    boundarySize: homeTeam.config.boundarySize ?? "medium",
+    dewFactor: homeTeam.config.dewFactor ?? "none",
+  };
+}
+
+function getNRRBallDenominator(innings: InningsScore, maxOvers = 20): number {
+  if (innings.wickets >= 10 && innings.totalBalls < maxOvers * 6) {
+    return maxOvers * 6;
+  }
+  return innings.totalBalls;
 }
 
 // ── Impact Player Logic ──────────────────────────────────────────────────
@@ -759,6 +797,13 @@ function updatePlayerStats(
       player.stats.overs += overs;
       player.stats.runsConceded += bowlStat.runs;
       player.stats.wickets += bowlStat.wickets;
+
+      // Track best bowling figures (most wickets, then fewest runs)
+      const currentBest = player.stats.bestBowling;
+      const [bestW, bestR] = currentBest.split("/").map(Number);
+      if (bowlStat.wickets > bestW || (bowlStat.wickets === bestW && bowlStat.runs < bestR)) {
+        player.stats.bestBowling = `${bowlStat.wickets}/${bowlStat.runs}`;
+      }
     }
 
     player.stats.matchLog.push({
@@ -1101,6 +1146,7 @@ function buildDetailedResult(
   tossWinner: Team,
   tossDecision: "bat" | "bowl",
   motm: { playerId: string; reason: string },
+  venueName: string,
   rng: RNG = Math.random,
 ): DetailedMatchResult {
   const playerMap = new Map<string, Player>();
@@ -1138,7 +1184,7 @@ function buildDetailedResult(
       playerName: motmPlayer?.name ?? "Unknown",
       reason: motm.reason,
     },
-    venue: `${homeTeam.config.city}`,
+    venue: venueName,
   };
 }
 
@@ -1150,6 +1196,7 @@ export function simulateMatch(
   awayTeam: Team,
   rules: RuleSet = DEFAULT_RULES,
   seed?: number,
+  options?: MatchOptions,
 ): MatchResult {
   const rng = createRNG(seed ?? randomSeed());
   const matchId = `match_${++matchCounter}`;
@@ -1163,12 +1210,7 @@ export function simulateMatch(
 
   // Toss
   const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
-  const venue: VenueContext = {
-    stadiumBowlRating: (homeTeam.config.stadiumBowlingRating ?? 1.0) * (2 - rules.scoringMultiplier),
-    pitchType: homeTeam.config.pitchType ?? "balanced",
-    boundarySize: homeTeam.config.boundarySize ?? "medium",
-    dewFactor: homeTeam.config.dewFactor ?? "none",
-  };
+  const venue = getVenueContext(homeTeam, rules, options);
   const tossDecision = decideTossChoice(venue);
 
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
@@ -1240,30 +1282,33 @@ export function simulateMatch(
     margin = "Super Over";
   }
 
-  // Update team records
-  const winner = winnerId === homeTeam.id ? homeTeam : awayTeam;
-  const loser = winner === homeTeam ? awayTeam : homeTeam;
+  if (options?.countTowardStandings ?? true) {
+    const winner = winnerId === homeTeam.id ? homeTeam : awayTeam;
+    const loser = winner === homeTeam ? awayTeam : homeTeam;
 
-  winner.wins++;
-  loser.losses++;
+    winner.wins++;
+    loser.losses++;
 
-  // Update NRR components
-  const team1Batting = battingFirst === homeTeam ? innings1 : innings2;
-  const team1Bowling = battingFirst === homeTeam ? innings2 : innings1;
-  const team2Batting = battingFirst === awayTeam ? innings1 : innings2;
-  const team2Bowling = battingFirst === awayTeam ? innings2 : innings1;
+    // Group-stage standings use official NRR treatment: a bowled-out side is charged the full quota.
+    const homeBatting = battingFirst === homeTeam ? innings1 : innings2;
+    const homeBowling = battingFirst === homeTeam ? innings2 : innings1;
+    const awayBatting = battingFirst === awayTeam ? innings1 : innings2;
+    const awayBowling = battingFirst === awayTeam ? innings2 : innings1;
 
-  homeTeam.runsFor += team1Batting.runs;
-  homeTeam.ballsFacedFor += team1Batting.totalBalls;
-  homeTeam.runsAgainst += team1Bowling.runs;
-  homeTeam.ballsFacedAgainst += team1Bowling.totalBalls;
-  homeTeam.updateNRR();
+    homeTeam.runsFor += homeBatting.runs;
+    homeTeam.ballsFacedFor += getNRRBallDenominator(homeBatting);
+    homeTeam.runsAgainst += homeBowling.runs;
+    homeTeam.ballsFacedAgainst += homeBowling.totalBalls;
+    homeTeam.wicketsTaken += homeBowling.wickets;
+    homeTeam.updateNRR();
 
-  awayTeam.runsFor += team2Batting.runs;
-  awayTeam.ballsFacedFor += team2Batting.totalBalls;
-  awayTeam.runsAgainst += team2Bowling.runs;
-  awayTeam.ballsFacedAgainst += team2Bowling.totalBalls;
-  awayTeam.updateNRR();
+    awayTeam.runsFor += awayBatting.runs;
+    awayTeam.ballsFacedFor += getNRRBallDenominator(awayBatting);
+    awayTeam.runsAgainst += awayBowling.runs;
+    awayTeam.ballsFacedAgainst += awayBowling.totalBalls;
+    awayTeam.wicketsTaken += awayBowling.wickets;
+    awayTeam.updateNRR();
+  }
 
   // Update player stats
   updatePlayerStats(battingFirst, innings1, matchId, innings2);
@@ -1303,6 +1348,7 @@ export function simulateMatch(
     winnerId, margin,
     tossWinner, tossDecision,
     motm,
+    options?.venueName ?? (options?.neutralVenue ? "Neutral venue" : homeTeam.config.city),
     rng,
   );
 
