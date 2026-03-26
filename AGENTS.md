@@ -77,3 +77,8 @@ Core simulation logic:
 - Role inference: >15 point gap between batting/bowling overall = specialist; ≤15 = all-rounder
 - 10 IPL teams with config (primaryColor, secondaryColor, stadiumRating)
 - No component libraries — pure React + Tailwind utility classes
+
+## Workflow
+
+- Work directly on the `main` branch unless explicitly told otherwise
+- Commit changes to `main` as they are made when the user asks for commits

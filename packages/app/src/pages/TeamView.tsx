@@ -139,9 +139,74 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
         </div>
       )}
 
-      {/* Roster table */}
+      {/* Roster cards */}
       <div className="rounded-2xl border border-th overflow-hidden bg-th-surface">
-        <div className="overflow-x-auto">
+        <div className="space-y-3 p-3 md:hidden">
+          {rosterViews.map(({ player: p, scoutingView }) => (
+            <div
+              key={p.id}
+              className={`rounded-xl border border-th bg-th-raised p-4 ${xiIds.has(p.id) ? "" : "opacity-60"}`}
+            >
+              <div className="flex items-start gap-3">
+                <PlayerAvatar name={p.name} imageUrl={p.imageUrl} size="sm" teamColor={team.config.primaryColor} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <PlayerLink playerId={p.id} className="text-th-primary font-display font-medium">{p.name}</PlayerLink>
+                    <span className={`ovr-badge inline-block rounded-md px-1.5 py-0.5 text-sm ${ovrBgClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
+                  </div>
+                  <div className="mt-1 text-xs font-display text-th-faint">{p.country}</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {isUserTeam && <FormBadge form={p.form} />}
+                    {isUserTeam && <ConditionBadge readiness={p.readiness} />}
+                    {p.isInternational && <span className="text-blue-400/70 text-[10px] font-display font-semibold bg-blue-500/10 px-1 rounded">OS</span>}
+                    {p.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] font-display font-semibold bg-cyan-500/10 px-1 rounded">WK</span>}
+                    {p.injured && <span className="text-red-400 text-[10px] font-display font-semibold bg-red-500/10 px-1 rounded">INJ</span>}
+                    {xiIds.has(p.id) && <span className="text-emerald-400/70 text-[10px] font-display font-semibold bg-emerald-500/10 px-1 rounded">XI</span>}
+                    {p.battingPosition && battingPositionLabel(p.battingPosition) && (
+                      <span className={`text-[10px] font-display font-semibold px-1 rounded ${battingPositionColor(p.battingPosition)}`}>
+                        {battingPositionLabel(p.battingPosition)}
+                      </span>
+                    )}
+                    {isUserTeam && <MoraleDot morale={p.morale} />}
+                    {isUserTeam && p.contractYears <= 0 && (
+                      <span className="text-[10px] font-display font-semibold px-1 rounded text-red-400 bg-red-500/10">FA</span>
+                    )}
+                    <RecruitmentBadge tier={getRecruitmentTag(recruitment, p.id)} compact />
+                    {!isUserTeam && <span className="text-th-faint text-[10px] font-display">{scoutingView.confidenceLabel}</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <MiniStat label="BAT" value={scoutingView.batting.compactDisplay} tone="text-orange-300" />
+                <MiniStat label="BWL" value={scoutingView.bowling.compactDisplay} tone="text-purple-300" />
+                <MiniStat label="Role" value={roleLabel(p.role)} />
+                <MiniStat
+                  label={isUserTeam ? "Ready" : "Scout"}
+                  value={isUserTeam ? conditionLabel(p.readiness) : scoutingView.confidenceLabel}
+                  tone={isUserTeam ? conditionColor(p.readiness) : "text-th-secondary"}
+                />
+                <MiniStat
+                  label="Style"
+                  value={scoutingView.showStyleDetails ? bowlingStyleLabel(p.bowlingStyle) || "Unknown" : scoutingView.confidenceLabel}
+                  tone="text-th-secondary"
+                />
+                <MiniStat label="Age" value={scoutingView.ageDisplay} />
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <MiniStat label="Runs" value={String(p.stats.runs)} />
+                <MiniStat label="Wkts" value={String(p.stats.wickets)} />
+                <MiniStat
+                  label={isUserTeam ? "Bid" : "Value"}
+                  value={isUserTeam ? p.bid.toFixed(1) : scoutingView.marketValue.compactDisplay}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm min-w-[520px]">
             <thead>
               <tr className="text-th-muted text-[11px] uppercase font-display tracking-wider border-b border-th">
@@ -219,6 +284,15 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
       {color && <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: color }} />}
       <div className="text-th-muted text-[10px] uppercase font-display tracking-wider">{label}</div>
       <div className="text-th-primary font-display font-bold text-lg stat-num">{value}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, tone = "text-th-primary" }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-lg border border-th bg-th-surface px-2.5 py-2 text-center">
+      <div className="text-[10px] uppercase tracking-wider text-th-faint">{label}</div>
+      <div className={`mt-1 text-xs font-display font-medium ${tone}`}>{value}</div>
     </div>
   );
 }

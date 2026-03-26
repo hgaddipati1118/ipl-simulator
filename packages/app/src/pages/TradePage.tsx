@@ -80,14 +80,14 @@ function ContractDesk({
 
       {expiredPlayers.length > 0 && (
         <div className="mb-5">
-          <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-red-300 text-[10px] uppercase tracking-wider font-display font-semibold">Expired Deals</div>
               <div className="text-th-faint text-xs mt-1">These players will hit the market unless you renew them now.</div>
             </div>
             <button
               onClick={onReleaseExpiredContracts}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-display font-medium text-red-200 hover:bg-red-500/15 transition-colors"
+              className="w-full rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-display font-medium text-red-200 transition-colors hover:bg-red-500/15 sm:w-auto"
             >
               Release All Expired
             </button>
@@ -194,13 +194,13 @@ function PlayerChip({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 min-h-[44px] border ${
+      className={`flex min-h-[44px] flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-all duration-200 ${
         selected
           ? "bg-blue-600/20 border-blue-500/40 text-white"
           : "bg-th-surface border-th text-th-secondary hover:bg-th-hover hover:text-th-primary"
       }`}
     >
-      <span className="font-display font-medium">{player.name}</span>
+      <span className="min-w-0 font-display font-medium">{player.name}</span>
       <span className={`text-xs ovr-badge ${ovrColorClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
       <span className="text-[10px] text-th-muted font-display">{player.role}</span>
       {player.isInternational && <span className="text-[10px] text-orange-400/60 font-semibold">OS</span>}
@@ -242,19 +242,19 @@ function IncomingOffers({
 
         return (
           <div key={offer.id} className="rounded-xl p-4 border border-th bg-th-surface">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="mb-3 flex items-start gap-2 sm:items-center">
               {fromTeam && (
                 <TeamBadge teamId={fromTeam.id} shortName={fromTeam.shortName} primaryColor={fromTeam.config.primaryColor} size="sm" />
               )}
               <span className="text-th-primary font-display font-medium text-sm">{fromTeam?.name} offers a trade</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-2">You receive</p>
                 <div className="space-y-1.5">
                   {playersOffered.map(p => (
-                    <div key={p.id} className="flex items-center gap-2 text-sm">
+                    <div key={p.id} className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="text-emerald-400 text-xs">+</span>
                       <span className="text-th-primary font-display">{p.name}</span>
                       <RecruitmentBadge tier={getRecruitmentTag(recruitment, p.id)} compact />
@@ -269,7 +269,7 @@ function IncomingOffers({
                 <p className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-2">You send</p>
                 <div className="space-y-1.5">
                   {playersRequested.map(p => (
-                    <div key={p.id} className="flex items-center gap-2 text-sm">
+                    <div key={p.id} className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="text-red-400 text-xs">-</span>
                       <span className="text-th-primary font-display">{p.name}</span>
                       <RecruitmentBadge tier={getRecruitmentTag(recruitment, p.id)} compact />
@@ -282,16 +282,16 @@ function IncomingOffers({
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 onClick={() => onRespond(offer.id, true)}
-                className="px-4 py-2 bg-emerald-600/80 hover:bg-emerald-500/80 text-white text-sm font-display font-medium rounded-lg transition-colors"
+                className="w-full rounded-lg bg-emerald-600/80 px-4 py-2 text-sm font-display font-medium text-white transition-colors hover:bg-emerald-500/80 sm:w-auto"
               >
                 Accept
               </button>
               <button
                 onClick={() => onRespond(offer.id, false)}
-                className="px-4 py-2 bg-th-raised hover:bg-th-hover text-th-secondary text-sm font-display font-medium rounded-lg transition-colors border border-th"
+                className="w-full rounded-lg border border-th bg-th-raised px-4 py-2 text-sm font-display font-medium text-th-secondary transition-colors hover:bg-th-hover sm:w-auto"
               >
                 Reject
               </button>
@@ -399,7 +399,7 @@ function ProposeTrade({ state, scouting, recruitment, onPropose, onScoutTeam }: 
 
           {/* Target team's players */}
           <div>
-            <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold">{targetTeam.shortName}'s players you want</p>
               <label className="flex items-center gap-2 text-[10px] text-th-muted font-display">
                 <input
@@ -437,16 +437,16 @@ function ProposeTrade({ state, scouting, recruitment, onPropose, onScoutTeam }: 
       )}
 
       {selectedTarget && (
-        <div className="mt-5 flex flex-wrap items-center gap-4">
+        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
           <button
             onClick={handleSubmit}
             disabled={selectedUserPlayers.size === 0 || selectedTargetPlayers.size === 0}
-            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-600 text-white text-sm font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/20 disabled:shadow-none"
+            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-display font-semibold text-white shadow-lg shadow-blue-500/20 transition-all duration-200 hover:from-blue-500 hover:to-indigo-500 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-600 disabled:shadow-none sm:w-auto"
           >
             Propose Trade
           </button>
           {lastResult && (
-            <div className="flex flex-col gap-1">
+            <div className="flex w-full flex-col gap-1 sm:w-auto">
               <span className={`text-sm font-display ${lastResult.accepted ? "text-emerald-400" : lastResult.counterOffer ? "text-amber-400" : "text-red-400"}`}>
                 {lastResult.accepted
                   ? "Trade accepted!"
@@ -469,19 +469,19 @@ function ProposeTrade({ state, scouting, recruitment, onPropose, onScoutTeam }: 
                     <p className="text-th-secondary font-display">
                       They want: <span className="text-th-primary">{coRequested.map(p => p!.name).join(", ")}</span>
                     </p>
-                    <div className="flex gap-2 mt-3">
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <button
                         onClick={() => {
                           const result = onPropose(co.fromTeamId, co.playersRequested, co.playersOffered);
                           setLastResult(result);
                         }}
-                        className="px-3 py-1.5 bg-emerald-600/80 hover:bg-emerald-500/80 text-white text-xs font-display font-medium rounded-lg transition-colors"
+                        className="w-full rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-display font-medium text-white transition-colors hover:bg-emerald-500/80 sm:w-auto"
                       >
                         Accept Counter
                       </button>
                       <button
                         onClick={() => setLastResult(null)}
-                        className="px-3 py-1.5 bg-th-raised hover:bg-th-hover text-th-secondary text-xs font-display font-medium rounded-lg transition-colors border border-th"
+                        className="w-full rounded-lg border border-th bg-th-raised px-3 py-1.5 text-xs font-display font-medium text-th-secondary transition-colors hover:bg-th-hover sm:w-auto"
                       >
                         Decline
                       </button>
@@ -511,7 +511,7 @@ function StadiumEditor({ team, onUpdate }: { team: Team; onUpdate: (rating: numb
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <span className="text-th-primary font-display font-medium text-sm">{team.config.stadiumName ?? `${team.config.city} Stadium`}</span>
           <span className={`ml-2 text-xs font-display ${label.color}`}>{label.text}</span>
@@ -623,7 +623,7 @@ function FreeAgentBrowser({
               else if (budgetShort) disabledReason = "No budget";
 
               return (
-                <div key={player.id} className="flex items-center justify-between px-4 py-3 rounded-xl bg-th-raised border border-th">
+                <div key={player.id} className="flex flex-col gap-3 rounded-xl border border-th bg-th-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <span className="text-sm" title={player.country}>{countryFlag(player.country)}</span>
                     <div className="min-w-0 flex-1">
@@ -639,7 +639,7 @@ function FreeAgentBrowser({
                           <span className="text-[10px] text-orange-400/70 font-semibold border border-orange-400/20 rounded px-1">OS</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2">
                         <span className="text-th-muted text-xs font-display">Age {player.age}</span>
                         {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
                           <span className="text-[10px] text-purple-400/70 font-display font-semibold bg-purple-500/10 px-1.5 py-0.5 rounded">
@@ -650,14 +650,14 @@ function FreeAgentBrowser({
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-3">
+                  <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:ml-3 sm:w-auto sm:justify-end">
                     {!canSign && disabledReason && (
                       <span className="text-[10px] text-red-400/70 font-display">{disabledReason}</span>
                     )}
                     <button
                       onClick={() => onSignFreeAgent(player.id, player.marketValue)}
                       disabled={!canSign}
-                      className="px-3 py-1.5 text-xs font-display font-semibold bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-600/30 transition-colors disabled:opacity-40 disabled:hover:bg-emerald-600/20 whitespace-nowrap"
+                      className="w-full whitespace-nowrap rounded-lg border border-emerald-500/30 bg-emerald-600/20 px-3 py-1.5 text-xs font-display font-semibold text-emerald-400 transition-colors hover:bg-emerald-600/30 disabled:opacity-40 disabled:hover:bg-emerald-600/20 sm:w-auto"
                     >
                       Sign
                     </button>
@@ -775,14 +775,14 @@ export function TradePage({
               const p = prospect.player;
               const scoutColor = prospect.scoutRating === "Diamond" ? "text-cyan-400" : prospect.scoutRating === "Gold" ? "text-yellow-400" : prospect.scoutRating === "Silver" ? "text-gray-300" : "text-amber-700";
               return (
-                <div key={p.id} className="flex items-center justify-between px-4 py-3 rounded-xl bg-th-raised border border-th">
+                <div key={p.id} className="flex flex-col gap-3 rounded-xl border border-th bg-th-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-th-primary font-display font-medium text-sm">{p.name}</span>
                         <span className={`text-[10px] font-display font-bold ${scoutColor}`}>{prospect.scoutRating}</span>
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2">
                         <span className="text-th-muted text-xs">{p.role}</span>
                         <span className="text-th-faint text-xs">Age {p.age}</span>
                         <span className="text-th-faint text-xs">Pot {prospect.potential}</span>
@@ -793,7 +793,7 @@ export function TradePage({
                   {onPromoteProspect && (
                     <button
                       onClick={() => onPromoteProspect(i)}
-                      className="px-3 py-1.5 text-xs font-display font-semibold bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-600/30 transition-colors"
+                      className="w-full rounded-lg border border-emerald-500/30 bg-emerald-600/20 px-3 py-1.5 text-xs font-display font-semibold text-emerald-400 transition-colors hover:bg-emerald-600/30 sm:w-auto"
                     >
                       Promote
                     </button>

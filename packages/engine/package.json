@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "node --loader ts-node/esm src/__tests__/match.test.ts"
+    "test": "cd ../.. && npx vitest run packages/engine/src/__tests__/match.test.ts"
   },
   "devDependencies": {
     "typescript": "^5.4.0"

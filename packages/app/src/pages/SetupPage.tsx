@@ -83,12 +83,12 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <div className={sectionLabel}>Players</div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
             {(["men", "women", "combined"] as const).map(g => (
               <button
                 key={g}
                 onClick={() => setGender(g)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-display font-medium border transition-colors ${
+                className={`w-full rounded-lg border px-3 py-1.5 text-xs font-display font-medium transition-colors sm:w-auto ${
                   gender === g
                     ? "bg-orange-500/20 border-orange-500/40 text-white"
                     : "bg-th-surface border-th text-th-muted hover:text-th-primary"
@@ -101,12 +101,12 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
         </div>
         <div>
           <div className={sectionLabel}>Player Source</div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex">
             {(["real", "generated"] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setPlayerSource(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-display font-medium border transition-colors ${
+                className={`w-full rounded-lg border px-3 py-1.5 text-xs font-display font-medium transition-colors sm:w-auto ${
                   playerSource === s
                     ? "bg-orange-500/20 border-orange-500/40 text-white"
                     : "bg-th-surface border-th text-th-muted hover:text-th-primary"
@@ -122,7 +122,7 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
       {/* Team Selection */}
       <div>
         <div className={sectionLabel}>Teams ({selectedTeams.size} selected, min 2)</div>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {ALL_TEAM_CONFIGS.map(config => {
             const selected = selectedTeams.has(config.id);
             return (
@@ -178,7 +178,7 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
       {/* Playoff Format */}
       <div>
         <div className={sectionLabel}>Playoff Format</div>
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="grid gap-2 sm:flex sm:flex-wrap mb-3">
           {([
             { value: "eliminator" as const, label: "Eliminator (IPL-style)", desc: "Top seeds get second chance" },
             { value: "simple" as const, label: "Simple Bracket", desc: "Straight knockout" },
@@ -191,7 +191,7 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
                 if (opt.value === "none") setPlayoffTeams(0);
                 else if (playoffTeams === 0) setPlayoffTeams(4);
               }}
-              className={`px-3 py-2 rounded-lg text-xs font-display border transition-colors text-left ${
+              className={`w-full rounded-lg border px-3 py-2 text-left text-xs font-display transition-colors sm:w-auto ${
                 playoffFormat === opt.value
                   ? "bg-orange-500/20 border-orange-500/40 text-white"
                   : "bg-th-surface border-th text-th-muted hover:text-th-primary"
@@ -219,7 +219,7 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
       </div>
 
       {/* Toggles */}
-      <div className="flex flex-wrap gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={impactPlayer} onChange={e => setImpactPlayer(e.target.checked)} className="accent-orange-500" />
           <span className="text-sm text-th-secondary font-display">Impact Player</span>
@@ -278,7 +278,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
                 : "radial-gradient(ellipse at center, #FF822A20, transparent 70%)",
           }}
         />
-        <h1 className="text-5xl sm:text-6xl font-display font-extrabold tracking-tight mb-3">
+        <h1 className="text-4xl sm:text-6xl font-display font-extrabold tracking-tight mb-3">
           <span className="text-gradient-orange">{leagueLabel}</span>
           <span className="text-th-primary ml-3">Simulator</span>
         </h1>
@@ -286,11 +286,11 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
       </div>
 
       {/* League Toggle */}
-      <fieldset className="flex justify-center gap-2 mb-6 border-0 p-0 m-0">
+      <fieldset className="mb-6 grid grid-cols-2 gap-2 border-0 p-0 sm:flex sm:flex-wrap sm:justify-center">
         <legend className="sr-only">Select league type</legend>
         <button
           onClick={() => { setShowCustom(false); onRulesChange(RULE_PRESETS.modern2026); }}
-          className={`px-5 py-2.5 rounded-lg text-sm font-display font-semibold transition-all duration-200 border ${
+          className={`w-full rounded-lg border px-4 py-2.5 text-sm font-display font-semibold transition-all duration-200 ${
             !isWPL && !isCustom && !showCustom
               ? "bg-blue-600/90 border-blue-500/50 text-white shadow-lg shadow-blue-500/20"
               : "bg-th-surface border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
@@ -300,7 +300,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
         </button>
         <button
           onClick={() => { setShowCustom(false); onRulesChange(RULE_PRESETS.wpl); }}
-          className={`px-5 py-2.5 rounded-lg text-sm font-display font-semibold transition-all duration-200 border ${
+          className={`w-full rounded-lg border px-4 py-2.5 text-sm font-display font-semibold transition-all duration-200 ${
             isWPL && !showCustom
               ? "bg-purple-600/90 border-purple-500/50 text-white shadow-lg shadow-purple-500/20"
               : "bg-th-surface border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
@@ -310,7 +310,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
         </button>
         <button
           onClick={() => setShowCustom(true)}
-          className={`px-5 py-2.5 rounded-lg text-sm font-display font-semibold transition-all duration-200 border ${
+          className={`w-full rounded-lg border px-4 py-2.5 text-sm font-display font-semibold transition-all duration-200 ${
             showCustom
               ? "bg-emerald-600/90 border-emerald-500/50 text-white shadow-lg shadow-emerald-500/20"
               : "bg-th-surface border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
@@ -320,7 +320,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
         </button>
         <button
           onClick={() => navigate("/multiplayer")}
-          className="px-5 py-2.5 rounded-lg text-sm font-display font-semibold transition-all duration-200 border bg-th-surface border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
+          className="w-full rounded-lg border border-th bg-th-surface px-4 py-2.5 text-sm font-display font-semibold text-th-muted transition-all duration-200 hover:text-th-primary hover:bg-th-hover"
         >
           Multiplayer
         </button>
@@ -333,11 +333,11 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
 
       {/* Era Toggle (IPL only) */}
       {!isWPL && !isCustom && !showCustom && (
-        <div className="flex justify-center mb-6">
-          <div className="inline-flex rounded-lg border border-th overflow-hidden">
+        <div className="mb-6 flex justify-center">
+          <div className="grid w-full max-w-sm grid-cols-1 overflow-hidden rounded-lg border border-th sm:inline-flex sm:w-auto">
             <button
               onClick={() => onRulesChange(RULE_PRESETS.classic)}
-              className={`px-4 py-2 text-xs font-display font-medium transition-all duration-200 ${
+              className={`px-4 py-2 text-left text-xs font-display font-medium transition-all duration-200 sm:text-center ${
                 isClassic
                   ? "bg-white/10 text-th-primary"
                   : "bg-transparent text-th-muted hover:text-th-primary hover:bg-th-hover"
@@ -347,7 +347,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
             </button>
             <button
               onClick={() => onRulesChange(RULE_PRESETS.modern)}
-              className={`px-4 py-2 text-xs font-display font-medium transition-all duration-200 border-l border-th ${
+              className={`border-t border-th px-4 py-2 text-left text-xs font-display font-medium transition-all duration-200 sm:border-l sm:border-t-0 sm:text-center ${
                 isModern
                   ? "bg-white/10 text-th-primary"
                   : "bg-transparent text-th-muted hover:text-th-primary hover:bg-th-hover"
@@ -357,7 +357,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
             </button>
             <button
               onClick={() => onRulesChange(RULE_PRESETS.modern2026)}
-              className={`px-4 py-2 text-xs font-display font-medium transition-all duration-200 border-l border-th ${
+              className={`border-t border-th px-4 py-2 text-left text-xs font-display font-medium transition-all duration-200 sm:border-l sm:border-t-0 sm:text-center ${
                 is2026
                   ? "bg-white/10 text-th-primary"
                   : "bg-transparent text-th-muted hover:text-th-primary hover:bg-th-hover"

@@ -63,10 +63,10 @@ export function PowerRankingsPage({ teams }: Props) {
             Teams ranked by average playing XI overall rating
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
             onClick={() => setShowHealthy(prev => !prev)}
-            className={`px-4 py-2 rounded-xl text-sm font-display font-medium transition-colors ${
+            className={`w-full rounded-xl px-4 py-2 text-sm font-display font-medium transition-colors sm:w-auto ${
               showHealthy
                 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                 : "bg-th-raised text-th-secondary border border-th hover:bg-th-overlay"
@@ -76,7 +76,7 @@ export function PowerRankingsPage({ teams }: Props) {
           </button>
           <button
             onClick={() => navigate("/season")}
-            className="px-4 py-2 bg-th-raised hover:bg-th-overlay text-th-secondary font-display font-medium rounded-xl transition-colors text-sm border border-th"
+            className="w-full rounded-xl border border-th bg-th-raised px-4 py-2 text-sm font-display font-medium text-th-secondary transition-colors hover:bg-th-overlay sm:w-auto"
           >
             Back
           </button>

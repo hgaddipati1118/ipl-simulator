@@ -312,7 +312,7 @@ export function LobbyPage() {
               value={roomCode}
               onChange={e => setRoomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
               placeholder="ABCDEF"
-              className="w-full bg-th-surface border border-th rounded-xl px-4 py-4 text-2xl text-center text-th-primary font-mono tracking-[0.3em] focus:outline-none focus:border-orange-500/50 transition-colors uppercase"
+              className="w-full bg-th-surface border border-th rounded-xl px-4 py-4 text-xl text-center text-th-primary font-mono tracking-[0.18em] focus:outline-none focus:border-orange-500/50 transition-colors uppercase sm:text-2xl sm:tracking-[0.3em]"
               maxLength={6}
             />
           </div>
@@ -359,17 +359,17 @@ export function LobbyPage() {
         </div>
 
         {/* Room code display */}
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-th bg-th-surface px-5 py-3 flex items-center gap-3">
+        <div className="w-full sm:w-auto">
+          <div className="flex w-full flex-col gap-2 rounded-xl border border-th bg-th-surface px-4 py-3 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:px-5">
             <span className="text-[10px] uppercase tracking-wider font-display font-semibold text-th-muted">
               Code
             </span>
-            <span className="text-4xl font-mono font-bold text-th-primary tracking-[0.15em]">
+            <span className="text-2xl font-mono font-bold text-th-primary tracking-[0.08em] sm:text-4xl sm:tracking-[0.15em]">
               {roomCode}
             </span>
             <button
               onClick={handleCopyCode}
-              className="p-2 rounded-lg hover:bg-th-hover transition-colors text-th-muted hover:text-th-primary"
+              className="self-start rounded-lg p-2 text-th-muted transition-colors hover:bg-th-hover hover:text-th-primary sm:self-auto"
               title="Copy room code"
             >
               {copied ? (
@@ -501,17 +501,17 @@ export function LobbyPage() {
 
       {/* Host Actions */}
       {isHost && (
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <button
             onClick={handleFillCPU}
-            className="px-5 py-2.5 bg-th-surface border border-th hover:bg-th-hover hover:border-th-strong text-th-secondary text-sm font-display font-semibold rounded-xl transition-all duration-200"
+            className="w-full rounded-xl border border-th bg-th-surface px-5 py-2.5 text-sm font-display font-semibold text-th-secondary transition-all duration-200 hover:border-th-strong hover:bg-th-hover sm:w-auto"
           >
             Fill with CPU
           </button>
           <button
             onClick={handleStartAuction}
             disabled={!allTeamsAssigned}
-            className="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-orange-500/20"
+            className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-2.5 text-sm font-display font-semibold text-white shadow-lg shadow-orange-500/20 transition-all duration-200 hover:from-orange-400 hover:to-amber-400 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             Start Auction
           </button>
