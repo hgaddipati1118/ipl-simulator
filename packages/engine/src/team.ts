@@ -333,14 +333,20 @@ export class Team {
       .filter(p => (p.role === "bowler" || p.role === "all-rounder") && !p.isWicketKeeper)
       .sort(compareBowlingSuitability);
 
-    // Part-time batsmen: keep genuine contributors available, then use the
-    // best remaining non-keepers as emergency options if the XI is otherwise illegal.
+    // Part-time batsmen are fallback options, not automatic members of the attack.
+    // If we already have five genuine bowlers/ARs, keep the rotation tight.
     const partTimers = xi
       .filter(p => p.role === "batsman" && !p.isWicketKeeper)
       .sort(compareBowlingSuitability);
 
     for (const pt of partTimers) {
-      if (pt.effectiveBowlingOvr >= 50) {
+      if (bowlers.length >= 5) break;
+
+      // Prefer only credible sixth-bowler types when we need padding.
+      if (pt.effectiveBowlingOvr >= 60) {
+        bowlers.push(pt);
+      } else if (bowlers.length < 4 && pt.effectiveBowlingOvr >= 45) {
+        // Emergency only: avoid impossible XIs getting stuck without enough overs.
         bowlers.push(pt);
       }
     }

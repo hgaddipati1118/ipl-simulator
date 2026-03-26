@@ -722,6 +722,32 @@ function BowlingOrderTab({
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const getProjectedTargets = useCallback(() => {
+    if (bowlingOrder.length === 0) return new Map<string, number>();
+
+    const targets = new Map<string, number>(bowlingOrder.map(player => [player.id, 0]));
+    const activeBowlers = (() => {
+      if (bowlingOrder.length <= 5) return bowlingOrder;
+      const fifth = bowlingOrder[4];
+      const sixth = bowlingOrder[5];
+      if (fifth && sixth && sixth.bowlingOvr >= 70 && fifth.bowlingOvr - sixth.bowlingOvr <= 4) {
+        return bowlingOrder.slice(0, 6);
+      }
+      return bowlingOrder.slice(0, 5);
+    })();
+
+    let remainingOvers = 20;
+    for (const player of activeBowlers) {
+      const bowlersLeft = activeBowlers.length - activeBowlers.indexOf(player) - 1;
+      const reserveForRest = Math.max(0, bowlersLeft);
+      const share = Math.min(4, Math.max(1, remainingOvers - reserveForRest));
+      targets.set(player.id, share);
+      remainingOvers -= share;
+    }
+
+    return targets;
+  }, [bowlingOrder]);
+
   if (bowlingOrder.length === 0) {
     return (
       <div className="text-th-muted text-center py-12">
@@ -739,28 +765,33 @@ function BowlingOrderTab({
   const generateAutoPlan = useCallback(() => {
     if (bowlingOrder.length === 0) return [];
     const plan: string[] = [];
-    const bowlerOversUsed = new Map<string, number>();
-    for (const player of bowlingOrder) bowlerOversUsed.set(player.id, 0);
+    const bowlerOversUsed = new Map<string, number>(bowlingOrder.map(player => [player.id, 0]));
+    const targetOvers = getProjectedTargets();
 
     for (let over = 0; over < 20; over++) {
       const lastBowler = plan.length > 0 ? plan[plan.length - 1] : null;
       const eligible = bowlingOrder.filter(player =>
-        (bowlerOversUsed.get(player.id) ?? 0) < 4 && player.id !== lastBowler
+        (bowlerOversUsed.get(player.id) ?? 0) < (targetOvers.get(player.id) ?? 0) && player.id !== lastBowler
       );
       if (eligible.length === 0) {
-        const anyEligible = bowlingOrder.filter(player => (bowlerOversUsed.get(player.id) ?? 0) < 4);
+        const anyEligible = bowlingOrder.filter(player => (bowlerOversUsed.get(player.id) ?? 0) < (targetOvers.get(player.id) ?? 0));
         if (anyEligible.length > 0) {
           plan.push(anyEligible[0].id);
           bowlerOversUsed.set(anyEligible[0].id, (bowlerOversUsed.get(anyEligible[0].id) ?? 0) + 1);
         }
       } else {
-        eligible.sort((a, b) => (bowlerOversUsed.get(a.id) ?? 0) - (bowlerOversUsed.get(b.id) ?? 0));
+        eligible.sort((a, b) => {
+          const aNeed = (targetOvers.get(a.id) ?? 0) - (bowlerOversUsed.get(a.id) ?? 0);
+          const bNeed = (targetOvers.get(b.id) ?? 0) - (bowlerOversUsed.get(b.id) ?? 0);
+          if (aNeed !== bNeed) return bNeed - aNeed;
+          return bowlingOrder.findIndex(player => player.id === a.id) - bowlingOrder.findIndex(player => player.id === b.id);
+        });
         plan.push(eligible[0].id);
         bowlerOversUsed.set(eligible[0].id, (bowlerOversUsed.get(eligible[0].id) ?? 0) + 1);
       }
     }
     return plan;
-  }, [bowlingOrder]);
+  }, [bowlingOrder, getProjectedTargets]);
 
   const [overPlan, setOverPlan] = useState<string[]>(() => generateAutoPlan());
 

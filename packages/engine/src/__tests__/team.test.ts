@@ -726,6 +726,38 @@ describe("Team user batting order", () => {
 });
 
 describe("Team user bowling order", () => {
+  it("does not auto-add weak batting part-timers when five genuine options exist", () => {
+    const team = new Team(IPL_TEAMS[0]);
+
+    const genuineBowlers = [87, 85, 83, 74, 71];
+    for (const bowlingOvr of genuineBowlers) {
+      team.addPlayer(makePlayer({ role: bowlingOvr === 71 ? "all-rounder" : "bowler", ratings: {
+        battingIQ: 45, timing: 45, power: 40, running: 45,
+        wicketTaking: bowlingOvr, economy: bowlingOvr, accuracy: bowlingOvr, clutch: 60,
+      } }), 5);
+    }
+
+    team.addPlayer(makePlayer({ role: "batsman", ratings: {
+      battingIQ: 78, timing: 76, power: 72, running: 65,
+      wicketTaking: 58, economy: 58, accuracy: 58, clutch: 55,
+    } }), 5);
+    team.addPlayer(makePlayer({ role: "batsman", ratings: {
+      battingIQ: 74, timing: 72, power: 75, running: 60,
+      wicketTaking: 54, economy: 54, accuracy: 54, clutch: 50,
+    } }), 5);
+
+    while (team.roster.length < 11) {
+      team.addPlayer(makePlayer({ role: team.roster.length === 9 ? "batsman" : "batsman", isWicketKeeper: team.roster.length === 10 }), 5);
+    }
+
+    const xi = team.roster.slice(0, 11);
+    const order = team.autoBowlingOrder(xi);
+
+    expect(order).toHaveLength(5);
+    expect(order.some(player => player.bowlingOvr === 58)).toBe(false);
+    expect(order.some(player => player.bowlingOvr === 54)).toBe(false);
+  });
+
   it("respects userBowlingOrder when set with enough bowlers", () => {
     const team = makeFullTeam();
     team.isUserControlled = true;
