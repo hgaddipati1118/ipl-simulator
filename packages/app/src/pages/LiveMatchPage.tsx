@@ -30,6 +30,7 @@ import { buildLiveMatchStorageKey, getActiveSlotId } from "../storage";
 import { buildNarrativeEventsForLiveState, type FeedMatchResult } from "../news-feed";
 import { PlayerAvatar } from "../components/PlayerAvatar";
 import { TeamBadge } from "../components/TeamBadge";
+import { WormChart } from "../components/WormChart";
 import { type DrsVerdict, getDrsVerdict, getDrsVerdictLabel } from "../drs-utils";
 import { ovrBgClass, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 
@@ -1501,15 +1502,20 @@ export function LiveMatchPage({
             )}
 
             {/* Worm Chart */}
-            {scorecardTab === "worm" && (
-              <WormChart
-                innings1BallLog={state.innings1BallLog}
-                innings2BallLog={state.innings === 2 ? state.ballLog : []}
-                homeTeam={state.homeTeam}
-                awayTeam={state.awayTeam}
-                battingFirstId={state._internal.battingFirstId}
-              />
-            )}
+            {scorecardTab === "worm" && (() => {
+              const battingFirstId = state._internal.battingFirstId;
+              const bfTeam = battingFirstId === state.homeTeam.id ? state.homeTeam : state.awayTeam;
+              const bwTeam = battingFirstId === state.homeTeam.id ? state.awayTeam : state.homeTeam;
+              return (
+                <WormChart
+                  innings1BallLog={state.innings1BallLog}
+                  innings2BallLog={state.innings === 2 ? state.ballLog : []}
+                  battingFirstTeam={{ id: bfTeam.id, shortName: bfTeam.shortName, primaryColor: bfTeam.primaryColor }}
+                  bowlingFirstTeam={{ id: bwTeam.id, shortName: bwTeam.shortName, primaryColor: bwTeam.primaryColor }}
+                  compact
+                />
+              );
+            })()}
 
             {/* Innings 1 scorecard preview (when in 2nd innings) */}
             {state.innings === 2 && state.innings1Scorecard && (
@@ -2566,102 +2572,3 @@ function DecisionModal({ title, subtitle, children }: { title: string; subtitle?
   );
 }
 
-function WormChart({
-  innings1BallLog,
-  innings2BallLog,
-  homeTeam,
-  awayTeam,
-  battingFirstId,
-}: {
-  innings1BallLog: DetailedBallEvent[];
-  innings2BallLog: DetailedBallEvent[];
-  homeTeam: { id: string; shortName: string; primaryColor: string };
-  awayTeam: { id: string; shortName: string; primaryColor: string };
-  battingFirstId: string;
-}) {
-  const battingFirstTeam = battingFirstId === homeTeam.id ? homeTeam : awayTeam;
-  const bowlingFirstTeam = battingFirstId === homeTeam.id ? awayTeam : homeTeam;
-
-  // Build per-over cumulative run totals
-  const buildOverData = (ballLog: DetailedBallEvent[]) => {
-    if (ballLog.length === 0) return [];
-    const overs: number[] = [];
-    let maxOver = 0;
-    for (const b of ballLog) {
-      if (b.over + 1 > maxOver) maxOver = b.over + 1;
-    }
-    for (let o = 0; o < maxOver; o++) {
-      const ballsInOver = ballLog.filter(b => b.over === o);
-      const lastBall = ballsInOver[ballsInOver.length - 1];
-      overs.push(lastBall ? lastBall.scoreSoFar : (overs.length > 0 ? overs[overs.length - 1] : 0));
-    }
-    return overs;
-  };
-
-  const inn1Data = buildOverData(innings1BallLog);
-  const inn2Data = buildOverData(innings2BallLog);
-
-  const maxOvers = Math.max(inn1Data.length, inn2Data.length, 1);
-  const maxRuns = Math.max(...inn1Data, ...inn2Data, 1);
-
-  const W = 280;
-  const H = 140;
-  const padL = 28;
-  const padR = 8;
-  const padT = 8;
-  const padB = 20;
-  const chartW = W - padL - padR;
-  const chartH = H - padT - padB;
-
-  const x = (over: number) => padL + (over / maxOvers) * chartW;
-  const y = (runs: number) => padT + chartH - (runs / maxRuns) * chartH;
-
-  const toPath = (data: number[]) => {
-    if (data.length === 0) return "";
-    return data.map((r, i) => `${i === 0 ? "M" : "L"}${x(i + 1).toFixed(1)},${y(r).toFixed(1)}`).join(" ");
-  };
-
-  // Y-axis gridlines
-  const yTicks: number[] = [];
-  const step = maxRuns > 200 ? 50 : maxRuns > 100 ? 25 : maxRuns > 50 ? 20 : 10;
-  for (let v = step; v <= maxRuns; v += step) yTicks.push(v);
-
-  return (
-    <div className="bg-th-raised rounded-xl border border-th p-3">
-      <h3 className="text-[10px] uppercase tracking-wider text-th-muted font-display font-semibold mb-2">
-        Run Worm
-      </h3>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 180 }}>
-        {/* Grid */}
-        {yTicks.map(v => (
-          <g key={v}>
-            <line x1={padL} y1={y(v)} x2={W - padR} y2={y(v)} stroke="rgba(255,255,255,0.06)" strokeWidth={0.5} />
-            <text x={padL - 3} y={y(v) + 3} fill="rgba(255,255,255,0.25)" fontSize={7} textAnchor="end">{v}</text>
-          </g>
-        ))}
-        {/* X axis labels */}
-        {Array.from({ length: maxOvers }, (_, i) => i + 1).filter(o => o % 5 === 0 || o === maxOvers).map(o => (
-          <text key={o} x={x(o)} y={H - 3} fill="rgba(255,255,255,0.3)" fontSize={7} textAnchor="middle">{o}</text>
-        ))}
-        {/* Innings 1 worm */}
-        {inn1Data.length > 0 && (
-          <path d={toPath(inn1Data)} fill="none" stroke={battingFirstTeam.primaryColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        )}
-        {/* Innings 2 worm */}
-        {inn2Data.length > 0 && (
-          <path d={toPath(inn2Data)} fill="none" stroke={bowlingFirstTeam.primaryColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 2" />
-        )}
-      </svg>
-      <div className="flex justify-center gap-4 mt-1.5">
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5 rounded" style={{ backgroundColor: battingFirstTeam.primaryColor }} />
-          <span className="text-[10px] text-th-muted font-display">{battingFirstTeam.shortName}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5 rounded border-t border-dashed" style={{ borderColor: bowlingFirstTeam.primaryColor }} />
-          <span className="text-[10px] text-th-muted font-display">{bowlingFirstTeam.shortName}</span>
-        </div>
-      </div>
-    </div>
-  );
-}

@@ -4,6 +4,7 @@ import { GameState } from "../game-state";
 import { getMatchDetail } from "../match-db";
 import { getActiveSlotId } from "../storage";
 import { PlayerLink } from "../components/PlayerLink";
+import { WormChart } from "../components/WormChart";
 import { getDrsVerdict, getDrsVerdictLabel } from "../drs-utils";
 import type {
   DetailedMatchResult,
@@ -116,6 +117,17 @@ export function MatchPage({ state }: Props) {
   const homeTeam = state.teams.find(t => t.id === detailed.homeTeamId);
   const awayTeam = state.teams.find(t => t.id === detailed.awayTeamId);
 
+  // Worm chart data: split ball log by innings
+  const innings1Balls = detailed.ballLog.filter(b => b.innings === 1);
+  const innings2Balls = detailed.ballLog.filter(b => b.innings === 2);
+  const battingFirstId = detailed.innings1.battingTeamId;
+  const battingFirstTeam = battingFirstId === detailed.homeTeamId
+    ? { id: detailed.homeTeamId, shortName: homeTeam?.shortName ?? "HOM", primaryColor: homeTeam?.config.primaryColor ?? "#004BA0" }
+    : { id: detailed.awayTeamId, shortName: awayTeam?.shortName ?? "AWY", primaryColor: awayTeam?.config.primaryColor ?? "#FF822A" };
+  const bowlingFirstTeam = battingFirstId === detailed.homeTeamId
+    ? { id: detailed.awayTeamId, shortName: awayTeam?.shortName ?? "AWY", primaryColor: awayTeam?.config.primaryColor ?? "#FF822A" }
+    : { id: detailed.homeTeamId, shortName: homeTeam?.shortName ?? "HOM", primaryColor: homeTeam?.config.primaryColor ?? "#004BA0" };
+
   const activeInnings = activeTab === 1 ? detailed.innings1 : detailed.innings2;
   const activeBalls = detailed.ballLog.filter(b => b.innings === activeTab);
 
@@ -173,6 +185,18 @@ export function MatchPage({ state }: Props) {
         homeShort={homeTeam?.shortName ?? "HOM"}
         awayShort={awayTeam?.shortName ?? "AWY"}
       />
+
+      {/* Worm Chart */}
+      {innings1Balls.length > 0 && (
+        <div className="mb-6">
+          <WormChart
+            innings1BallLog={innings1Balls}
+            innings2BallLog={innings2Balls}
+            battingFirstTeam={battingFirstTeam}
+            bowlingFirstTeam={bowlingFirstTeam}
+          />
+        </div>
+      )}
 
       {/* Innings Tabs */}
       <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
