@@ -16,7 +16,7 @@ import {
   type AuctionState,
 } from "@ipl-sim/engine";
 import type { GameState, SeasonSummary, CompletedTrade } from "./game-state";
-import { clearAllMatchData as clearMatchDataOnClear } from "./match-db";
+import { deleteSlotMatchData } from "./match-db";
 import { createScoutingState } from "./scouting";
 import { createRecruitmentState } from "./recruitment";
 
@@ -44,6 +44,8 @@ function slotKey(slotId: string, key: string): string {
 const LS_PREFIX = "ipl-sim";
 const LS_SLOTS = `${LS_PREFIX}:slots`;
 const LS_ACTIVE_SLOT = `${LS_PREFIX}:activeSlot`;
+const LIVE_MATCH_STORAGE_PREFIX = "ipl-live";
+const LEGACY_LIVE_MATCH_STORAGE_PATTERN = /^ipl-live-\d+-\d+$/;
 const CURRENT_VERSION = 8; // bump: active scouting desk persistence
 
 // Legacy keys (for migration)
@@ -52,6 +54,37 @@ const LS_VERSION_LEGACY = `${LS_PREFIX}:version`;
 
 function lsMeta(slotId: string): string {
   return `${LS_PREFIX}:meta:${slotId}`;
+}
+
+export function buildLiveMatchStorageKey(slotId: string | null, seasonNumber: number, matchIndex: number): string {
+  return `${LIVE_MATCH_STORAGE_PREFIX}:${slotId ?? "default"}:${seasonNumber}:${matchIndex}`;
+}
+
+export function clearLiveMatchLocalState(slotId?: string | null): void {
+  try {
+    const scopedPrefix = slotId ? `${LIVE_MATCH_STORAGE_PREFIX}:${slotId}:` : null;
+    const keysToRemove: string[] = [];
+
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (!key) continue;
+
+      if (LEGACY_LIVE_MATCH_STORAGE_PATTERN.test(key)) {
+        keysToRemove.push(key);
+        continue;
+      }
+
+      if (scopedPrefix && key.startsWith(scopedPrefix)) {
+        keysToRemove.push(key);
+      }
+    }
+
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // localStorage may be unavailable in tests or private browsing contexts
+  }
 }
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -235,6 +268,9 @@ export async function deleteSaveSlot(slotId: string): Promise<void> {
     );
   } catch { /* ignore */ }
 
+  await deleteSlotMatchData(slotId).catch(() => {});
+  clearLiveMatchLocalState(slotId);
+
   // Remove localStorage meta
   localStorage.removeItem(lsMeta(slotId));
 
@@ -335,7 +371,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
     const [teamsData, poolData, seasonResult, auctionResult, history, tradeOffers, completedTrades,
            schedule, matchResults, recentInjuries, narrativeEvents, trainingReport, scouting,
            scoutingAssignments, scoutingInbox,
-           recruitment, youthProspects, fantasyLeaderboard, boardState, contractReport, auctionLiveStateRaw] =
+           recruitment, youthProspects, fantasyLeaderboard, boardState, contractReport, auctionLiveStateRaw, hallOfFame] =
       await Promise.all([
         get(slotKey(slotId, "teams"), idbStore),
         get(slotKey(slotId, "playerPool"), idbStore),
@@ -358,6 +394,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
         get(slotKey(slotId, "boardState"), idbStore),
         get(slotKey(slotId, "contractReport"), idbStore),
         get(slotKey(slotId, "auctionLiveState"), idbStore),
+        get(slotKey(slotId, "hallOfFame"), idbStore),
       ]);
 
     if (!teamsData || !poolData) return null;
@@ -405,6 +442,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       retentionState: meta.retentionState,
       auctionLiveState: auctionLiveStateRaw
         ? deserializeAuctionLiveState(auctionLiveStateRaw) : undefined,
+      hallOfFame: hallOfFame ?? [],
     };
   } catch {
     return null;
@@ -547,19 +585,17 @@ async function migrateLegacyData(): Promise<GameState | null> {
 
 export async function clearState(): Promise<void> {
   const slotId = getActiveSlotId();
+  setActiveSlotId(null);
+
   if (slotId) {
     await deleteSaveSlot(slotId);
   }
-  setActiveSlotId(null);
+
+  clearLiveMatchLocalState();
   // Also clean up any remaining legacy keys
   localStorage.removeItem(LS_META_LEGACY);
   localStorage.removeItem(LS_VERSION_LEGACY);
   localStorage.removeItem("ipl-sim-state");
-
-  // Clear match detail data from IndexedDB
-  try {
-    await clearMatchDataOnClear();
-  } catch { /* match-db may not be available */ }
 }
 
 // ── Export Save ──────────────────────────────────────────────────────────
@@ -588,6 +624,7 @@ export interface SaveFile {
   fantasyLeaderboard?: GameState["fantasyLeaderboard"];
   boardState?: GameState["boardState"];
   contractReport?: GameState["contractReport"];
+  hallOfFame?: GameState["hallOfFame"];
 }
 
 /** Export current game state as a downloadable JSON file */
@@ -626,6 +663,7 @@ export function exportSave(state: GameState): void {
     fantasyLeaderboard: state.fantasyLeaderboard,
     boardState: state.boardState,
     contractReport: state.contractReport,
+    hallOfFame: state.hallOfFame,
   };
 
   downloadJSON(saveFile, `${leaguePrefix(state)}-sim-season${state.seasonNumber}-${Date.now()}.json`);
@@ -682,6 +720,7 @@ export async function importSave(file: File): Promise<GameState> {
     fantasyLeaderboard: data.fantasyLeaderboard ?? [],
     boardState: data.boardState ?? undefined,
     contractReport: data.contractReport ?? undefined,
+    hallOfFame: data.hallOfFame ?? [],
     contractsResolved: data.meta?.contractsResolved ?? data.contractsResolved ?? true,
   };
 

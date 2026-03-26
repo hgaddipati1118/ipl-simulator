@@ -202,6 +202,307 @@ describe("Team getPlayingXI", () => {
     expect(xi.some(p => p.id === freshBatter.id)).toBe(true);
     expect(xi.some(p => p.id === tiredBatter.id)).toBe(false);
   });
+
+  it("forces the best five available bowling options into a CPU XI", () => {
+    const team = new Team(IPL_TEAMS[0]);
+
+    team.addPlayer(makePlayer({
+      id: "wk",
+      role: "batsman",
+      isWicketKeeper: true,
+      ratings: {
+        battingIQ: 78, timing: 78, power: 70, running: 60,
+        wicketTaking: 12, economy: 12, accuracy: 12, clutch: 55,
+      },
+    }), 5);
+
+    for (let i = 0; i < 5; i++) {
+      team.addPlayer(makePlayer({
+        id: `bat_${i}`,
+        role: "batsman",
+        ratings: {
+          battingIQ: 84 - i,
+          timing: 84 - i,
+          power: 80 - i,
+          running: 66,
+          wicketTaking: 10,
+          economy: 10,
+          accuracy: 10,
+          clutch: 55,
+        },
+      }), 5);
+    }
+
+    for (let i = 0; i < 4; i++) {
+      team.addPlayer(makePlayer({
+        id: `bow_${i}`,
+        role: "bowler",
+        ratings: {
+          battingIQ: 22,
+          timing: 22,
+          power: 20,
+          running: 38,
+          wicketTaking: 78 - i,
+          economy: 74 - i,
+          accuracy: 72 - i,
+          clutch: 58,
+        },
+      }), 5);
+    }
+
+    team.addPlayer(makePlayer({
+      id: "ar_0",
+      role: "all-rounder",
+      ratings: {
+        battingIQ: 52,
+        timing: 52,
+        power: 50,
+        running: 50,
+        wicketTaking: 73,
+        economy: 70,
+        accuracy: 68,
+        clutch: 56,
+      },
+    }), 5);
+
+    const xi = team.getPlayingXI();
+
+    expect(xi.some(p => p.id === "ar_0")).toBe(true);
+    expect(xi.some(p => p.id === "bat_5")).toBe(false);
+    expect(team.getBowlingOrder(xi).slice(0, 5).map(p => p.id)).toEqual([
+      "bow_0",
+      "bow_1",
+      "bow_2",
+      "bow_3",
+      "ar_0",
+    ]);
+  });
+
+  it("uses effective bowling strength when fitness changes the fifth bowling option", () => {
+    const team = new Team(IPL_TEAMS[0]);
+
+    team.addPlayer(makePlayer({
+      id: "wk",
+      role: "batsman",
+      isWicketKeeper: true,
+      ratings: {
+        battingIQ: 76, timing: 76, power: 68, running: 60,
+        wicketTaking: 10, economy: 10, accuracy: 10, clutch: 55,
+      },
+    }), 5);
+
+    for (let i = 0; i < 5; i++) {
+      team.addPlayer(makePlayer({
+        id: `bat_${i}`,
+        role: "batsman",
+        ratings: {
+          battingIQ: 82 - i,
+          timing: 82 - i,
+          power: 78 - i,
+          running: 65,
+          wicketTaking: 12,
+          economy: 12,
+          accuracy: 12,
+          clutch: 55,
+        },
+      }), 5);
+    }
+
+    for (let i = 0; i < 4; i++) {
+      team.addPlayer(makePlayer({
+        id: `bow_${i}`,
+        role: "bowler",
+        ratings: {
+          battingIQ: 20,
+          timing: 20,
+          power: 20,
+          running: 36,
+          wicketTaking: 76 - i,
+          economy: 73 - i,
+          accuracy: 71 - i,
+          clutch: 56,
+        },
+      }), 5);
+    }
+
+    const tiredAllRounder = makePlayer({
+      id: "ar_tired",
+      role: "all-rounder",
+      ratings: {
+        battingIQ: 56,
+        timing: 56,
+        power: 52,
+        running: 52,
+        wicketTaking: 75,
+        economy: 72,
+        accuracy: 70,
+        clutch: 56,
+      },
+    });
+    tiredAllRounder.fatigue = 88;
+    team.addPlayer(tiredAllRounder, 5);
+
+    const freshAllRounder = makePlayer({
+      id: "ar_fresh",
+      role: "all-rounder",
+      ratings: {
+        battingIQ: 52,
+        timing: 52,
+        power: 50,
+        running: 50,
+        wicketTaking: 68,
+        economy: 66,
+        accuracy: 64,
+        clutch: 54,
+      },
+    });
+    freshAllRounder.fatigue = 6;
+    team.addPlayer(freshAllRounder, 5);
+
+    const xi = team.getPlayingXI();
+    const bowlingIds = team.getBowlingOrder(xi).slice(0, 5).map(p => p.id);
+
+    expect(xi.some(p => p.id === "ar_fresh")).toBe(true);
+    expect(xi.some(p => p.id === "ar_tired")).toBe(false);
+    expect(bowlingIds).toContain("ar_fresh");
+  });
+
+  it("prefers a sixth bowling option when it is close in quality to the next batter", () => {
+    const team = new Team(IPL_TEAMS[0]);
+
+    team.addPlayer(makePlayer({
+      id: "wk",
+      role: "batsman",
+      isWicketKeeper: true,
+      ratings: {
+        battingIQ: 76, timing: 76, power: 68, running: 60,
+        wicketTaking: 10, economy: 10, accuracy: 10, clutch: 55,
+      },
+    }), 5);
+
+    for (let i = 0; i < 5; i++) {
+      team.addPlayer(makePlayer({
+        id: `bow_${i}`,
+        role: "bowler",
+        ratings: {
+          battingIQ: 20,
+          timing: 20,
+          power: 20,
+          running: 38,
+          wicketTaking: 78 - i,
+          economy: 74 - i,
+          accuracy: 72 - i,
+          clutch: 58,
+        },
+      }), 5);
+    }
+
+    for (let i = 0; i < 6; i++) {
+      team.addPlayer(makePlayer({
+        id: `bat_${i}`,
+        role: "batsman",
+        ratings: {
+          battingIQ: 84 - i,
+          timing: 84 - i,
+          power: 78 - i,
+          running: 66,
+          wicketTaking: 10,
+          economy: 10,
+          accuracy: 10,
+          clutch: 55,
+        },
+      }), 5);
+    }
+
+    team.addPlayer(makePlayer({
+      id: "ar_depth",
+      role: "all-rounder",
+      ratings: {
+        battingIQ: 71,
+        timing: 71,
+        power: 67,
+        running: 60,
+        wicketTaking: 72,
+        economy: 69,
+        accuracy: 67,
+        clutch: 56,
+      },
+    }), 5);
+
+    const xi = team.getPlayingXI();
+
+    expect(xi.some(p => p.id === "ar_depth")).toBe(true);
+    expect(xi.some(p => p.id === "bat_5")).toBe(false);
+    expect(team.getBowlingOrder(xi).slice(0, 6).map(p => p.id)).toContain("ar_depth");
+  });
+
+  it("sticks to five bowling options when the sixth is clearly weaker than the next batter", () => {
+    const team = new Team(IPL_TEAMS[0]);
+
+    team.addPlayer(makePlayer({
+      id: "wk",
+      role: "batsman",
+      isWicketKeeper: true,
+      ratings: {
+        battingIQ: 76, timing: 76, power: 68, running: 60,
+        wicketTaking: 10, economy: 10, accuracy: 10, clutch: 55,
+      },
+    }), 5);
+
+    for (let i = 0; i < 5; i++) {
+      team.addPlayer(makePlayer({
+        id: `bow_${i}`,
+        role: "bowler",
+        ratings: {
+          battingIQ: 20,
+          timing: 20,
+          power: 20,
+          running: 38,
+          wicketTaking: 78 - i,
+          economy: 74 - i,
+          accuracy: 72 - i,
+          clutch: 58,
+        },
+      }), 5);
+    }
+
+    for (let i = 0; i < 6; i++) {
+      team.addPlayer(makePlayer({
+        id: `bat_${i}`,
+        role: "batsman",
+        ratings: {
+          battingIQ: 84 - i,
+          timing: 84 - i,
+          power: 78 - i,
+          running: 66,
+          wicketTaking: 10,
+          economy: 10,
+          accuracy: 10,
+          clutch: 55,
+        },
+      }), 5);
+    }
+
+    team.addPlayer(makePlayer({
+      id: "ar_depth",
+      role: "all-rounder",
+      ratings: {
+        battingIQ: 56,
+        timing: 56,
+        power: 52,
+        running: 50,
+        wicketTaking: 70,
+        economy: 67,
+        accuracy: 65,
+        clutch: 54,
+      },
+    }), 5);
+
+    const xi = team.getPlayingXI();
+
+    expect(xi.some(p => p.id === "ar_depth")).toBe(false);
+    expect(xi.some(p => p.id === "bat_4")).toBe(true);
+  });
 });
 
 describe("Team batting order", () => {
@@ -454,6 +755,24 @@ describe("Team user bowling order", () => {
     // First 2 should be the user-selected ones
     expect(order[0].id).toBe(autoBowlers[0].id);
     expect(order[1].id).toBe(autoBowlers[1].id);
+  });
+
+  it("does not truncate extra bowling options when user provides a partial order", () => {
+    const team = makeFullTeam();
+    team.isUserControlled = true;
+
+    const xi = team.getPlayingXI();
+    const autoBowlers = team.autoBowlingOrder(xi);
+    team.userBowlingOrder = [autoBowlers[0].id, autoBowlers[1].id];
+
+    const order = team.getBowlingOrder(xi);
+
+    expect(order.length).toBe(autoBowlers.length);
+    expect(order.map(p => p.id)).toEqual([
+      autoBowlers[0].id,
+      autoBowlers[1].id,
+      ...autoBowlers.slice(2).map(p => p.id),
+    ]);
   });
 
   it("uses auto bowling order when not user controlled", () => {

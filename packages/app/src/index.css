@@ -53,9 +53,21 @@ body {
   margin: 0;
   background: var(--th-body);
   color: var(--th-text-primary);
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  width: 100%;
+}
+
+#root {
+  min-width: 0;
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────── */

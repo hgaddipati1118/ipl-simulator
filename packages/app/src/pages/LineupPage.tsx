@@ -221,9 +221,9 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
   }, [selectedIds, battingOrder, bowlingOrder, bowlingPlanState, batterAggression, bowlerFieldSettings, team, onConfirm]);
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-th-primary">Lineup Management</h2>
           <p className="text-th-secondary mt-1">
@@ -231,7 +231,7 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
             <span style={{ color: team.config.primaryColor }} className="font-semibold">{team.name}</span>
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
           <button
             onClick={() => {
               // Auto-select best XI and immediately confirm
@@ -241,13 +241,13 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
               const autoBowl = team.autoBowlingOrder(autoXI).map(p => p.id);
               onConfirm(autoIds, autoBat, autoBowl);
             }}
-            className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-display font-semibold rounded-lg text-sm transition-all"
+            className="w-full rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-2 text-sm font-display font-semibold text-white transition-all hover:from-orange-400 hover:to-amber-400 sm:w-auto"
           >
             Quick Start
           </button>
           <button
             onClick={() => navigate("/season")}
-            className="text-th-secondary hover:text-th-primary text-sm"
+            className="w-full text-sm text-th-secondary hover:text-th-primary sm:w-auto"
           >
             Cancel
           </button>
@@ -273,12 +273,12 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-th-surface rounded-lg p-1 w-fit">
+      <div className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-th-surface p-1 sm:inline-grid sm:w-fit sm:grid-cols-4">
         {(["xi", "batting", "bowling", "bowlingPlan"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`rounded-md px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
               activeTab === tab
                 ? "bg-blue-600 text-white"
                 : "text-th-secondary hover:text-th-primary hover:bg-th-hover"
@@ -299,7 +299,7 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
       )}
 
       {/* Status bar */}
-      <div className="flex items-center gap-6 mb-4 text-sm">
+      <div className="mb-4 flex flex-wrap items-center gap-3 text-sm sm:gap-6">
         <span className={`${selectedIds.size === 11 ? "text-green-400" : "text-yellow-400"}`}>
           {selectedIds.size}/11 selected
         </span>
@@ -369,11 +369,11 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
       )}
 
       {/* Confirm button */}
-      <div className="mt-8 flex justify-end">
+      <div className="mt-8 flex justify-stretch sm:justify-end">
         <button
           onClick={handleConfirm}
           disabled={!isValid}
-          className={`px-8 py-3 rounded-lg font-semibold text-lg transition-colors ${
+          className={`w-full rounded-lg px-8 py-3 text-lg font-semibold transition-colors sm:w-auto ${
             isValid
               ? "bg-green-600 hover:bg-green-500 text-white"
               : "bg-th-raised text-th-muted cursor-not-allowed"
@@ -410,32 +410,33 @@ function PlayingXITab({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-th-primary font-semibold text-sm uppercase tracking-wider">Squad</h3>
         <button
           onClick={onAutoSelect}
-          className="px-3 py-1.5 bg-th-raised hover:bg-th-hover text-th-secondary text-xs rounded-md transition-colors"
+          className="w-full rounded-md bg-th-raised px-3 py-1.5 text-xs text-th-secondary transition-colors hover:bg-th-hover sm:w-auto"
         >
           Auto Select
         </button>
       </div>
 
       <div className="bg-th-surface rounded-xl border border-th overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] text-sm">
+            <thead>
             <tr className="text-th-muted text-xs uppercase bg-th-raised">
               <th className="w-10 px-3 py-2"></th>
               <th className="text-left px-3 py-2">Player</th>
               <th className="text-center px-2 py-2">Role</th>
               <th className="text-center px-2 py-2">OVR</th>
-              <th className="text-center px-2 py-2">BAT</th>
-              <th className="text-center px-2 py-2">BWL</th>
-              <th className="text-center px-2 py-2">Age</th>
-              <th className="text-center px-2 py-2">Ready</th>
-              <th className="text-center px-2 py-2">Status</th>
+              <th className="hidden md:table-cell text-center px-2 py-2">BAT</th>
+              <th className="hidden md:table-cell text-center px-2 py-2">BWL</th>
+              <th className="hidden sm:table-cell text-center px-2 py-2">Age</th>
+              <th className="hidden sm:table-cell text-center px-2 py-2">Ready</th>
+              <th className="hidden lg:table-cell text-center px-2 py-2">Status</th>
             </tr>
-          </thead>
-          <tbody>
+            </thead>
+            <tbody>
             {sorted.map(p => {
               const isSelected = selectedIds.has(p.id);
               const isExpanded = expandedId === p.id;
@@ -501,11 +502,11 @@ function PlayingXITab({
                   <td className="text-center px-2 py-2">
                     <span className={`font-bold ${ovrColor(p.overall)}`}>{p.overall}</span>
                   </td>
-                  <td className="text-center px-2 py-2 text-th-secondary">{p.battingOvr}</td>
-                  <td className="text-center px-2 py-2 text-th-secondary">{p.bowlingOvr}</td>
-                  <td className="text-center px-2 py-2 text-th-muted">{p.age}</td>
-                  <td className={`text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{p.readiness}</td>
-                  <td className={`text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{conditionLabel(p.readiness)}</td>
+                  <td className="hidden md:table-cell text-center px-2 py-2 text-th-secondary">{p.battingOvr}</td>
+                  <td className="hidden md:table-cell text-center px-2 py-2 text-th-secondary">{p.bowlingOvr}</td>
+                  <td className="hidden sm:table-cell text-center px-2 py-2 text-th-muted">{p.age}</td>
+                  <td className={`hidden sm:table-cell text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{p.readiness}</td>
+                  <td className={`hidden lg:table-cell text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{conditionLabel(p.readiness)}</td>
                 </tr>
                 {isExpanded && (
                   <tr className="border-t border-th/50">
@@ -543,19 +544,20 @@ function PlayingXITab({
                 <td className="text-center px-2 py-2">
                   <span className="font-bold text-th-faint">{p.overall}</span>
                 </td>
-                <td className="text-center px-2 py-2 text-th-faint">{p.battingOvr}</td>
-                <td className="text-center px-2 py-2 text-th-faint">{p.bowlingOvr}</td>
-                <td className="text-center px-2 py-2 text-th-faint">{p.age}</td>
-                <td className="text-center px-2 py-2 text-th-faint text-xs">{p.readiness}</td>
-                <td className="text-center px-2 py-2">
+                <td className="hidden md:table-cell text-center px-2 py-2 text-th-faint">{p.battingOvr}</td>
+                <td className="hidden md:table-cell text-center px-2 py-2 text-th-faint">{p.bowlingOvr}</td>
+                <td className="hidden sm:table-cell text-center px-2 py-2 text-th-faint">{p.age}</td>
+                <td className="hidden sm:table-cell text-center px-2 py-2 text-th-faint text-xs">{p.readiness}</td>
+                <td className="hidden lg:table-cell text-center px-2 py-2">
                   <span className="text-red-400 text-xs">
                     {p.injuryType ?? "Injured"} ({p.injuryGamesLeft}m)
                   </span>
                 </td>
               </tr>
             ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -586,13 +588,13 @@ function BattingOrderTab({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-th-primary font-semibold text-sm uppercase tracking-wider">
           Batting Order ({battingOrder.length} batters)
         </h3>
         <button
           onClick={onAutoSort}
-          className="px-3 py-1.5 bg-th-raised hover:bg-th-hover text-th-secondary text-xs rounded-md transition-colors"
+          className="w-full rounded-md bg-th-raised px-3 py-1.5 text-xs text-th-secondary transition-colors hover:bg-th-hover sm:w-auto"
         >
           Auto Sort
         </button>
@@ -612,36 +614,38 @@ function BattingOrderTab({
           const isExpanded = expandedId === player.id;
           return (
             <React.Fragment key={player.id}>
-            <div
-              className="flex items-center gap-3 px-4 py-3 border-t border-th first:border-t-0"
-            >
-              <span className="text-th-muted font-mono text-sm w-6 text-right">{idx + 1}</span>
-              <div className="flex-1 flex items-center gap-3">
-                <span className="text-th-primary font-medium">{player.name}</span>
-                <FormIndicator player={player} />
-                <ConditionBadge player={player} />
-                <RoleBadge role={player.role} />
-                {player.isInternational && (
-                  <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
-                )}
-                {player.isWicketKeeper && (
-                  <span className="text-cyan-400 text-[10px] bg-cyan-400/10 px-1.5 py-0.5 rounded">WK</span>
-                )}
-                {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
-                  <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
-                )}
-                <button
-                  onClick={() => setExpandedId(isExpanded ? null : player.id)}
-                  className="text-th-faint hover:text-th-secondary text-[10px] ml-1"
-                >
-                  {isExpanded ? "▾" : "▸"} stats
-                </button>
+            <div className="flex flex-wrap items-center gap-3 border-t border-th px-4 py-3 first:border-t-0">
+              <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+                <span className="w-6 text-right font-mono text-sm text-th-muted">{idx + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <span className="text-th-primary font-medium">{player.name}</span>
+                    <FormIndicator player={player} />
+                    <ConditionBadge player={player} />
+                    <RoleBadge role={player.role} />
+                    {player.isInternational && (
+                      <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
+                    )}
+                    {player.isWicketKeeper && (
+                      <span className="text-cyan-400 text-[10px] bg-cyan-400/10 px-1.5 py-0.5 rounded">WK</span>
+                    )}
+                    {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
+                      <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
+                    )}
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : player.id)}
+                      className="text-th-faint hover:text-th-secondary text-[10px]"
+                    >
+                      {isExpanded ? "▾" : "▸"} stats
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="w-28 text-right">
+              <div className="w-full text-left sm:w-28 sm:text-right">
                 <div className="text-th-faint text-xs">{posLabel}</div>
                 <div className={`text-[10px] inline-flex mt-1 px-1.5 py-0.5 rounded ${fitTone}`}>{slotFit.label}</div>
               </div>
-              <div className="flex gap-0.5">
+              <div className="flex flex-wrap gap-0.5">
                 {([
                   { val: 25, label: "DEF", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
                   { val: 50, label: "NOR", color: "text-th-secondary bg-th-body border-th" },
@@ -658,10 +662,10 @@ function BattingOrderTab({
                   );
                 })}
               </div>
-              <span className={`${ovrColor(player.battingOvr)} font-bold text-sm w-8 text-right`}>
+              <span className={`${ovrColor(player.battingOvr)} ml-auto font-bold text-sm w-8 text-right`}>
                 {player.battingOvr}
               </span>
-              <div className="flex flex-col gap-0.5 ml-2">
+              <div className="ml-2 flex flex-row gap-0.5 sm:flex-col">
                 <button
                   onClick={() => onMove(idx, -1)}
                   disabled={idx === 0}
@@ -795,13 +799,13 @@ function BowlingOrderTab({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-th-primary font-semibold text-sm uppercase tracking-wider">
           Bowling Plan ({bowlingOrder.length} bowlers)
         </h3>
         <button
           onClick={onAutoGenerate}
-          className="px-3 py-1.5 bg-th-raised hover:bg-th-hover text-th-secondary text-xs rounded-md transition-colors"
+          className="w-full rounded-md bg-th-raised px-3 py-1.5 text-xs text-th-secondary transition-colors hover:bg-th-hover sm:w-auto"
         >
           Auto Generate
         </button>
@@ -819,27 +823,29 @@ function BowlingOrderTab({
           const isExpanded = expandedId === player.id;
           return (
             <React.Fragment key={player.id}>
-            <div
-              className="flex items-center gap-3 px-4 py-3 border-t border-th first:border-t-0"
-            >
-              <span className="text-th-muted font-mono text-sm w-6 text-right">{idx + 1}</span>
-              <div className="flex-1 flex items-center gap-3">
-                <span
-                  className="text-th-primary font-medium cursor-pointer hover:text-orange-400 transition-colors"
-                  onClick={() => setExpandedId(isExpanded ? null : player.id)}
-                  title="Click to view ratings"
-                >{player.name}</span>
-                <FormIndicator player={player} />
-                <ConditionBadge player={player} />
-                <RoleBadge role={player.role} />
-                {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
-                  <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
-                )}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${fitBadgeTone(bestPhase)}`}>
-                  Best {bestPhaseLabel}
-                </span>
+            <div className="flex flex-wrap items-center gap-3 border-t border-th px-4 py-3 first:border-t-0">
+              <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+                <span className="w-6 text-right font-mono text-sm text-th-muted">{idx + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <span
+                      className="text-th-primary font-medium cursor-pointer hover:text-orange-400 transition-colors"
+                      onClick={() => setExpandedId(isExpanded ? null : player.id)}
+                      title="Click to view ratings"
+                    >{player.name}</span>
+                    <FormIndicator player={player} />
+                    <ConditionBadge player={player} />
+                    <RoleBadge role={player.role} />
+                    {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
+                      <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
+                    )}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${fitBadgeTone(bestPhase)}`}>
+                      Best {bestPhaseLabel}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-0.5">
+              <div className="flex flex-wrap gap-0.5">
                 {([
                   { val: "aggressive", label: "AGR", color: "text-red-400 bg-red-500/10 border-red-500/20" },
                   { val: "standard", label: "STD", color: "text-th-secondary bg-th-body border-th" },
@@ -857,11 +863,11 @@ function BowlingOrderTab({
                   );
                 })}
               </div>
-              <span className={`${ovrColor(player.bowlingOvr)} font-bold text-sm w-8 text-right`}>
+              <span className={`${ovrColor(player.bowlingOvr)} ml-auto font-bold text-sm w-8 text-right`}>
                 {player.bowlingOvr}
               </span>
               <span className="text-th-secondary text-xs w-16 text-right">{overs}/4 overs</span>
-              <div className="flex flex-col gap-0.5 ml-2">
+              <div className="ml-2 flex flex-row gap-0.5 sm:flex-col">
                 <button
                   onClick={() => onMove(idx, -1)}
                   disabled={idx === 0}
@@ -932,7 +938,7 @@ function BowlingOrderTab({
         <h4 className="text-th-secondary text-xs uppercase tracking-wider mb-2">
           Over-by-Over Plan <span className="text-th-faint font-normal">(click to change)</span>
         </h4>
-        <div className="grid grid-cols-10 gap-1.5">
+        <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
           {overPlan.map((bowlerId, overIdx) => {
             const player = bowlingById.get(bowlerId);
             const phase = overIdx < 6 ? "PP" : overIdx < 15 ? "MID" : "DTH";
@@ -970,7 +976,7 @@ function SelectionReport({ report }: { report: LineupReport }) {
         <div className="text-th-faint text-xs">{report.venueLabel}</div>
       </div>
 
-      <div className="grid grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <MetricCard label="Lineup Score" value={String(report.lineupScore)} accent="text-blue-400" />
         <MetricCard label="Avg Readiness" value={String(report.averageReadiness)} accent="text-cyan-400" />
         <MetricCard label="Hot Starters" value={String(report.hotStarters)} accent="text-green-400" />
@@ -1047,7 +1053,7 @@ function PlayerRatingBars({ player }: { player: Player }) {
   ] as const;
 
   return (
-    <div className="grid grid-cols-4 sm:grid-cols-8 gap-x-4 gap-y-2">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4 xl:grid-cols-8">
       {attrs.map(({ key, label, color }) => {
         const val = player.ratings[key];
         return (

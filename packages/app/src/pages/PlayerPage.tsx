@@ -221,7 +221,7 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
 
   if (!player) {
     return (
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <p className="text-th-secondary">Player not found.</p>
         <button onClick={() => navigate(-1)} className="text-blue-400 hover:text-blue-300 text-sm mt-4">
           Go Back

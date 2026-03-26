@@ -347,10 +347,10 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
 
               {boardExpectation && boardStatus && (
                 <div className="rounded-xl border border-th bg-th-raised p-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-th-muted text-[10px] uppercase font-display tracking-wider">Board Expectation</div>
                     {state.boardState && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] text-th-muted font-display">Satisfaction</span>
                         <div className="w-16 h-1.5 bg-th-overlay rounded-full overflow-hidden">
                           <div
@@ -430,7 +430,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
           </div>
 
           <div className="rounded-2xl border border-th bg-th-surface p-4">
-            <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-3">Latest Report</h3>
+            <h3 className="mb-3 text-xs font-display font-semibold uppercase tracking-wider text-th-secondary">Latest Report</h3>
             {latestStory ? (
               <div className="rounded-xl border border-th bg-th-raised p-3">
                 <div className="text-th-primary font-display font-medium">{latestStory.headline}</div>
@@ -615,7 +615,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
       {/* Team roster summary */}
       {userTeam && (
         <div className="rounded-2xl border border-th bg-th-surface p-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Your Squad</h3>
             <button
               onClick={() => navigate("/power-rankings")}
@@ -638,7 +638,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
         <div className="rounded-2xl border border-th bg-th-surface p-4 mt-4 mb-4">
           <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-3">Youth Academy</h3>
           {state.youthProspects.map((prospect, i) => (
-            <div key={i} className="flex items-center gap-3 py-2 border-t border-th">
+            <div key={i} className="flex flex-col items-start gap-3 border-t border-th py-3 sm:flex-row sm:items-center">
               <PlayerAvatar name={prospect.player.name} size="sm" />
               <div className="flex-1">
                 <span className="text-sm text-th-primary font-display">{prospect.player.name}</span>

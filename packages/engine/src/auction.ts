@@ -216,13 +216,34 @@ export function runAuction(
     }
   }
 
-  // Fill up teams that have fewer than minSquadSize players with unsold players at base price
-  for (const team of teams) {
-    while (team.roster.length < cfg.minSquadSize && unsold.length > 0) {
-      const idx = unsold.findIndex(p =>
-        !p.isInternational || team.internationalCount < cfg.maxInternational
-      );
-      if (idx === -1) break;
+  // Fill up teams that have fewer than minSquadSize players with unsold players at base price.
+  // Do this round-robin so later teams are not starved of domestic depth by earlier teams.
+  while (unsold.length > 0) {
+    const teamsNeedingPlayers = teams
+      .filter(team => team.roster.length < cfg.minSquadSize)
+      .sort((a, b) => {
+        const rosterDiff = a.roster.length - b.roster.length;
+        if (rosterDiff !== 0) return rosterDiff;
+        return a.domesticCount - b.domesticCount;
+      });
+
+    if (teamsNeedingPlayers.length === 0) break;
+
+    let addedAny = false;
+    for (const team of teamsNeedingPlayers) {
+      const preferDomestic = team.domesticCount <= team.internationalCount;
+      let idx = preferDomestic
+        ? unsold.findIndex(player => !player.isInternational)
+        : -1;
+
+      if (idx === -1) {
+        idx = unsold.findIndex(player =>
+          !player.isInternational || team.internationalCount < cfg.maxInternational
+        );
+      }
+
+      if (idx === -1) continue;
+
       const [freeAgent] = unsold.splice(idx, 1);
       const bid = getBasePrice(freeAgent);
       team.addPlayer(freeAgent, bid);
@@ -234,7 +255,10 @@ export function runAuction(
         amount: bid,
         round: 0,
       });
+      addedAny = true;
     }
+
+    if (!addedAny) break;
   }
 
   return { bids, unsold };

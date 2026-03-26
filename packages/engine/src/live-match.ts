@@ -97,6 +97,19 @@ export interface LiveBowlerStats {
   maidens: number;
 }
 
+export type DrsReviewKind = "lbw" | "wide" | "noball";
+export type DrsReviewingSide = "batting" | "bowling";
+export type DrsOnFieldCall = "out" | "not_out" | "wide" | "not_wide" | "noball" | "not_noball";
+
+export interface PendingDrsContext {
+  batterName: string;
+  bowlerName: string;
+  reviewKind: DrsReviewKind;
+  reviewingSide: DrsReviewingSide;
+  onFieldCall: DrsOnFieldCall;
+  isGivenOut: boolean;
+}
+
 /** A pending tactical decision the user must resolve before the match continues. */
 export interface PendingDecision {
   type: 'choose_bowler' | 'choose_batter' | 'impact_sub' | 'toss_decision' | 'drs_review' | 'retire_out' | 'strategic_timeout';
@@ -110,7 +123,7 @@ export interface PendingDecision {
   /** Which team the decision is for (so UI can label it). */
   teamId: string;
   /** For drs_review: the batter who was given out / not out */
-  drsContext?: { batterName: string; isGivenOut: boolean };
+  drsContext?: PendingDrsContext;
 }
 
 export interface PendingDecisionOption {
@@ -1053,9 +1066,10 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   let wicketType: DetailedBallEvent["wicketType"] = result.wicketType;
   let fielderName: string | undefined;
   let drsOverturned = false;
-  // For DRS user review: store whether it was actually out, and if marginal (umpire's call)
-  let _drsActuallyOut: boolean | undefined;
+  // For DRS user review: store whether the review should overturn, and if marginal (umpire's call)
+  let _drsOverturns: boolean | undefined;
   let _drsMarginal: boolean | undefined;
+  const canOfferNonLbwReview = int.currentOverLegalBalls < 5;
 
   if (result.isWicket) {
     if (wicketType === "caught") {
@@ -1089,51 +1103,143 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         }
       }
     }
-  } else if (result.outcome === "dot") {
-    // DRS review opportunity: ~8% of dots could be close LBW appeals (not given out)
-    const isCloseLbwAppeal = rng() < 0.08;
-    if (isCloseLbwAppeal) {
-      // 25% of these close calls were actually out (umpire missed it)
-      // Of the 75% not out: 50% are marginal (umpire's call — clipping stumps),
-      // 50% are clearly missing (lose review if taken)
-      const wasActuallyOut = rng() < 0.25;
-      const isMarginal = !wasActuallyOut && rng() < 0.5; // only applies when not out
+  } else if ((result.outcome === "wide" || result.outcome === "noball") && canOfferNonLbwReview) {
+    const reviewKind = result.outcome;
+    const reviewWindowOpens = rng() < (reviewKind === "wide" ? 0.10 : 0.06);
+
+    if (reviewWindowOpens) {
+      const shouldOverturn = rng() < (reviewKind === "wide" ? 0.22 : 0.14);
       const bowlingTeamIsHome = newState.bowlingTeamId === newState.homeTeam.id;
       const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
       const drsAvailable = bowlingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
+      const shortName = bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+      const callText = reviewKind === "wide" ? "wide called by the umpire" : "no ball called by the umpire";
 
       if (drsAvailable > 0 && isUserBowling) {
-        // Offer DRS review to user
-        _drsActuallyOut = wasActuallyOut;
-        _drsMarginal = isMarginal;
+        _drsOverturns = shouldOverturn;
+        result.commentary = `${bowler.name} to ${striker.name}, ${callText}.`;
         newState.pendingDecision = {
           type: "drs_review",
           options: ["review", "accept"],
           teamId: newState.bowlingTeamId,
-          drsContext: { batterName: striker.name, isGivenOut: false },
+          drsContext: {
+            batterName: striker.name,
+            bowlerName: bowler.name,
+            reviewKind,
+            reviewingSide: "bowling",
+            onFieldCall: reviewKind,
+            isGivenOut: false,
+          },
         };
         newState.status = "waiting_for_decision";
-      } else if (drsAvailable > 0 && !isUserBowling) {
-        // CPU auto-reviews close calls 40% of the time
-        if (rng() < 0.40) {
-          if (wasActuallyOut) {
-            // Successful review: overturn to wicket
-            result.isWicket = true;
-            result.outcome = "wicket";
-            result.runs = 0;
-            result.commentary = `${bowler.name} to ${striker.name}, not out says the umpire. DRS review... OVERTURNED! That's OUT! LBW!`;
-            eventType = "wicket";
-            wicketType = "lbw";
-            // DRS retained on successful review
-          } else {
-            // Failed review: marginal = umpire's call (retain review), clear miss = lose review
-            const sn = bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
-            if (isMarginal) {
-              result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... UMPIRE'S CALL — clipping leg stump. Stays NOT OUT. ${sn} retain their review.`;
+      } else if (drsAvailable > 0 && !isUserBowling && rng() < 0.35) {
+        if (shouldOverturn) {
+          result.outcome = "dot";
+          result.extras = 0;
+          result.commentary = `${bowler.name} to ${striker.name}, ${callText}. DRS review... OVERTURNED! Fair delivery. Call withdrawn.`;
+          eventType = "dot";
+        } else {
+          if (bowlingTeamIsHome) newState.drsRemaining.home--;
+          else newState.drsRemaining.away--;
+          result.commentary = `${bowler.name} to ${striker.name}, ${callText}. DRS review... ${reviewKind === "wide" ? "stays WIDE" : "stays NO BALL"}. ${shortName} lose their review.`;
+        }
+      }
+    }
+  } else if (result.outcome === "dot") {
+    const battingTeamIsHome = newState.battingTeamId === newState.homeTeam.id;
+    const isUserBatting = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
+    const battingDrsAvailable = battingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
+    const missedExtraReviewWindowOpens = canOfferNonLbwReview && battingDrsAvailable > 0 && rng() < 0.035;
+
+    if (missedExtraReviewWindowOpens) {
+      const reviewKind: DrsReviewKind = rng() < 0.65 ? "wide" : "noball";
+      const shouldOverturn = rng() < (reviewKind === "wide" ? 0.32 : 0.18);
+      const shortName = battingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+      const callText = reviewKind === "wide" ? "no wide says the umpire" : "not called a no ball";
+
+      if (isUserBatting) {
+        _drsOverturns = shouldOverturn;
+        result.commentary = `${bowler.name} to ${striker.name}, ${callText}.`;
+        newState.pendingDecision = {
+          type: "drs_review",
+          options: ["review", "accept"],
+          teamId: newState.battingTeamId,
+          drsContext: {
+            batterName: striker.name,
+            bowlerName: bowler.name,
+            reviewKind,
+            reviewingSide: "batting",
+            onFieldCall: reviewKind === "wide" ? "not_wide" : "not_noball",
+            isGivenOut: false,
+          },
+        };
+        newState.status = "waiting_for_decision";
+      } else if (rng() < 0.30) {
+        if (shouldOverturn) {
+          result.outcome = reviewKind;
+          result.extras = 1;
+          result.commentary = `${bowler.name} to ${striker.name}, ${callText}. DRS review... OVERTURNED! That's ${reviewKind === "wide" ? "WIDE" : "NO BALL"}. Add one and rebowl it.`;
+          eventType = reviewKind;
+        } else {
+          if (battingTeamIsHome) newState.drsRemaining.home--;
+          else newState.drsRemaining.away--;
+          result.commentary = `${bowler.name} to ${striker.name}, ${callText}. DRS review... stays ${reviewKind === "wide" ? "a fair delivery" : "a legal delivery"}. ${shortName} lose their review.`;
+        }
+      }
+    } else {
+      // DRS review opportunity: ~8% of dots could be close LBW appeals (not given out)
+      const isCloseLbwAppeal = rng() < 0.08;
+      if (isCloseLbwAppeal) {
+        // 25% of these close calls were actually out (umpire missed it)
+        // Of the 75% not out: 50% are marginal (umpire's call — clipping stumps),
+        // 50% are clearly missing (lose review if taken)
+        const wasActuallyOut = rng() < 0.25;
+        const isMarginal = !wasActuallyOut && rng() < 0.5; // only applies when not out
+        const bowlingTeamIsHome = newState.bowlingTeamId === newState.homeTeam.id;
+        const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
+        const drsAvailable = bowlingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
+
+        if (drsAvailable > 0 && isUserBowling) {
+          // Offer DRS review to user
+          _drsOverturns = wasActuallyOut;
+          _drsMarginal = isMarginal;
+          result.commentary = `${bowler.name} to ${striker.name}, huge appeal for LBW! Not out says the umpire.`;
+          newState.pendingDecision = {
+            type: "drs_review",
+            options: ["review", "accept"],
+            teamId: newState.bowlingTeamId,
+            drsContext: {
+              batterName: striker.name,
+              bowlerName: bowler.name,
+              reviewKind: "lbw",
+              reviewingSide: "bowling",
+              onFieldCall: "not_out",
+              isGivenOut: false,
+            },
+          };
+          newState.status = "waiting_for_decision";
+        } else if (drsAvailable > 0 && !isUserBowling) {
+          // CPU auto-reviews close calls 40% of the time
+          if (rng() < 0.40) {
+            if (wasActuallyOut) {
+              // Successful review: overturn to wicket
+              result.isWicket = true;
+              result.outcome = "wicket";
+              result.runs = 0;
+              result.commentary = `${bowler.name} to ${striker.name}, not out says the umpire. DRS review... OVERTURNED! That's OUT! LBW!`;
+              eventType = "wicket";
+              wicketType = "lbw";
+              // DRS retained on successful review
             } else {
-              if (bowlingTeamIsHome) newState.drsRemaining.home--;
-              else newState.drsRemaining.away--;
-              result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... stays NOT OUT. ${sn} lose their review.`;
+              // Failed review: marginal = umpire's call (retain review), clear miss = lose review
+              const sn = bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+              if (isMarginal) {
+                result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... UMPIRE'S CALL — clipping leg stump. Stays NOT OUT. ${sn} retain their review.`;
+              } else {
+                if (bowlingTeamIsHome) newState.drsRemaining.home--;
+                else newState.drsRemaining.away--;
+                result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... stays NOT OUT. ${sn} lose their review.`;
+              }
             }
           }
         }
@@ -1156,7 +1262,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     isWicket: result.isWicket,
     commentary: result.commentary,
   };
-  if (_drsActuallyOut !== undefined) (rawBall as any)._drsActuallyOut = _drsActuallyOut;
+  if (_drsOverturns !== undefined) (rawBall as any)._drsOverturns = _drsOverturns;
   if (_drsMarginal !== undefined) (rawBall as any)._drsMarginal = _drsMarginal;
   rawInnings.ballLog.push(rawBall);
 
@@ -1686,31 +1792,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
 
   if (inningsEnded) {
     if (newState.innings === 1) {
-      // Save innings 1 data and transition to innings break
-      newState.innings1Score = newState.score;
-      newState.innings1Wickets = newState.wickets;
-      newState.innings1Overs = formatOvers(newState.overs, ni.currentOverLegalBalls);
-      newState.target = newState.score + 1;
-
-      // Save raw innings 1
-      ni.innings1Raw = JSON.parse(JSON.stringify(rawInnings));
-
-      // Build innings 1 scorecard for display
-      newState.innings1Scorecard = buildLiveInningsScorecard(
-        newState.batterStats,
-        newState.bowlerStats,
-        newState.battingTeamId,
-        getBattingTeamName(newState),
-        newState.bowlingTeamId,
-        getBowlingTeamName(newState),
-        newState.score,
-        newState.wickets,
-        formatOvers(newState.overs, ni.currentOverLegalBalls >= 6 ? 0 : ni.currentOverLegalBalls),
-        newState.fallOfWickets,
-        rawInnings,
-      );
-
-      newState.status = "innings_break";
+      finalizeFirstInningsBreak(newState, ni, rawInnings);
     } else {
       // Match completed
       completeMatch(newState);
@@ -1810,6 +1892,48 @@ function getEligibleBowlerIds(
   }
   // Deduplicate (in case of repeats in the order)
   return [...new Set(eligible)];
+}
+
+function getLatestDetailedBall(state: MatchState): DetailedBallEvent | undefined {
+  return state.innings === 1
+    ? state.innings1BallLog[state.innings1BallLog.length - 1]
+    : state.innings2BallLog[state.innings2BallLog.length - 1];
+}
+
+function syncLatestDetailedBall(state: MatchState, patch: Partial<DetailedBallEvent>): void {
+  const lastDetailed = getLatestDetailedBall(state);
+  if (lastDetailed) Object.assign(lastDetailed, patch);
+  const lastLogBall = state.ballLog[state.ballLog.length - 1];
+  if (lastLogBall) Object.assign(lastLogBall, patch);
+}
+
+function finalizeFirstInningsBreak(
+  state: MatchState,
+  ni: MatchStateInternal,
+  rawInnings: InningsScoreRaw,
+): void {
+  state.innings1Score = state.score;
+  state.innings1Wickets = state.wickets;
+  state.innings1Overs = formatOvers(state.overs, ni.currentOverLegalBalls);
+  state.target = state.score + 1;
+
+  ni.innings1Raw = JSON.parse(JSON.stringify(rawInnings));
+
+  state.innings1Scorecard = buildLiveInningsScorecard(
+    state.batterStats,
+    state.bowlerStats,
+    state.battingTeamId,
+    getBattingTeamName(state),
+    state.bowlingTeamId,
+    getBowlingTeamName(state),
+    state.score,
+    state.wickets,
+    formatOvers(state.overs, ni.currentOverLegalBalls >= 6 ? 0 : ni.currentOverLegalBalls),
+    state.fallOfWickets,
+    rawInnings,
+  );
+
+  state.status = "innings_break";
 }
 
 /**
@@ -2015,94 +2139,184 @@ export function applyDecision(
 
     case 'drs_review': {
       const choice = decision.selectedPlayerId; // "review" or "accept"
-      const bowlingTeamIsHome = newState.bowlingTeamId === newState.homeTeam.id;
+      const drsContext = pending.drsContext;
+      const reviewingTeamIsHome = pending.teamId === newState.homeTeam.id;
 
-      if (choice === "accept") {
+      if (choice === "accept" || !drsContext) {
         // User accepts the umpire's decision (not out) — no DRS used
         break;
       }
 
-      // User reviews: find whether it was actually out from the last ball in the log
+      // User reviews: resolve the hidden review outcome stored on the last ball.
       const lastBall = rawInnings.ballLog[rawInnings.ballLog.length - 1];
-      const wasActuallyOut = (lastBall as any)?._drsActuallyOut === true;
+      const shouldOverturn = (lastBall as any)?._drsOverturns === true;
 
-      if (wasActuallyOut) {
-        // Successful review: overturn to wicket
-        // Update the last ball in the log
-        lastBall.isWicket = true;
-        lastBall.outcome = "wicket";
-        lastBall.commentary += " DRS review... OVERTURNED! That's OUT! LBW!";
+      if (drsContext.reviewKind === "lbw") {
+        if (shouldOverturn) {
+          // Successful review: overturn to wicket
+          lastBall.isWicket = true;
+          lastBall.outcome = "wicket";
+          lastBall.commentary += " DRS review... OVERTURNED! That's OUT! LBW!";
 
-        // Update match state
-        newState.wickets++;
-        rawInnings.wickets++;
+          newState.wickets++;
+          rawInnings.wickets++;
 
-        // Find the batter who was on strike for this ball
-        const strikerId = lastBall.batter;
-        const rawBat = rawInnings.batterStats[strikerId];
-        if (rawBat) rawBat.isOut = true;
+          const strikerId = lastBall.batter;
+          const rawBat = rawInnings.batterStats[strikerId];
+          if (rawBat) rawBat.isOut = true;
 
-        const liveBatter = newState.batterStats.find(b => b.playerId === strikerId);
-        if (liveBatter) {
-          liveBatter.isOut = true;
-          const bowlerName = pm[lastBall.bowler]?.name ?? "unknown";
-          liveBatter.howOut = `lbw b ${bowlerName}`;
-        }
+          const liveBatter = newState.batterStats.find(b => b.playerId === strikerId);
+          if (liveBatter) {
+            liveBatter.isOut = true;
+            const bowlerName = pm[lastBall.bowler]?.name ?? "unknown";
+            liveBatter.howOut = `lbw b ${bowlerName}`;
+          }
 
-        // Fall of wicket
-        const overBall = `${newState.overs}.${ni.currentOverLegalBalls}`;
-        const fow = `${newState.score}/${newState.wickets} (${overBall} ov)`;
-        newState.fallOfWickets.push(fow);
-        if (liveBatter) liveBatter.fallOfWicket = fow;
+          const overBall = `${newState.overs}.${ni.currentOverLegalBalls}`;
+          const fow = `${newState.score}/${newState.wickets} (${overBall} ov)`;
+          newState.fallOfWickets.push(fow);
+          if (liveBatter) liveBatter.fallOfWicket = fow;
 
-        // Update bowler wickets
-        const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
-        if (liveBowler) liveBowler.wickets++;
+          const rawBowler = rawInnings.bowlerStats[lastBall.bowler];
+          if (rawBowler) rawBowler.wickets++;
+          const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
+          if (liveBowler) liveBowler.wickets++;
 
-        // Bring in next batter if innings continues
-        if (newState.wickets < 10 && newState.nextBatterIdx < ni.battingOrderIds.length) {
-          bringInNextBatter(newState, ni, pm, rawInnings);
-        }
+          if (newState.wickets < 10 && newState.nextBatterIdx < ni.battingOrderIds.length) {
+            bringInNextBatter(newState, ni, pm, rawInnings);
+          }
 
-        // DRS retained on successful review
+          syncLatestDetailedBall(newState, {
+            eventType: "wicket",
+            wicketType: "lbw",
+            commentary: lastBall.commentary,
+            wicketsSoFar: newState.wickets,
+          });
+        } else {
+          const isMarginal = (lastBall as any)?._drsMarginal === true;
 
-        // Update the last detailed ball event
-        const lastDetailed = newState.innings === 1
-          ? newState.innings1BallLog[newState.innings1BallLog.length - 1]
-          : newState.innings2BallLog[newState.innings2BallLog.length - 1];
-        if (lastDetailed) {
-          lastDetailed.eventType = "wicket";
-          lastDetailed.wicketType = "lbw";
-          lastDetailed.commentary = lastBall.commentary;
-          lastDetailed.wicketsSoFar = newState.wickets;
-        }
-        const lastLogBall = newState.ballLog[newState.ballLog.length - 1];
-        if (lastLogBall) {
-          lastLogBall.eventType = "wicket";
-          lastLogBall.wicketType = "lbw";
-          lastLogBall.commentary = lastBall.commentary;
-          lastLogBall.wicketsSoFar = newState.wickets;
+          if (!isMarginal) {
+            if (reviewingTeamIsHome) newState.drsRemaining.home--;
+            else newState.drsRemaining.away--;
+          }
+
+          const shortName = reviewingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+          lastBall.commentary += isMarginal
+            ? ` DRS review... UMPIRE'S CALL — clipping leg stump. Stays NOT OUT. ${shortName} retain their review.`
+            : ` DRS review... clearly missing off stump. Stays NOT OUT. ${shortName} lose their review.`;
+          syncLatestDetailedBall(newState, { commentary: lastBall.commentary });
         }
       } else {
-        // Check if the call was marginal (stored when the appeal was generated)
-        const isMarginal = (lastBall as any)?._drsMarginal === true;
+        const shortName = reviewingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+        const reviewKind = drsContext.reviewKind;
+        const rawBat = rawInnings.batterStats[lastBall.batter];
+        const liveBatter = newState.batterStats.find(b => b.playerId === lastBall.batter);
+        const rawBowler = rawInnings.bowlerStats[lastBall.bowler] ?? {
+          overs: 0,
+          balls: 0,
+          runs: 0,
+          wickets: 0,
+          wides: 0,
+          noballs: 0,
+        };
+        rawInnings.bowlerStats[lastBall.bowler] = rawBowler;
+        const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
 
-        if (!isMarginal) {
-          // Clearly missing — lose DRS
-          if (bowlingTeamIsHome) newState.drsRemaining.home--;
+        if (shouldOverturn) {
+          if (drsContext.reviewingSide === "batting") {
+            lastBall.outcome = reviewKind;
+            lastBall.extras = 1;
+            lastBall.runs = 0;
+            lastBall.commentary = `${drsContext.bowlerName} to ${drsContext.batterName}, ${reviewKind === "wide" ? "no wide says the umpire" : "not called a no ball"}. DRS review... OVERTURNED! That's ${reviewKind === "wide" ? "WIDE" : "NO BALL"}. Add one and rebowl it.`;
+
+            ni.currentOverLegalBalls = Math.max(0, ni.currentOverLegalBalls - 1);
+            newState.balls = ni.currentOverLegalBalls;
+            rawInnings.totalBalls = Math.max(0, rawInnings.totalBalls - 1);
+            rawInnings.balls = ni.currentOverLegalBalls;
+
+            newState.score += 1;
+            newState.extras += 1;
+            rawInnings.runs += 1;
+            rawInnings.extras += 1;
+
+            if (rawBat) rawBat.balls = Math.max(0, rawBat.balls - 1);
+            if (liveBatter) liveBatter.balls = Math.max(0, liveBatter.balls - 1);
+
+            rawBowler.balls = Math.max(0, rawBowler.balls - 1);
+            rawBowler.runs += 1;
+            if (reviewKind === "wide") rawBowler.wides++;
+            else rawBowler.noballs++;
+
+            if (liveBowler) {
+              liveBowler.balls = Math.max(0, liveBowler.balls - 1);
+              liveBowler.runs += 1;
+              if (reviewKind === "wide") liveBowler.wides++;
+              else liveBowler.noBalls++;
+              liveBowler.dots = Math.max(0, liveBowler.dots - 1);
+            }
+
+            lastBall.ball = ni.currentOverLegalBalls;
+            syncLatestDetailedBall(newState, {
+              ball: ni.currentOverLegalBalls,
+              eventType: reviewKind,
+              commentary: lastBall.commentary,
+              runs: 0,
+              extras: 1,
+              scoreSoFar: newState.score,
+              wicketsSoFar: newState.wickets,
+            });
+          } else {
+            lastBall.outcome = "dot";
+            lastBall.extras = 0;
+            lastBall.runs = 0;
+            lastBall.commentary = `${drsContext.bowlerName} to ${drsContext.batterName}, ${reviewKind === "wide" ? "wide called by the umpire" : "no ball called by the umpire"}. DRS review... OVERTURNED! Fair delivery. Call withdrawn.`;
+
+            ni.currentOverLegalBalls++;
+            newState.balls = ni.currentOverLegalBalls;
+            rawInnings.totalBalls++;
+            rawInnings.balls = ni.currentOverLegalBalls;
+
+            newState.score = Math.max(0, newState.score - 1);
+            newState.extras = Math.max(0, newState.extras - 1);
+            rawInnings.runs = Math.max(0, rawInnings.runs - 1);
+            rawInnings.extras = Math.max(0, rawInnings.extras - 1);
+
+            if (rawBat) rawBat.balls++;
+            if (liveBatter) liveBatter.balls++;
+
+            rawBowler.balls++;
+            rawBowler.runs = Math.max(0, rawBowler.runs - 1);
+            if (reviewKind === "wide") rawBowler.wides = Math.max(0, rawBowler.wides - 1);
+            else rawBowler.noballs = Math.max(0, rawBowler.noballs - 1);
+
+            if (liveBowler) {
+              liveBowler.balls++;
+              liveBowler.runs = Math.max(0, liveBowler.runs - 1);
+              if (reviewKind === "wide") liveBowler.wides = Math.max(0, liveBowler.wides - 1);
+              else liveBowler.noBalls = Math.max(0, liveBowler.noBalls - 1);
+              liveBowler.dots++;
+            }
+
+            lastBall.ball = ni.currentOverLegalBalls;
+            syncLatestDetailedBall(newState, {
+              ball: ni.currentOverLegalBalls,
+              eventType: "dot",
+              commentary: lastBall.commentary,
+              runs: 0,
+              extras: 0,
+              scoreSoFar: newState.score,
+              wicketsSoFar: newState.wickets,
+            });
+          }
+        } else {
+          if (reviewingTeamIsHome) newState.drsRemaining.home--;
           else newState.drsRemaining.away--;
-        }
 
-        const shortName = bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
-        lastBall.commentary += isMarginal
-          ? ` DRS review... UMPIRE'S CALL — clipping leg stump. Stays NOT OUT. ${shortName} retain their review.`
-          : ` DRS review... clearly missing off stump. Stays NOT OUT. ${shortName} lose their review.`;
-        const lastDetailed = newState.innings === 1
-          ? newState.innings1BallLog[newState.innings1BallLog.length - 1]
-          : newState.innings2BallLog[newState.innings2BallLog.length - 1];
-        if (lastDetailed) lastDetailed.commentary = lastBall.commentary;
-        const lastLogBall = newState.ballLog[newState.ballLog.length - 1];
-        if (lastLogBall) lastLogBall.commentary = lastBall.commentary;
+          lastBall.commentary += drsContext.reviewingSide === "batting"
+            ? ` DRS review... stays ${reviewKind === "wide" ? "a fair delivery" : "a legal delivery"}. ${shortName} lose their review.`
+            : ` DRS review... ${reviewKind === "wide" ? "stays WIDE" : "stays NO BALL"}. ${shortName} lose their review.`;
+          syncLatestDetailedBall(newState, { commentary: lastBall.commentary });
+        }
       }
 
       break;
@@ -2176,8 +2390,24 @@ export function applyDecision(
     }
   }
 
-  // Clear the pending decision and resume
   newState.pendingDecision = undefined;
+
+  if (pending.type === "drs_review") {
+    const inningsEnded =
+      newState.wickets >= 10 ||
+      (newState.innings === 2 && newState.target !== undefined && newState.score >= newState.target);
+
+    if (inningsEnded) {
+      if (newState.innings === 1) {
+        finalizeFirstInningsBreak(newState, ni, rawInnings);
+      } else {
+        completeMatch(newState);
+      }
+      return newState;
+    }
+  }
+
+  // Clear the pending decision and resume
   newState.status = "in_progress";
 
   // After retire-out or strategic timeout, bowler selection was skipped.
@@ -2351,6 +2581,9 @@ export function startSecondInnings(state: MatchState): MatchState {
     home: { used: false },
     away: { used: false },
   };
+
+  // IPL teams get two reviews each innings.
+  newState.drsRemaining = { home: 2, away: 2 };
 
   // Reset rain state for 2nd innings (allow a new rain event)
   newState.rainChecked = false;
@@ -2629,7 +2862,7 @@ export function buildDetailedResultFromState(state: MatchState): DetailedMatchRe
   })).filter(b => b.balls > 0 || b.howOut !== "not out");
 
   const inn2Bowlers: BowlerFigures[] = state.bowlerStats
-    .filter(b => b.overs > 0 || b.balls > 0)
+    .filter(hasRecordedBowlingFigures)
     .map(b => {
       const oversStr = b.balls > 0 ? `${b.overs}.${b.balls}` : `${b.overs}.0`;
       const effectiveOvers = b.overs + b.balls / 6;
@@ -2868,7 +3101,7 @@ function buildLiveInningsScorecard(
     }));
 
   const bowlers: BowlerFigures[] = bowlerStats
-    .filter(b => b.overs > 0 || b.balls > 0)
+    .filter(hasRecordedBowlingFigures)
     .map(b => {
       const oversStr = b.balls > 0 ? `${b.overs}.${b.balls}` : `${b.overs}.0`;
       const effectiveOvers = b.overs + b.balls / 6;
@@ -2912,6 +3145,17 @@ function buildLiveInningsScorecard(
     },
     fallOfWickets,
   };
+}
+
+function hasRecordedBowlingFigures(bowler: LiveBowlerStats): boolean {
+  return (
+    bowler.overs > 0 ||
+    bowler.balls > 0 ||
+    bowler.runs > 0 ||
+    bowler.wickets > 0 ||
+    bowler.wides > 0 ||
+    bowler.noBalls > 0
+  );
 }
 
 function completeMatch(state: MatchState): void {

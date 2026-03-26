@@ -35,7 +35,7 @@ function AttributeBar({ label, value, valueLabel }: { label: string; value: numb
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] text-th-muted font-display font-semibold w-20 text-right uppercase tracking-wider">{label}</span>
+      <span className="w-16 text-right text-[10px] font-display font-semibold uppercase tracking-wider text-th-muted sm:w-20">{label}</span>
       <div className="flex-1 h-2 bg-white/[0.06] rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all duration-300`} style={{ width: `${pct}%` }} />
       </div>
@@ -256,8 +256,8 @@ export function AuctionPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Column: Your Team */}
-        <div className="lg:col-span-3">
-          <div className="rounded-2xl border border-th bg-th-surface p-4 sticky top-20">
+        <div className="order-2 lg:order-1 lg:col-span-3">
+          <div className="rounded-2xl border border-th bg-th-surface p-4 lg:sticky lg:top-20">
             {userTeam && (
               <>
                 <div className="flex items-center gap-2 mb-3">
@@ -286,18 +286,18 @@ export function AuctionPage({
         </div>
 
         {/* Center Column: Current Player */}
-        <div className="lg:col-span-6">
+        <div className="order-1 lg:order-2 lg:col-span-6">
           {currentPlayer && (
             <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6">
               {/* Player info */}
-              <div className="flex items-start gap-4 mb-5">
+              <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start">
                 <PlayerAvatar name={currentPlayer.name} imageUrl={currentPlayer.imageUrl} size="md" />
                 <div className="flex-1">
                   <h3 className="text-xl font-display font-bold text-th-primary">
                     {currentPlayer.name}
                     {currentPlayer.isWicketKeeper && <span className="text-cyan-400/70 text-[10px] ml-2 font-semibold">WK</span>}
                   </h3>
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
                     <span className={`text-sm font-bold ${ovrColorClass(currentPlayerView?.overall.sortValue ?? currentPlayer.overall)}`}>{currentPlayerView?.overall.display ?? currentPlayer.overall} OVR</span>
                     <span className="text-xs text-th-muted font-display">{roleLabel(currentPlayer.role)}</span>
                     {currentPlayer.battingPosition && battingPositionLabel(currentPlayer.battingPosition) && (
@@ -326,7 +326,7 @@ export function AuctionPage({
                     {currentPlayerRecruitmentTag && <RecruitmentBadge tier={currentPlayerRecruitmentTag} />}
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-left sm:text-right">
                   <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold">Base Price</div>
                   <div className="text-sm text-th-secondary font-mono stat-num">{getBasePrice(currentPlayer).toFixed(2)} Cr</div>
                 </div>
@@ -365,8 +365,8 @@ export function AuctionPage({
                       <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Scout Read</div>
                       <div className="text-sm text-th-secondary font-display mt-1">{currentPlayerView.summary}</div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <div className="text-right">
+                  <div className="flex flex-col gap-2 sm:items-end">
+                      <div className="text-left sm:text-right">
                         <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">Market Read</div>
                         <div className="text-sm text-th-primary font-mono stat-num mt-1">{currentPlayerView.marketValue.display}</div>
                       </div>
@@ -440,7 +440,7 @@ export function AuctionPage({
                 )}
 
                 {auction.phase === "rtm" && (
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <span className="text-amber-400 text-sm font-display font-semibold animate-pulse">
                       RTM: {state.teams.find(t => t.id === auction.rtmTeamId)?.name ?? "Former team"} can match!
                     </span>
@@ -477,8 +477,8 @@ export function AuctionPage({
         </div>
 
         {/* Right Column: Available Players */}
-        <div className="lg:col-span-3">
-          <div className="rounded-2xl border border-th bg-th-surface p-4 sticky top-20">
+        <div className="order-3 lg:order-3 lg:col-span-3">
+          <div className="rounded-2xl border border-th bg-th-surface p-4 lg:sticky lg:top-20">
             <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider mb-3">
               Remaining ({allRemainingPlayers.length})
             </h3>
@@ -507,7 +507,7 @@ export function AuctionPage({
                   </button>
                 ))}
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {(["all", "india", "overseas"] as const).map(c => (
                   <button
                     key={c}
@@ -522,7 +522,7 @@ export function AuctionPage({
                   </button>
                 ))}
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {(["overall", "basePrice", "age"] as const).map(s => (
                   <button
                     key={s}

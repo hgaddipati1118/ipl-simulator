@@ -16,7 +16,7 @@ function AttributeBar({ label, value }: { label: string; value: number }) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] text-th-muted font-display font-semibold w-20 text-right uppercase tracking-wider">
+      <span className="w-16 text-right text-[10px] font-display font-semibold uppercase tracking-wider text-th-muted sm:w-20">
         {label}
       </span>
       <div className="flex-1 h-2 bg-white/[0.06] rounded-full overflow-hidden">
@@ -285,8 +285,8 @@ export function MultiAuctionPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* ── Left Column: Your Team ── */}
-        <div className="lg:col-span-3">
-          <div className="rounded-2xl border border-th bg-th-surface p-4 sticky top-20">
+        <div className="order-2 lg:order-1 lg:col-span-3">
+          <div className="rounded-2xl border border-th bg-th-surface p-4 lg:sticky lg:top-20">
             {myTeam ? (
               <>
                 <div className="flex items-center gap-2 mb-3">
@@ -335,11 +335,11 @@ export function MultiAuctionPage() {
         </div>
 
         {/* ── Center Column: Current Player + Bid ── */}
-        <div className="lg:col-span-5">
+        <div className="order-1 lg:order-2 lg:col-span-5">
           {currentPlayer ? (
             <div className="rounded-2xl border border-th bg-th-surface p-5 sm:p-6">
               {/* Player info */}
-              <div className="flex items-start gap-4 mb-4">
+              <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start">
                 <div className="flex-1">
                   <h3 className="text-xl font-display font-bold text-th-primary">
                     {currentPlayer.name}
@@ -369,7 +369,7 @@ export function MultiAuctionPage() {
                     )}
                   </div>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="shrink-0 text-left sm:text-right">
                   <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold">
                     Base Price
                   </div>
@@ -386,7 +386,7 @@ export function MultiAuctionPage() {
               </div>
 
               {/* Timer + Current Bid */}
-              <div className="flex items-center gap-6 mb-5">
+              <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
                 <TimerRing seconds={secondsLeft} maxSeconds={10} />
                 <div className="flex-1">
                   <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">
@@ -420,7 +420,7 @@ export function MultiAuctionPage() {
 
               {/* Bid / Pass buttons */}
               {myTeam && (
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
                   <button
                     onClick={handleBid}
                     disabled={!canBid}
@@ -453,9 +453,9 @@ export function MultiAuctionPage() {
         </div>
 
         {/* ── Right Column: Teams + Sales Feed ── */}
-        <div className="lg:col-span-4 space-y-5">
+        <div className="order-3 space-y-5 lg:order-3 lg:col-span-4">
           {/* All Teams Budgets */}
-          <div className="rounded-2xl border border-th bg-th-surface p-4 sticky top-20">
+          <div className="rounded-2xl border border-th bg-th-surface p-4 lg:sticky lg:top-20">
             <h3 className="text-xs font-display font-semibold text-th-muted uppercase tracking-wider mb-3">
               Teams
             </h3>
@@ -519,7 +519,7 @@ export function MultiAuctionPage() {
                 <p className="text-th-faint text-[10px] font-display">No messages yet</p>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
                 value={chatInput}

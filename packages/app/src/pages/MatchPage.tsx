@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { GameState } from "../game-state";
 import { getMatchDetail } from "../match-db";
+import { getActiveSlotId } from "../storage";
 import { PlayerLink } from "../components/PlayerLink";
+import { getDrsVerdict, getDrsVerdictLabel } from "../drs-utils";
 import type {
   DetailedMatchResult,
   InningsScorecard,
@@ -51,7 +53,7 @@ export function MatchPage({ state }: Props) {
     if (immediateDetailed || !match) return;
 
     setIdbLoading(true);
-    getMatchDetail(state.seasonNumber, idx).then(detail => {
+    getMatchDetail(getActiveSlotId(), state.seasonNumber, idx).then(detail => {
       setIdbDetail(detail);
       setIdbLoading(false);
     }).catch(() => {
@@ -61,7 +63,7 @@ export function MatchPage({ state }: Props) {
 
   if (!schedule || !match) {
     return (
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <p className="text-th-secondary">Match not found.</p>
         <button onClick={() => navigate("/season")} className="text-blue-400 hover:text-blue-300 text-sm mt-4">
           Back to Season
@@ -95,7 +97,7 @@ export function MatchPage({ state }: Props) {
   if (!detailed) {
     // No detailed data available (old match before IndexedDB was added)
     return (
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <button onClick={() => navigate("/season")} className="text-th-secondary hover:text-th-primary text-sm mb-6">
           &larr; Back to Season
         </button>
@@ -134,9 +136,9 @@ export function MatchPage({ state }: Props) {
   const nextIdx = idx < schedule.length - 1 ? idx + 1 : null;
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* Navigation bar */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button onClick={() => navigate("/season")} className="text-th-secondary hover:text-th-primary text-sm">
           &larr; Back to Season
         </button>
@@ -173,30 +175,30 @@ export function MatchPage({ state }: Props) {
       />
 
       {/* Innings Tabs */}
-      <div className="flex gap-1 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <button
           onClick={() => setActiveTab(1)}
-          className={`flex-1 py-3 text-sm font-semibold rounded-lg transition-colors ${
+          className={`rounded-lg px-4 py-3 text-left text-sm font-semibold transition-colors sm:text-center ${
             activeTab === 1
               ? "bg-blue-600 text-white"
               : "bg-th-raised text-th-secondary hover:bg-th-hover hover:text-th-primary"
           }`}
         >
-          1st Innings &mdash; {detailed.innings1.battingTeamName}
-          <span className="ml-2 opacity-75">
+          <span className="block">1st Innings &mdash; {detailed.innings1.battingTeamName}</span>
+          <span className="mt-1 block text-xs opacity-75">
             {detailed.innings1.totalRuns}/{detailed.innings1.totalWickets} ({detailed.innings1.totalOvers} ov)
           </span>
         </button>
         <button
           onClick={() => setActiveTab(2)}
-          className={`flex-1 py-3 text-sm font-semibold rounded-lg transition-colors ${
+          className={`rounded-lg px-4 py-3 text-left text-sm font-semibold transition-colors sm:text-center ${
             activeTab === 2
               ? "bg-blue-600 text-white"
               : "bg-th-raised text-th-secondary hover:bg-th-hover hover:text-th-primary"
           }`}
         >
-          2nd Innings &mdash; {detailed.innings2.battingTeamName}
-          <span className="ml-2 opacity-75">
+          <span className="block">2nd Innings &mdash; {detailed.innings2.battingTeamName}</span>
+          <span className="mt-1 block text-xs opacity-75">
             {detailed.innings2.totalRuns}/{detailed.innings2.totalWickets} ({detailed.innings2.totalOvers} ov)
           </span>
         </button>
@@ -244,13 +246,13 @@ export function MatchPage({ state }: Props) {
                   {/* Over summary header */}
                   <button
                     onClick={() => toggleOver(overKey)}
-                    className="w-full px-3 py-2 bg-th-raised flex items-center justify-between hover:bg-th-hover transition-colors"
+                    className="flex w-full flex-col items-start gap-2 bg-th-raised px-3 py-2 transition-colors hover:bg-th-hover sm:flex-row sm:items-center sm:justify-between"
                     aria-expanded={isExpanded}
                   >
                     <span className="text-th-primary text-sm font-medium">
                       Over {group.over + 1}
                     </span>
-                    <div className="flex items-center gap-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
                       <span className="text-th-secondary">
                         {overRuns} runs
                       </span>
@@ -319,9 +321,9 @@ function MatchHeader({
   const awayInn = inn1.battingTeamId === detailed.awayTeamId ? inn1 : inn2;
 
   return (
-    <div className="bg-th-surface rounded-xl border border-th p-6 mb-6">
+    <div className="bg-th-surface rounded-xl border border-th p-4 sm:p-6 mb-6">
       {/* Match info */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-th-muted text-xs uppercase tracking-wider font-semibold">
           {matchLabel}
         </span>
@@ -329,7 +331,7 @@ function MatchHeader({
       </div>
 
       {/* Scoreboard */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Home team */}
         <div className="flex items-center gap-3">
           <div
@@ -350,7 +352,7 @@ function MatchHeader({
         <span className="text-th-faint text-lg font-bold">vs</span>
 
         {/* Away team */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 self-end sm:self-auto">
           <div>
             <p className="text-th-primary font-semibold text-right">{detailed.awayTeamName}</p>
             <p className="text-th-secondary text-lg font-bold text-right">
@@ -373,7 +375,7 @@ function MatchHeader({
       </p>
 
       {/* Toss + MOTM */}
-      <div className="flex items-center justify-between text-xs text-th-muted">
+      <div className="flex flex-col gap-2 text-xs text-th-muted sm:flex-row sm:items-center sm:justify-between">
         <span>Toss: {detailed.tossWinnerName} elected to {detailed.tossDecision} first</span>
         <span>
           MoM: <PlayerLink playerId={detailed.manOfTheMatch.playerId} className="text-gold-400 text-yellow-400 font-medium">{detailed.manOfTheMatch.playerName}</PlayerLink>
@@ -400,7 +402,7 @@ function BattingCard({ innings }: { innings: InningsScorecard }) {
         </h3>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="text-th-muted text-xs uppercase">
               <th scope="col" className="text-left px-4 py-2 w-[40%]">Batter</th>
@@ -479,7 +481,7 @@ function BowlingCard({ innings }: { innings: InningsScorecard }) {
         </h3>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[520px] text-sm">
           <thead>
             <tr className="text-th-muted text-xs uppercase">
               <th scope="col" className="text-left px-4 py-2">Bowler</th>
@@ -524,9 +526,24 @@ function BowlingCard({ innings }: { innings: InningsScorecard }) {
 }
 
 function BallCommentaryRow({ ball }: { ball: DetailedBallEvent }) {
+  const drsVerdict = getDrsVerdict(ball.commentary);
   let colorClass = "text-th-secondary";
   let bgClass = "";
-  if (ball.eventType === "four") {
+  let drsBadgeClass = "";
+
+  if (drsVerdict === "overturned") {
+    colorClass = "text-red-100";
+    bgClass = "bg-red-500/10";
+    drsBadgeClass = "border-red-500/30 bg-red-500/10 text-red-300";
+  } else if (drsVerdict === "umpires-call") {
+    colorClass = "text-sky-100";
+    bgClass = "bg-sky-500/10";
+    drsBadgeClass = "border-sky-500/30 bg-sky-500/10 text-sky-200";
+  } else if (drsVerdict === "review-lost") {
+    colorClass = "text-amber-100";
+    bgClass = "bg-amber-500/10";
+    drsBadgeClass = "border-amber-500/30 bg-amber-500/10 text-amber-200";
+  } else if (ball.eventType === "four") {
     colorClass = "text-green-400";
     bgClass = "bg-green-500/5";
   } else if (ball.eventType === "six") {
@@ -546,11 +563,16 @@ function BallCommentaryRow({ ball }: { ball: DetailedBallEvent }) {
     : `${ball.over}.${ball.ball}`;
 
   return (
-    <div className={`flex items-start gap-3 py-1 px-2 rounded ${bgClass}`}>
+    <div className={`flex items-start gap-2 py-1 px-2 rounded sm:gap-3 ${bgClass}`}>
       <span className="text-th-faint text-xs font-mono w-8 flex-shrink-0 pt-0.5">
         {overBall}
       </span>
-      <span className={`text-sm font-mono ${colorClass} flex-1`}>
+      {drsVerdict && (
+        <span className={`mt-0.5 shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] ${drsBadgeClass}`}>
+          {getDrsVerdictLabel(drsVerdict, ball.commentary)}
+        </span>
+      )}
+      <span className={`min-w-0 flex-1 break-words whitespace-normal text-sm font-mono ${colorClass}`}>
         {ball.commentary}
       </span>
       <span className="text-th-faint text-xs flex-shrink-0 pt-0.5">

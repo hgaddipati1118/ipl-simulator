@@ -5,6 +5,51 @@
 
 import { Player, type TrainingIntensity } from "./player.js";
 
+const MIN_BOWLING_OPTIONS = 5;
+const EXTRA_BOWLING_DEPTH_SELECTION_GAP = 3;
+
+function compareSelectionScore(a: Player, b: Player): number {
+  const scoreDiff = b.selectionScore - a.selectionScore;
+  if (scoreDiff !== 0) return scoreDiff;
+  return b.overall - a.overall;
+}
+
+function bowlingRolePriority(player: Player): number {
+  if (player.role === "bowler") return 0;
+  if (player.role === "all-rounder") return 1;
+  return 2;
+}
+
+function compareBowlingSuitability(a: Player, b: Player): number {
+  const effectiveDiff = b.effectiveBowlingOvr - a.effectiveBowlingOvr;
+  if (effectiveDiff !== 0) return effectiveDiff;
+
+  const roleDiff = bowlingRolePriority(a) - bowlingRolePriority(b);
+  if (roleDiff !== 0) return roleDiff;
+
+  const selectionDiff = b.selectionScore - a.selectionScore;
+  if (selectionDiff !== 0) return selectionDiff;
+
+  return b.bowlingOvr - a.bowlingOvr;
+}
+
+function dedupePlayers(players: Player[]): Player[] {
+  const seen = new Set<string>();
+  return players.filter(player => {
+    if (seen.has(player.id)) return false;
+    seen.add(player.id);
+    return true;
+  });
+}
+
+function isExtraBowlingDepthCandidate(player: Player): boolean {
+  return !player.isWicketKeeper && (
+    player.role === "bowler" ||
+    player.role === "all-rounder" ||
+    player.effectiveBowlingOvr >= 50
+  );
+}
+
 export interface BowlingPlan {
   powerplay: string[]; // player IDs preferred for overs 1-6
   middle: string[];    // player IDs preferred for overs 7-15
@@ -150,30 +195,65 @@ export class Team {
   /** Auto-select best playing XI (guarantees at least 1 wicket-keeper) */
   autoSelectPlayingXI(maxOverseas = 4): Player[] {
     const available = this.roster.filter(p => !p.injured);
-    const sorted = [...available].sort((a, b) => {
-      const scoreDiff = b.selectionScore - a.selectionScore;
-      if (scoreDiff !== 0) return scoreDiff;
-      return b.overall - a.overall;
-    });
+    const sorted = [...available].sort(compareSelectionScore);
+    const wicketKeepers = sorted.filter(p => p.isWicketKeeper);
+    const preferredWicketKeeper = wicketKeepers[0];
+    const bowlingCandidates = available
+      .filter(p => !p.isWicketKeeper)
+      .sort(compareBowlingSuitability);
 
     const xi: Player[] = [];
     let intCount = 0;
 
-    // First pass: pick best 11 by overall
-    for (const player of sorted) {
-      if (xi.length >= 11) break;
-      if (player.isInternational) {
-        if (intCount >= maxOverseas) continue;
-        intCount++;
-      }
+    const addToXI = (player?: Player): boolean => {
+      if (!player || xi.includes(player)) return false;
+      if (player.isInternational && intCount >= maxOverseas) return false;
       xi.push(player);
+      if (player.isInternational) intCount++;
+      return true;
+    };
+
+    // CPU XIs should lock in a keeper first, then ensure the best bowling core
+    // based on current availability and fatigue before filling with pure batting value.
+    addToXI(preferredWicketKeeper);
+
+    let selectedBowlingOptions = 0;
+    for (const player of bowlingCandidates) {
+      if (selectedBowlingOptions >= MIN_BOWLING_OPTIONS) break;
+      if (addToXI(player)) selectedBowlingOptions++;
+    }
+
+    const canAddToXI = (player?: Player): player is Player =>
+      !!player && !xi.includes(player) && (!player.isInternational || intCount < maxOverseas);
+
+    while (xi.length < 11) {
+      const bestAvailable = sorted.find(canAddToXI);
+      if (!bestAvailable) break;
+
+      const bowlingDepthCount = xi.filter(isExtraBowlingDepthCandidate).length;
+      if (bowlingDepthCount >= MIN_BOWLING_OPTIONS) {
+        const extraBowlingDepth = bowlingCandidates.find(player =>
+          canAddToXI(player) && isExtraBowlingDepthCandidate(player)
+        );
+
+        if (
+          extraBowlingDepth &&
+          extraBowlingDepth.id !== bestAvailable.id &&
+          bestAvailable.selectionScore - extraBowlingDepth.selectionScore <= EXTRA_BOWLING_DEPTH_SELECTION_GAP
+        ) {
+          addToXI(extraBowlingDepth);
+          continue;
+        }
+      }
+
+      addToXI(bestAvailable);
     }
 
     // Ensure at least 1 wicket-keeper
     const hasWK = xi.some(p => p.isWicketKeeper);
     if (!hasWK && xi.length === 11) {
-      const bestWK = sorted.find(p =>
-        p.isWicketKeeper && !xi.includes(p) &&
+      const bestWK = wicketKeepers.find(p =>
+        !xi.includes(p) &&
         (!p.isInternational || intCount < maxOverseas ||
           xi.some(x => x.isInternational && !x.isWicketKeeper))
       );
@@ -232,13 +312,14 @@ export class Team {
   /** Get bowling order (5-6 bowlers). Respects user bowling order if set. */
   getBowlingOrder(xi: Player[]): Player[] {
     if (this.isUserControlled && this.userBowlingOrder && this.userBowlingOrder.length > 0) {
-      const ordered = this.userBowlingOrder
+      const ordered = dedupePlayers(this.userBowlingOrder
         .map(id => xi.find(p => p.id === id))
-        .filter((p): p is Player => p !== undefined);
-      // Need at least 5 bowlers, append auto-selected if user didn't provide enough
-      if (ordered.length >= 5) return ordered;
+        .filter((p): p is Player => p !== undefined));
+      // Need at least 5 bowlers, append auto-selected if user didn't provide enough.
+      // Do not truncate when the XI has more than five legitimate bowling options.
+      if (ordered.length >= MIN_BOWLING_OPTIONS) return ordered;
       const autoExtra = this.autoBowlingOrder(xi).filter(p => !ordered.includes(p));
-      return [...ordered, ...autoExtra].slice(0, Math.max(5, ordered.length));
+      return [...ordered, ...autoExtra];
     }
 
     return this.autoBowlingOrder(xi);
@@ -250,23 +331,29 @@ export class Team {
   autoBowlingOrder(xi: Player[]): Player[] {
     const bowlers = xi
       .filter(p => (p.role === "bowler" || p.role === "all-rounder") && !p.isWicketKeeper)
-      .sort((a, b) => b.bowlingOvr - a.bowlingOvr);
+      .sort(compareBowlingSuitability);
 
-    // Part-time batsmen: only genuine contributors (ovr >= 50),
-    // or emergency padding to 5 bowlers (ovr >= 35). Never the WK.
+    // Part-time batsmen: keep genuine contributors available, then use the
+    // best remaining non-keepers as emergency options if the XI is otherwise illegal.
     const partTimers = xi
       .filter(p => p.role === "batsman" && !p.isWicketKeeper)
-      .sort((a, b) => b.bowlingOvr - a.bowlingOvr);
+      .sort(compareBowlingSuitability);
 
     for (const pt of partTimers) {
-      if (pt.bowlingOvr >= 50) {
-        bowlers.push(pt);
-      } else if (bowlers.length < 5 && pt.bowlingOvr >= 35) {
+      if (pt.effectiveBowlingOvr >= 50) {
         bowlers.push(pt);
       }
     }
 
-    return bowlers;
+    if (bowlers.length < MIN_BOWLING_OPTIONS) {
+      for (const pt of partTimers) {
+        if (bowlers.includes(pt)) continue;
+        bowlers.push(pt);
+        if (bowlers.length >= MIN_BOWLING_OPTIONS) break;
+      }
+    }
+
+    return dedupePlayers(bowlers);
   }
 
   /** Set phase-specific bowling plan */

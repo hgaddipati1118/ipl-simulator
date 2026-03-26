@@ -15,7 +15,7 @@ export function MatchDetailPage({ state }: Props) {
 
   if (!match || !match.result) {
     return (
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <p className="text-th-secondary">Match not found or not yet played.</p>
         <button onClick={() => navigate("/season")} className="mt-4 text-orange-400 hover:text-orange-300 text-sm">
           Back to Season
@@ -195,7 +195,7 @@ export function MatchDetailPage({ state }: Props) {
   const motmPlayer = allPlayers.get(result.motm);
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* Back link */}
       <button
         onClick={() => navigate("/season")}

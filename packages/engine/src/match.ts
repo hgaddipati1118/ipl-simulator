@@ -671,11 +671,16 @@ function simulateInnings(
       );
     }
 
-    const bowler = eligibleBowlers.length > 0
-      ? eligibleBowlers.sort((a, b) => b.bowlingOvr - a.bowlingOvr)[
-          Math.floor(rng() * Math.min(3, eligibleBowlers.length))
-        ]
-      : bowlers[0]; // absolute fallback
+    if (eligibleBowlers.length === 0) {
+      throw new Error(
+        `No eligible bowler available for over ${over + 1}. ` +
+        `Bowling XI must provide at least ${Math.ceil(maxOvers / maxOversPerBowler)} unique bowling options.`,
+      );
+    }
+
+    const bowler = eligibleBowlers.sort((a, b) => b.effectiveBowlingOvr - a.effectiveBowlingOvr)[
+      Math.floor(rng() * Math.min(3, eligibleBowlers.length))
+    ];
 
     let ballsInOver = 0;
     let legalBalls = 0;

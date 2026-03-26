@@ -6,7 +6,7 @@
  *
  * Database: "ipl-simulator-matches"
  * Object stores:
- *   "matches" — keyed by `${seasonNumber}-${matchIndex}`, stores DetailedMatchResult
+ *   "matches" — keyed by `${slotId}:${seasonNumber}-${matchIndex}`, stores DetailedMatchResult
  *   "seasons" — keyed by seasonNumber, stores season-level metadata
  */
 
@@ -17,14 +17,23 @@ const DB_VERSION = 2;
 const MATCHES_STORE = "matches";
 const SEASONS_STORE = "seasons";
 const IN_PROGRESS_STORE = "in_progress_matches";
+const DEFAULT_SLOT_ID = "default";
 
 // ── Cached DB connection ─────────────────────────────────────────────────
 
 let dbInstance: IDBDatabase | null = null;
 let dbPromise: Promise<IDBDatabase> | null = null;
 
-function matchKey(seasonNumber: number, matchIndex: number): string {
-  return `${seasonNumber}-${matchIndex}`;
+function normalizeSlotId(slotId: string | null | undefined): string {
+  return slotId ?? DEFAULT_SLOT_ID;
+}
+
+export function buildMatchStorageKey(
+  slotId: string | null | undefined,
+  seasonNumber: number,
+  matchIndex: number,
+): string {
+  return `${normalizeSlotId(slotId)}:${seasonNumber}-${matchIndex}`;
 }
 
 /** Open (or return cached) IndexedDB connection */
@@ -116,6 +125,7 @@ async function getDB(): Promise<IDBDatabase | null> {
 // ── Stored record shape ──────────────────────────────────────────────────
 
 interface MatchRecord {
+  slotId: string;
   seasonNumber: number;
   matchIndex: number;
   detail: DetailedMatchResult;
@@ -127,6 +137,7 @@ interface MatchRecord {
  * Save a DetailedMatchResult to IndexedDB.
  */
 export async function saveMatchDetail(
+  slotId: string | null | undefined,
   seasonNumber: number,
   matchIndex: number,
   detail: DetailedMatchResult,
@@ -137,8 +148,13 @@ export async function saveMatchDetail(
   try {
     const tx = db.transaction(MATCHES_STORE, "readwrite");
     const store = tx.objectStore(MATCHES_STORE);
-    const record: MatchRecord = { seasonNumber, matchIndex, detail };
-    store.put(record, matchKey(seasonNumber, matchIndex));
+    const record: MatchRecord = {
+      slotId: normalizeSlotId(slotId),
+      seasonNumber,
+      matchIndex,
+      detail,
+    };
+    store.put(record, buildMatchStorageKey(slotId, seasonNumber, matchIndex));
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -155,6 +171,7 @@ export async function saveMatchDetail(
  * Returns null if not found or IndexedDB unavailable.
  */
 export async function getMatchDetail(
+  slotId: string | null | undefined,
   seasonNumber: number,
   matchIndex: number,
 ): Promise<DetailedMatchResult | null> {
@@ -165,7 +182,7 @@ export async function getMatchDetail(
     const tx = db.transaction(MATCHES_STORE, "readonly");
     const store = tx.objectStore(MATCHES_STORE);
     const record = await requestToPromise<MatchRecord | undefined>(
-      store.get(matchKey(seasonNumber, matchIndex)),
+      store.get(buildMatchStorageKey(slotId, seasonNumber, matchIndex)),
     );
     return record?.detail ?? null;
   } catch (err) {
@@ -178,12 +195,14 @@ export async function getMatchDetail(
  * Retrieve all match details for a given season.
  */
 export async function getAllSeasonMatches(
+  slotId: string | null | undefined,
   seasonNumber: number,
 ): Promise<DetailedMatchResult[]> {
   const db = await getDB();
   if (!db) return [];
 
   try {
+    const normalizedSlotId = normalizeSlotId(slotId);
     const tx = db.transaction(MATCHES_STORE, "readonly");
     const store = tx.objectStore(MATCHES_STORE);
     const index = store.index("bySeason");
@@ -191,6 +210,7 @@ export async function getAllSeasonMatches(
       index.getAll(seasonNumber),
     );
     return records
+      .filter(record => normalizeSlotId(record.slotId) === normalizedSlotId)
       .sort((a, b) => a.matchIndex - b.matchIndex)
       .map(r => r.detail);
   } catch (err) {
@@ -205,12 +225,14 @@ export async function getAllSeasonMatches(
  */
 export async function getPlayerMatchHistory(
   playerId: string,
+  slotId: string | null | undefined,
   seasonNumber: number,
 ): Promise<{ matchIndex: number; detail: DetailedMatchResult }[]> {
   const db = await getDB();
   if (!db) return [];
 
   try {
+    const normalizedSlotId = normalizeSlotId(slotId);
     const tx = db.transaction(MATCHES_STORE, "readonly");
     const store = tx.objectStore(MATCHES_STORE);
     const index = store.index("bySeason");
@@ -219,6 +241,7 @@ export async function getPlayerMatchHistory(
     );
 
     return records
+      .filter(record => normalizeSlotId(record.slotId) === normalizedSlotId)
       .filter(r => {
         const d = r.detail;
         // Check if player appears in either innings scorecard
@@ -240,23 +263,28 @@ export async function getPlayerMatchHistory(
  * Delete all match data for a given season.
  */
 export async function deleteSeasonMatches(
+  slotId: string | null | undefined,
   seasonNumber: number,
 ): Promise<void> {
   const db = await getDB();
   if (!db) return;
 
   try {
+    const normalizedSlotId = normalizeSlotId(slotId);
     const tx = db.transaction(MATCHES_STORE, "readwrite");
     const store = tx.objectStore(MATCHES_STORE);
     const index = store.index("bySeason");
 
-    // Get all keys for this season, then delete them
-    const request = index.openKeyCursor(seasonNumber);
+    // Get all keys for this season, then delete the ones for this slot
+    const request = index.openCursor(seasonNumber);
     await new Promise<void>((resolve, reject) => {
       request.onsuccess = () => {
         const cursor = request.result;
         if (cursor) {
-          store.delete(cursor.primaryKey);
+          const record = cursor.value as MatchRecord;
+          if (normalizeSlotId(record.slotId) === normalizedSlotId) {
+            store.delete(cursor.primaryKey);
+          }
           cursor.continue();
         } else {
           resolve();
@@ -303,14 +331,19 @@ export async function clearAllMatchData(): Promise<boolean> {
 // ── In-progress match store (for live match save/resume) ────────────────
 
 interface InProgressRecord {
+  slotId: string;
   seasonNumber: number;
   matchIndex: number;
   matchState: unknown; // serialized MatchState
   savedAt: number;     // timestamp
 }
 
-function inProgressKey(seasonNumber: number, matchIndex: number): string {
-  return `${seasonNumber}-${matchIndex}`;
+export function buildInProgressMatchStorageKey(
+  slotId: string | null | undefined,
+  seasonNumber: number,
+  matchIndex: number,
+): string {
+  return `${normalizeSlotId(slotId)}:${seasonNumber}-${matchIndex}`;
 }
 
 /**
@@ -318,6 +351,7 @@ function inProgressKey(seasonNumber: number, matchIndex: number): string {
  * Called after every over during live match viewing.
  */
 export async function saveInProgressMatch(
+  slotId: string | null | undefined,
   seasonNumber: number,
   matchIndex: number,
   matchState: unknown,
@@ -329,12 +363,13 @@ export async function saveInProgressMatch(
     const tx = db.transaction(IN_PROGRESS_STORE, "readwrite");
     const store = tx.objectStore(IN_PROGRESS_STORE);
     const record: InProgressRecord = {
+      slotId: normalizeSlotId(slotId),
       seasonNumber,
       matchIndex,
       matchState,
       savedAt: Date.now(),
     };
-    store.put(record, inProgressKey(seasonNumber, matchIndex));
+    store.put(record, buildInProgressMatchStorageKey(slotId, seasonNumber, matchIndex));
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -348,6 +383,7 @@ export async function saveInProgressMatch(
  * Retrieve an in-progress match state.
  */
 export async function getInProgressMatch(
+  slotId: string | null | undefined,
   seasonNumber: number,
   matchIndex: number,
 ): Promise<unknown | null> {
@@ -358,7 +394,7 @@ export async function getInProgressMatch(
     const tx = db.transaction(IN_PROGRESS_STORE, "readonly");
     const store = tx.objectStore(IN_PROGRESS_STORE);
     const record = await requestToPromise<InProgressRecord | undefined>(
-      store.get(inProgressKey(seasonNumber, matchIndex)),
+      store.get(buildInProgressMatchStorageKey(slotId, seasonNumber, matchIndex)),
     );
     return record?.matchState ?? null;
   } catch (err) {
@@ -371,6 +407,7 @@ export async function getInProgressMatch(
  * Clear a specific in-progress match (called when match completes).
  */
 export async function clearInProgressMatch(
+  slotId: string | null | undefined,
   seasonNumber: number,
   matchIndex: number,
 ): Promise<void> {
@@ -380,13 +417,54 @@ export async function clearInProgressMatch(
   try {
     const tx = db.transaction(IN_PROGRESS_STORE, "readwrite");
     const store = tx.objectStore(IN_PROGRESS_STORE);
-    store.delete(inProgressKey(seasonNumber, matchIndex));
+    store.delete(buildInProgressMatchStorageKey(slotId, seasonNumber, matchIndex));
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   } catch (err) {
     console.warn("[match-db] Failed to clear in-progress match:", err);
+  }
+}
+
+/**
+ * Delete all persisted match data for a specific save slot.
+ */
+export async function deleteSlotMatchData(slotId: string | null | undefined): Promise<boolean> {
+  const db = await getDB();
+  if (!db) return false;
+
+  const keyPrefix = `${normalizeSlotId(slotId)}:`;
+
+  try {
+    for (const storeName of [MATCHES_STORE, IN_PROGRESS_STORE]) {
+      const tx = db.transaction(storeName, "readwrite");
+      const store = tx.objectStore(storeName);
+      await new Promise<void>((resolve, reject) => {
+        const request = store.openKeyCursor();
+
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) {
+            return;
+          }
+
+          if (typeof cursor.primaryKey === "string" && cursor.primaryKey.startsWith(keyPrefix)) {
+            store.delete(cursor.primaryKey);
+          }
+
+          cursor.continue();
+        };
+        request.onerror = () => reject(request.error);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    return true;
+  } catch (err) {
+    console.warn("[match-db] Failed to clear slot match data:", err);
+    return false;
   }
 }
 

@@ -144,6 +144,7 @@ export type {
   MatchState,
   LiveBatterStats,
   LiveBowlerStats,
+  PendingDrsContext,
   PendingDecision,
   PendingDecisionOption,
   FieldSetting,

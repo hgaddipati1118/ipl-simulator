@@ -26,9 +26,11 @@ import {
   getInProgressMatch,
   saveMatchDetail,
 } from "../match-db";
+import { buildLiveMatchStorageKey, getActiveSlotId } from "../storage";
 import { buildNarrativeEventsForLiveState, type FeedMatchResult } from "../news-feed";
 import { PlayerAvatar } from "../components/PlayerAvatar";
 import { TeamBadge } from "../components/TeamBadge";
+import { type DrsVerdict, getDrsVerdict, getDrsVerdictLabel } from "../drs-utils";
 import { ovrBgClass, bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 
 type Speed = "1x" | "2x" | "5x" | "instant";
@@ -41,6 +43,33 @@ const SPEED_DELAYS: Record<Speed, number> = {
 };
 
 type ScorecardTab = "batting" | "bowling" | "fow" | "worm";
+
+type DrsReviewingState = {
+  batterName: string;
+  bowlerName: string;
+  reviewsLeft: number;
+  reviewKind: "lbw" | "wide" | "noball";
+  reviewingSide: "batting" | "bowling";
+};
+
+type DrsResultState = {
+  verdict: DrsVerdict;
+  title: string;
+  message: string;
+  badgeLabel: string;
+};
+
+type LiveMatchDrsContext = {
+  batterName: string;
+  bowlerName?: string;
+  reviewKind?: "lbw" | "wide" | "noball";
+  reviewingSide?: "batting" | "bowling";
+  onFieldCall?: "out" | "not_out" | "wide" | "not_wide" | "noball" | "not_noball";
+  isGivenOut: boolean;
+};
+
+const DRS_REVIEW_DELAY_MS = 900;
+const DRS_RESULT_DURATION_MS = 2800;
 
 interface Props {
   seasonNumber: number;
@@ -60,6 +89,91 @@ function getStadiumLabel(rating: number): string {
   return "Bowling Paradise";
 }
 
+function getMatchPhaseLabel(overs: number): string {
+  if (overs < 6) return "Powerplay";
+  if (overs < 15) return "Middle Overs";
+  return "Death Overs";
+}
+
+function getDrsFeedClasses(verdict: DrsVerdict | null) {
+  switch (verdict) {
+    case "overturned":
+      return {
+        row: "bg-red-950/20",
+        badge: "border-red-500/30 bg-red-500/10 text-red-300",
+        commentary: "text-red-100",
+        tokenRing: "ring-1 ring-red-500/30",
+      };
+    case "umpires-call":
+      return {
+        row: "bg-sky-950/20",
+        badge: "border-sky-500/30 bg-sky-500/10 text-sky-200",
+        commentary: "text-sky-100",
+        tokenRing: "ring-1 ring-sky-500/30",
+      };
+    case "review-lost":
+      return {
+        row: "bg-amber-950/15",
+        badge: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+        commentary: "text-amber-100",
+        tokenRing: "ring-1 ring-amber-500/30",
+      };
+    default:
+      return null;
+  }
+}
+
+function buildDrsResultState(
+  verdict: DrsVerdict,
+  teamShortName: string,
+  drsContext?: LiveMatchDrsContext | null,
+): DrsResultState {
+  if (drsContext && drsContext.reviewKind !== "lbw") {
+    const callLabel = drsContext.reviewKind === "wide" ? "wide" : "no-ball";
+    if (verdict === "overturned") {
+      return {
+        verdict,
+        title: "Decision Overturned",
+        message: drsContext.reviewingSide === "batting"
+          ? `${teamShortName} win the ${callLabel} review. The extra is added and the ball is rebowled.`
+          : `${teamShortName} win the ${callLabel} review. The extra is removed and the delivery now counts.`,
+        badgeLabel: "CALL OVERTURNED",
+      };
+    }
+
+    return {
+      verdict,
+      title: "Review Lost",
+      message: `${teamShortName} challenged the ${callLabel} call and lost the review.`,
+      badgeLabel: getDrsVerdictLabel(verdict),
+    };
+  }
+
+  switch (verdict) {
+    case "overturned":
+      return {
+        verdict,
+        title: "Decision Overturned",
+        message: `${teamShortName} got it right. The batter is out lbw.`,
+        badgeLabel: getDrsVerdictLabel(verdict, "The batter is out lbw."),
+      };
+    case "umpires-call":
+      return {
+        verdict,
+        title: "Umpire's Call",
+        message: `${teamShortName} stay with the original call and keep the review.`,
+        badgeLabel: getDrsVerdictLabel(verdict),
+      };
+    case "review-lost":
+      return {
+        verdict,
+        title: "Review Lost",
+        message: `${teamShortName} challenged, but ball-tracking kept it not out.`,
+        badgeLabel: getDrsVerdictLabel(verdict),
+      };
+  }
+}
+
 export function LiveMatchPage({
   seasonNumber,
   matchState: initialState,
@@ -73,6 +187,7 @@ export function LiveMatchPage({
   const params = useParams<{ matchIndex: string }>();
   // Use prop if valid, otherwise fall back to URL param (for page refresh)
   const matchIndex = matchIndexProp >= 0 ? matchIndexProp : parseInt(params.matchIndex ?? "-1", 10);
+  const activeSlotId = getActiveSlotId();
   const [state, setState] = useState<MatchState | null>(initialState);
   const [loading, setLoading] = useState(!initialState);
   const [playing, setPlaying] = useState(false);
@@ -92,8 +207,9 @@ export function LiveMatchPage({
   const [impactSubIn, setImpactSubIn] = useState<string | null>(null);
   const [impactSubOut, setImpactSubOut] = useState<string | null>(null);
 
-  // DRS result flash
-  const [drsResult, setDrsResult] = useState<{ success: boolean; message: string } | null>(null);
+  // DRS review state
+  const [drsReviewing, setDrsReviewing] = useState<DrsReviewingState | null>(null);
+  const [drsResult, setDrsResult] = useState<DrsResultState | null>(null);
 
   // Pre-match buildup
   const [showBuildup, setShowBuildup] = useState(true);
@@ -131,15 +247,18 @@ export function LiveMatchPage({
   useEffect(() => {
     if (initialState) return;
     if (matchIndex < 0) { setLoading(false); return; }
-    const lsLoadKey = `ipl-live-${seasonNumber}-${matchIndex}`;
+    const lsLoadKey = buildLiveMatchStorageKey(activeSlotId, seasonNumber, matchIndex);
+    const legacyLoadKey = `ipl-live-${seasonNumber}-${matchIndex}`;
     (async () => {
       // Try IndexedDB first (most recent over-boundary save)
-      let saved = await getInProgressMatch(seasonNumber, matchIndex);
+      let saved = await getInProgressMatch(activeSlotId, seasonNumber, matchIndex);
       // Fallback to localStorage (written synchronously on every ball/beforeunload)
       if (!saved) {
         try {
           const lsData = localStorage.getItem(lsLoadKey);
+          const legacyData = localStorage.getItem(legacyLoadKey);
           if (lsData) saved = JSON.parse(lsData);
+          else if (legacyData) saved = JSON.parse(legacyData);
         } catch {}
       }
       if (saved) {
@@ -153,17 +272,18 @@ export function LiveMatchPage({
       }
       setLoading(false);
     })();
-  }, [initialState, seasonNumber, matchIndex]);
+  }, [activeSlotId, initialState, seasonNumber, matchIndex]);
 
   // Auto-save after every over
   const autoSave = useCallback(async (currentState: MatchState) => {
     const serialized = serializeMatchState(currentState);
-    await saveInProgressMatch(seasonNumber, matchIndex, serialized);
+    await saveInProgressMatch(activeSlotId, seasonNumber, matchIndex, serialized);
     ballsSinceLastSave.current = 0;
-  }, [seasonNumber, matchIndex]);
+  }, [activeSlotId, seasonNumber, matchIndex]);
 
   // Synchronous localStorage key for live match state (survives refresh)
-  const lsKey = `ipl-live-${seasonNumber}-${matchIndex}`;
+  const lsKey = buildLiveMatchStorageKey(activeSlotId, seasonNumber, matchIndex);
+  const legacyLsKey = `ipl-live-${seasonNumber}-${matchIndex}`;
 
   // Save to localStorage synchronously (fast, guaranteed before unload)
   const saveToLS = useCallback(() => {
@@ -180,7 +300,7 @@ export function LiveMatchPage({
     const saveNow = () => {
       if (stateRef.current && matchIndex >= 0 && stateRef.current.status !== "completed") {
         const serialized = serializeMatchState(stateRef.current);
-        saveInProgressMatch(seasonNumber, matchIndex, serialized);
+        saveInProgressMatch(activeSlotId, seasonNumber, matchIndex, serialized);
         // Also save synchronously to localStorage as backup
         try { localStorage.setItem(lsKey, JSON.stringify(serialized)); } catch {}
       }
@@ -196,7 +316,7 @@ export function LiveMatchPage({
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("beforeunload", handleUnload);
     };
-  }, [seasonNumber, matchIndex, lsKey, saveToLS]);
+  }, [activeSlotId, seasonNumber, matchIndex, lsKey, saveToLS]);
 
   // Scroll ball feed to bottom
   useEffect(() => {
@@ -417,35 +537,66 @@ export function LiveMatchPage({
   }, [state]);
 
   // Handle tactical decisions
-  const handleDecision = useCallback((type: string, selectedPlayerId: string, swapOutPlayerId?: string) => {
-    if (!state || state.status !== "waiting_for_decision") return;
+  const handleDecision = useCallback(async (type: string, selectedPlayerId: string, swapOutPlayerId?: string) => {
+    const currentState = stateRef.current;
+    if (!currentState || currentState.status !== "waiting_for_decision") return;
 
-    // For DRS review, capture the result before and after to show flash
-    const preDrsWickets = state.wickets;
-    const newState = applyDecision(state, { type, selectedPlayerId, swapOutPlayerId });
+    setPlaying(false);
 
     if (type === "drs_review" && selectedPlayerId === "review") {
-      const overturned = newState.wickets > preDrsWickets;
-      setDrsResult({
-        success: overturned,
-        message: overturned ? "OVERTURNED! Batter is OUT!" : "Umpire's Call -- Review Lost",
+      const reviewingTeamIsHome = currentState.pendingDecision?.teamId === currentState.homeTeam.id;
+      const reviewsLeft = reviewingTeamIsHome ? currentState.drsRemaining.home : currentState.drsRemaining.away;
+      setDrsReviewing({
+        batterName: currentState.pendingDecision?.drsContext?.batterName ?? "Batter",
+        bowlerName: currentState.currentBowlerName,
+        reviewsLeft,
+        reviewKind: (currentState.pendingDecision?.drsContext as LiveMatchDrsContext | undefined)?.reviewKind ?? "lbw",
+        reviewingSide: (currentState.pendingDecision?.drsContext as LiveMatchDrsContext | undefined)?.reviewingSide ?? "bowling",
       });
-      setTimeout(() => setDrsResult(null), 2500);
 
-      // Update recentBalls to reflect the DRS overturn in the ball log
-      if (overturned) {
-        const updatedBall = newState.ballLog[newState.ballLog.length - 1];
-        if (updatedBall) {
-          setRecentBalls(prev => [...prev.slice(0, -1), updatedBall]);
-        }
-        setFlashType("wicket");
-        setTimeout(() => setFlashType(null), 600);
+      await new Promise(resolve => window.setTimeout(resolve, DRS_REVIEW_DELAY_MS));
+
+      const reviewingState = stateRef.current;
+      if (!reviewingState || reviewingState.status !== "waiting_for_decision") {
+        setDrsReviewing(null);
+        return;
       }
+
+      const newState = applyDecision(reviewingState, { type, selectedPlayerId, swapOutPlayerId });
+      const updatedBall = newState.ballLog[newState.ballLog.length - 1];
+      const resolvedVerdict =
+        (updatedBall ? getDrsVerdict(updatedBall.commentary) : null) ??
+        (newState.wickets > reviewingState.wickets ? "overturned" : "review-lost");
+      const reviewingTeamShortName = reviewingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+
+      if (updatedBall) {
+        setRecentBalls(prev => (
+          prev.length > 0 ? [...prev.slice(0, -1), updatedBall] : [updatedBall]
+        ));
+      }
+
+      setDrsReviewing(null);
+      setDrsResult(buildDrsResultState(
+        resolvedVerdict,
+        reviewingTeamShortName,
+        reviewingState.pendingDecision?.drsContext as LiveMatchDrsContext | undefined,
+      ));
+      window.setTimeout(() => setDrsResult(null), DRS_RESULT_DURATION_MS);
+
+      if (resolvedVerdict === "overturned") {
+        setFlashType("wicket");
+        window.setTimeout(() => setFlashType(null), 600);
+      }
+
+      setState(newState);
+      autoSave(newState);
+      return;
     }
 
+    const newState = applyDecision(currentState, { type, selectedPlayerId, swapOutPlayerId });
     setState(newState);
     autoSave(newState);
-  }, [state, autoSave]);
+  }, [autoSave]);
 
   // Start 2nd innings
   const handleStartSecondInnings = useCallback(() => {
@@ -497,7 +648,7 @@ export function LiveMatchPage({
 
     try {
       const detailed = buildDetailedResultFromState(completedState);
-      await saveMatchDetail(seasonNumber, matchIndex, detailed);
+      await saveMatchDetail(activeSlotId, seasonNumber, matchIndex, detailed);
     } catch (err) {
       console.warn("[LiveMatch] Failed to save detailed result:", err);
     }
@@ -525,8 +676,9 @@ export function LiveMatchPage({
       console.warn("[LiveMatch] Failed to generate narrative:", err);
     }
 
-    await clearInProgressMatch(seasonNumber, matchIndex);
+    await clearInProgressMatch(activeSlotId, seasonNumber, matchIndex);
     try { localStorage.removeItem(lsKey); } catch {}
+    try { localStorage.removeItem(legacyLsKey); } catch {}
     onMatchComplete(completedState, matchIndex, generatedEvents);
   };
 
@@ -876,7 +1028,7 @@ export function LiveMatchPage({
                 const battingProb = state.innings === 1 ? winProb : winProb;
                 const fieldingProb = 100 - battingProb;
                 return (
-                  <div className="mt-2 flex items-center gap-2 text-[10px]">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]">
                     <span className="font-display font-semibold" style={{ color: batTeam.primaryColor }}>{batTeam.shortName} {battingProb}%</span>
                     <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-white/[0.06] flex">
                       <div className="h-full transition-all duration-500" style={{ width: `${battingProb}%`, background: batTeam.primaryColor }} />
@@ -914,7 +1066,7 @@ export function LiveMatchPage({
 
           {/* Rain delay banner */}
           {state.rainDelay && (
-            <div className="mt-3 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center gap-2 animate-fade-in">
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 animate-fade-in">
               <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
               </svg>
@@ -930,7 +1082,7 @@ export function LiveMatchPage({
           )}
 
           {/* Current batters */}
-          <div className="mt-3 pt-3 border-t border-th flex flex-wrap gap-x-6 gap-y-1 items-center text-sm">
+          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-th pt-3 text-xs sm:text-sm">
             {state.batterStats.filter(b => !b.isOut).slice(-2).map(b => {
               const isStriker = b.playerId === state._internal.battingOrderIds[state.strikerIdx];
               return (
@@ -941,7 +1093,7 @@ export function LiveMatchPage({
                 </span>
               );
             })}
-            <span className="text-th-faint mx-1">|</span>
+            <span className="mx-1 hidden text-th-faint sm:inline">|</span>
             {state.bowlerStats.length > 0 && (() => {
               const b = state.bowlerStats.find(b => b.playerId === state._internal.bowlingOrderIds[state.currentBowlerIdx])
                 ?? state.bowlerStats[state.bowlerStats.length - 1];
@@ -979,23 +1131,30 @@ export function LiveMatchPage({
               const currentOver = recentBalls[recentBalls.length - 1]?.over;
               const thisOverBalls = recentBalls.filter(b => b.over === currentOver && b.innings === recentBalls[recentBalls.length - 1].innings);
               return (
-                <div className="px-4 py-2 border-b border-th flex items-center gap-2">
+                <div className="flex flex-col gap-2 border-b border-th px-4 py-2 sm:flex-row sm:items-center">
                   <span className="text-[10px] text-th-muted font-display uppercase tracking-wider">This Over</span>
                   <div className="flex items-center gap-1.5">
                     {thisOverBalls.map((b, i) => (
-                      <span
-                        key={i}
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                          b.eventType === "wicket" ? "bg-red-500/30 text-red-400" :
-                          b.eventType === "six" ? "bg-purple-500/30 text-purple-300" :
-                          b.eventType === "four" ? "bg-emerald-500/30 text-emerald-400" :
-                          b.eventType === "dot" ? "bg-white/[0.04] text-th-faint" :
-                          b.eventType === "wide" || b.eventType === "noball" ? "bg-amber-500/20 text-amber-400" :
-                          "bg-white/[0.06] text-th-muted"
-                        }`}
-                      >
-                        {b.eventType === "wicket" ? "W" : b.eventType === "wide" ? "wd" : b.runs}
-                      </span>
+                      (() => {
+                        const drsVerdict = getDrsVerdict(b.commentary);
+                        const drsFeed = getDrsFeedClasses(drsVerdict);
+                        return (
+                          <span
+                            key={i}
+                            title={drsVerdict ? getDrsVerdictLabel(drsVerdict, b.commentary) : undefined}
+                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                              b.eventType === "wicket" ? "bg-red-500/30 text-red-400" :
+                              b.eventType === "six" ? "bg-purple-500/30 text-purple-300" :
+                              b.eventType === "four" ? "bg-emerald-500/30 text-emerald-400" :
+                              b.eventType === "dot" ? "bg-white/[0.04] text-th-faint" :
+                              b.eventType === "wide" || b.eventType === "noball" ? "bg-amber-500/20 text-amber-400" :
+                              "bg-white/[0.06] text-th-muted"
+                            } ${drsFeed?.tokenRing ?? ""}`}
+                          >
+                            {b.eventType === "wicket" ? "W" : b.eventType === "wide" ? "wd" : b.runs}
+                          </span>
+                        );
+                      })()
                     ))}
                   </div>
                 </div>
@@ -1012,6 +1171,8 @@ export function LiveMatchPage({
               const prevBall = i > 0 ? recentBalls[i - 1] : null;
               const isNewOver = prevBall && (ball.over !== prevBall.over || ball.innings !== prevBall.innings);
               const isInningsChange = prevBall && ball.innings !== prevBall.innings;
+              const drsVerdict = getDrsVerdict(ball.commentary);
+              const drsFeed = getDrsFeedClasses(drsVerdict);
 
               return (
                 <div key={i}>
@@ -1032,10 +1193,11 @@ export function LiveMatchPage({
                     className={`px-4 py-1.5 flex items-start gap-2 border-b border-th/30 transition-colors ${
                       i === recentBalls.length - 1 ? "animate-slide-in" : ""
                     } ${
-                      ball.eventType === "wicket" ? "bg-red-950/20" :
+                      drsFeed?.row ??
+                      (ball.eventType === "wicket" ? "bg-red-950/20" :
                       ball.eventType === "four" ? "bg-emerald-950/15" :
                       ball.eventType === "six" ? "bg-amber-950/15" :
-                      ""
+                      "")
                     }`}
                   >
                     <span className="text-th-faint w-8 text-right shrink-0 text-xs pt-0.5">
@@ -1058,7 +1220,12 @@ export function LiveMatchPage({
                        ball.eventType === "legbye" ? "Lb" :
                        ball.runs.toString()}
                     </span>
-                    <span className="text-th-secondary text-xs leading-relaxed flex-1">
+                    {drsVerdict && (
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-display font-semibold uppercase tracking-[0.16em] ${drsFeed?.badge}`}>
+                        {getDrsVerdictLabel(drsVerdict, ball.commentary)}
+                      </span>
+                    )}
+                    <span className={`text-xs leading-relaxed flex-1 ${drsFeed?.commentary ?? "text-th-secondary"}`}>
                       {ball.commentary}
                     </span>
                   </div>
@@ -1526,7 +1693,7 @@ export function LiveMatchPage({
                   <span className="capitalize">{pitchType}</span> pitch, {dewFactor} dew
                 </div>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   onClick={() => handleDecision("toss_decision", "bat")}
                   className="flex-1 px-5 py-4 rounded-xl border border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/15 hover:border-orange-500/50 transition-all text-center"
@@ -1549,25 +1716,262 @@ export function LiveMatchPage({
         );
       })()}
 
-      {/* DRS Review Modal */}
-      {isDecisionForUser && state.pendingDecision!.type === "drs_review" && (() => {
-        const drsCtx = state.pendingDecision!.drsContext;
-        const bowlingTeamIsHome = state.bowlingTeamId === state.homeTeam.id;
-        const reviewsLeft = bowlingTeamIsHome ? state.drsRemaining.home : state.drsRemaining.away;
-        const currentBowler = state.currentBowlerName;
-        return (
-          <DecisionModal title="LBW Appeal!" subtitle="The umpire says NOT OUT. Do you want to review?">
-            <div className="space-y-4">
-              <div className="rounded-xl bg-th-body border border-th p-4 text-center space-y-2">
-                <div className="text-sm text-th-secondary font-display">
-                  <span className="text-th-primary font-semibold">{currentBowler}</span> to{" "}
-                  <span className="text-th-primary font-semibold">{drsCtx?.batterName ?? "batter"}</span>
+      {/* DRS Review In Progress */}
+      {drsReviewing && (
+        <DecisionModal
+          title="Third Umpire Reviewing"
+          subtitle={
+            drsReviewing.reviewKind === "lbw"
+              ? "Ball-tracking is loading"
+              : drsReviewing.reviewKind === "wide"
+              ? "Line check is loading"
+              : "Front-foot and contact checks are loading"
+          }
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-sky-200 font-display font-semibold">
+                {drsReviewing.reviewKind === "lbw"
+                  ? "Review In Progress"
+                  : drsReviewing.reviewKind === "wide"
+                  ? "Wide Review In Progress"
+                  : "No-ball Review In Progress"}
+              </div>
+              <div className="mt-2 text-lg font-display font-bold text-th-primary">
+                {drsReviewing.bowlerName} vs {drsReviewing.batterName}
+              </div>
+              <div className="mt-1 text-sm text-th-muted font-display">
+                {drsReviewing.reviewKind === "lbw"
+                  ? "The third umpire is checking line, impact, and wickets."
+                  : drsReviewing.reviewKind === "wide"
+                  ? drsReviewing.reviewingSide === "bowling"
+                    ? "The third umpire is checking if the ball drifted back inside the wide line."
+                    : "The third umpire is checking whether the batter deserved the wide call."
+                  : drsReviewing.reviewingSide === "bowling"
+                  ? "The third umpire is checking the front foot and release for a legal delivery."
+                  : "The third umpire is checking the front foot and contact for a missed no-ball."}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
+              {(drsReviewing.reviewKind === "lbw"
+                ? ["Pitching", "Impact", "Wickets"]
+                : drsReviewing.reviewKind === "wide"
+                ? ["Release", "Reach", "Wide Line"]
+                : ["Front Foot", "Release", "Call"]).map(step => (
+                <div key={step} className="rounded-xl border border-th bg-th-body px-3 py-3">
+                  <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">{step}</div>
+                  <div className="mt-2 flex items-center justify-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-sky-300 animate-pulse" />
+                    <span className="text-xs text-sky-100 font-display font-semibold">Checking</span>
+                  </div>
                 </div>
-                <div className="text-xs text-th-muted font-display">
-                  {reviewsLeft} review{reviewsLeft !== 1 ? "s" : ""} remaining
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-th bg-th-body px-4 py-3 flex items-center justify-between">
+              <span className="text-xs text-th-muted font-display">Reviews in hand</span>
+              <span className="text-sm font-display font-semibold text-sky-200">
+                {drsReviewing.reviewsLeft}
+              </span>
+            </div>
+          </div>
+        </DecisionModal>
+      )}
+
+      {/* DRS Review Modal */}
+      {!drsReviewing && isDecisionForUser && state.pendingDecision!.type === "drs_review" && (() => {
+        const drsCtx = state.pendingDecision!.drsContext as LiveMatchDrsContext | undefined;
+        const reviewingTeamIsHome = state.pendingDecision!.teamId === state.homeTeam.id;
+        const reviewsLeft = reviewingTeamIsHome ? state.drsRemaining.home : state.drsRemaining.away;
+        const currentBowler = state.currentBowlerName;
+        const reviewKind = drsCtx?.reviewKind ?? "lbw";
+        const reviewingSide = drsCtx?.reviewingSide ?? "bowling";
+        const kindLabel = reviewKind === "wide" ? "Wide" : reviewKind === "noball" ? "No-ball" : "LBW";
+        const onFieldCallLabel = (() => {
+          switch (drsCtx?.onFieldCall) {
+            case "wide":
+              return "Wide";
+            case "not_wide":
+              return "No Wide";
+            case "noball":
+              return "No Ball";
+            case "not_noball":
+              return "No No-ball Call";
+            case "out":
+              return "Out";
+            case "not_out":
+            default:
+              return "Not Out";
+          }
+        })();
+        const decisionTitle =
+          reviewKind === "lbw"
+            ? "LBW Appeal!"
+            : reviewKind === "wide"
+            ? (reviewingSide === "bowling" ? "Wide Review?" : "Wide Check?")
+            : (reviewingSide === "bowling" ? "No-ball Review?" : "No-ball Check?");
+        const decisionSubtitle =
+          reviewKind === "lbw"
+            ? "On-field call is NOT OUT. Use DRS or stay with it."
+            : reviewingSide === "bowling"
+            ? `On-field call is ${onFieldCallLabel}. Use DRS if you want it overturned.`
+            : `On-field call is ${onFieldCallLabel}. Challenge it if you want the extra.`;
+        const strikerId = state._internal.battingOrderIds[state.strikerIdx];
+        const striker = state.batterStats.find(b => b.playerId === strikerId) ?? null;
+        const currentBowlerStats = state.bowlerStats.find(
+          b => b.playerId === state._internal.bowlingOrderIds[state.currentBowlerIdx],
+        ) ?? state.bowlerStats[state.bowlerStats.length - 1] ?? null;
+        const currentBowlerData = currentBowlerStats ? state._internal.playerDataMap[currentBowlerStats.playerId] : null;
+        const nextBatterId = state._internal.battingOrderIds[state.nextBatterIdx];
+        const nextBatter = nextBatterId ? state._internal.playerDataMap[nextBatterId] : null;
+        const phaseLabel = getMatchPhaseLabel(state.overs);
+        const legalBallsUsed = state.overs * 6 + state.balls;
+        const ballsLeft = Math.max(0, state.maxOvers * 6 - legalBallsUsed);
+        const runsNeeded = state.innings === 2 && state.target ? Math.max(0, state.target - state.score) : 0;
+        const wicketIfOverturned = `${state.score}/${state.wickets + 1}`;
+        const extraScoreIfOverturned = reviewingSide === "batting"
+          ? `${battingTeam.shortName} ${state.score + 1}/${state.wickets}`
+          : `${battingTeam.shortName} ${Math.max(0, state.score - 1)}/${state.wickets}`;
+        const bowlerOversStr = currentBowlerStats
+          ? `${currentBowlerStats.overs}.${currentBowlerStats.balls}`
+          : "0.0";
+        const bowlerEconomy = currentBowlerStats
+          ? ((currentBowlerStats.runs / Math.max(currentBowlerStats.overs + currentBowlerStats.balls / 6, 1 / 6))).toFixed(2)
+          : "0.00";
+        let leverageLine = `${phaseLabel}: use the review when you felt strong pad-line confidence from the over.`;
+        if (reviewKind === "lbw") {
+          if (state.innings === 2 && state.target) {
+            if (ballsLeft <= 24) {
+              leverageLine = `Late chase: ${runsNeeded} needed from ${ballsLeft} balls, so one wicket can swing the finish quickly.`;
+            } else if (runsNeeded > 0) {
+              leverageLine = `Chase pressure: ${runsNeeded} needed from ${ballsLeft} balls. A wicket now can reset the pursuit.`;
+            }
+          } else if (striker && striker.runs >= 40) {
+            leverageLine = `${striker.playerName} is set on ${striker.runs} (${striker.balls}). Removing a settled batter is high value here.`;
+          } else if (reviewsLeft === 1) {
+            leverageLine = "Last review this innings: spend it only if the appeal felt strong in real time.";
+          }
+        } else if (reviewingSide === "bowling") {
+          leverageLine = state.innings === 2 && state.target && ballsLeft <= 24
+            ? `Late chase: pulling back a free run and making the ball count can be worth a review.`
+            : `If the call looked harsh, removing the ${reviewKind === "wide" ? "wide" : "no-ball"} and forcing a legal ball can shift the over back to you.`;
+        } else {
+          leverageLine = state.innings === 2 && state.target && ballsLeft <= 24
+            ? `Late chase: one extra and a rebowl can matter when ${runsNeeded} are needed from ${ballsLeft}.`
+            : `If the line looked close, claiming the ${reviewKind === "wide" ? "wide" : "no-ball"} gives you an extra run and a rebowl.`;
+        }
+
+        const riskLine = reviewKind === "lbw"
+          ? (reviewsLeft === 1
+              ? "If ball-tracking does not overturn the call, this innings is out of reviews."
+              : "If ball-tracking stays with not out, marginal calls keep the review but clear misses burn one.")
+          : (reviewsLeft === 1
+              ? "Extra-call reviews do not get umpire's-call protection here. Miss it and this innings is out of reviews."
+              : "Extra-call reviews do not get umpire's-call protection here. If replay backs the on-field view, you lose the review.");
+
+        return (
+          <DecisionModal title={decisionTitle} subtitle={decisionSubtitle}>
+            <div className="space-y-4">
+              <div className="rounded-xl bg-th-body border border-th p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-th-faint font-display font-semibold">
+                      Review Window
+                    </div>
+                    <div className="mt-1 text-sm text-th-secondary font-display">
+                      <span className="text-th-primary font-semibold">{currentBowler}</span> to{" "}
+                      <span className="text-th-primary font-semibold">{drsCtx?.batterName ?? "batter"}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[10px] font-display font-semibold uppercase tracking-[0.16em] text-sky-200">
+                    {kindLabel} Check
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-th bg-gray-950/30 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">On-Field Call</div>
+                    <div className="mt-1 text-sm font-display font-semibold text-th-primary">{onFieldCallLabel}</div>
+                  </div>
+                  <div className="rounded-xl border border-th bg-gray-950/30 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Reviews Left</div>
+                    <div className="mt-1 text-sm font-display font-semibold text-th-primary">
+                      {reviewsLeft} review{reviewsLeft !== 1 ? "s" : ""}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="flex gap-3">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-th bg-gray-950/30 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Appeal On</div>
+                  <div className="mt-1 text-sm font-display font-semibold text-th-primary">
+                    {drsCtx?.batterName ?? striker?.playerName ?? "Batter"}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-th-muted font-mono">
+                    {striker && <span>{striker.runs} ({striker.balls})</span>}
+                    {striker && striker.balls > 0 && <span>SR {((striker.runs / striker.balls) * 100).toFixed(1)}</span>}
+                    {striker && (
+                      <span>
+                        {battingHandLabel(state._internal.playerDataMap[striker.playerId]?.battingHand)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-th bg-gray-950/30 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Bowler</div>
+                  <div className="mt-1 text-sm font-display font-semibold text-th-primary">{currentBowler}</div>
+                  <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-th-muted font-mono">
+                    {currentBowlerStats && <span>{bowlerOversStr}-{currentBowlerStats.maidens}-{currentBowlerStats.runs}-{currentBowlerStats.wickets}</span>}
+                    {currentBowlerStats && <span>Econ {bowlerEconomy}</span>}
+                    {currentBowlerData?.bowlingStyle && <span>{bowlingStyleLabel(currentBowlerData.bowlingStyle)}</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-th bg-gray-950/30 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Match Context</div>
+                  <div className="mt-1 text-sm font-display font-semibold text-th-primary">
+                    {phaseLabel} • {oversDisplay} ov
+                  </div>
+                  <div className="mt-1 text-[11px] text-th-muted font-display">
+                    {state.innings === 2 && state.target
+                      ? `${runsNeeded} needed from ${ballsLeft} balls${requiredRunRate ? ` • RRR ${requiredRunRate}` : ""}`
+                      : `${battingTeam.shortName} ${state.score}/${state.wickets} • CRR ${currentRunRate}`}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-th bg-gray-950/30 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">If Overturned</div>
+                  <div className="mt-1 text-sm font-display font-semibold text-th-primary">
+                    {reviewKind === "lbw" ? `${battingTeam.shortName} ${wicketIfOverturned}` : extraScoreIfOverturned}
+                  </div>
+                  <div className="mt-1 text-[11px] text-th-muted font-display">
+                    {reviewKind === "lbw"
+                      ? (nextBatter ? `${nextBatter.name} would be the next batter.` : "This would expose a fresh batter.")
+                      : reviewingSide === "batting"
+                      ? `One extra is added and the ball is rebowled as a ${reviewKind === "wide" ? "wide" : "no-ball"}.`
+                      : `The ${reviewKind === "wide" ? "wide" : "no-ball"} is removed and the delivery becomes a legal dot.`}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-sky-500/15 bg-sky-500/5 px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-sky-200 font-display font-semibold">
+                  Captain's Read
+                </div>
+                <div className="text-sm text-th-secondary font-display">
+                  {leverageLine}
+                </div>
+                <div className="text-xs text-th-muted font-display">
+                  {riskLine}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   onClick={() => handleDecision("drs_review", "review")}
                   className="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-display font-semibold text-sm transition-all shadow-lg shadow-blue-500/20"
@@ -1662,14 +2066,32 @@ export function LiveMatchPage({
       {/* DRS Result Flash */}
       {drsResult && (
         <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center animate-fade-in">
-          <div className={`px-8 py-5 rounded-2xl border text-center ${
-            drsResult.success
-              ? "bg-red-950/90 border-red-500/40 backdrop-blur-sm"
-              : "bg-gray-900/90 border-gray-600/40 backdrop-blur-sm"
+          <div className={`max-w-sm mx-4 px-8 py-5 rounded-2xl border text-center backdrop-blur-sm ${
+            drsResult.verdict === "overturned"
+              ? "bg-red-950/90 border-red-500/40"
+              : drsResult.verdict === "umpires-call"
+              ? "bg-sky-950/90 border-sky-500/40"
+              : "bg-amber-950/90 border-amber-500/40"
           }`}>
-            <div className={`text-lg font-display font-extrabold ${
-              drsResult.success ? "text-red-400" : "text-th-muted"
+            <div className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-display font-semibold uppercase tracking-[0.18em] ${
+              drsResult.verdict === "overturned"
+                ? "border-red-400/30 bg-red-500/10 text-red-200"
+                : drsResult.verdict === "umpires-call"
+                ? "border-sky-400/30 bg-sky-500/10 text-sky-100"
+                : "border-amber-400/30 bg-amber-500/10 text-amber-100"
             }`}>
+              {drsResult.badgeLabel}
+            </div>
+            <div className={`mt-3 text-lg font-display font-extrabold ${
+              drsResult.verdict === "overturned"
+                ? "text-red-200"
+                : drsResult.verdict === "umpires-call"
+                ? "text-sky-100"
+                : "text-amber-100"
+            }`}>
+              {drsResult.title}
+            </div>
+            <div className="mt-1 text-sm text-white/75 font-display">
               {drsResult.message}
             </div>
           </div>
@@ -1870,7 +2292,7 @@ export function LiveMatchPage({
             </div>
 
             {/* Top performers per team */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Batting-first team performers */}
               <div className="rounded-xl border border-th bg-gray-800 p-3">
                 <div className="text-xs uppercase tracking-wider font-display font-bold mb-2" style={{ color: battingFirstTeam.primaryColor }}>
@@ -1970,7 +2392,7 @@ export function LiveMatchPage({
 
       {/* Controls bar */}
       <div className="sticky bottom-0 left-0 right-0 mt-4 -mx-3 sm:-mx-6 px-3 sm:px-6 py-3 glass border-t border-th z-30">
-        <div className="flex items-center gap-3 max-w-6xl mx-auto">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
           {/* Play/Pause */}
           <button
             onClick={togglePlay}
@@ -2025,7 +2447,7 @@ export function LiveMatchPage({
               { value: 80, label: "ATK", color: "text-red-400 bg-red-500/10 border-red-500/30" },
             ];
             return (
-              <div className="flex items-center gap-1 ml-2">
+              <div className="flex flex-wrap items-center gap-1 sm:ml-2">
                 <span className="text-[10px] text-th-muted font-display mr-1">Bat</span>
                 {levels.map(l => (
                   <button
@@ -2054,7 +2476,7 @@ export function LiveMatchPage({
               { value: "boundary-save", label: "BDY", color: "text-amber-400 bg-amber-500/10 border-amber-500/30" },
             ];
             return (
-              <div className="flex items-center gap-1.5 ml-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:ml-2">
                 <span className="text-[10px] text-th-muted font-display hidden sm:inline">Field:</span>
                 <div className="flex rounded-lg overflow-hidden border border-th">
                   {FIELD_OPTIONS.map(opt => (
@@ -2083,18 +2505,18 @@ export function LiveMatchPage({
             return (
               <button
                 onClick={() => { setPlaying(false); setShowImpactSubModal(true); }}
-                className="px-2 py-1 text-[10px] font-display font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-colors ml-2"
+                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-display font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20 sm:ml-2"
               >
                 Impact Sub
               </button>
             );
           })()}
 
-          <div className="flex-1" />
+          <div className="hidden flex-1 sm:block" />
 
           {/* Decision pending indicator */}
           {state.status === "waiting_for_decision" && isUserMatch && (
-            <span className="px-3 py-1 text-xs font-display font-semibold text-amber-400 bg-amber-500/10 rounded-lg border border-amber-500/20 animate-pulse">
+            <span className="w-full rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-center text-xs font-display font-semibold text-amber-400 animate-pulse sm:w-auto">
               Decision Required
             </span>
           )}

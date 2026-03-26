@@ -64,7 +64,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
       </button>
 
       {/* Team header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start">
         <TeamBadge teamId={team.id} shortName={team.shortName} primaryColor={team.config.primaryColor} size="lg" />
         <div>
           <h2 className="text-2xl font-display font-bold text-th-primary tracking-tight">{team.name}</h2>
@@ -77,7 +77,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
           </p>
         </div>
         {!isUserTeam && (
-          <div className="ml-auto flex flex-col items-end gap-2">
+          <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:items-end">
             <button
               onClick={() => onToggleScoutAssignment?.(team.id)}
               disabled={!teamAssignment && assignmentCapacityFull}
@@ -119,9 +119,9 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
           <h3 className="text-red-400 font-display font-semibold text-sm mb-2">Injured Players</h3>
           <div className="space-y-2">
             {roster.filter(p => p.injured).map(p => (
-              <div key={p.id} className="flex items-center gap-3 text-sm">
-                <PlayerLink playerId={p.id} className="text-red-300 font-medium w-40">{p.name}</PlayerLink>
-                <span className="text-th-muted text-xs w-20">{roleLabel(p.role)}</span>
+              <div key={p.id} className="flex flex-col items-start gap-2 text-sm sm:flex-row sm:items-center sm:flex-wrap">
+                <PlayerLink playerId={p.id} className="text-red-300 font-medium sm:w-40">{p.name}</PlayerLink>
+                <span className="text-th-muted text-xs sm:w-20">{roleLabel(p.role)}</span>
                 <span className="text-red-500/70 text-xs">{p.injuryType ?? "injury"}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                   p.injurySeverity === "severe" ? "bg-red-900/30 text-red-300" :
@@ -142,7 +142,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
       {/* Roster table */}
       <div className="rounded-2xl border border-th overflow-hidden bg-th-surface">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[540px]">
+          <table className="w-full text-sm min-w-[520px]">
             <thead>
               <tr className="text-th-muted text-[11px] uppercase font-display tracking-wider border-b border-th">
                 <th className="text-left px-3 sm:px-4 py-3">Player</th>

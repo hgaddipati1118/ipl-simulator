@@ -197,8 +197,8 @@ export function PlayerRatingsPage({
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 sm:gap-3 mb-5 flex-wrap">
-        <div className="relative flex-1 sm:flex-none">
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+        <div className="relative w-full sm:max-w-xs">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-th-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -207,13 +207,13 @@ export function PlayerRatingsPage({
             placeholder="Search..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="bg-th-surface border border-th rounded-xl pl-9 pr-3 py-2 text-sm text-th-primary placeholder-[var(--th-text-faint)] w-full sm:w-48 focus:outline-none focus:border-th-strong focus:bg-th-raised transition-all font-display"
+            className="w-full rounded-xl border border-th bg-th-surface py-2 pl-9 pr-3 text-sm text-th-primary placeholder-[var(--th-text-faint)] transition-all font-display focus:bg-th-raised focus:outline-none focus:border-th-strong"
           />
         </div>
         <select
           value={filterRole}
           onChange={e => setFilterRole(e.target.value)}
-          className="bg-th-surface border border-th rounded-xl px-3 py-2 text-sm text-th-primary font-display focus:outline-none focus:border-th-strong"
+          className="w-full rounded-xl border border-th bg-th-surface px-3 py-2 text-sm text-th-primary font-display focus:outline-none focus:border-th-strong sm:w-auto"
         >
           <option value="all">All Roles</option>
           <option value="batsman">Batsman</option>
@@ -223,7 +223,7 @@ export function PlayerRatingsPage({
         <select
           value={filterTeam}
           onChange={e => setFilterTeam(e.target.value)}
-          className="bg-th-surface border border-th rounded-xl px-3 py-2 text-sm text-th-primary font-display focus:outline-none focus:border-th-strong"
+          className="w-full rounded-xl border border-th bg-th-surface px-3 py-2 text-sm text-th-primary font-display focus:outline-none focus:border-th-strong sm:w-auto"
         >
           <option value="all">All Teams</option>
           <option value="free-agents">Free Agents</option>
@@ -234,13 +234,13 @@ export function PlayerRatingsPage({
         <select
           value={filterRecruitment}
           onChange={e => setFilterRecruitment(e.target.value as RecruitmentFilter)}
-          className="bg-th-surface border border-th rounded-xl px-3 py-2 text-sm text-th-primary font-display focus:outline-none focus:border-th-strong"
+          className="w-full rounded-xl border border-th bg-th-surface px-3 py-2 text-sm text-th-primary font-display focus:outline-none focus:border-th-strong sm:w-auto"
         >
           <option value="all">All Targets</option>
           <option value="shortlist">Shortlist</option>
           <option value="watchlist">Watchlist</option>
         </select>
-        <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-th bg-th-surface text-sm text-th-secondary font-display">
+        <label className="flex w-full items-center gap-2 rounded-xl border border-th bg-th-surface px-3 py-2 text-sm text-th-secondary font-display sm:w-auto">
           <input
             type="checkbox"
             checked={hideOwned}
@@ -254,7 +254,7 @@ export function PlayerRatingsPage({
       {/* Table */}
       <div className="rounded-2xl border border-th overflow-hidden bg-th-surface">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[540px]">
+          <table className="w-full text-sm min-w-[520px]">
             <thead>
               <tr className="text-th-muted text-[11px] uppercase font-display tracking-wider border-b border-th">
                 <th className="text-left px-2 sm:px-4 py-3">#</th>
@@ -306,6 +306,29 @@ export function PlayerRatingsPage({
                       )}
                       {" "}<span className="text-th-faint">| {scoutingView.confidenceLabel}</span>
                     </span>
+                    {team?.id !== userTeamId && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 md:hidden">
+                        <RecruitmentActions
+                          tier={recruitmentTag}
+                          compact
+                          onToggleShortlist={() => onToggleShortlist(p.id)}
+                          onToggleWatchlist={() => onToggleWatchlist(p.id)}
+                        />
+                        <button
+                          onClick={() => onTogglePlayerAssignment(p.id)}
+                          disabled={playerButtonDisabled}
+                          className={`rounded-lg border px-2 py-1 text-[10px] font-display font-medium transition-colors ${
+                            playerAssignment
+                              ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
+                              : playerButtonDisabled
+                                ? "border-th bg-th-raised text-th-faint cursor-not-allowed"
+                                : "border-th bg-th-raised text-th-secondary hover:text-th-primary hover:bg-th-hover"
+                          }`}
+                        >
+                          {playerAssignment ? `Scouting ${playerAssignment.cyclesWorked}/${playerAssignment.cyclesRequired}` : "Assign Scout"}
+                        </button>
+                      </div>
+                    )}
                   </td>
                   <td className="text-center px-2 py-2.5 hidden sm:table-cell">
                     <span

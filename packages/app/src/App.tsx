@@ -325,10 +325,14 @@ export default function App() {
     );
   }
 
-  const handleRulesChange = (rules: RuleSet) => {
-    clearState();
+  const handleRulesChange = async (rules: RuleSet) => {
+    await clearState();
+    setLiveMatchState(null);
+    liveMatchIndex.current = -1;
     const fresh = createGameState(rules);
-    update(fresh);
+    setState(fresh);
+    refreshSlots();
+    navigate("/");
   };
 
   const handleSelectTeam = (teamId: string) => {
@@ -394,8 +398,9 @@ export default function App() {
     const { state: newState, detailedResults } = simToMatch(state, target);
     update(newState);
     // Persist all detailed results to IndexedDB (fire-and-forget)
+    const activeSlotId = getActiveSlotId();
     for (const { matchIndex, detail } of detailedResults) {
-      saveMatchDetail(state.seasonNumber, matchIndex, detail);
+      saveMatchDetail(activeSlotId, state.seasonNumber, matchIndex, detail);
     }
     if (newState.needsLineup) {
       navigate("/lineup");
@@ -407,8 +412,9 @@ export default function App() {
     const { state: newState, detailedResults } = simToMatch(state, groupCount);
     update(newState);
     // Persist all detailed results to IndexedDB (fire-and-forget)
+    const activeSlotId = getActiveSlotId();
     for (const { matchIndex, detail } of detailedResults) {
-      saveMatchDetail(state.seasonNumber, matchIndex, detail);
+      saveMatchDetail(activeSlotId, state.seasonNumber, matchIndex, detail);
     }
     if (newState.needsLineup) {
       navigate("/lineup");
@@ -603,6 +609,8 @@ export default function App() {
   const handleNewGame = () => {
     // Don't delete the active slot — just deactivate it
     setActiveSlotId(null);
+    setLiveMatchState(null);
+    liveMatchIndex.current = -1;
     const fresh = createGameState(state.rules);
     setState(fresh);
     refreshSlots();
