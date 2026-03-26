@@ -322,6 +322,7 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
           available={available}
           injured={injured}
           selectedIds={selectedIds}
+          battingOrder={battingOrder}
           onToggle={handleToggle}
           onAutoSelect={handleAutoSelect}
         />
@@ -392,20 +393,33 @@ function PlayingXITab({
   available,
   injured,
   selectedIds,
+  battingOrder,
   onToggle,
   onAutoSelect,
 }: {
   available: Player[];
   injured: Player[];
   selectedIds: Set<string>;
+  battingOrder: string[];
   onToggle: (id: string) => void;
   onAutoSelect: () => void;
 }) {
   const navigate = useNavigate();
-  const sorted = useMemo(
-    () => [...available].sort((a, b) => b.selectionScore - a.selectionScore || b.overall - a.overall),
-    [available]
-  );
+  const sorted = useMemo(() => {
+    // Selected players first, in batting order; then unselected by selectionScore
+    const batOrderMap = new Map(battingOrder.map((id, i) => [id, i]));
+    return [...available].sort((a, b) => {
+      const aSelected = selectedIds.has(a.id) ? 0 : 1;
+      const bSelected = selectedIds.has(b.id) ? 0 : 1;
+      if (aSelected !== bSelected) return aSelected - bSelected;
+      if (aSelected === 0) {
+        // Both selected — sort by batting order position
+        return (batOrderMap.get(a.id) ?? 99) - (batOrderMap.get(b.id) ?? 99);
+      }
+      // Both unselected — sort by selectionScore
+      return b.selectionScore - a.selectionScore || b.overall - a.overall;
+    });
+  }, [available, selectedIds, battingOrder]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
@@ -451,6 +465,10 @@ function PlayingXITab({
                   }`}
                 >
                   <td className="px-3 py-2 text-center">
+                    {isSelected && (() => {
+                      const batPos = battingOrder.indexOf(p.id);
+                      return batPos >= 0 ? <span className="text-[10px] text-th-muted font-mono mr-1">#{batPos + 1}</span> : null;
+                    })()}
                     <div
                       className={`w-5 h-5 rounded border-2 flex items-center justify-center text-xs ${
                         isSelected
@@ -494,7 +512,14 @@ function PlayingXITab({
                         {isExpanded ? "▾" : "▸"} stats
                       </button>
                     </div>
-                    <span className="text-th-faint text-xs">{p.country}</span>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0 text-th-faint text-xs">
+                      <span>{p.country}</span>
+                      {p.stats.matches > 0 && (
+                        <span className="font-mono text-[10px]">
+                          {p.stats.matches}m {p.stats.runs}r{p.stats.ballsFaced > 0 ? ` SR${((p.stats.runs / p.stats.ballsFaced) * 100).toFixed(0)}` : ""}{p.stats.wickets > 0 ? ` ${p.stats.wickets}w` : ""}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="text-center px-2 py-2">
                     <RoleBadge role={p.role} />
