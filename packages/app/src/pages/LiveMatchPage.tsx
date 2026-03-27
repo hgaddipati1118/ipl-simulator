@@ -49,7 +49,7 @@ type DrsReviewingState = {
   batterName: string;
   bowlerName: string;
   reviewsLeft: number;
-  reviewKind: "lbw" | "wide" | "noball";
+  reviewKind: "lbw" | "wide" | "noball" | "runout";
   reviewingSide: "batting" | "bowling";
 };
 
@@ -63,9 +63,9 @@ type DrsResultState = {
 type LiveMatchDrsContext = {
   batterName: string;
   bowlerName?: string;
-  reviewKind?: "lbw" | "wide" | "noball";
+  reviewKind?: "lbw" | "wide" | "noball" | "runout";
   reviewingSide?: "batting" | "bowling";
-  onFieldCall?: "out" | "not_out" | "wide" | "not_wide" | "noball" | "not_noball";
+  onFieldCall?: "out" | "not_out" | "wide" | "not_wide" | "noball" | "not_noball" | "run_out" | "not_run_out";
   isGivenOut: boolean;
   confidence?: number;
   appealDescription?: string;
@@ -1741,6 +1741,8 @@ export function LiveMatchPage({
               <div className="text-[10px] uppercase tracking-[0.2em] text-sky-600 dark:text-sky-200 font-display font-semibold">
                 {drsReviewing.reviewKind === "lbw"
                   ? "Review In Progress"
+                  : drsReviewing.reviewKind === "runout"
+                  ? "Run Out Review In Progress"
                   : drsReviewing.reviewKind === "wide"
                   ? "Wide Review In Progress"
                   : "No-ball Review In Progress"}
@@ -1751,6 +1753,8 @@ export function LiveMatchPage({
               <div className="mt-1 text-sm text-th-muted font-display">
                 {drsReviewing.reviewKind === "lbw"
                   ? "The third umpire is checking line, impact, and wickets."
+                  : drsReviewing.reviewKind === "runout"
+                  ? "The third umpire is checking multiple angles to see if the batter made the crease."
                   : drsReviewing.reviewKind === "wide"
                   ? drsReviewing.reviewingSide === "bowling"
                     ? "The third umpire is checking if the ball drifted back inside the wide line."
@@ -1762,7 +1766,9 @@ export function LiveMatchPage({
             </div>
 
             <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
-              {(drsReviewing.reviewKind === "lbw"
+              {(drsReviewing.reviewKind === "runout"
+                ? ["Side Angle", "Front View", "Grounding"]
+                : drsReviewing.reviewKind === "lbw"
                 ? ["Pitching", "Impact", "Wickets"]
                 : drsReviewing.reviewKind === "wide"
                 ? ["Release", "Reach", "Wide Line"]
@@ -1795,7 +1801,7 @@ export function LiveMatchPage({
         const currentBowler = state.currentBowlerName;
         const reviewKind = drsCtx?.reviewKind ?? "lbw";
         const reviewingSide = drsCtx?.reviewingSide ?? "bowling";
-        const kindLabel = reviewKind === "wide" ? "Wide" : reviewKind === "noball" ? "No-ball" : "LBW";
+        const kindLabel = reviewKind === "wide" ? "Wide" : reviewKind === "noball" ? "No-ball" : reviewKind === "runout" ? "Run Out" : "LBW";
         const onFieldCallLabel = (() => {
           switch (drsCtx?.onFieldCall) {
             case "wide":
@@ -1806,6 +1812,10 @@ export function LiveMatchPage({
               return "No Ball";
             case "not_noball":
               return "No No-ball Call";
+            case "run_out":
+              return "Run Out";
+            case "not_run_out":
+              return "Not Run Out";
             case "out":
               return "Out";
             case "not_out":
@@ -1816,11 +1826,15 @@ export function LiveMatchPage({
         const decisionTitle =
           reviewKind === "lbw"
             ? "LBW Appeal!"
+            : reviewKind === "runout"
+            ? "Run Out!"
             : reviewKind === "wide"
             ? (reviewingSide === "bowling" ? "Wide Review?" : "Wide Check?")
             : (reviewingSide === "bowling" ? "No-ball Review?" : "No-ball Check?");
         const decisionSubtitle =
-          reviewKind === "lbw"
+          reviewKind === "runout"
+            ? "On-field call is RUN OUT. Use DRS to check if the batter was in."
+            : reviewKind === "lbw"
             ? "On-field call is NOT OUT. Use DRS or stay with it."
             : reviewingSide === "bowling"
             ? `On-field call is ${onFieldCallLabel}. Use DRS if you want it overturned.`
@@ -1955,11 +1969,15 @@ export function LiveMatchPage({
                 <div className="rounded-xl border border-th bg-th-raised px-4 py-3">
                   <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">If Overturned</div>
                   <div className="mt-1 text-sm font-display font-semibold text-th-primary">
-                    {reviewKind === "lbw" ? `${battingTeam.shortName} ${wicketIfOverturned}` : extraScoreIfOverturned}
+                    {reviewKind === "lbw" ? `${battingTeam.shortName} ${wicketIfOverturned}`
+                      : reviewKind === "runout" ? `${battingTeam.shortName} ${state.score + 1}/${state.wickets} — NOT OUT`
+                      : extraScoreIfOverturned}
                   </div>
                   <div className="mt-1 text-[11px] text-th-muted font-display">
                     {reviewKind === "lbw"
                       ? (nextBatter ? `${nextBatter.name} would be the next batter.` : "This would expose a fresh batter.")
+                      : reviewKind === "runout"
+                      ? "Run out overturned — batter was in. The run counts and batter stays at the crease."
                       : reviewingSide === "batting"
                       ? `One extra is added and the ball is rebowled as a ${reviewKind === "wide" ? "wide" : "no-ball"}.`
                       : `The ${reviewKind === "wide" ? "wide" : "no-ball"} is removed and the delivery becomes a legal dot.`}
@@ -2308,14 +2326,16 @@ export function LiveMatchPage({
               </div>
 
               {/* Result text */}
-              <div className="text-base sm:text-lg font-display font-extrabold text-th-primary mb-4">
-                {state.result}
+              <div className="rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 dark:from-amber-500/5 dark:to-orange-500/5 border border-amber-300/30 dark:border-amber-500/20 px-4 py-3 mb-4">
+                <div className="text-lg sm:text-xl font-display font-extrabold text-th-primary">
+                  {state.result}
+                </div>
               </div>
 
               {/* Man of the Match */}
               {state.manOfTheMatch && (
-                <div className="mb-4 rounded-xl bg-amber-500/5 border border-amber-500/20 px-4 py-3">
-                  <div className="text-[10px] text-amber-400 uppercase tracking-wider font-display font-semibold mb-1">Man of the Match</div>
+                <div className="mb-4 rounded-xl bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 px-4 py-3">
+                  <div className="text-[10px] text-amber-600 dark:text-amber-400 uppercase tracking-wider font-display font-semibold mb-1">Man of the Match</div>
                   <div className="flex items-center justify-center gap-2">
                     <PlayerAvatar name={state.manOfTheMatch.playerName} imageUrl={playerImageMap[state.manOfTheMatch.playerId]} size="md" />
                     <div>
@@ -2337,7 +2357,7 @@ export function LiveMatchPage({
                 {inn1TopScorer && (
                   <div className="mb-2.5">
                     <div className="text-[10px] text-th-muted uppercase tracking-wider font-display mb-0.5">Top Scorer</div>
-                    <div className="text-sm text-white font-display font-semibold">{inn1TopScorer.playerName}</div>
+                    <div className="text-sm text-th-primary font-display font-semibold">{inn1TopScorer.playerName}</div>
                     <div className="text-xs font-mono text-th-secondary">
                       {inn1TopScorer.runs} ({inn1TopScorer.balls}) SR {inn1TopScorer.strikeRate.toFixed(1)}
                     </div>
@@ -2346,7 +2366,7 @@ export function LiveMatchPage({
                 {batFirstTopBowler && (
                   <div>
                     <div className="text-[10px] text-th-muted uppercase tracking-wider font-display mb-0.5">Top Bowler</div>
-                    <div className="text-sm text-white font-display font-semibold">{batFirstTopBowler.playerName}</div>
+                    <div className="text-sm text-th-primary font-display font-semibold">{batFirstTopBowler.playerName}</div>
                     <div className="text-xs font-mono text-th-secondary">
                       {batFirstTopBowler.wickets}/{batFirstTopBowler.runs} ({batFirstTopBowler.overs}.{batFirstTopBowler.balls > 0 ? batFirstTopBowler.balls : 0} ov)
                     </div>
@@ -2362,7 +2382,7 @@ export function LiveMatchPage({
                 {inn2TopScorer && (
                   <div className="mb-2.5">
                     <div className="text-[10px] text-th-muted uppercase tracking-wider font-display mb-0.5">Top Scorer</div>
-                    <div className="text-sm text-white font-display font-semibold">{inn2TopScorer.playerName}</div>
+                    <div className="text-sm text-th-primary font-display font-semibold">{inn2TopScorer.playerName}</div>
                     <div className="text-xs font-mono text-th-secondary">
                       {inn2TopScorer.runs} ({inn2TopScorer.balls}) SR {inn2TopScorer.balls > 0 ? ((inn2TopScorer.runs / inn2TopScorer.balls) * 100).toFixed(1) : "0.0"}
                     </div>
@@ -2371,7 +2391,7 @@ export function LiveMatchPage({
                 {bowlFirstTopBowler && (
                   <div>
                     <div className="text-[10px] text-th-muted uppercase tracking-wider font-display mb-0.5">Top Bowler</div>
-                    <div className="text-sm text-white font-display font-semibold">{bowlFirstTopBowler.playerName}</div>
+                    <div className="text-sm text-th-primary font-display font-semibold">{bowlFirstTopBowler.playerName}</div>
                     <div className="text-xs font-mono text-th-secondary">
                       {bowlFirstTopBowler.wickets}/{bowlFirstTopBowler.runs} ({bowlFirstTopBowler.overs} ov)
                     </div>
@@ -2387,9 +2407,9 @@ export function LiveMatchPage({
                   <div
                     key={i}
                     className={`px-3 py-2.5 rounded-lg border text-xs ${
-                      evt.type === "praise" ? "border-emerald-800/40 bg-emerald-950/20" :
-                      evt.type === "criticism" || evt.type === "board" ? "border-red-800/40 bg-red-950/20" :
-                      evt.type === "milestone" ? "border-amber-800/40 bg-amber-950/20" :
+                      evt.type === "praise" ? "border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/20" :
+                      evt.type === "criticism" || evt.type === "board" ? "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/20" :
+                      evt.type === "milestone" ? "border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20" :
                       "border-th bg-th-body"
                     }`}
                   >

@@ -97,9 +97,9 @@ export interface LiveBowlerStats {
   maidens: number;
 }
 
-export type DrsReviewKind = "lbw" | "wide" | "noball";
+export type DrsReviewKind = "lbw" | "wide" | "noball" | "runout";
 export type DrsReviewingSide = "batting" | "bowling";
-export type DrsOnFieldCall = "out" | "not_out" | "wide" | "not_wide" | "noball" | "not_noball";
+export type DrsOnFieldCall = "out" | "not_out" | "wide" | "not_wide" | "noball" | "not_noball" | "run_out" | "not_run_out";
 
 export interface PendingDrsContext {
   batterName: string;
@@ -1135,6 +1135,62 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
           eventType = "dot";
           wicketType = undefined;
           // DRS retained on successful review
+        }
+      }
+    }
+
+    // DRS for run out decisions: ~30% of run outs are close calls worth reviewing
+    if (wicketType === "run_out" && !drsOverturned) {
+      const isCloseRunOut = rng() < 0.30;
+      if (isCloseRunOut) {
+        // Variable overturn: diving = 40% overturned, normal = 15%
+        const isDiving = rng() < 0.35;
+        const overturnChance = isDiving ? 0.40 : 0.15;
+        const wasActuallyIn = rng() < overturnChance;
+        const confidence = Math.round(overturnChance * 100);
+        const appealDesc = isDiving
+          ? "Batter was diving — the grounding of the bat needs checking frame by frame"
+          : "Batter was stretching to make the crease — looks tight on first viewing";
+        const battingTeamIsHome = newState.battingTeamId === newState.homeTeam.id;
+        const isUserBatting = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
+        const drsAvailable = battingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
+
+        if (drsAvailable > 0 && isUserBatting) {
+          // Offer run out review to user
+          _drsOverturns = wasActuallyIn;
+          result.commentary = `${bowler.name} to ${striker.name}, RUN OUT says the on-field umpire! Direct hit at the striker's end.`;
+          newState.pendingDecision = {
+            type: "drs_review",
+            options: ["review", "accept"],
+            teamId: newState.battingTeamId,
+            drsContext: {
+              batterName: striker.name,
+              bowlerName: bowler.name,
+              reviewKind: "runout",
+              reviewingSide: "batting",
+              onFieldCall: "run_out",
+              isGivenOut: true,
+              confidence,
+              appealDescription: appealDesc,
+            },
+          };
+          newState.status = "waiting_for_decision";
+        } else if (drsAvailable > 0 && !isUserBatting && rng() < 0.50) {
+          // CPU reviews close run outs 50% of the time
+          if (wasActuallyIn) {
+            drsOverturned = true;
+            result.isWicket = false;
+            result.outcome = "1"; // batter made the run
+            result.runs = 1;
+            result.commentary = `${bowler.name} to ${striker.name}, run out given! DRS review... OVERTURNED! Batter was IN. The run counts.`;
+            eventType = "single";
+            wicketType = undefined;
+          } else {
+            if (battingTeamIsHome) newState.drsRemaining.home--;
+            else newState.drsRemaining.away--;
+            const sn = battingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+            result.commentary = `${bowler.name} to ${striker.name}, run out! DRS review... stays OUT. Batter was short. ${sn} lose their review.`;
+          }
         }
       }
     }
@@ -2306,6 +2362,53 @@ export function applyDecision(
           lastBall.commentary += isMarginal
             ? ` DRS review... UMPIRE'S CALL — clipping leg stump. Stays NOT OUT. ${shortName} retain their review.`
             : ` DRS review... clearly missing off stump. Stays NOT OUT. ${shortName} lose their review.`;
+          syncLatestDetailedBall(newState, { commentary: lastBall.commentary });
+        }
+      } else if (drsContext.reviewKind === "runout") {
+        // Run out DRS: batting team reviews a run out decision
+        const shortName = reviewingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+        if (shouldOverturn) {
+          // Batter was IN — overturn the run out, restore to not out + 1 run
+          lastBall.isWicket = false;
+          lastBall.outcome = "1";
+          lastBall.runs = 1;
+          lastBall.commentary += ` DRS review... OVERTURNED! Batter was IN! The run counts.`;
+
+          newState.wickets--;
+          rawInnings.wickets--;
+
+          const strikerId = lastBall.batter;
+          const rawBat = rawInnings.batterStats[strikerId];
+          if (rawBat) { rawBat.isOut = false; rawBat.runs += 1; }
+
+          const liveBatter = newState.batterStats.find(b => b.playerId === strikerId);
+          if (liveBatter) { liveBatter.isOut = false; liveBatter.howOut = "not out"; liveBatter.runs += 1; liveBatter.fallOfWicket = undefined; }
+
+          // Restore the run
+          newState.score += 1;
+          rawInnings.runs += 1;
+
+          // Remove the fall of wicket entry
+          newState.fallOfWickets.pop();
+
+          const rawBowler = rawInnings.bowlerStats[lastBall.bowler];
+          if (rawBowler) rawBowler.wickets = Math.max(0, rawBowler.wickets - 1);
+          const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
+          if (liveBowler) liveBowler.wickets = Math.max(0, liveBowler.wickets - 1);
+
+          syncLatestDetailedBall(newState, {
+            eventType: "single",
+            wicketType: undefined,
+            commentary: lastBall.commentary,
+            runs: 1,
+            scoreSoFar: newState.score,
+            wicketsSoFar: newState.wickets,
+          });
+        } else {
+          // Batter was OUT — review fails
+          if (reviewingTeamIsHome) newState.drsRemaining.home--;
+          else newState.drsRemaining.away--;
+          lastBall.commentary += ` DRS review... stays OUT. Batter was short of the crease. ${shortName} lose their review.`;
           syncLatestDetailedBall(newState, { commentary: lastBall.commentary });
         }
       } else {
