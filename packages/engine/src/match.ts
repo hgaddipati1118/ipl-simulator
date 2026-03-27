@@ -179,9 +179,9 @@ export interface MatchOptions {
  * Target avg innings score: 160-175
  */
 const PHASE_MULTIPLIERS: Record<"powerplay" | "middle" | "death", Partial<Record<BallOutcome, number>>> = {
-  powerplay: { dot: 0.85, "1": 1.0, "2": 0.9, "3": 1.0, "4": 1.25, "6": 1.08, wicket: 0.9, wide: 1.1, noball: 1.0 },
-  middle:    { dot: 1.12, "1": 1.08, "2": 1.0, "3": 1.0, "4": 0.88, "6": 0.80, wicket: 1.02, wide: 0.9, noball: 1.0 },
-  death:     { dot: 0.82, "1": 0.9, "2": 1.1, "3": 1.1, "4": 1.18, "6": 1.20, wicket: 1.2, wide: 1.2, noball: 1.1 },
+  powerplay: { dot: 0.82, "1": 0.98, "2": 0.9, "3": 1.0, "4": 1.30, "6": 1.15, wicket: 0.88, wide: 1.1, noball: 1.0 },
+  middle:    { dot: 1.10, "1": 1.08, "2": 1.0, "3": 1.0, "4": 0.90, "6": 0.83, wicket: 1.01, wide: 0.9, noball: 1.0 },
+  death:     { dot: 0.76, "1": 0.87, "2": 1.12, "3": 1.1, "4": 1.24, "6": 1.32, wicket: 1.18, wide: 1.2, noball: 1.1 },
 };
 
 /** Generate base outcome probabilities from batter and bowler ratings */
@@ -195,18 +195,18 @@ function baseOutcomeProbabilities(
   // Balance between batter and bowler determines distribution
   const balance = batRating - bowlRating; // -1 to 1, positive favors batter
 
-  // Tuned to match modern IPL (2025-2026) ball-outcome distributions:
-  //   IPL 2025 had 52 scores above 200, avg innings ~178-182
-  //   Target avg innings score: 175-185 (Impact Player era, flat pitches)
+  // Tuned to match IPL 2025 ball-outcome distributions:
+  //   IPL 2025 had 52 scores above 200, avg innings ~178, record boundaries
+  //   Target avg innings score: 175-185 (Impact Player era, flat pitches, short boundaries)
   return {
-    dot:    clamp(0.37 - balance * 0.11, 0.20, 0.53),
-    "1":    clamp(0.28 + balance * 0.02, 0.20, 0.38),
-    "2":    clamp(0.05 + balance * 0.015, 0.02, 0.10),
-    "3":    clamp(0.01, 0.005, 0.025),
-    "4":    clamp(0.105 + balance * 0.035 + (batter.ratings.timing / 100) * 0.017, 0.035, 0.18),
-    "6":    clamp(0.045 + balance * 0.025 + (batter.ratings.power / 100) * 0.020, 0.01, 0.12),
-    wicket: clamp(0.046 - balance * 0.025 + (bowler.ratings.wicketTaking / 100) * 0.02, 0.015, 0.10),
-    wide:   clamp(0.03 - (bowler.ratings.accuracy / 100) * 0.012, 0.008, 0.06),
+    dot:    clamp(0.355 - balance * 0.12, 0.19, 0.50),
+    "1":    clamp(0.278 + balance * 0.02, 0.19, 0.37),
+    "2":    clamp(0.052 + balance * 0.015, 0.02, 0.10),
+    "3":    clamp(0.011, 0.005, 0.025),
+    "4":    clamp(0.112 + balance * 0.038 + (batter.ratings.timing / 100) * 0.019, 0.04, 0.19),
+    "6":    clamp(0.050 + balance * 0.028 + (batter.ratings.power / 100) * 0.022, 0.012, 0.13),
+    wicket: clamp(0.044 - balance * 0.025 + (bowler.ratings.wicketTaking / 100) * 0.019, 0.013, 0.095),
+    wide:   clamp(0.031 - (bowler.ratings.accuracy / 100) * 0.012, 0.009, 0.06),
     noball:  clamp(0.005 - (bowler.ratings.accuracy / 100) * 0.003, 0.001, 0.02),
     legbye: 0.015,
   };
@@ -265,9 +265,10 @@ function simulateBall(
     probs[key] *= phaseMult[key] ?? 1;
   }
 
-  // Stadium bowling adjustment
-  probs.wicket *= venue.stadiumBowlRating;
-  probs.dot *= venue.stadiumBowlRating;
+  // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel
+  const stadiumEffect = 1 + (venue.stadiumBowlRating - 1) * 0.5;
+  probs.wicket *= stadiumEffect;
+  probs.dot *= stadiumEffect;
 
   // Style, handedness, and venue context
   const matchupMods = getMatchupModifiers({

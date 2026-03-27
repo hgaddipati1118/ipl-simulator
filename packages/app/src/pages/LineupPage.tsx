@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Team, Player, type BowlingPlan, type RuleSet } from "@ipl-sim/engine";
-import { bowlingStyleLabel } from "../ui-utils";
+import { bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 import {
   buildLineupReport,
   getBattingSlotFit,
@@ -256,13 +256,13 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
 
       {/* Injury alerts */}
       {injured.length > 0 && (
-        <div className="bg-red-950/30 border border-red-800/50 rounded-lg p-4 mb-6">
-          <h3 className="text-red-400 font-semibold text-sm mb-2">Injured Players</h3>
+        <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 rounded-lg p-4 mb-6">
+          <h3 className="text-red-700 dark:text-red-400 font-semibold text-sm mb-2">Injured Players</h3>
           <div className="flex flex-wrap gap-3">
             {injured.map(p => (
               <div key={p.id} className="flex items-center gap-2 text-sm">
-                <span className="text-red-300">{p.name}</span>
-                <span className="text-red-500/70 text-xs">
+                <span className="text-red-600 dark:text-red-300">{p.name}</span>
+                <span className="text-red-500 dark:text-red-500/70 text-xs">
                   {p.injuryType ?? "injury"} ({p.injuryGamesLeft} {p.injuryGamesLeft === 1 ? "match" : "matches"})
                 </span>
                 <SeverityBadge severity={p.injurySeverity ?? "minor"} />
@@ -291,22 +291,22 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
 
       {/* Validation */}
       {validationErrors.length > 0 && (
-        <div className="bg-yellow-950/30 border border-yellow-800/50 rounded-lg p-3 mb-4">
+        <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/50 rounded-lg p-3 mb-4">
           {validationErrors.map((err, i) => (
-            <p key={i} className="text-yellow-400 text-sm">{err}</p>
+            <p key={i} className="text-yellow-700 dark:text-yellow-400 text-sm">{err}</p>
           ))}
         </div>
       )}
 
       {/* Status bar */}
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm sm:gap-6">
-        <span className={`${selectedIds.size === 11 ? "text-green-400" : "text-yellow-400"}`}>
+        <span className={`${selectedIds.size === 11 ? "text-green-700 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400"}`}>
           {selectedIds.size}/11 selected
         </span>
-        <span className={`${overseasCount <= 4 ? "text-blue-400" : "text-red-400"}`}>
+        <span className={`${overseasCount <= 4 ? "text-blue-700 dark:text-blue-400" : "text-red-600 dark:text-red-400"}`}>
           {overseasCount}/4 overseas
         </span>
-        <span className={`${wkCount >= 1 ? "text-th-secondary" : "text-red-400"}`}>
+        <span className={`${wkCount >= 1 ? "text-th-secondary" : "text-red-600 dark:text-red-400"}`}>
           {wkCount} WK
         </span>
         <span className="text-th-secondary">
@@ -460,7 +460,7 @@ function PlayingXITab({
                   onClick={() => onToggle(p.id)}
                   className={`border-t border-th cursor-pointer transition-colors ${
                     isSelected
-                      ? "bg-blue-950/20 hover:bg-blue-950/30 border-l-2 border-l-blue-500"
+                      ? "bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100 dark:hover:bg-blue-950/30 border-l-2 border-l-blue-500"
                       : "hover:bg-th-hover border-l-2 border-l-transparent"
                   }`}
                 >
@@ -490,19 +490,26 @@ function PlayingXITab({
                       <FormIndicator player={p} />
                       <ConditionBadge player={p} />
                       <span className={`w-2 h-2 rounded-full inline-block ${
-                        p.morale > 70 ? "bg-emerald-400" : p.morale > 40 ? "bg-amber-400" : "bg-red-400"
+                        p.morale > 70 ? "bg-emerald-500 dark:bg-emerald-400" : p.morale > 40 ? "bg-amber-500 dark:bg-amber-400" : "bg-red-500 dark:bg-red-400"
                       }`} title={`Morale: ${p.morale}`} />
                       {p.contractYears <= 0 && (
-                        <span className="text-[9px] px-1 rounded text-red-400 bg-red-500/10">FA</span>
+                        <span className="text-[9px] px-1 rounded text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-500/10">FA</span>
                       )}
                       {p.isInternational && (
-                        <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
+                        <span className="text-blue-700 dark:text-blue-400 text-[10px] bg-blue-100 dark:bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
                       )}
                       {p.isWicketKeeper && (
-                        <span className="text-cyan-400 text-[10px] bg-cyan-400/10 px-1.5 py-0.5 rounded">WK</span>
+                        <span className="text-cyan-700 dark:text-cyan-400 text-[10px] bg-cyan-100 dark:bg-cyan-400/10 px-1.5 py-0.5 rounded">WK</span>
+                      )}
+                      {p.battingHand && (
+                        <span className="text-th-muted text-[10px] bg-th-raised px-1 py-0.5 rounded" title={p.battingHand === "left" ? "Left-hand bat" : "Right-hand bat"}>
+                          {battingHandLabel(p.battingHand)}
+                        </span>
                       )}
                       {p.bowlingStyle && bowlingStyleLabel(p.bowlingStyle) && (
-                        <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(p.bowlingStyle)}</span>
+                        <span className="text-purple-600 dark:text-purple-400 text-[10px] font-semibold bg-purple-100 dark:bg-purple-400/10 px-1 py-0.5 rounded" title={p.bowlingStyle.replace(/-/g, ' ')}>
+                          {bowlingStyleLabel(p.bowlingStyle)}
+                        </span>
                       )}
                       <button
                         onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : p.id); }}
@@ -553,12 +560,12 @@ function PlayingXITab({
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-red-300 font-medium">{p.name}</span>
+                    <span className="text-red-500 dark:text-red-300 font-medium">{p.name}</span>
                     {p.isInternational && (
-                      <span className="text-blue-400/50 text-[10px] bg-blue-400/5 px-1.5 py-0.5 rounded">OS</span>
+                      <span className="text-blue-400/50 dark:text-blue-400/50 text-[10px] bg-blue-100/50 dark:bg-blue-400/5 px-1.5 py-0.5 rounded">OS</span>
                     )}
                     {p.isWicketKeeper && (
-                      <span className="text-cyan-400/50 text-[10px] bg-cyan-400/5 px-1.5 py-0.5 rounded">WK</span>
+                      <span className="text-cyan-400/50 dark:text-cyan-400/50 text-[10px] bg-cyan-100/50 dark:bg-cyan-400/5 px-1.5 py-0.5 rounded">WK</span>
                     )}
                   </div>
                   <span className="text-th-faint text-xs">{p.country}</span>
@@ -574,7 +581,7 @@ function PlayingXITab({
                 <td className="hidden sm:table-cell text-center px-2 py-2 text-th-faint">{p.age}</td>
                 <td className="hidden sm:table-cell text-center px-2 py-2 text-th-faint text-xs">{p.readiness}</td>
                 <td className="hidden lg:table-cell text-center px-2 py-2">
-                  <span className="text-red-400 text-xs">
+                  <span className="text-red-600 dark:text-red-400 text-xs">
                     {p.injuryType ?? "Injured"} ({p.injuryGamesLeft}m)
                   </span>
                 </td>
@@ -649,13 +656,20 @@ function BattingOrderTab({
                     <ConditionBadge player={player} />
                     <RoleBadge role={player.role} />
                     {player.isInternational && (
-                      <span className="text-blue-400 text-[10px] bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
+                      <span className="text-blue-700 dark:text-blue-400 text-[10px] bg-blue-100 dark:bg-blue-400/10 px-1.5 py-0.5 rounded">OS</span>
                     )}
                     {player.isWicketKeeper && (
-                      <span className="text-cyan-400 text-[10px] bg-cyan-400/10 px-1.5 py-0.5 rounded">WK</span>
+                      <span className="text-cyan-700 dark:text-cyan-400 text-[10px] bg-cyan-100 dark:bg-cyan-400/10 px-1.5 py-0.5 rounded">WK</span>
+                    )}
+                    {player.battingHand && (
+                      <span className="text-th-muted text-[10px] bg-th-raised px-1 py-0.5 rounded" title={player.battingHand === "left" ? "Left-hand bat" : "Right-hand bat"}>
+                        {battingHandLabel(player.battingHand)}
+                      </span>
                     )}
                     {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
-                      <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
+                      <span className="text-purple-600 dark:text-purple-400 text-[10px] font-semibold bg-purple-100 dark:bg-purple-400/10 px-1 py-0.5 rounded" title={player.bowlingStyle.replace(/-/g, ' ')}>
+                        {bowlingStyleLabel(player.bowlingStyle)}
+                      </span>
                     )}
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : player.id)}
@@ -672,9 +686,9 @@ function BattingOrderTab({
               </div>
               <div className="flex flex-wrap gap-0.5">
                 {([
-                  { val: 25, label: "DEF", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-                  { val: 50, label: "NOR", color: "text-th-secondary bg-th-body border-th" },
-                  { val: 75, label: "ATK", color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
+                  { val: 25, label: "DEF", tip: "Defensive — play conservatively, rotate strike", color: "text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20" },
+                  { val: 50, label: "NOR", tip: "Normal — balanced approach", color: "text-th-secondary bg-th-body border-th" },
+                  { val: 75, label: "ATK", tip: "Attacking — go for boundaries, higher risk", color: "text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20" },
                 ] as const).map(opt => {
                   const current = batterAggression[player.id] ?? 50;
                   const isActive = Math.abs(current - opt.val) < 13;
@@ -682,6 +696,7 @@ function BattingOrderTab({
                     <button
                       key={opt.val}
                       onClick={(e) => { e.stopPropagation(); onSetAggression(player.id, opt.val); }}
+                      title={opt.tip}
                       className={`text-[9px] px-1.5 py-0.5 rounded border font-display font-semibold transition-colors ${isActive ? opt.color + " ring-1 ring-offset-0" : "text-th-faint bg-th-body border-th/50 hover:text-th-secondary"}`}
                     >{opt.label}</button>
                   );
@@ -695,6 +710,7 @@ function BattingOrderTab({
                   onClick={() => onMove(idx, -1)}
                   disabled={idx === 0}
                   aria-label="Move player up"
+                  title="Move up in batting order"
                   className={`text-xs px-1.5 py-0.5 rounded ${
                     idx === 0 ? "text-th-faint" : "text-th-secondary hover:text-th-primary hover:bg-th-hover"
                   }`}
@@ -705,6 +721,7 @@ function BattingOrderTab({
                   onClick={() => onMove(idx, 1)}
                   disabled={idx === battingOrder.length - 1}
                   aria-label="Move player down"
+                  title="Move down in batting order"
                   className={`text-xs px-1.5 py-0.5 rounded ${
                     idx === battingOrder.length - 1 ? "text-th-faint" : "text-th-secondary hover:text-th-primary hover:bg-th-hover"
                   }`}
@@ -893,7 +910,7 @@ function BowlingOrderTab({
                     <ConditionBadge player={player} />
                     <RoleBadge role={player.role} />
                     {player.bowlingStyle && bowlingStyleLabel(player.bowlingStyle) && (
-                      <span className="text-purple-400/60 text-[10px] font-semibold">{bowlingStyleLabel(player.bowlingStyle)}</span>
+                      <span className="text-purple-600 dark:text-purple-400 text-[10px] font-semibold bg-purple-100 dark:bg-purple-400/10 px-1 py-0.5 rounded">{bowlingStyleLabel(player.bowlingStyle)}</span>
                     )}
                     <span className={`text-[10px] px-1.5 py-0.5 rounded ${fitBadgeTone(bestPhase)}`}>
                       Best {bestPhaseLabel}
@@ -981,7 +998,7 @@ function BowlingOrderTab({
                   <span className="text-th-primary font-medium">{p.name}</span>
                   <span className="text-th-faint font-mono">{p.bowlingOvr}</span>
                   {p.bowlingStyle && bowlingStyleLabel(p.bowlingStyle) && (
-                    <span className="text-purple-400/60 text-[9px] font-semibold">{bowlingStyleLabel(p.bowlingStyle)}</span>
+                    <span className="text-purple-600 dark:text-purple-400 text-[9px] font-semibold">{bowlingStyleLabel(p.bowlingStyle)}</span>
                   )}
                 </button>
               ))}
@@ -1140,9 +1157,9 @@ function RoleBadge({ role }: { role: string }) {
 
 function SeverityBadge({ severity }: { severity: string }) {
   const colors: Record<string, string> = {
-    minor: "bg-yellow-900/30 text-yellow-400",
-    moderate: "bg-orange-900/30 text-orange-400",
-    severe: "bg-red-900/30 text-red-300",
+    minor: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+    moderate: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+    severe: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
   };
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded ${colors[severity] ?? colors.minor}`}>
@@ -1152,9 +1169,9 @@ function SeverityBadge({ severity }: { severity: string }) {
 }
 
 function ovrColor(ovr: number): string {
-  if (ovr >= 85) return "text-green-400";
-  if (ovr >= 70) return "text-blue-400";
-  if (ovr >= 55) return "text-yellow-400";
+  if (ovr >= 85) return "text-green-700 dark:text-green-400";
+  if (ovr >= 70) return "text-blue-700 dark:text-blue-400";
+  if (ovr >= 55) return "text-yellow-600 dark:text-yellow-400";
   return "text-th-secondary";
 }
 
@@ -1169,27 +1186,27 @@ function roleLabel(role: string): string {
 
 function roleColor(role: string): string {
   switch (role) {
-    case "batsman": return "bg-orange-900/30 text-orange-400";
-    case "bowler": return "bg-purple-900/30 text-purple-400";
-    case "all-rounder": return "bg-green-900/30 text-green-400";
+    case "batsman": return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400";
+    case "bowler": return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400";
+    case "all-rounder": return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
     default: return "bg-th-raised text-th-secondary";
   }
 }
 
 function fitBadgeTone(fit: FitAssessment): string {
-  if (fit.tone === "good") return "bg-green-900/30 text-green-300";
-  if (fit.tone === "warn") return "bg-red-900/30 text-red-300";
-  return "bg-blue-900/30 text-blue-300";
+  if (fit.tone === "good") return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
+  if (fit.tone === "warn") return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
+  return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
 }
 
 /** Form indicator: shows hot/cold form based on rolling average */
 export function FormIndicator({ player }: { player: Player }) {
   const form = player.form;
   if (form > 65) {
-    return <span className="text-green-400 text-xs ml-1" title={`Form: ${Math.round(form)}`}>&#9650;</span>;
+    return <span className="text-green-600 dark:text-green-400 text-xs ml-1" title={`Form: ${Math.round(form)} — In hot form`}>&#9650;</span>;
   }
   if (form < 35) {
-    return <span className="text-red-400 text-xs ml-1" title={`Form: ${Math.round(form)}`}>&#9660;</span>;
+    return <span className="text-red-600 dark:text-red-400 text-xs ml-1" title={`Form: ${Math.round(form)} — Out of form`}>&#9660;</span>;
   }
   return null; // Neutral form: no indicator
 }
@@ -1203,11 +1220,11 @@ function conditionLabel(readiness: number): string {
 }
 
 function conditionTextColor(readiness: number): string {
-  if (readiness >= 85) return "text-cyan-300";
-  if (readiness >= 70) return "text-green-300";
-  if (readiness >= 55) return "text-yellow-300";
-  if (readiness >= 40) return "text-orange-300";
-  return "text-red-300";
+  if (readiness >= 85) return "text-cyan-700 dark:text-cyan-300";
+  if (readiness >= 70) return "text-green-700 dark:text-green-300";
+  if (readiness >= 55) return "text-yellow-600 dark:text-yellow-300";
+  if (readiness >= 40) return "text-orange-600 dark:text-orange-300";
+  return "text-red-600 dark:text-red-300";
 }
 
 function ConditionBadge({ player }: { player: Player }) {

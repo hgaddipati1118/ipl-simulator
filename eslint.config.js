@@ -1,5 +1,6 @@
 import tseslint from "typescript-eslint";
 import tailwindBan from "eslint-plugin-tailwind-ban";
+import jsxA11y from "eslint-plugin-jsx-a11y";
 
 // Ban hardcoded gray/slate colors that break light/dark mode.
 // Use th-* theme classes instead (th-primary, th-muted, th-body, th-raised, etc.)
@@ -15,10 +16,13 @@ export default [
     files: ["packages/app/src/**/*.tsx", "packages/app/src/**/*.ts"],
     plugins: {
       "tailwind-ban": tailwindBan,
+      "jsx-a11y": jsxA11y,
     },
     rules: {
       // Ban hardcoded gray/slate — must use theme vars for light/dark mode
       "tailwind-ban/no-deny-tailwind-tokens": ["warn", { denyList }],
+      // Accessibility rules
+      ...jsxA11y.configs.recommended.rules,
       // Disable noisy TS rules for existing code
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",

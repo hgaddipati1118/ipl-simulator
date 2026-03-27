@@ -67,10 +67,12 @@ type LiveMatchDrsContext = {
   reviewingSide?: "batting" | "bowling";
   onFieldCall?: "out" | "not_out" | "wide" | "not_wide" | "noball" | "not_noball";
   isGivenOut: boolean;
+  confidence?: number;
+  appealDescription?: string;
 };
 
-const DRS_REVIEW_DELAY_MS = 900;
-const DRS_RESULT_DURATION_MS = 2800;
+const DRS_REVIEW_DELAY_MS = 2500; // Longer pause while ball-tracking runs — builds suspense
+const DRS_RESULT_DURATION_MS = 3500; // Result stays visible longer for user to read
 
 interface Props {
   seasonNumber: number;
@@ -1736,7 +1738,7 @@ export function LiveMatchPage({
         >
           <div className="space-y-4">
             <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-sky-200 font-display font-semibold">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-sky-600 dark:text-sky-200 font-display font-semibold">
                 {drsReviewing.reviewKind === "lbw"
                   ? "Review In Progress"
                   : drsReviewing.reviewKind === "wide"
@@ -1769,7 +1771,7 @@ export function LiveMatchPage({
                   <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">{step}</div>
                   <div className="mt-2 flex items-center justify-center gap-1">
                     <span className="h-2 w-2 rounded-full bg-sky-300 animate-pulse" />
-                    <span className="text-xs text-sky-100 font-display font-semibold">Checking</span>
+                    <span className="text-xs text-sky-600 dark:text-sky-100 font-display font-semibold">Checking</span>
                   </div>
                 </div>
               ))}
@@ -1777,7 +1779,7 @@ export function LiveMatchPage({
 
             <div className="rounded-xl border border-th bg-th-body px-4 py-3 flex items-center justify-between">
               <span className="text-xs text-th-muted font-display">Reviews in hand</span>
-              <span className="text-sm font-display font-semibold text-sky-200">
+              <span className="text-sm font-display font-semibold text-sky-600 dark:text-sky-200">
                 {drsReviewing.reviewsLeft}
               </span>
             </div>
@@ -1965,8 +1967,33 @@ export function LiveMatchPage({
                 </div>
               </div>
 
+              {/* Appeal confidence indicator */}
+              {drsCtx?.appealDescription && (
+                <div className="rounded-xl border border-th bg-th-raised px-4 py-3 space-y-2">
+                  <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Appeal Read</div>
+                  <div className="text-sm text-th-secondary font-display">{drsCtx.appealDescription}</div>
+                  {drsCtx.confidence != null && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 h-1.5 rounded-full bg-th-body overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            drsCtx.confidence >= 30 ? "bg-green-500" : drsCtx.confidence >= 20 ? "bg-yellow-500" : "bg-red-500"
+                          }`}
+                          style={{ width: `${Math.min(100, drsCtx.confidence * 2)}%` }}
+                        />
+                      </div>
+                      <span className={`text-[10px] font-mono font-bold ${
+                        drsCtx.confidence >= 30 ? "text-green-500 dark:text-green-400" : drsCtx.confidence >= 20 ? "text-yellow-500 dark:text-yellow-400" : "text-red-500 dark:text-red-400"
+                      }`}>
+                        {drsCtx.confidence >= 30 ? "Strong" : drsCtx.confidence >= 20 ? "50/50" : "Risky"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="rounded-xl border border-sky-500/15 bg-sky-500/5 px-4 py-3 space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-sky-200 font-display font-semibold">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-sky-400 dark:text-sky-200 font-display font-semibold">
                   Captain's Read
                 </div>
                 <div className="text-sm text-th-secondary font-display">
@@ -2008,11 +2035,14 @@ export function LiveMatchPage({
             }
           >
             <div className="space-y-4">
-              <p className="text-th-muted text-sm font-display">
-                {isUserBowling
-                  ? "Take a 2.5-minute break to change your field setting and aggression level before the next over."
-                  : "Take a 2.5-minute break to reassess your batting approach and aggression level."}
-              </p>
+              <div className="rounded-xl border border-th bg-th-raised px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">Timeout Benefit</div>
+                <div className="text-sm text-th-secondary font-display">
+                  {isUserBowling
+                    ? "Your current bowler gets a rest boost — improved accuracy and economy for the next 2 overs."
+                    : "Your batters at the crease get a composure boost — improved clutch performance for the next 2 overs."}
+                </div>
+              </div>
               <div className="flex gap-3">
                 <button
                   onClick={() => handleDecision("strategic_timeout", "use")}
@@ -2194,20 +2224,20 @@ export function LiveMatchPage({
 
       {/* Innings break overlay */}
       {showInningsBreak && state.status === "innings_break" && !showImpactSubModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-40 flex items-center justify-center animate-fade-in">
-          <div className="bg-th-surface rounded-2xl border border-th p-6 sm:p-8 max-w-md w-full mx-4 text-center shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-lg z-40 flex items-center justify-center animate-fade-in">
+          <div className="bg-white dark:bg-th-surface rounded-2xl border border-th p-6 sm:p-8 max-w-md w-full mx-4 text-center shadow-2xl">
             <div className="text-xs text-th-muted uppercase tracking-widest font-display mb-4">Innings Break</div>
-            <div className="text-3xl font-display font-extrabold text-white mb-1">
+            <div className="text-3xl font-display font-extrabold text-th-primary mb-1">
               {state._internal.battingFirstId === state.homeTeam.id ? state.homeTeam.shortName : state.awayTeam.shortName}{" "}
               <span className="stat-num">{state.innings1Score}/{state.innings1Wickets}</span>
             </div>
             <div className="text-th-secondary text-sm mb-4">({state.innings1Overs} overs)</div>
 
-            <div className="text-base text-white mt-3 mb-6">
+            <div className="text-base text-th-primary mt-3 mb-6">
               <span className="font-bold" style={{ color: bowlingTeam.primaryColor }}>
                 {state._internal.bowlingFirstId === state.homeTeam.id ? state.homeTeam.name : state.awayTeam.name}
               </span>{" "}
-              need <span className="font-bold text-amber-400">{state.target}</span> runs to win
+              need <span className="font-bold text-amber-600 dark:text-amber-400">{state.target}</span> runs to win
             </div>
 
             <button
@@ -2241,8 +2271,8 @@ export function LiveMatchPage({
         const bowlFirstTopBowler = [...inn1Bowlers].sort((a, b) => b.wickets - a.wickets || a.runs - b.runs)[0] ?? null;
 
         return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-40 flex items-center justify-center animate-fade-in">
-          <div className="bg-th-surface rounded-2xl border border-th p-6 sm:p-8 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-lg z-40 flex items-center justify-center animate-fade-in">
+          <div className="bg-white dark:bg-th-surface rounded-2xl border border-th p-6 sm:p-8 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="text-center">
               <div className="text-xs text-th-muted uppercase tracking-widest font-display mb-3">Match Complete</div>
 
