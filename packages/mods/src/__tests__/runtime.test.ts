@@ -276,3 +276,32 @@ describe("fingerprints", () => {
     expect(runtime.fingerprint()).toEqual([]);
   });
 });
+
+describe("screens and panels", () => {
+  it("lists enabled screens and panels per mod and slot", () => {
+    const { runtime } = runtimeWithClock();
+    const def = checkDefinition({
+      ui: {
+        screens: [{ id: "dash", title: "Dashboard", html: "<p>hi</p>" }],
+        panels: [{ id: "p1", slot: "team.sidebar", title: "Note", html: "<p>x</p>", height: 90 }, { id: "p2", slot: "season.header", title: "Hdr", html: "<p>y</p>" }],
+      },
+    }, { id: "ui-mod", name: "UI", version: "1.0.0", sdk: "1", hooks: ["ui.screens", "ui.panels"] });
+    runtime.add({ manifest: { id: "ui-mod", name: "UI", version: "1.0.0", sdk: "1", hooks: ["ui.screens", "ui.panels"] }, definition: def, hash: "h" });
+    expect(runtime.screens().map(s => `${s.modId}/${s.id}`)).toEqual(["ui-mod/dash"]);
+    expect(runtime.panels("team.sidebar").map(p => [p.id, p.height])).toEqual([["p1", 90]]);
+    expect(runtime.panels("season.header")[0].height).toBe(160);
+    expect(runtime.panels()).toHaveLength(2);
+    runtime.setEnabled("ui-mod", false);
+    expect(runtime.screens()).toEqual([]);
+    expect(runtime.hasSimulationMods()).toBe(false);
+  });
+
+  it("rejects malformed screens and panels at install time", () => {
+    const m = { id: "ui-mod", name: "UI", version: "1.0.0", sdk: "1" as const, hooks: ["ui.screens" as const] };
+    expect(() => checkDefinition({ ui: { screens: [{ id: "A B", title: "x", html: "<p/>" }] } }, m)).toThrow(ValidationError);
+    expect(() => checkDefinition({ ui: { screens: [{ id: "a", title: "x", html: "" }] } }, m)).toThrow(ValidationError);
+    expect(() => checkDefinition({ ui: { screens: [{ id: "a", title: "x", html: "<p/>" }, { id: "a", title: "y", html: "<p/>" }] } }, m)).toThrow(/duplicate/);
+    const p = { ...m, hooks: ["ui.panels" as const] };
+    expect(() => checkDefinition({ ui: { panels: [{ id: "a", slot: "nowhere", title: "x", html: "<p/>" }] } }, p)).toThrow(/slot/);
+  });
+});
