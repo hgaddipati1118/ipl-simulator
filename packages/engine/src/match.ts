@@ -28,6 +28,20 @@ import {
   type PitchType,
 } from "./matchups.js";
 import { createRNG, randomSeed, type RNG } from "./rng.js";
+import {
+  DEFAULT_MATCH_FORMAT,
+  applyBallProbabilityHooks,
+  buildBallContext,
+  derivedHookRng,
+  getEngineHooks,
+  normalizeOver,
+  resolveMatchFormat,
+  toHookPlayer,
+  venueIdForTeam,
+  type BallHookInfo,
+  type EngineHooks,
+  type MatchFormat,
+} from "./mod-hooks.js";
 
 export type BallOutcome = "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
 
@@ -74,6 +88,9 @@ export interface MatchInjuryEvent {
 }
 
 interface VenueContext {
+  /** Stable venue slug and display name, surfaced to mod hooks. */
+  id: string;
+  name: string;
   stadiumBowlRating: number;
   pitchType: PitchType;
   boundarySize: BoundarySize;
@@ -173,7 +190,17 @@ export interface MatchOptions {
   neutralVenue?: boolean;
   countTowardStandings?: boolean;
   venueName?: string;
+  /** Override the process-wide engine hooks (tests, headless mod checks). */
+  hooks?: EngineHooks | null;
 }
+
+/** Mod state for one match: the active hooks and the (non-default) format, if any. */
+interface ModRun {
+  hooks: EngineHooks | null;
+  format: MatchFormat | null;
+}
+
+const NO_MODS: ModRun = { hooks: null, format: null };
 
 /** Phase multipliers for outcome probabilities (aligned with live-match.ts)
  * Target avg innings score: 160-175
@@ -255,11 +282,17 @@ function simulateBall(
   wicketsDown: number,
   venue: VenueContext,
   rng: RNG = Math.random,
+  mods: ModRun = NO_MODS,
+  hookInfo?: BallHookInfo,
+  totalBalls = 120,
 ): BallEvent {
   let probs = baseOutcomeProbabilities(batter, bowler);
 
+  // Non-standard formats (mods) squeeze phases onto the 20-over timeline; identity otherwise
+  const nOver = normalizeOver(over, mods.format);
+
   // Phase adjustment
-  const phase = getMatchPhase(over);
+  const phase = getMatchPhase(nOver);
   const phaseMult = PHASE_MULTIPLIERS[phase];
   for (const key of Object.keys(probs) as BallOutcome[]) {
     probs[key] *= phaseMult[key] ?? 1;
@@ -274,7 +307,7 @@ function simulateBall(
   const matchupMods = getMatchupModifiers({
     bowlingStyle: bowler.bowlingStyle,
     battingHand: batter.battingHand,
-    over,
+    over: nOver,
     pitchType: venue.pitchType,
     boundarySize: venue.boundarySize,
     dewFactor: venue.dewFactor,
@@ -286,7 +319,7 @@ function simulateBall(
   probs.dot *= matchupMods.dotMod;
 
   // Ball change rule (IPL 2026): after over 10 in 2nd innings, drier ball helps pace
-  if (isSecondInnings && over >= 10) {
+  if (isSecondInnings && nOver >= 10) {
     const bowlStyle = bowler.bowlingStyle;
     if (bowlStyle && isPaceBowler(bowlStyle)) {
       probs.wicket *= 1.08;
@@ -298,14 +331,14 @@ function simulateBall(
   // Chase context
   if (isSecondInnings && ballsRemaining > 0) {
     const requiredRate = ((target - currentScore) / ballsRemaining) * 6;
-    const currentRate = ballsRemaining < 120
-      ? (currentScore / (120 - ballsRemaining)) * 6
+    const currentRate = ballsRemaining < totalBalls
+      ? (currentScore / (totalBalls - ballsRemaining)) * 6
       : 0;
     probs = chaseAdjustment(probs, requiredRate, currentRate, wicketsDown);
   }
 
   // Clutch factor for last 3 overs in close games
-  if (over >= 17 && isSecondInnings) {
+  if (nOver >= 17 && isSecondInnings) {
     const runsNeeded = target - currentScore;
     if (runsNeeded > 0 && runsNeeded <= 30) {
       const clutchBalance = (batter.ratings.clutch * getClutchMoraleModifier(batter) - bowler.ratings.clutch * getClutchMoraleModifier(bowler)) / 100;
@@ -322,6 +355,17 @@ function simulateBall(
   probs["6"] *= batterMoraleMod;
   probs.wicket *= bowlerMoraleMod;
   probs.dot *= bowlerMoraleMod;
+
+  // Mod hook: adjust the final probabilities just before sampling
+  const hooks = mods.hooks;
+  if (hooks?.ballProbabilities && hookInfo) {
+    // Hooks get a seeded stream derived from the match rng so peers stay in sync
+    const hookRng = derivedHookRng(rng);
+    probs = applyBallProbabilityHooks(hooks, () => buildBallContext(
+      toHookPlayer(batter), toHookPlayer(bowler), over, target, currentScore, wicketsDown,
+      ballsRemaining, hookInfo, hookRng,
+    ), probs);
+  }
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
@@ -346,6 +390,16 @@ function simulateBall(
   }
 
   const commentary = generateCommentary(outcome, batter.name, bowler.name, over, runs, rng);
+
+  if (hooks?.onBall && hookInfo) {
+    hooks.onBall(
+      buildBallContext(
+        toHookPlayer(batter), toHookPlayer(bowler), over, target, currentScore, wicketsDown,
+        ballsRemaining, hookInfo, createRNG(0),
+      ),
+      { outcome, runs, extras, isWicket },
+    );
+  }
 
   return {
     over,
@@ -481,6 +535,8 @@ function getVenueContext(
 ): VenueContext {
   if (options?.neutralVenue) {
     return {
+      id: "neutral",
+      name: options.venueName ?? "Neutral venue",
       stadiumBowlRating: 1.0 * (2 - rules.scoringMultiplier),
       pitchType: "balanced",
       boundarySize: "medium",
@@ -489,6 +545,8 @@ function getVenueContext(
   }
 
   return {
+    id: venueIdForTeam(homeTeam.id),
+    name: homeTeam.config.stadiumName ?? homeTeam.config.city,
     stadiumBowlRating: (homeTeam.config.stadiumBowlingRating ?? 1.0) * (2 - rules.scoringMultiplier),
     pitchType: homeTeam.config.pitchType ?? "balanced",
     boundarySize: homeTeam.config.boundarySize ?? "medium",
@@ -588,6 +646,8 @@ function simulateInnings(
   battingSubs: Player[] = [],
   bowlingSubs: Player[] = [],
   rng: RNG = Math.random,
+  mods: ModRun = NO_MODS,
+  superOver = false,
 ): InningsScore {
   const innings = emptyInnings(battingTeam.id);
   const battingOrder = battingTeam.getBattingOrder(xi);
@@ -608,7 +668,7 @@ function simulateInnings(
   }
 
   // Bowling allocation: each bowler can bowl max 4 overs (or 1 in super over)
-  const maxOversPerBowler = maxOvers === 1 ? 1 : 4;
+  const maxOversPerBowler = (superOver || maxOvers === 1) ? 1 : (mods.format?.maxOversPerBowler ?? 4);
   const bowlerOvers = new Map<string, number>();
   for (const b of bowlers) bowlerOvers.set(b.id, 0);
 
@@ -620,7 +680,7 @@ function simulateInnings(
 
   for (let over = 0; over < maxOvers; over++) {
     // ── Impact Player evaluation (between overs) ──
-    if (maxOvers > 1) { // not in super over
+    if (!superOver && maxOvers > 1) { // not in super over
       // Batting team impact sub
       if (!battingImpactUsed && availBattingSubs.length > 0) {
         const decision = evaluateBattingImpact(
@@ -704,6 +764,18 @@ function simulateInnings(
         innings.wickets,
         venue,
         rng,
+        // Super overs keep the standard phase tables; the format only reshapes the main innings
+        superOver ? { hooks: mods.hooks, format: null } : mods,
+        mods.hooks
+          ? {
+              innings: isSecondInnings ? 2 : 1,
+              ball: legalBalls + 1,
+              maxOvers,
+              venue: { id: venue.id, name: venue.name, pitch: venue.pitchType, boundary: venue.boundarySize, dew: venue.dewFactor, bowlingRating: venue.stadiumBowlRating },
+              format: superOver ? null : mods.format,
+            }
+          : undefined,
+        superOver ? 120 : maxOvers * 6,
       );
 
       event.ball = legalBalls + 1;
@@ -1210,6 +1282,13 @@ export function simulateMatch(
   const rng = createRNG(seed ?? randomSeed());
   const matchId = `match_${++matchCounter}`;
 
+  // Mods: hooks (explicit override or the process-wide registry) and a custom match format
+  const hooks = options?.hooks !== undefined ? options.hooks : getEngineHooks();
+  const format = resolveMatchFormat(hooks);
+  const mods: ModRun = hooks ? { hooks, format } : NO_MODS;
+  const matchOvers = format?.overs ?? DEFAULT_MATCH_FORMAT.overs;
+  const superOverOvers = format?.superOverOvers ?? DEFAULT_MATCH_FORMAT.superOverOvers;
+
   const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
   const awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI);
 
@@ -1235,9 +1314,9 @@ export function simulateMatch(
   const innings1 = simulateInnings(
     battingFirst, bowlingFirst,
     firstXI, firstBowlXI,
-    false, 0, venue, 20,
+    false, 0, venue, matchOvers,
     firstBatSubs, firstBowlSubs,
-    rng,
+    rng, mods,
   );
 
   // Second innings
@@ -1250,9 +1329,9 @@ export function simulateMatch(
   const innings2 = simulateInnings(
     bowlingFirst, battingFirst,
     secondXI, secondBowlXI,
-    true, target, venue, 20,
+    true, target, venue, matchOvers,
     secondBatSubs, secondBowlSubs,
-    rng,
+    rng, mods,
   );
 
   // Determine winner
@@ -1267,8 +1346,8 @@ export function simulateMatch(
     margin = `${innings1.runs - innings2.runs} runs`;
   } else {
     // Tie -> Super Over (no impact subs in super over)
-    let so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1, [], [], rng);
-    let so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1, [], [], rng);
+    let so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, superOverOvers, [], [], rng, mods, true);
+    let so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, superOverOvers, [], [], rng, mods, true);
 
     if (so2.runs > so1.runs) {
       winnerId = bowlingFirst.id;
@@ -1276,8 +1355,8 @@ export function simulateMatch(
       winnerId = battingFirst.id;
     } else if (rules.superOverTieBreaker === "repeated-super-over") {
       while (so2.runs === so1.runs) {
-        so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1, [], [], rng);
-        so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1, [], [], rng);
+        so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, superOverOvers, [], [], rng, mods, true);
+        so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, superOverOvers, [], [], rng, mods, true);
       }
       winnerId = so2.runs > so1.runs ? bowlingFirst.id : battingFirst.id;
     } else {
@@ -1305,14 +1384,14 @@ export function simulateMatch(
     const awayBowling = battingFirst === awayTeam ? innings2 : innings1;
 
     homeTeam.runsFor += homeBatting.runs;
-    homeTeam.ballsFacedFor += getNRRBallDenominator(homeBatting);
+    homeTeam.ballsFacedFor += getNRRBallDenominator(homeBatting, matchOvers);
     homeTeam.runsAgainst += homeBowling.runs;
     homeTeam.ballsFacedAgainst += homeBowling.totalBalls;
     homeTeam.wicketsTaken += homeBowling.wickets;
     homeTeam.updateNRR();
 
     awayTeam.runsFor += awayBatting.runs;
-    awayTeam.ballsFacedFor += getNRRBallDenominator(awayBatting);
+    awayTeam.ballsFacedFor += getNRRBallDenominator(awayBatting, matchOvers);
     awayTeam.runsAgainst += awayBowling.runs;
     awayTeam.ballsFacedAgainst += awayBowling.totalBalls;
     awayTeam.wicketsTaken += awayBowling.wickets;

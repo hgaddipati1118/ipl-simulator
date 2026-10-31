@@ -25,6 +25,18 @@ import {
   type PitchType,
 } from "./matchups.js";
 import { generateBallCommentary } from "./commentary.js";
+import {
+  applyBallProbabilityHooks,
+  buildBallContext,
+  derivedHookRng,
+  getEngineHooks,
+  normalizeOver,
+  resolveMatchFormat,
+  toHookPlayer,
+  venueIdForTeam,
+  type BallHookInfo,
+  type MatchFormat,
+} from "./mod-hooks.js";
 import { checkRainInterruption, calculateDLSTarget, canProduceResult, getRainDelayNarrative } from "./dls.js";
 import type {
   BallOutcome,
@@ -310,6 +322,11 @@ interface MatchStateInternal {
   homeBenchIds: string[];
   awayBenchIds: string[];
 
+  // Venue identity and non-default match format (set by mods; absent on older saves)
+  venueId?: string;
+  venueName?: string;
+  format?: MatchFormat;
+
   // Pitch conditions (from home team config)
   pitchType: "flat" | "seaming" | "turning" | "balanced";
   boundarySize: "small" | "medium" | "large";
@@ -544,11 +561,15 @@ function runOneBall(
   rng: RNG = Math.random,
   isHomeBatting: boolean = false,
   isDayNight: boolean = true,
+  hookInfo?: BallHookInfo,
 ): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped" } {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
+  // Non-standard formats (mods) squeeze phases onto the 20-over timeline; identity otherwise
+  const nOver = normalizeOver(over, hookInfo?.format);
+
   // Phase adjustment
-  const phase = getMatchPhase(over);
+  const phase = getMatchPhase(nOver);
   const phaseMult = PHASE_MULTIPLIERS[phase];
   for (const key of Object.keys(probs) as BallOutcome[]) {
     probs[key] *= phaseMult[key] ?? 1;
@@ -564,7 +585,7 @@ function runOneBall(
 
   // Ball change rule (IPL 2026): bowling team can request ball change after over 10 in 2nd innings
   // Addresses dew — replacement ball has similar wear but is drier, helping pace bowlers grip
-  if (isSecondInnings && over >= 10 && isPaceBowler(bowler.bowlingStyle)) {
+  if (isSecondInnings && nOver >= 10 && isPaceBowler(bowler.bowlingStyle)) {
     probs.wicket *= 1.08; // 8% more wickets (drier ball = better grip)
     probs["4"] *= 0.95;   // slightly harder to time
     probs.dot *= 1.04;    // more dots due to better control
@@ -574,7 +595,7 @@ function runOneBall(
   const matchupMods = getMatchupModifiers({
     bowlingStyle: bowler.bowlingStyle,
     battingHand: batter.battingHand,
-    over,
+    over: nOver,
     pitchType,
     boundarySize,
     dewFactor,
@@ -607,14 +628,15 @@ function runOneBall(
   // Chase context
   if (isSecondInnings && ballsRemaining > 0) {
     const requiredRate = ((target - currentScore) / ballsRemaining) * 6;
-    const currentRate = ballsRemaining < 120
-      ? (currentScore / (120 - ballsRemaining)) * 6
+    const totalBalls = hookInfo?.format ? hookInfo.format.overs * 6 : 120;
+    const currentRate = ballsRemaining < totalBalls
+      ? (currentScore / (totalBalls - ballsRemaining)) * 6
       : 0;
     probs = chaseAdjustment(probs, requiredRate, currentRate, wicketsDown);
   }
 
   // Clutch factor for last 3 overs in close games
-  if (over >= 17 && isSecondInnings) {
+  if (nOver >= 17 && isSecondInnings) {
     const runsNeeded = target - currentScore;
     if (runsNeeded > 0 && runsNeeded <= 30) {
       const clutchBalance = (batter.ratings.clutch - bowler.ratings.clutch) / 100;
@@ -628,7 +650,7 @@ function runOneBall(
     batterBalls,
     bowlerOversBowled,
     bowlingStyle: bowler.bowlingStyle,
-    over,
+    over: nOver,
   });
 
   // ── Home field advantage ──
@@ -654,6 +676,17 @@ function runOneBall(
   probs["6"] *= 1.15;
   probs.dot *= 0.92;
   probs.wicket *= 0.95;
+
+  // Mod hook: adjust the final probabilities just before sampling
+  const hooks = hookInfo ? getEngineHooks() : null;
+  if (hooks?.ballProbabilities && hookInfo) {
+    // Hooks get a seeded stream derived from the match rng so peers stay in sync
+    const hookRng = derivedHookRng(rng);
+    probs = applyBallProbabilityHooks(hooks, () => buildBallContext(
+      toHookPlayer(batter), toHookPlayer(bowler), over, target, currentScore, wicketsDown,
+      ballsRemaining, hookInfo, hookRng,
+    ), probs);
+  }
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
@@ -787,6 +820,7 @@ export function createMatchState(
   const bowlingFirst = battingFirst === homeTeam ? awayTeam : homeTeam;
 
   const stadiumRating = (homeTeam.config.stadiumBowlingRating ?? 1.0) * (2 - rules.scoringMultiplier);
+  const format = resolveMatchFormat();
 
   const firstXI = battingFirst === homeTeam ? homeXI : awayXI;
   const firstBowlXI = battingFirst === homeTeam ? awayXI : homeXI;
@@ -923,7 +957,7 @@ export function createMatchState(
       home: { used: false },
       away: { used: false },
     },
-    maxOvers: 20,
+    maxOvers: format?.overs ?? 20,
     rainChecked: false,
 
     _internal: {
@@ -937,7 +971,7 @@ export function createMatchState(
       battingOrderIds: battingOrder.map(p => p.id),
       bowlingOrderIds: bowlingOrder.map(p => p.id),
       bowlerOvers,
-      maxOversPerBowler: 4,
+      maxOversPerBowler: format?.maxOversPerBowler ?? 4,
       lastBowlerId: null,
       battingImpactUsed: false,
       bowlingImpactUsed: false,
@@ -951,6 +985,9 @@ export function createMatchState(
       userTeamId,
       homeBenchIds,
       awayBenchIds,
+      venueId: venueIdForTeam(homeTeam.id),
+      venueName: homeTeam.config.stadiumName ?? homeTeam.config.city,
+      ...(format ? { format } : {}),
       pitchType,
       boundarySize,
       dewFactor,
@@ -1053,6 +1090,24 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     }
   }
 
+  const modHooks = getEngineHooks();
+  const hookInfo: BallHookInfo | undefined = modHooks
+    ? {
+        innings: state.innings,
+        ball: int.currentOverLegalBalls + 1,
+        maxOvers,
+        venue: {
+          id: int.venueId ?? venueIdForTeam(state.homeTeam.id),
+          name: int.venueName ?? state.homeTeam.name,
+          pitch: int.pitchType,
+          boundary: int.boundarySize,
+          dew: int.dewFactor,
+          bowlingRating: int.stadiumRating,
+        },
+        format: int.format ?? null,
+      }
+    : undefined;
+
   const result = runOneBall(
     effectiveStriker,
     effectiveBowler,
@@ -1075,6 +1130,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     rng,
     state.battingTeamId === state.homeTeam.id, // isHomeBatting
     true, // isDayNight (all IPL matches are day-night)
+    hookInfo,
   );
 
   // Clone state for mutation
@@ -1394,6 +1450,17 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   if (_drsOverturns !== undefined) (rawBall as any)._drsOverturns = _drsOverturns;
   if (_drsMarginal !== undefined) (rawBall as any)._drsMarginal = _drsMarginal;
   rawInnings.ballLog.push(rawBall);
+
+  // Mod hook: read-only observer (DRS reviews still pending for the user can alter it later)
+  if (modHooks?.onBall && hookInfo) {
+    modHooks.onBall(
+      buildBallContext(
+        toHookPlayer(effectiveStriker), toHookPlayer(effectiveBowler), state.overs, target, state.score,
+        state.wickets, ballsRemaining, hookInfo, createRNG(0),
+      ),
+      { outcome: result.outcome, runs: result.runs, extras: result.extras, isWicket: result.isWicket },
+    );
+  }
 
   if (isExtra) {
     // Extra: no legal delivery count, just add runs

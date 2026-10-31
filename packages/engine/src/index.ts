@@ -191,3 +191,11 @@ export type { YouthProspect } from "./youth-academy.js";
 
 export { calculateFantasyPoints, accumulateFantasyPoints, enrichFantasyNames } from "./fantasy.js";
 export type { FantasyPoints } from "./fantasy.js";
+
+export {
+  setEngineHooks, getEngineHooks, resolveMatchFormat, normalizeOver, venueIdForTeam,
+  DEFAULT_MATCH_FORMAT,
+} from "./mod-hooks.js";
+export type {
+  EngineHooks, BallHookContext, BallHookEvent, BallProbabilities, HookPlayer, HookVenue, MatchFormat,
+} from "./mod-hooks.js";
