@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { ModPanels } from "../components/ModPanels";
 import {
   GameState,
   getBoardExpectation,
@@ -99,6 +100,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="empty:hidden mb-4"><ModPanels slot="season.header" state={state} /></div>
       {/* User team hero card */}
       {userTeam && userTeam.matchesPlayed > 0 && (
         <div

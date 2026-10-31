@@ -49,7 +49,7 @@
 /* ── Base ────────────────────────────────────────────────────────────── */
 
 body {
-  font-family: "Outfit", system-ui, sans-serif;
+  font-family: var(--mod-font-body, "Outfit", system-ui, sans-serif);
   margin: 0;
   background: var(--th-body);
   color: var(--th-text-primary);

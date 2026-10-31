@@ -1,4 +1,6 @@
 import { useEffect, useMemo } from "react";
+import { ModPanels } from "../components/ModPanels";
+import type { GameState } from "../game-state";
 import { useParams, useNavigate } from "react-router-dom";
 import { Team, type RuleSet, DEFAULT_RULES } from "@ipl-sim/engine";
 import { ovrBgClass, roleLabel, bowlingStyleLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
@@ -24,9 +26,11 @@ interface Props {
   userTeamId: string | null;
   onScoutTeam?: (teamId: string, amount?: number) => void;
   onToggleScoutAssignment?: (teamId: string) => void;
+  /** Game snapshot source for mod panels in the team.sidebar slot. */
+  modState?: GameState | null;
 }
 
-export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssignments, recruitment, userTeamId, onScoutTeam, onToggleScoutAssignment }: Props) {
+export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssignments, recruitment, userTeamId, onScoutTeam, onToggleScoutAssignment, modState = null }: Props) {
   const { teamId } = useParams();
   const navigate = useNavigate();
   const team = teams.find(t => t.id === teamId);
@@ -58,6 +62,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="empty:hidden mb-4"><ModPanels slot="team.sidebar" state={modState} /></div>
       <button onClick={() => navigate(-1)} className="text-th-muted hover:text-th-primary text-sm mb-5 font-display flex items-center gap-1.5 transition-colors">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         Back

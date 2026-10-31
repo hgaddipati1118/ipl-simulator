@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ModPanels } from "../components/ModPanels";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { GameState } from "../game-state";
 import { getMatchDetail } from "../match-db";
@@ -149,6 +150,7 @@ export function MatchPage({ state }: Props) {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="empty:hidden mb-4"><ModPanels slot="match.summary" state={state} /></div>
       {/* Navigation bar */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button onClick={() => navigate("/season")} className="text-th-secondary hover:text-th-primary text-sm">
