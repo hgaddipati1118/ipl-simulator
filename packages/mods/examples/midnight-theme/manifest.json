@@ -1,0 +1,8 @@
+{
+  "id": "midnight-theme",
+  "name": "Midnight",
+  "version": "1.0.0",
+  "sdk": "1",
+  "hooks": ["ui.theme"],
+  "description": "A deep navy dark theme with a warm serif body font."
+}

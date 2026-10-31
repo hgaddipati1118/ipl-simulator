@@ -1,0 +1,8 @@
+{
+  "id": "spin-friendly-chennai",
+  "name": "Spin-friendly Chepauk",
+  "version": "1.0.0",
+  "sdk": "1",
+  "hooks": ["engine.ballProbabilities"],
+  "description": "Spinners matter more at Chepauk: 15% more wickets and 8% more dot balls when a spinner is bowling there."
+}
