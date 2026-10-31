@@ -102,7 +102,7 @@ export class MultiplayerGuest {
   onMessage: (data: unknown) => void = () => {};
   onDisconnect: () => void = () => {};
 
-  async join(roomCode: string, playerName: string): Promise<void> {
+  async join(roomCode: string, playerName: string, mods: string[] = []): Promise<void> {
     const hostPeerId = ROOM_PREFIX + roomCode.toUpperCase();
 
     return new Promise((resolve, reject) => {
@@ -118,7 +118,7 @@ export class MultiplayerGuest {
           this.connection = conn;
           console.log("[Guest] Connected to host");
           // Send join message
-          conn.send({ type: "join", name: playerName });
+          conn.send({ type: "join", name: playerName, mods });
           resolve();
         });
 

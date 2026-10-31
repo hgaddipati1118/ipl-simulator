@@ -8,6 +8,8 @@ export interface LobbyPlayer {
   teamId: string | null; // null = hasn't picked yet
   isHost: boolean;
   isCPU: boolean;
+  /** Set by the host when this player's engine mods differ from the host's; the auction cannot start until fixed. */
+  modsNote?: string;
 }
 
 export interface AuctionPlayerInfo {
@@ -41,7 +43,7 @@ export interface TeamBudgetInfo {
 // ── Messages from Guest → Host ──────────────────────────────────────────
 
 export type GuestMessage =
-  | { type: "join"; name: string }
+  | { type: "join"; name: string; /** Ordered `id@hash` of the guest's enabled engine mods. Absent = none. */ mods?: string[] }
   | { type: "pick-team"; teamId: string }
   | { type: "bid" }
   | { type: "pass" }
@@ -51,7 +53,7 @@ export type GuestMessage =
 // ── Messages from Host → All ────────────────────────────────────────────
 
 export type HostMessage =
-  | { type: "lobby-state"; players: LobbyPlayer[]; teams: TeamBudgetInfo[]; roomCode: string; phase: RoomPhase }
+  | { type: "lobby-state"; players: LobbyPlayer[]; teams: TeamBudgetInfo[]; roomCode: string; phase: RoomPhase; modFingerprint?: string[] }
   | { type: "auction-state"; state: MultiAuctionState }
   | { type: "bid-update"; teamId: string; teamName: string; amount: number; bidderName: string }
   | { type: "sold"; playerId: string; playerName: string; teamId: string; teamName: string; amount: number }

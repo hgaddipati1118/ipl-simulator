@@ -11,6 +11,7 @@ import type {
 } from "../multiplayer/protocol";
 import { RULE_PRESETS, IPL_TEAMS, type RuleSet } from "@ipl-sim/engine";
 import { TeamBadge } from "../components/TeamBadge";
+import { currentModFingerprint } from "../mods/registry";
 
 type Mode = "choose" | "host" | "guest";
 
@@ -147,7 +148,9 @@ export function LobbyPage() {
   }, []);
 
   const handleStartAuction = useCallback(() => {
-    logicRef.current?.startAuction();
+    const result = logicRef.current?.startAuction();
+    if (result && !result.ok) setError(result.error ?? "Cannot start: engine mods differ between players");
+    else setError("");
   }, []);
 
   // ── Guest Flow ──
@@ -184,7 +187,7 @@ export function LobbyPage() {
         setMode("choose");
       };
 
-      await guest.join(roomCode.trim(), name.trim());
+      await guest.join(roomCode.trim(), name.trim(), currentModFingerprint());
       setMode("guest");
     } catch (err: any) {
       setError(err?.message ?? "Failed to join room");
@@ -499,6 +502,16 @@ export function LobbyPage() {
         </div>
       </div>
 
+      {players.some(p => p.modsNote) && (
+        <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
+          <p className="font-semibold mb-1">Engine mods do not match, so the auction cannot start.</p>
+          <ul className="list-disc pl-5">
+            {players.filter(p => p.modsNote).map(p => <li key={p.peerId}>{p.name}: {p.modsNote}</li>)}
+          </ul>
+          <p className="mt-1 text-amber-300/80">Everyone needs the same simulation-affecting mods, in the same order (Mods page).</p>
+        </div>
+      )}
+
       {/* Host Actions */}
       {isHost && (
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -510,7 +523,7 @@ export function LobbyPage() {
           </button>
           <button
             onClick={handleStartAuction}
-            disabled={!allTeamsAssigned}
+            disabled={!allTeamsAssigned || players.some(p => p.modsNote)}
             className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-2.5 text-sm font-display font-semibold text-white shadow-lg shadow-orange-500/20 transition-all duration-200 hover:from-orange-400 hover:to-amber-400 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             Start Auction

@@ -18,6 +18,8 @@ import type {
 } from "./protocol";
 import { BID_TIMER_SECONDS } from "./protocol";
 import { MultiplayerHost } from "./peer";
+import { compareFingerprints } from "@ipl-sim/mods";
+import { currentModFingerprint } from "../mods/registry";
 
 export class HostGameLogic {
   private host: MultiplayerHost;
@@ -33,10 +35,14 @@ export class HostGameLogic {
   private phase: RoomPhase = "lobby";
   private rules: RuleSet;
   private onStateChange: (state: MultiAuctionState) => void = () => {};
+  /** Engine-mod fingerprint each connected guest reported on joining. */
+  private peerMods = new Map<string, string[]>();
+  private getFingerprint: () => string[];
 
-  constructor(host: MultiplayerHost, rules: RuleSet) {
+  constructor(host: MultiplayerHost, rules: RuleSet, getFingerprint: () => string[] = currentModFingerprint) {
     this.host = host;
     this.rules = rules;
+    this.getFingerprint = getFingerprint;
 
     // Add host as first player
     this.players.push({
@@ -99,8 +105,30 @@ export class HostGameLogic {
     this.broadcastLobbyState();
   }
 
-  /** Start the auction */
-  startAuction() {
+  /**
+   * Human guests whose engine mods differ from the host's, with the reason. Engine mods change
+   * simulation results, so a match between mismatched peers would silently diverge.
+   */
+  modMismatches(): { peerId: string; name: string; reason: string }[] {
+    const mine = this.getFingerprint();
+    const out: { peerId: string; name: string; reason: string }[] = [];
+    for (const p of this.players) {
+      if (p.isHost || p.isCPU) continue;
+      const cmp = compareFingerprints(mine, this.peerMods.get(p.peerId) ?? [], ["the host", p.name]);
+      if (!cmp.ok) out.push({ peerId: p.peerId, name: p.name, reason: cmp.reason! });
+    }
+    return out;
+  }
+
+  /** Start the auction. Refuses (and tells everyone why) while any peer's engine mods differ from the host's. */
+  startAuction(): { ok: boolean; error?: string } {
+    const mismatches = this.modMismatches();
+    if (mismatches.length > 0) {
+      const error = mismatches.map(m => `${m.name}: ${m.reason}`).join(". ");
+      this.host.broadcast({ type: "error", message: error } satisfies HostMessage);
+      this.broadcastLobbyState();
+      return { ok: false, error };
+    }
     this.phase = "auction";
 
     // Load players
@@ -124,6 +152,7 @@ export class HostGameLogic {
     this.currentPlayerIdx = 0;
     this.startNextPlayer();
     this.broadcastAuctionState();
+    return { ok: true };
   }
 
   private startNextPlayer() {
@@ -350,6 +379,7 @@ export class HostGameLogic {
   private handleMessage(peerId: string, msg: GuestMessage) {
     switch (msg.type) {
       case "join": {
+        this.peerMods.set(peerId, Array.isArray(msg.mods) ? msg.mods.filter(m => typeof m === "string") : []);
         // Check if this is a reconnecting player (same name, currently CPU)
         const reconnecting = this.players.find(p =>
           p.isCPU && p.name.includes(msg.name) && p.teamId
@@ -411,6 +441,7 @@ export class HostGameLogic {
   }
 
   private handleDisconnect(peerId: string) {
+    this.peerMods.delete(peerId);
     const player = this.players.find(p => p.peerId === peerId);
     if (player?.teamId) {
       // Convert to CPU but keep the player name for reconnection matching
@@ -520,9 +551,11 @@ export class HostGameLogic {
   }
 
   private broadcastLobbyState() {
+    const mismatched = new Map(this.modMismatches().map(m => [m.peerId, m.reason]));
     const msg: HostMessage = {
       type: "lobby-state",
-      players: this.players,
+      players: this.players.map(p => (mismatched.has(p.peerId) ? { ...p, modsNote: mismatched.get(p.peerId) } : p)),
+      modFingerprint: this.getFingerprint(),
       teams: this.getTeamBudgets(),
       roomCode: this.host.roomCode,
       phase: this.phase,

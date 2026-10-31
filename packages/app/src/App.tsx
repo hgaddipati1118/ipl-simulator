@@ -27,6 +27,10 @@ import { TrainingPage } from "./pages/TrainingPage";
 import { HallOfFamePage } from "./pages/HallOfFamePage";
 import { LobbyPage } from "./pages/LobbyPage";
 import { MultiAuctionPage } from "./pages/MultiAuctionPage";
+import { ModsPage } from "./pages/ModsPage";
+import { ModScreenPage } from "./pages/ModScreenPage";
+import { initMods, currentModRecords } from "./mods/registry";
+import { describeSaveModMismatch } from "./mods/apply";
 import { getTeamLogo } from "./team-logos";
 import { useTheme } from "./hooks/useTheme";
 import {
@@ -174,6 +178,7 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
         {/* Desktop actions */}
         <div className="hidden md:flex items-center gap-1">
           {navLink("/saves", "Saves")}
+          {navLink("/mods", "Mods")}
           <ThemeToggle resolved={themeResolved} toggle={themeToggle} />
           <button onClick={onNewGame} className="text-red-400/70 hover:text-red-400 text-xs px-2.5 py-1.5 rounded-md hover:bg-red-500/10 transition-colors ml-2">New Game</button>
         </div>
@@ -210,6 +215,7 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
           <div className="border-t border-th mt-2 pt-2 flex flex-col gap-1">
             <span className="text-th-faint text-xs font-mono">Season {state.seasonNumber}</span>
             {navLink("/saves", "Saves & Data")}
+            {navLink("/mods", "Mods")}
             <button onClick={() => { themeToggle(); }} className="text-th-muted hover:text-th-primary text-sm text-left py-1.5 flex items-center gap-2">
               {themeResolved === "dark" ? "Light Mode" : "Dark Mode"}
             </button>
@@ -246,13 +252,16 @@ export default function App() {
   const [state, setState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [slots, setSlots] = useState<SaveSlotInfo[]>([]);
+  const [modNotice, setModNotice] = useState<string[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
 
   // Async load on mount — restore route based on saved game phase
   useEffect(() => {
-    loadState().then(saved => {
+    // Mods load first so data/rules mods are applied to the save and engine hooks are live before any match
+    initMods().then(() => loadState()).then(saved => {
       const gs = saved ?? createGameState();
+      setModNotice(describeSaveModMismatch(saved?.mods, currentModRecords()));
       setState(gs);
       setSlots(listSaveSlots());
       setLoading(false);
@@ -625,6 +634,7 @@ export default function App() {
     const loaded = await loadStateFromSlot(slotId);
     if (loaded) {
       setActiveSlotId(slotId);
+      setModNotice(describeSaveModMismatch(loaded.mods, currentModRecords()));
       setState(loaded);
       refreshSlots();
       navigate(loaded.userTeamId ? "/season" : "/");
@@ -687,6 +697,16 @@ export default function App() {
         themeResolved={themeResolved}
         themeToggle={themeToggle}
       />
+
+      {modNotice.length > 0 && (
+        <div role="status" className="bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-sm px-4 py-2 flex items-center gap-3">
+          <span className="flex-1">
+            This save was played with mods that are missing or changed: {modNotice.join(", ")}. Results may differ from before.{" "}
+            <a href="/mods" onClick={e => { e.preventDefault(); navigate("/mods"); }} className="underline underline-offset-2">Manage mods</a>
+          </span>
+          <button onClick={() => setModNotice([])} aria-label="Dismiss" className="text-amber-300/70 hover:text-amber-200">&times;</button>
+        </div>
+      )}
 
       <PageErrorBoundary>
       <Routes>
@@ -768,6 +788,7 @@ export default function App() {
             userTeamId={state.userTeamId}
             onScoutTeam={handleScoutTeam}
             onToggleScoutAssignment={handleToggleTeamScoutAssignment}
+            modState={state}
           />
         } />
         <Route path="/ratings" element={
@@ -847,6 +868,8 @@ export default function App() {
             onNewGame={handleNewGame}
           />
         } />
+        <Route path="/mods" element={<ModsPage />} />
+        <Route path="/mods/screen/:modId/:screenId" element={<ModScreenPage state={state} />} />
         <Route path="/multiplayer" element={<LobbyPage />} />
         <Route path="/multiplayer/auction" element={<MultiAuctionPage />} />
         <Route path="*" element={

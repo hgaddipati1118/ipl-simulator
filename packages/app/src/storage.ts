@@ -19,6 +19,9 @@ import type { GameState, SeasonSummary, CompletedTrade } from "./game-state";
 import { deleteSlotMatchData } from "./match-db";
 import { createScoutingState } from "./scouting";
 import { createRecruitmentState } from "./recruitment";
+import { applyPendingMods } from "./mods/apply";
+import { currentModRecords } from "./mods/registry";
+import type { ModRecord } from "@ipl-sim/mods";
 
 // ── IndexedDB Store ──────────────────────────────────────────────────────
 
@@ -100,6 +103,9 @@ interface SaveMeta {
   currentMatchIndex?: number;
   playoffsStarted?: boolean;
   needsLineup?: boolean;
+  // Mods enabled at save time, and the data/rules mods already applied to this save
+  mods?: ModRecord[];
+  modsApplied?: string[];
 }
 
 export interface SaveSlotInfo {
@@ -313,6 +319,8 @@ export async function saveState(state: GameState): Promise<void> {
     currentMatchIndex: state.currentMatchIndex,
     playoffsStarted: state.playoffsStarted,
     needsLineup: state.needsLineup,
+    mods: currentModRecords(),
+    modsApplied: state.modsApplied,
   };
 
   try {
@@ -410,7 +418,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
     const teams = deserializeTeams(teamsData);
     const playerPool = deserializePlayers(poolData);
 
-    return {
+    const loaded: GameState = {
       phase: meta.phase,
       rules: meta.rules ?? DEFAULT_RULES,
       teams,
@@ -443,7 +451,11 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       auctionLiveState: auctionLiveStateRaw
         ? deserializeAuctionLiveState(auctionLiveStateRaw) : undefined,
       hallOfFame: hallOfFame ?? [],
+      mods: meta.mods,
+      modsApplied: meta.modsApplied,
     };
+    // Data/rules mods installed since this save was last played are applied once, here
+    return applyPendingMods(loaded);
   } catch {
     return null;
   }

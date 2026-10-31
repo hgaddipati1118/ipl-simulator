@@ -61,6 +61,8 @@ import {
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
+import { applyPendingMods, applyRulesMods, pendingDataMods } from "./mods/apply";
+import type { ModRecord } from "@ipl-sim/mods";
 import { buildNarrativeEventsForEngineResult, prependNarrativeEvents, type FeedMatchResult } from "./news-feed";
 import {
   boostPlayerScouting,
@@ -167,6 +169,10 @@ export interface GameState {
 
   // Hall of Fame — retired legends with career summaries
   hallOfFame?: HallOfFameEntry[];
+
+  // Mods: those enabled when this save was last written, and the data/rules mods (id@hash) already applied to it
+  mods?: ModRecord[];
+  modsApplied?: string[];
 }
 
 export interface HallOfFameEntry {
@@ -372,6 +378,12 @@ function refreshUserContractState(state: GameState): GameState {
 
 /** Initialize fresh game state */
 export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
+  // Rules mods run first so they can change which teams exist; data mods run on the built game
+  const moddedRules = applyRulesMods(rules, pendingDataMods({}));
+  return applyPendingMods(createBaseGameState(moddedRules), { skipRules: true });
+}
+
+function createBaseGameState(rules: RuleSet): GameState {
   const isWPL = rules.league === "wpl";
   const isCustom = rules.league === "custom";
   const allTeamConfigs = [...IPL_TEAMS, ...WPL_TEAMS];
@@ -1042,6 +1054,10 @@ export function finalizeSeason(state: GameState): GameState {
 
 /** Progress players, run retention, enter trade window */
 export function nextSeason(state: GameState): GameState {
+  return applyPendingMods(advanceSeason(state));
+}
+
+function advanceSeason(state: GameState): GameState {
   const trainingReport: TrainingReportEntry[] = [];
 
   // Progress all players (age, ratings)
