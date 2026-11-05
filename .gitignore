@@ -8,3 +8,9 @@ test-results/
 .serena/
 PLAN.md
 packages/ratings/data/
+
+# Worker secrets for local dev
+.dev.vars
+.wrangler/
+__pycache__/
+*.pyc
