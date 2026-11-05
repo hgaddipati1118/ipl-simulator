@@ -14,7 +14,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, createReadStream } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
-import { fetchPage, isCached } from "./fetcher.js";
+import { closeFetcher, fetchPage, isCached } from "./fetcher.js";
 import { parsePlayerProfile } from "./parse-stats.js";
 import { BASE_URL, INDEX_DIR, OUTPUT_DIR } from "./config.js";
 import type { PlayerIndexEntry } from "./build-index.js";
@@ -186,4 +186,4 @@ const resume = args.includes("--resume");
 const limitIdx = args.indexOf("--limit");
 const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1], 10) : undefined;
 
-scrapeCountry(countryCode.toUpperCase(), { resume, limit }).catch(console.error);
+scrapeCountry(countryCode.toUpperCase(), { resume, limit }).catch(console.error).finally(closeFetcher);

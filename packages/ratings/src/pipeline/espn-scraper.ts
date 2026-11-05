@@ -19,12 +19,17 @@
  *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --normalize-only
  *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --resolve-wpl-only
  *   npx tsx packages/ratings/src/pipeline/espn-scraper.ts --resolve-women-elite-only
+ *
+ * By default this attaches to your running Chrome (see user-chrome.ts); a fresh Playwright
+ * profile now gets "Access Denied" from Akamai. Pass --own-browser for the old launcher.
  */
 
 import { chromium, type BrowserContext, type Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 import { WPL_2025_ROSTERS } from '../wpl-rosters.js';
+import { asideFetchBatch } from './aside-browser.js';
+import { connectUserChrome, fetchInPage, type BrowserPage } from './user-chrome.js';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -86,10 +91,14 @@ interface PlayerIndexEntry {
 
 // ── Constants ────────────────────────────────────────────────────────────
 
-const DATA_DIR = path.resolve('packages/ratings/data/scraped');
+const DATA_DIR = new URL('../../data/scraped', import.meta.url).pathname;
 const ESPN_PLAYERS_FILE = path.join(DATA_DIR, 'espn-players.json');
 const ESPN_INDEX_FILE = path.join(DATA_DIR, 'espn-player-index.json');
-const CRICSHEET_T20I_DIR = path.resolve('packages/ratings/data/cricsheet/t20s_json');
+const CRICSHEET_T20I_DIR = new URL('../../data/cricsheet/t20s_json', import.meta.url).pathname;
+/** Written by cricsheet-players.ts; carries each player's cricinfo id from Cricsheet's register */
+const CRICSHEET_PLAYERS_FILE = path.join(DATA_DIR, 'cricsheet-players.json');
+/** Waits after an Akamai "Access Denied", escalating; one block cleared after ~15 min on 2026-10-30 */
+const BLOCK_BACKOFF_MS = [60_000, 120_000, 300_000, 600_000, 1_200_000, 1_800_000];
 const BROWSER_PROFILE_DIR = '/tmp/pw-espncricinfo-profile';
 const WOMEN_TEAM_PATTERN = /\bwomen\b|\(women\)|supernovas|trailblazers|velocity\b|girls\b/i;
 const SEARCH_USER_AGENT = 'Mozilla/5.0';
@@ -354,15 +363,21 @@ function loadLatestWomenWorldCupNamesFromCricsheet(): string[] {
   return latestYear > 0 ? [...(namesByYear.get(latestYear) ?? new Set<string>())] : [];
 }
 
+/** Every Cricsheet match (all formats and leagues); falls back to T20Is only if it isn't downloaded */
+const CRICSHEET_ALL_DIR = new URL('../../data/cricsheet/all_json', import.meta.url).pathname;
+
 function loadAllWomenCricsheetNames(): string[] {
-  if (!fs.existsSync(CRICSHEET_T20I_DIR)) return [];
+  const dir = fs.existsSync(CRICSHEET_ALL_DIR) ? CRICSHEET_ALL_DIR : CRICSHEET_T20I_DIR;
+  if (!fs.existsSync(dir)) return [];
 
   const names = new Set<string>();
-  const files = fs.readdirSync(CRICSHEET_T20I_DIR).filter((file) => file.endsWith('.json') && !file.startsWith('README'));
+  const files = fs.readdirSync(dir).filter((file) => file.endsWith('.json') && !file.startsWith('README'));
 
   for (const file of files) {
     try {
-      const match = JSON.parse(fs.readFileSync(path.join(CRICSHEET_T20I_DIR, file), 'utf-8'));
+      const raw = fs.readFileSync(path.join(dir, file), 'utf-8');
+      if (!raw.includes('"female"')) continue;
+      const match = JSON.parse(raw);
       const info = match?.info as Record<string, any> | undefined;
       if (info?.gender !== 'female') continue;
 
@@ -484,6 +499,46 @@ function loadIndex(): Map<number, PlayerIndexEntry> {
 
 function saveIndex(index: Map<number, PlayerIndexEntry>): void {
   fs.writeFileSync(ESPN_INDEX_FILE, JSON.stringify(Array.from(index.values()), null, 2));
+}
+
+/**
+ * Add every 2021+ T20 player Cricsheet knows (8k+, men and women, all major leagues) using
+ * the cricinfo ids from its people register. No requests needed; the slug is unknown, but
+ * /cricketers/player-{id} redirects to the real profile.
+ */
+function addCricsheetPlayersToIndex(index: Map<number, PlayerIndexEntry>): void {
+  if (!fs.existsSync(CRICSHEET_PLAYERS_FILE)) {
+    console.log('  No cricsheet-players.json; run cricsheet-players.ts to index every recent T20 player');
+    return;
+  }
+  const players: { name: string; cricinfoId?: number }[] = JSON.parse(fs.readFileSync(CRICSHEET_PLAYERS_FILE, 'utf-8'));
+  let added = 0;
+  for (const p of players) {
+    if (!p.cricinfoId || index.has(p.cricinfoId)) continue;
+    index.set(p.cricinfoId, { name: p.name, slug: 'player', espnId: p.cricinfoId, source: 'cricsheet' });
+    added++;
+  }
+  console.log(`  Cricsheet register: +${added} players (index now ${index.size})`);
+}
+
+function isAccessDenied(title: string): boolean {
+  return title.includes('Access Denied');
+}
+
+/**
+ * Akamai rate-limits by session/IP. Wait with escalating backoff, reloading the homepage to
+ * refresh the sensor cookie, until a probe URL loads. Returns false if still blocked at the end.
+ */
+async function waitOutBlock(page: BrowserPage, probeUrl: string): Promise<boolean> {
+  for (const waitMs of BLOCK_BACKOFF_MS) {
+    console.log(`  ⚠ Access Denied; backing off ${waitMs / 60_000} min`);
+    await delay(waitMs);
+    await page.goto(ESPN_ORIGIN, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    await delay(3000);
+    const probe = await fetchInPage(page, probeUrl).catch(() => ({ status: 0, text: '' }));
+    if (probe.status === 200 && !isAkamaiChallenge(probe)) return true;
+  }
+  return false;
 }
 
 function normalizeSearchName(name: string): string {
@@ -707,6 +762,29 @@ async function searchPlayerByName(playerName: string, source: string = SEARCH_SO
   return ranked[0].entry;
 }
 
+const CRICSHEET_PEOPLE_FILE = new URL('../../data/cricsheet/people.csv', import.meta.url).pathname;
+
+/** Cricsheet name -> Cricinfo id, for names that map to exactly one id */
+function loadCricsheetRegister(): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!fs.existsSync(CRICSHEET_PEOPLE_FILE)) return out;
+  const [header, ...lines] = fs.readFileSync(CRICSHEET_PEOPLE_FILE, 'utf-8').trim().split('\n');
+  const cols = header.split(',');
+  const nameCol = cols.indexOf('name'), uniqueCol = cols.indexOf('unique_name'), idCol = cols.indexOf('key_cricinfo');
+  const ambiguous = new Set<string>();
+  for (const line of lines) {
+    const f = line.split(',');
+    const id = parseInt(f[idCol], 10);
+    if (!Number.isFinite(id)) continue;
+    for (const name of new Set([f[nameCol], f[uniqueCol]])) {
+      if (!name || ambiguous.has(name)) continue;
+      if (out.has(name) && out.get(name) !== id) { out.delete(name); ambiguous.add(name); continue; }
+      out.set(name, id);
+    }
+  }
+  return out;
+}
+
 async function resolvePlayerNamesFromSearch(
   index: Map<number, PlayerIndexEntry>,
   playerNames: string[],
@@ -718,7 +796,20 @@ async function resolvePlayerNamesFromSearch(
 
   console.log(`\n━━━ Resolving ${options.label} from ESPN Search ━━━`);
 
+  const register = loadCricsheetRegister();
+  let fromRegister = 0;
   for (const playerName of playerNames) {
+    // Cricsheet's register maps its names to Cricinfo ids exactly; ESPN's old search page no longer lists players
+    const registerId = register.get(playerName);
+    if (registerId) {
+      if (!index.has(registerId)) {
+        index.set(registerId, { name: playerName, slug: 'player', espnId: registerId, source: options.source });
+        fromRegister += 1;
+      } else {
+        alreadyIndexed += 1;
+      }
+      continue;
+    }
     if (hasIndexedNameMatch(index, playerName)) {
       alreadyIndexed += 1;
       continue;
@@ -741,6 +832,7 @@ async function resolvePlayerNamesFromSearch(
   saveIndex(index);
   console.log(`  Candidate names: ${playerNames.length}`);
   console.log(`  Already indexed via team pages/search: ${alreadyIndexed}`);
+  console.log(`  Added from the Cricsheet register: ${fromRegister}`);
   console.log(`  Added from ESPN search: ${added}`);
   if (unresolved.length > 0) {
     console.log(`  Still unresolved (${unresolved.length}): ${unresolved.join(', ')}`);
@@ -793,7 +885,7 @@ async function launchBrowser(): Promise<BrowserContext> {
 
 // ── Extract player links from a page ────────────────────────────────────
 
-async function extractPlayerLinks(page: Page): Promise<PlayerIndexEntry[]> {
+async function extractPlayerLinks(page: BrowserPage): Promise<PlayerIndexEntry[]> {
   return page.evaluate(() => {
     const seen = new Set<string>();
     return [...document.querySelectorAll('a')]
@@ -815,11 +907,17 @@ async function extractPlayerLinks(page: Page): Promise<PlayerIndexEntry[]> {
 
 // ── Step 1: Build player index from team pages ──────────────────────────
 
-async function buildPlayerIndex(page: Page): Promise<Map<number, PlayerIndexEntry>> {
-  const index = loadIndex();
-  const teamsScraped = new Set<string>();
+const TEAM_CRAWL_PROGRESS_FILE = new URL('../../data/scraped/espn-team-crawl-progress.json', import.meta.url).pathname;
 
-  // Track which teams we've already scraped (from index source field)
+/**
+ * With `resume`, skip team pages already crawled: those recorded in the progress file, plus any
+ * team that already contributed index entries (crawls from before the progress file existed).
+ */
+async function buildPlayerIndex(page: BrowserPage, resume = false): Promise<Map<number, PlayerIndexEntry>> {
+  const index = loadIndex();
+  const teamsScraped = new Set<string>(
+    fs.existsSync(TEAM_CRAWL_PROGRESS_FILE) ? JSON.parse(fs.readFileSync(TEAM_CRAWL_PROGRESS_FILE, 'utf-8')) : [],
+  );
   for (const [, entry] of index) {
     if (entry.source) teamsScraped.add(entry.source);
   }
@@ -831,27 +929,24 @@ async function buildPlayerIndex(page: Page): Promise<Map<number, PlayerIndexEntr
 
   for (const team of TEAM_PAGES) {
     const teamKey = `${team.slug}-${team.id}`;
+    if (resume && teamsScraped.has(teamKey)) continue;
 
     // Always re-check active players (they change)
-    const url = `https://www.espncricinfo.com/cricketers/team/${teamKey}`;
+    const url = `https://www.cricinfo.com/cricketers/team/${teamKey}`;
     process.stdout.write(`  ${team.name}...`);
 
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await delay(3000);
 
-      // Check for access denied
-      const title = await page.title();
-      if (title.includes('Access Denied')) {
-        console.log(' BLOCKED (Access Denied)');
-        await delay(10000);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await delay(5000);
-        const retryTitle = await page.title();
-        if (retryTitle.includes('Access Denied')) {
-          console.log('  ⚠ Still blocked, skipping');
+      if (isAccessDenied(await page.title())) {
+        console.log(' BLOCKED');
+        if (!(await waitOutBlock(page, url))) {
+          console.log('  ⚠ Still blocked after full backoff, skipping');
           continue;
         }
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await delay(3000);
       }
 
       // Click "ALL" filter to get all players (not just international)
@@ -893,6 +988,8 @@ async function buildPlayerIndex(page: Page): Promise<Map<number, PlayerIndexEntr
 
       // Save after each team in case we get blocked
       saveIndex(index);
+      teamsScraped.add(teamKey);
+      fs.writeFileSync(TEAM_CRAWL_PROGRESS_FILE, JSON.stringify([...teamsScraped]));
 
     } catch (err) {
       console.log(` ⚠ Failed: ${(err as Error).message.slice(0, 80)}`);
@@ -902,6 +999,7 @@ async function buildPlayerIndex(page: Page): Promise<Map<number, PlayerIndexEntr
     await delay(2000 + Math.random() * 1000);
   }
 
+  addCricsheetPlayersToIndex(index);
   await resolveWPLPlayersFromSearch(index);
   await resolveWomenElitePlayersFromSearch(index);
   saveIndex(index);
@@ -911,63 +1009,71 @@ async function buildPlayerIndex(page: Page): Promise<Map<number, PlayerIndexEntr
 
 // ── Step 2: Scrape individual player profiles ───────────────────────────
 
-async function scrapePlayerProfile(page: Page, espnId: number, slug: string): Promise<ESPNPlayerData | null> {
-  const url = `https://www.espncricinfo.com/cricketers/${slug}-${espnId}`;
+// espncricinfo.com now redirects here; fetching from the old origin is cross-origin
+const ESPN_ORIGIN = 'https://www.cricinfo.com/';
+
+function extractProfileFromNextData(html: string): Omit<ESPNPlayerData, 'scrapedAt'> | null {
+  const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) return null;
+  const appData = JSON.parse(m[1])?.props?.appPageProps?.data;
+  if (!appData?.player) return null;
+
+  const player = appData.player;
+  const content = appData.content;
+
+  // Extract team names
+  const teams = (content?.teams || [])
+    .map((t: any) => t?.team?.longName || t?.team?.name || '')
+    .filter(Boolean);
+
+  const profile: ESPNPlayerProfile = {
+    espnId: player.objectId,
+    name: player.name,
+    longName: player.longName,
+    slug: player.slug,
+    dateOfBirth: player.dateOfBirth,
+    gender: player.gender,
+    countryTeamId: player.countryTeamId,
+    battingStyles: player.longBattingStyles || player.battingStyles || [],
+    bowlingStyles: player.longBowlingStyles || player.bowlingStyles || [],
+    playingRoles: player.playingRoles || [],
+    teams,
+    imageUrl: player.imageUrl || '',
+    intlCareerSpan: player.intlCareerSpan || null,
+  };
+
+  return { profile, careerStats: content?.careerAverages?.stats || [] };
+}
+
+/**
+ * Fetch the profile HTML from inside a page already on cricinfo.com, so the request
+ * carries Akamai's cookies, and parse __NEXT_DATA__ without rendering the 700KB page.
+ */
+/** Akamai answers 200 with a ~2KB script stub (no page data) when its sensor cookie is stale */
+function isAkamaiChallenge(res: { status: number; text: string }): boolean {
+  return res.status === 200 && res.text.length < 10_000 && !res.text.includes('__NEXT_DATA__');
+}
+
+/** null = failed (may be a block); 'missing' = ESPN has no such player (404), not worth backing off for */
+async function scrapePlayerProfile(page: BrowserPage, espnId: number, slug: string): Promise<ESPNPlayerData | 'missing' | null> {
+  const url = `/cricketers/${slug}-${espnId}`;
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await delay(2000);
-
-    // Check for access denied
-    const title = await page.title();
-    if (title.includes('Access Denied')) {
-      // Wait and retry
-      await delay(15000);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await delay(3000);
-      const retryTitle = await page.title();
-      if (retryTitle.includes('Access Denied')) {
-        return null;
-      }
+    let res = await fetchInPage(page, url);
+    if (isAkamaiChallenge(res)) {
+      // Sensor cookie expired: a real page load re-runs Akamai's script and renews it
+      await page.goto(ESPN_ORIGIN.replace(/\/$/, '') + url, { waitUntil: 'load', timeout: 45000 }).catch(() => {});
+      await delay(12000);
+      res = await fetchInPage(page, url);
     }
+    if (res.status === 403 || isAkamaiChallenge(res)) {
+      if (!(await waitOutBlock(page, url))) return null;
+      res = await fetchInPage(page, url);
+    }
+    if (res.status === 404) return 'missing';
+    if (res.status !== 200) return null;
 
-    const data = await page.evaluate(() => {
-      const nextDataEl = document.getElementById('__NEXT_DATA__');
-      if (!nextDataEl) return null;
-
-      const nextData = JSON.parse(nextDataEl.textContent || '{}');
-      const appData = nextData?.props?.appPageProps?.data;
-      if (!appData?.player) return null;
-
-      const player = appData.player;
-      const content = appData.content;
-
-      // Extract team names
-      const teams = (content?.teams || [])
-        .map((t: any) => t?.team?.longName || t?.team?.name || '')
-        .filter(Boolean);
-
-      const profile = {
-        espnId: player.objectId,
-        name: player.name,
-        longName: player.longName,
-        slug: player.slug,
-        dateOfBirth: player.dateOfBirth,
-        gender: player.gender,
-        countryTeamId: player.countryTeamId,
-        battingStyles: player.longBattingStyles || player.battingStyles || [],
-        bowlingStyles: player.longBowlingStyles || player.bowlingStyles || [],
-        playingRoles: player.playingRoles || [],
-        teams,
-        imageUrl: player.imageUrl || '',
-        intlCareerSpan: player.intlCareerSpan || null,
-      };
-
-      const careerStats = content?.careerAverages?.stats || [];
-
-      return { profile, careerStats };
-    });
-
+    const data = extractProfileFromNextData(res.text);
     if (!data) return null;
 
     return normalizePlayerData({
@@ -981,7 +1087,7 @@ async function scrapePlayerProfile(page: Page, espnId: number, slug: string): Pr
 }
 
 async function scrapeAllProfiles(
-  browser: BrowserContext,
+  newPage: () => Promise<BrowserPage>,
   index: Map<number, PlayerIndexEntry>,
   options: { limit?: number; resume: boolean; concurrency: number }
 ): Promise<void> {
@@ -1008,9 +1114,9 @@ async function scrapeAllProfiles(
   const startTime = Date.now();
 
   // Create worker tabs
-  const pages: Page[] = [];
+  const pages: BrowserPage[] = [];
   for (let t = 0; t < options.concurrency; t++) {
-    pages.push(await browser.newPage());
+    pages.push(await newPage());
   }
   console.log(`  Opened ${pages.length} tabs`);
 
@@ -1025,7 +1131,10 @@ async function scrapeAllProfiles(
     );
 
     for (const data of results) {
-      if (data) {
+      if (data === 'missing') {
+        failed++;
+        consecutiveBlocks = 0;
+      } else if (data) {
         existing.set(data.profile.espnId, data);
         scraped++;
         consecutiveBlocks = 0;
@@ -1053,8 +1162,9 @@ async function scrapeAllProfiles(
       saveData(existing);
     }
 
-    // Small delay between batches to not hammer ESPN
-    await delay(500 + Math.random() * 500);
+    // Fetching skips the ~2s page render the old page.goto flow had, so pace explicitly
+    // to stay under Akamai's rate limit
+    await delay(1500 + Math.random() * 1000);
   }
 
   // Close worker tabs
@@ -1063,6 +1173,95 @@ async function scrapeAllProfiles(
   saveData(existing);
   const totalTime = ((Date.now() - startTime) / 60000).toFixed(1);
   console.log(`\n  Done in ${totalTime} min! Scraped: ${scraped}, Failed: ${failed}, T20 active: ${t20Active}`);
+  console.log(`  Total players in database: ${existing.size}`);
+  console.log(`  Output: ${ESPN_PLAYERS_FILE}`);
+}
+
+/**
+ * In-page: keep just the __NEXT_DATA__ fields extractProfileFromNextData reads (a profile
+ * page is ~700KB), rewrapped as a script tag so the same parser handles it.
+ */
+function slimProfileHtml(body: string): string {
+  const m = body.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) return '';
+  const data = JSON.parse(m[1])?.props?.appPageProps?.data;
+  if (!data?.player) return '';
+  const slim = { props: { appPageProps: { data: {
+    player: data.player,
+    content: { teams: data.content?.teams, careerAverages: data.content?.careerAverages },
+  } } } };
+  return '<script id="__NEXT_DATA__" type="application/json">' + JSON.stringify(slim).replace(/</g, '\\u003c') + '</script>';
+}
+
+const ASIDE_BATCH = 40;
+
+/** Same job as scrapeAllProfiles, through Aside's REPL: one short-lived tab per batch. */
+async function scrapeAllProfilesAside(
+  index: Map<number, PlayerIndexEntry>,
+  options: { limit?: number; resume: boolean; concurrency: number }
+): Promise<void> {
+  const existing = loadExistingData();
+  const toScrape = [...index.values()].filter(p => !(options.resume && existing.has(p.espnId)));
+  const total = options.limit ? Math.min(options.limit, toScrape.length) : toScrape.length;
+
+  console.log(`\n━━━ Scraping Player Profiles (Aside) ━━━`);
+  console.log(`  Total in index: ${index.size}`);
+  console.log(`  Already scraped: ${existing.size}`);
+  console.log(`  To scrape: ${total}`);
+
+  let scraped = 0;
+  let t20Active = 0;
+  let failed = 0;
+  let blockedBatches = 0;
+  const startTime = Date.now();
+
+  for (let i = 0; i < total; ) {
+    const batch = toScrape.slice(i, Math.min(i + ASIDE_BATCH, total));
+    let results;
+    try {
+      results = await asideFetchBatch(ESPN_ORIGIN, batch.map(p => `/cricketers/${p.slug}-${p.espnId}`), {
+        parallel: options.concurrency,
+        gapMs: 700,
+        extract: slimProfileHtml,
+      });
+    } catch (err) {
+      console.log(`    ⚠ ${(err as Error).message.slice(0, 160)}`);
+      await delay(30_000);
+      continue;
+    }
+
+    // Mostly 403s = Akamai block: back off and retry the same batch
+    if (results.filter(r => r.status === 403).length > batch.length / 2) {
+      const waitMs = BLOCK_BACKOFF_MS[Math.min(blockedBatches++, BLOCK_BACKOFF_MS.length - 1)];
+      console.log(`  ⚠ Access Denied; backing off ${waitMs / 60_000} min`);
+      await delay(waitMs);
+      continue;
+    }
+    blockedBatches = 0;
+
+    for (const r of results) {
+      const data = r.status === 200 && r.text ? extractProfileFromNextData(r.text) : null;
+      if (!data) {
+        failed++;
+        console.log(`    ✗ ${r.path} (HTTP ${r.status}${r.status === 200 ? ', no profile data' : ''})`);
+        continue;
+      }
+      const player = normalizePlayerData({ ...data, scrapedAt: new Date().toISOString() });
+      existing.set(player.profile.espnId, player);
+      scraped++;
+      if (hasUsableT20Stats(player)) t20Active++;
+    }
+    i += batch.length;
+
+    const pct = (i / total * 100).toFixed(1);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+    const rate = (scraped / (Date.now() - startTime) * 1000 * 3600).toFixed(0);
+    console.log(`  [${pct}%] ${i}/${total} | OK: ${scraped} | T20: ${t20Active} | Fail: ${failed} | ${elapsed}s | ~${rate}/hr`);
+    saveData(existing);
+  }
+
+  saveData(existing);
+  console.log(`\n  Done in ${((Date.now() - startTime) / 60000).toFixed(1)} min! Scraped: ${scraped}, Failed: ${failed}, T20 active: ${t20Active}`);
   console.log(`  Total players in database: ${existing.size}`);
   console.log(`  Output: ${ESPN_PLAYERS_FILE}`);
 }
@@ -1078,6 +1277,8 @@ async function main() {
   const normalizeOnly = args.includes('--normalize-only');
   const resolveWplOnly = args.includes('--resolve-wpl-only');
   const resolveWomenEliteOnly = args.includes('--resolve-women-elite-only');
+  const ownBrowser = args.includes('--own-browser');
+  const useAside = args.includes('--aside');
   const concurrency = args.includes('--concurrency') ? parseInt(args[args.indexOf('--concurrency') + 1]) : 1;
   const targetedIds = args.includes('--ids')
     ? args[args.indexOf('--ids') + 1]
@@ -1094,7 +1295,7 @@ async function main() {
   if (normalizeOnly) console.log('Mode: normalize cached player data only');
   if (resolveWplOnly) console.log('Mode: resolve missing WPL roster players in index only');
   if (resolveWomenEliteOnly) console.log("Mode: resolve women's elite competition players in index only");
-  console.log(`Browser profile: ${BROWSER_PROFILE_DIR}`);
+  console.log(useAside ? 'Browser: Aside (REPL)' : ownBrowser ? `Browser profile: ${BROWSER_PROFILE_DIR}` : 'Browser: your running Chrome (CDP)');
 
   if (normalizeOnly) {
     const existing = loadExistingData();
@@ -1120,8 +1321,32 @@ async function main() {
     return;
   }
 
-  // Use headed Chrome with persistent profile to bypass Akamai
-  const browser = await launchBrowser();
+  if (useAside) {
+    if (!skipIndex) throw new Error('--aside only scrapes profiles; pass --skip-index');
+    const index = loadIndex();
+    console.log(`  Loaded existing index: ${index.size} players`);
+    addCricsheetPlayersToIndex(index);
+    saveIndex(index);
+    const targeted = targetedIds.length > 0 ? new Map([...index].filter(([id]) => targetedIds.includes(id))) : index;
+    await scrapeAllProfilesAside(targeted, { limit, resume: targetedIds.length > 0 ? false : resume, concurrency });
+    return;
+  }
+
+  // Attach to the user's Chrome (passes Akamai); --own-browser keeps the old headed launcher
+  const userChrome = ownBrowser ? null : await connectUserChrome();
+  const ownContext = ownBrowser ? await launchBrowser() : null;
+  const newPage = async (): Promise<BrowserPage> => {
+    if (userChrome) return userChrome.openPage(ESPN_ORIGIN);
+    const page = await ownContext!.newPage();
+    await page.goto(ESPN_ORIGIN, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    return {
+      goto: (url, options) => page.goto(url, options as Parameters<Page['goto']>[1]),
+      title: () => page.title(),
+      evaluate: (fn, arg) => page.evaluate(fn as any, arg),
+      close: () => page.close(),
+      isClosed: () => page.isClosed(),
+    };
+  };
 
   try {
     // Step 1: Build index from team pages
@@ -1130,9 +1355,11 @@ async function main() {
     if (skipIndex) {
       index = loadIndex();
       console.log(`  Loaded existing index: ${index.size} players`);
+      addCricsheetPlayersToIndex(index);
+      saveIndex(index);
     } else {
-      const page = browser.pages()[0] || await browser.newPage();
-      index = await buildPlayerIndex(page);
+      const page = await newPage();
+      index = await buildPlayerIndex(page, resume);
       await page.close();
     }
 
@@ -1152,10 +1379,11 @@ async function main() {
     }
 
     // Step 2: Scrape profiles with parallel tabs
-    await scrapeAllProfiles(browser, index, { limit, resume: targetedIds.length > 0 ? false : resume, concurrency });
+    await scrapeAllProfiles(newPage, index, { limit, resume: targetedIds.length > 0 ? false : resume, concurrency });
 
   } finally {
-    await browser.close();
+    if (userChrome) await userChrome.close();
+    if (ownContext) await ownContext.close();
   }
 }
 

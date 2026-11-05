@@ -206,13 +206,16 @@ function isActiveSince2021(html: string): boolean {
  * Parse the biographical section of a player profile page.
  */
 function parseBio(html: string): PlayerBio {
-  const fullName = html.match(/Full name:([^<]+)/)?.[1]?.trim() ?? "";
-  const born = html.match(/Born:([^<]+)/)?.[1]?.trim() ?? "";
-  const battingHand = html.match(/Batting:([^<]+)/)?.[1]?.trim() ?? "";
-  const bowlingStyle = html.match(/Bowling:([^<]+)/)?.[1]?.trim() ?? "";
+  // Label and value used to share a cell ("Full name: X"); since 2026 they're separate <td>s
+  const field = (label: string) =>
+    html.match(new RegExp(`${label}:\\s*(?:</td>\\s*<td[^>]*>)?([^<]+)`))?.[1]?.trim() ?? "";
+  const fullName = field("Full name");
+  const born = field("Born");
+  const battingHand = field("Batting");
+  const bowlingStyle = field("Bowling");
 
-  // Extract teams
-  const teamsMatch = html.match(/Teams:([^<]+(?:<[^>]+>[^<]+)*)/);
+  // Extract teams (one row, entries separated by ";<br>")
+  const teamsMatch = html.match(/Teams:\s*(?:<\/td>\s*<td[^>]*>)?([\s\S]*?)<\/td>/);
   const teams = teamsMatch?.[1]
     ?.replace(/<[^>]+>/g, "")
     ?.split(";")

@@ -33,7 +33,7 @@ const B  = [0.0367, 0.0400, 0.0440, 0.0498, 0.0575, 0.0680, 0.0830, 0.1070, 0.15
 /** Compute remaining resources Z(u, w) using the DLS formula */
 function dlsResources(oversRemaining: number, wicketsLost: number): number {
   const w = Math.min(Math.max(wicketsLost, 0), 10);
-  const u = Math.max(oversRemaining, 0);
+  const u = Math.min(Math.max(oversRemaining, 0), 20); // T20: at most 20 overs remain
   if (w >= 10) return 0;
   return Z0[w] * (1 - Math.exp(-B[w] * u));
 }

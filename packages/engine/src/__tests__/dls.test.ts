@@ -44,7 +44,7 @@ describe("DLS Resource Table", () => {
   it("handles edge cases gracefully", () => {
     expect(getDLSResource(-1, 0)).toBe(0); // negative overs clamped
     expect(getDLSResource(25, 0)).toBe(100); // over 20 clamped
-    expect(getDLSResource(10, -1)).toBe(41.5); // negative wickets clamped to 0
+    expect(getDLSResource(10, -1)).toBe(getDLSResource(10, 0)); // negative wickets clamped to 0
     expect(getDLSResource(10, 15)).toBe(0); // over 10 wickets clamped
   });
 });

@@ -16,6 +16,7 @@ import { buildPlayerIndex } from "./build-index.js";
 import { scrapeProfiles } from "./scrape-profiles.js";
 import { generateAllRatings } from "./generate-ratings.js";
 import { findCricsheetPlayers } from "./cricsheet-players.js";
+import { closeFetcher } from "./fetcher.js";
 
 async function main() {
   const args = process.argv.slice(2);
@@ -60,7 +61,9 @@ async function main() {
   console.log(`\n✓ Pipeline complete in ${elapsed} minutes`);
 }
 
-main().catch(err => {
-  console.error("Pipeline failed:", err);
-  process.exit(1);
-});
+main()
+  .catch(err => {
+    console.error("Pipeline failed:", err);
+    process.exitCode = 1;
+  })
+  .finally(closeFetcher);

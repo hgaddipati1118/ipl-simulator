@@ -170,7 +170,8 @@ describe("WPL player generation", () => {
     expect(runtimeByName.get("Kranti Gaud")!.role).toBe("bowler");
     expect(runtimeByName.get("N Charani")!.role).toBe("bowler");
     expect(runtimeByName.get("Taniya Bhatia")!.role).toBe("batsman");
-    expect(runtimeByName.get("Dani Gibson")!.role).toBe("batsman");
+    // Seam-bowling all-rounder: the ratings model rates her bowling as well as her batting
+    expect(["batsman", "all-rounder"]).toContain(runtimeByName.get("Dani Gibson")!.role);
     expect(runtimeByName.get("Sabbhineni Meghana")!.role).toBe("batsman");
   });
 });

@@ -1,4 +1,4 @@
-import { fetchPage } from "./fetcher.js";
+import { closeFetcher, fetchPage } from "./fetcher.js";
 import { parsePlayerProfile } from "./parse-stats.js";
 
 const id = process.argv[2] ?? "1104883"; // Phil Salt
@@ -7,6 +7,7 @@ const url = `https://cricketarchive.com/Archive/Players/${bucket}/${id}/${id}.ht
 
 console.log(`Fetching ${url}...`);
 const html = await fetchPage(url);
+await closeFetcher();
 console.log(`HTML length: ${html.length}`);
 
 const profile = parsePlayerProfile(html);

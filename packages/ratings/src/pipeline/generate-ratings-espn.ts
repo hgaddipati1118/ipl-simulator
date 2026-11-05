@@ -22,6 +22,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
+import { applyModelRatings, loadModel, modelAvailable } from "./model-ratings.js";
 import { join, dirname } from "path";
 import { pathToFileURL } from "url";
 import { calculateRatings, inferRole, type GenderPop, type CalculatedRatings } from "../calculator.js";
@@ -42,8 +43,17 @@ import {
 const ESPN_FILE = join(OUTPUT_DIR, "espn-players.json");
 const OUTPUT_JSON = join(OUTPUT_DIR, "espn-ratings.json");
 const OUTPUT_JSON_WOMEN = join(OUTPUT_DIR, "espn-ratings-women.json");
+/** Pre-model ratings (identical to the above when run without --model) */
+const OUTPUT_JSON_BASE = join(OUTPUT_DIR, "espn-ratings-base.json");
+const OUTPUT_JSON_WOMEN_BASE = join(OUTPUT_DIR, "espn-ratings-women-base.json");
 const OUTPUT_TS = join(dirname(OUTPUT_DIR), "..", "src", "all-players.ts");
 const OUTPUT_TS_WOMEN = join(dirname(OUTPUT_DIR), "..", "src", "wpl-players.ts");
+
+/**
+ * `--model`: re-rank players with the ratings model (data/analysis/player_ratings_by_season.parquet)
+ * before writing. Off by default; review src/pipeline/compare-model-ratings.ts output first.
+ */
+const USE_MODEL = process.argv.includes("--model");
 const CRICSHEET_T20I_DIR = join(OUTPUT_DIR, "..", "cricsheet", "t20s_json");
 
 // ── ESPN data types ───────────────────────────────────────────────────
@@ -1729,6 +1739,29 @@ function buildRosterTeamMap(): Map<string, RosterEntry> {
  * Try to match a rated player name to a roster entry.
  * Uses exact match first, then tries normalized matching.
  */
+/**
+ * Match rated players to roster slots, one player per slot. ESPN has many namesakes
+ * (three "Abdul Samad" profiles), and matching by name alone put all of them on the team.
+ * When several profiles match a slot, keep the one with the most T20 matches: the
+ * franchise player is the established one, the namesakes are domestic or club players.
+ */
+function claimRosterEntries(
+  rated: RatedPlayer[],
+  match: (p: RatedPlayer) => RosterEntry | undefined,
+): Map<RatedPlayer, RosterEntry> {
+  const best = new Map<string, { player: RatedPlayer; entry: RosterEntry }>();
+  for (const p of rated) {
+    const entry = match(p);
+    if (!entry) continue;
+    const slot = `${entry.teamId}:${entry.name}`;
+    const current = best.get(slot);
+    if (!current || p.sourceStats.t20Matches > current.player.sourceStats.t20Matches) {
+      best.set(slot, { player: p, entry });
+    }
+  }
+  return new Map([...best.values()].map(({ player, entry }) => [player, entry]));
+}
+
 function findRosterEntry(
   playerName: string,
   rosterMap: Map<string, RosterEntry>,
@@ -2040,8 +2073,9 @@ export function generateAllRatings(): RatedPlayer[] {
   let rosterMatches = 0;
   const unmatchedRoster = new Set(rosterMap.keys());
 
+  const iplClaims = claimRosterEntries(rated, (p) => findRosterEntry(p.name, rosterMap));
   for (const p of rated) {
-    const entry = findRosterEntry(p.name, rosterMap);
+    const entry = iplClaims.get(p);
     if (entry) {
       p.teamId = entry.teamId;
       p.price = entry.price;
@@ -2060,7 +2094,13 @@ export function generateAllRatings(): RatedPlayer[] {
   }
 
   // ── Add manual players (missing from ESPN data) ──────────────────
-  const manualPlayers = getManualPlayers();
+  // Only for roster slots no scraped player claimed: once ESPN has the player, the manual
+  // stand-in would be a duplicate in the same squad
+  const claimedSlots = new Set([...iplClaims.values()].map(e => `${e.teamId}:${e.name}`));
+  const manualPlayers = getManualPlayers().filter(mp => {
+    const entry = findRosterEntry(mp.name, rosterMap);
+    return !entry || !claimedSlots.has(`${entry.teamId}:${entry.name}`);
+  });
   for (const mp of manualPlayers) {
     const entry = findRosterEntry(mp.name, rosterMap);
     if (entry) {
@@ -2113,6 +2153,8 @@ export function generateAllRatings(): RatedPlayer[] {
     console.log(`  ${teamId.padEnd(5)}: ${count} players`);
   }
 
+  applyRatingsModel(rated, "male");
+
   // Save as JSON
   if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
   writeFileSync(OUTPUT_JSON, JSON.stringify(rated, null, 2), "utf-8");
@@ -2122,6 +2164,25 @@ export function generateAllRatings(): RatedPlayer[] {
   generateTypeScriptModule(rated);
 
   return rated;
+}
+
+// ── Ratings model (optional) ──────────────────────────────────────────
+
+function applyRatingsModel(rated: RatedPlayer[], gender: "male" | "female"): void {
+  // Always keep the generator's own ratings (before any model re-ranking): they are the benchmark
+  // the ratings model is validated against, so they must never be overwritten by its output
+  if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
+  writeFileSync(gender === "male" ? OUTPUT_JSON_BASE : OUTPUT_JSON_WOMEN_BASE, JSON.stringify(rated, null, 2), "utf-8");
+  if (!USE_MODEL) return;
+  if (!modelAvailable()) throw new Error("--model needs data/analysis/player_ratings_by_season.parquet (run src/analysis/ratings-model.py)");
+  const report = applyModelRatings(rated, loadModel(gender));
+  for (const p of rated) {
+    const battingOvr = calculateBattingOverall(p.ratings);
+    const bowlingOvr = calculateBowlingOverall(p.ratings);
+    p.overalls = { battingOvr, bowlingOvr, overall: calculateOverallRating(battingOvr, bowlingOvr) };
+  }
+  rated.sort((a, b) => b.overalls.overall - a.overalls.overall);
+  console.log(`\nRatings model (${gender}): re-ranked batting ${report.batting}, bowling ${report.bowling}; ${report.unmatched} players not in the model kept as generated`);
 }
 
 // ── TypeScript module output ──────────────────────────────────────────
@@ -2756,8 +2817,9 @@ export function generateWomenRatings(): RatedPlayer[] {
   let rosterMatches = 0;
   const unmatchedRoster = new Set(rosterMap.keys());
 
+  const wplClaims = claimRosterEntries(rated, (p) => findRosterEntry(p.name, rosterMap, { allowFuzzyInitialMatch: true }));
   for (const p of rated) {
-    const entry = findRosterEntry(p.name, rosterMap, { allowFuzzyInitialMatch: true });
+    const entry = wplClaims.get(p);
     if (entry) {
       p.teamId = entry.teamId;
       p.price = entry.price;
@@ -2825,6 +2887,8 @@ export function generateWomenRatings(): RatedPlayer[] {
   for (const [teamId, count] of [...teamCounts.entries()].sort()) {
     console.log(`  ${teamId.padEnd(5)}: ${count} players`);
   }
+
+  applyRatingsModel(rated, "female");
 
   // Save as JSON
   if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });

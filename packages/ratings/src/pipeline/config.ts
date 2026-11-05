@@ -5,7 +5,18 @@
 export const BASE_URL = "https://cricketarchive.com";
 
 /** Delay between HTTP requests in ms (be polite to the server) */
-export const REQUEST_DELAY_MS = 1500;
+export const REQUEST_DELAY_MS = 750;
+
+/**
+ * Adaptive pacing (fetcher.ts): each of FETCH_SLOTS parallel slots waits the current gap
+ * between its requests. The gap shrinks 15% after every SPEEDUP_EVERY straight successes
+ * (down to MIN_REQUEST_DELAY_MS) and doubles on any failure (up to MAX_REQUEST_DELAY_MS).
+ * Started at 2 slots x 750ms on 2026-10-30 (~3x the old 1.5s single-stream rate).
+ */
+export const FETCH_SLOTS = 2;
+export const MIN_REQUEST_DELAY_MS = 250;
+export const MAX_REQUEST_DELAY_MS = 60_000;
+export const SPEEDUP_EVERY = 25;
 
 /** Max retries per failed request */
 export const MAX_RETRIES = 3;

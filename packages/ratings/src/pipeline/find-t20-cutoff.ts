@@ -10,7 +10,7 @@
 import { createReadStream } from "fs";
 import { createInterface } from "readline";
 import { join } from "path";
-import { fetchPage } from "./fetcher.js";
+import { closeFetcher, fetchPage } from "./fetcher.js";
 import { parsePlayerProfile } from "./parse-stats.js";
 import { BASE_URL, INDEX_DIR } from "./config.js";
 
@@ -139,3 +139,4 @@ writeFileSync(cutoffFile, JSON.stringify({
 }), "utf-8");
 
 console.log(`\n  Saved cutoff to ${cutoffFile}`);
+await closeFetcher();

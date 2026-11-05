@@ -8,3 +8,5 @@ test-results/
 .serena/
 PLAN.md
 packages/ratings/data/
+__pycache__/
+*.pyc

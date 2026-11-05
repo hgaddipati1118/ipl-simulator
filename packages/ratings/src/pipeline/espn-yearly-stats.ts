@@ -15,7 +15,7 @@ import { chromium, type BrowserContext, type Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const DATA_DIR = path.resolve('packages/ratings/data/scraped');
+const DATA_DIR = new URL('../../data/scraped', import.meta.url).pathname;
 const ESPN_PLAYERS_FILE = path.join(DATA_DIR, 'espn-players.json');
 const ESPN_YEARLY_FILE = path.join(DATA_DIR, 'espn-yearly-stats.json');
 const BROWSER_PROFILE_DIR = '/tmp/pw-espncricinfo-yearly';

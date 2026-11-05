@@ -19,20 +19,38 @@ const CRICSHEET_DIR = join(OUTPUT_DIR, "..", "cricsheet");
 const CRICSHEET_PLAYERS_FILE = join(OUTPUT_DIR, "cricsheet-players.json");
 const MATCHED_PLAYERS_FILE = join(OUTPUT_DIR, "matched-players.json");
 
-/** Cricsheet match ZIP URLs for T20 leagues */
+/** Cricsheet match ZIP URLs for T20 leagues (names from https://cricsheet.org/downloads/) */
 const CRICSHEET_URLS = [
   "https://cricsheet.org/downloads/ipl_json.zip",
   "https://cricsheet.org/downloads/t20s_json.zip",       // T20 Internationals
   "https://cricsheet.org/downloads/bbl_json.zip",
   "https://cricsheet.org/downloads/cpl_json.zip",
   "https://cricsheet.org/downloads/psl_json.zip",
-  "https://cricsheet.org/downloads/t20_blast_json.zip",
-  "https://cricsheet.org/downloads/sa20_json.zip",
+  "https://cricsheet.org/downloads/ntb_json.zip",        // T20 Blast
+  "https://cricsheet.org/downloads/sat_json.zip",        // SA20
+  "https://cricsheet.org/downloads/ilt_json.zip",        // ILT20
+  "https://cricsheet.org/downloads/mlc_json.zip",        // Major League Cricket
+  "https://cricsheet.org/downloads/bpl_json.zip",
+  "https://cricsheet.org/downloads/lpl_json.zip",
+  "https://cricsheet.org/downloads/sma_json.zip",        // Syed Mushtaq Ali Trophy
+  "https://cricsheet.org/downloads/hnd_json.zip",        // The Hundred
+  "https://cricsheet.org/downloads/wbb_json.zip",        // WBBL
+  "https://cricsheet.org/downloads/wpl_json.zip",
 ];
+
+/** Extract dirs that aren't single competitions (all_json is every match in every format) */
+const SKIP_EXTRACT_DIRS = new Set(["all_json"]);
+
+/** Cricsheet's people register: maps its player ids to ESPNcricinfo, CricketArchive, etc. */
+const CRICSHEET_REGISTER_URL = "https://cricsheet.org/register/people.csv";
 
 interface CricsheetPlayer {
   name: string;
   registryId?: string;
+  /** ESPNcricinfo player id, from Cricsheet's people.csv register */
+  cricinfoId?: number;
+  /** CricketArchive player id, from Cricsheet's people.csv register */
+  cricketArchiveId?: number;
   countries: string[];
   teams: string[];
   matchCount: number;
@@ -46,6 +64,15 @@ interface CricsheetPlayer {
  */
 async function downloadCricsheet(): Promise<void> {
   if (!existsSync(CRICSHEET_DIR)) mkdirSync(CRICSHEET_DIR, { recursive: true });
+
+  // The register changes as players debut, so refresh it every run
+  const registerRes = await fetch(CRICSHEET_REGISTER_URL);
+  if (registerRes.ok) {
+    writeFileSync(join(CRICSHEET_DIR, "people.csv"), await registerRes.text(), "utf-8");
+    console.log("  Downloaded people.csv register");
+  } else {
+    console.error(`  Failed to download people.csv: ${registerRes.status}`);
+  }
 
   for (const url of CRICSHEET_URLS) {
     const zipName = basename(url);
@@ -88,10 +115,10 @@ async function downloadCricsheet(): Promise<void> {
 async function extractPlayers(): Promise<Map<string, CricsheetPlayer>> {
   const players = new Map<string, CricsheetPlayer>();
 
-  const extractDirs = readdirSync(CRICSHEET_DIR).filter(d => {
-    const path = join(CRICSHEET_DIR, d);
-    return existsSync(path) && !d.endsWith(".zip") && readdirSync(path).some(f => f.endsWith(".json"));
-  });
+  const extractDirs = readdirSync(CRICSHEET_DIR, { withFileTypes: true })
+    .filter(d => d.isDirectory() && !SKIP_EXTRACT_DIRS.has(d.name))
+    .map(d => d.name)
+    .filter(d => readdirSync(join(CRICSHEET_DIR, d)).some(f => f.endsWith(".json")));
 
   let totalMatches = 0;
   let matchesSince2021 = 0;
@@ -122,6 +149,7 @@ async function extractPlayers(): Promise<Map<string, CricsheetPlayer>> {
 
         const teams = match.info?.teams ?? [];
         const people = match.info?.registry?.people ?? {};
+        const seenThisMatch = new Set<string>();
 
         // Extract players from innings
         for (const inning of (match.innings ?? [])) {
@@ -131,27 +159,27 @@ async function extractPlayers(): Promise<Map<string, CricsheetPlayer>> {
               // Batter
               const batterName = delivery.batter;
               if (batterName) {
-                addPlayer(players, batterName, people, team, matchDate, league, teams, gender);
+                addPlayer(players, batterName, people, team, matchDate, league, teams, gender, seenThisMatch);
               }
 
               // Bowler
               const bowlerName = delivery.bowler;
               if (bowlerName) {
                 const bowlerTeam = teams.find((t: string) => t !== team) ?? "";
-                addPlayer(players, bowlerName, people, bowlerTeam, matchDate, league, teams, gender);
+                addPlayer(players, bowlerName, people, bowlerTeam, matchDate, league, teams, gender, seenThisMatch);
               }
 
               // Non-striker
               const nonStriker = delivery.non_striker;
               if (nonStriker) {
-                addPlayer(players, nonStriker, people, team, matchDate, league, teams, gender);
+                addPlayer(players, nonStriker, people, team, matchDate, league, teams, gender, seenThisMatch);
               }
 
               // Fielders on wickets
               for (const wkt of (delivery.wickets ?? [])) {
                 for (const fielder of (wkt.fielders ?? [])) {
                   if (fielder.name) {
-                    addPlayer(players, fielder.name, people, "", matchDate, league, teams, gender);
+                    addPlayer(players, fielder.name, people, "", matchDate, league, teams, gender, seenThisMatch);
                   }
                 }
               }
@@ -179,17 +207,23 @@ function addPlayer(
   league: string,
   allTeams: string[],
   gender: "male" | "female" | "unknown",
+  seenThisMatch: Set<string>,
 ): void {
+  // Called once per delivery; count each player once per match
+  const firstInMatch = !seenThisMatch.has(name);
+  seenThisMatch.add(name);
   const existing = players.get(name);
   if (existing) {
-    existing.matchCount++;
+    if (firstInMatch) existing.matchCount++;
     if (matchDate > existing.lastMatch) existing.lastMatch = matchDate;
     if (team && !existing.teams.includes(team)) existing.teams.push(team);
     if (league && !existing.leagues.includes(league)) existing.leagues.push(league);
     // Upgrade gender from unknown if we now know
     if (existing.gender === "unknown" && gender !== "unknown") existing.gender = gender;
   } else {
-    const registryId = people[name]?.identifier;
+    // match.info.registry.people maps display name -> register identifier string
+    const entry = people[name];
+    const registryId: string | undefined = typeof entry === "string" ? entry : entry?.identifier;
     players.set(name, {
       name,
       registryId,
@@ -358,6 +392,41 @@ async function matchToArchive(
 /**
  * Main entry point.
  */
+/**
+ * Add ESPNcricinfo / CricketArchive ids from Cricsheet's people register, so both
+ * scrapers can look players up directly instead of fuzzy-matching names.
+ */
+function attachRegisterIds(players: Map<string, CricsheetPlayer>): void {
+  const registerPath = join(CRICSHEET_DIR, "people.csv");
+  if (!existsSync(registerPath)) {
+    console.log("  people.csv missing; skipping register ids");
+    return;
+  }
+  const [header, ...rows] = readFileSync(registerPath, "utf-8").trim().split("\n");
+  const cols = header.split(",");
+  const idCol = cols.indexOf("identifier");
+  const cricinfoCol = cols.indexOf("key_cricinfo");
+  const archiveCol = cols.indexOf("key_cricketarchive");
+  const byId = new Map<string, string[]>();
+  // No field in this file contains commas or quotes, so a plain split is safe
+  for (const row of rows) {
+    const fields = row.split(",");
+    byId.set(fields[idCol], fields);
+  }
+
+  let cricinfo = 0;
+  let archive = 0;
+  for (const player of players.values()) {
+    const fields = player.registryId ? byId.get(player.registryId) : undefined;
+    if (!fields) continue;
+    const ci = parseInt(fields[cricinfoCol], 10);
+    const ca = parseInt(fields[archiveCol], 10);
+    if (Number.isFinite(ci)) { player.cricinfoId = ci; cricinfo++; }
+    if (Number.isFinite(ca)) { player.cricketArchiveId = ca; archive++; }
+  }
+  console.log(`  Register ids: ${cricinfo} cricinfo, ${archive} cricketarchive (of ${players.size})`);
+}
+
 export async function findCricsheetPlayers(): Promise<void> {
   console.log("\n=== Cricsheet Player Finder ===\n");
 
@@ -368,6 +437,7 @@ export async function findCricsheetPlayers(): Promise<void> {
   // Step 2: Extract unique players from 2021+ matches
   console.log("\nStep 2: Extracting players from 2021+ matches...");
   const players = await extractPlayers();
+  attachRegisterIds(players);
 
   // Save cricsheet players
   if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
