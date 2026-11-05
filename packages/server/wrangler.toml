@@ -1,0 +1,36 @@
+# Mods backend: generates mods with Claude, stores them, records opt-in usage for the daily sweep.
+# See docs/MODS-DESIGN.md. Nothing here is deployed yet; run locally with `npm run dev`.
+name = "ipl-sim-mods"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+MODEL = "claude-opus-5-5"
+# Claude calls per day across all players: the hard ceiling on what generation can cost
+GLOBAL_GENERATIONS_PER_DAY = "300"
+# Origins allowed to call the API (the game's site and local dev)
+ALLOWED_ORIGINS = "http://localhost:5173"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ipl-sim-mods"
+database_id = "eaa0ed58-0160-406d-9419-7611b7e20fd2"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "BLOBS"
+bucket_name = "ipl-sim-mods"
+
+# Per-IP burst limit on every request
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 60, period = 60 }
+
+# Daily cleanup of old abuse counters
+[triggers]
+crons = ["17 3 * * *"]
+
+# Secrets, never in this file: `wrangler secret put IP_SALT` (random string) and, once generation
+# is switched on, `wrangler secret put ANTHROPIC_API_KEY`. Without the key, /mods/generate returns 503.

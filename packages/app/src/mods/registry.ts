@@ -125,6 +125,12 @@ export async function installBundle(json: unknown): Promise<ModStatus> {
   return modRuntime.list().find(s => s.id === bundle.manifest.id)!;
 }
 
+/** The installed bundle for a mod, for sharing it */
+export function storedBundle(id: string): ModBundle | undefined {
+  const rec = stored.get(id);
+  return rec ? { manifest: rec.manifest, source: rec.source } : undefined;
+}
+
 export async function removeMod(id: string): Promise<void> {
   stored.delete(id);
   await deleteStoredMod(id);
