@@ -1044,13 +1044,15 @@ export function finalizeSeason(state: GameState): GameState {
 export function nextSeason(state: GameState): GameState {
   const trainingReport: TrainingReportEntry[] = [];
 
-  // Progress all players (age, ratings)
+  // Progress all players (age, ratings). Women's leagues use the women's age curves; men's and combined use men's
+  const curveGender = (state.rules.league === "wpl" || state.rules.gender === "women") ? "female" : "male";
   for (const team of state.teams) {
     for (const player of team.roster) {
       const progress = player.progress({
         focus: player.trainingFocus,
         intensity: team.trainingIntensity,
         seasonNumber: state.seasonNumber,
+        gender: curveGender,
       });
       trainingReport.push({
         playerId: player.id,

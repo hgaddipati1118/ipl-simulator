@@ -4,6 +4,7 @@
  */
 
 import { clamp, randomNormal, displayOversToReal } from "./math.js";
+import { ageCurveDelta, type AgeCurveGender } from "./age-curves.js";
 
 export interface PlayerRatings {
   battingIQ: number;    // 0-99: shot selection, rotation, game sense
@@ -208,6 +209,11 @@ export function calculateBattingOverall(ratings: PlayerRatings): number {
 export function calculateBowlingOverall(ratings: PlayerRatings): number {
   const { wicketTaking, economy, accuracy, clutch } = ratings;
   return Math.round(wicketTaking * 0.55 + economy * 0.20 + accuracy * 0.10 + clutch * 0.15);
+}
+
+const SPIN_STYLES: readonly BowlingStyle[] = ["off-spin", "left-arm-orthodox", "leg-spin", "left-arm-wrist-spin"];
+function isSpinStyle(style: BowlingStyle): boolean {
+  return SPIN_STYLES.includes(style);
 }
 
 export function calculateOverallRating(battingOvr: number, bowlingOvr: number): number {
@@ -495,11 +501,18 @@ export class Player implements PlayerData {
     return clamp(Math.round(score), 0, 100);
   }
 
-  /** Season-to-season progression: attributes shift based on age and potential */
+  /**
+   * Season-to-season progression: attributes shift based on age and potential.
+   * The age trend comes from real careers (CricketArchive T20 age curves, see age-curves.ts): batting
+   * attributes follow the batters' curve, bowling attributes the pace or spin curve, by gender.
+   * Randomness, training focus and youth potential work as before on top of it.
+   */
   progress(input?: {
     focus?: TrainingFocus;
     intensity?: TrainingIntensity;
     seasonNumber?: number;
+    /** Which league's curves to use; defaults to men's */
+    gender?: AgeCurveGender;
   }): PlayerProgressReport {
     // Snapshot current ratings before progression
     this.ratingHistory.push({
@@ -511,7 +524,11 @@ export class Player implements PlayerData {
     if (this.ratingHistory.length > 10) this.ratingHistory = this.ratingHistory.slice(-10);
 
     this.age++;
-    let ageBias = (30 - this.age) * 0.3; // positive for young, negative for old
+    const gender = input?.gender ?? "male";
+    const batBias = ageCurveDelta(gender, "bat", this.age);
+    const bowlBias = this.bowlingStyle === "unknown"
+      ? (ageCurveDelta(gender, "pace", this.age) + ageCurveDelta(gender, "spin", this.age)) / 2
+      : ageCurveDelta(gender, isSpinStyle(this.bowlingStyle) ? "spin" : "pace", this.age);
     const deviation = Math.pow(Math.abs(30 - this.age), 0.7);
     const focus = input?.focus ?? this.trainingFocus ?? "balanced";
     const intensity = input?.intensity ?? "balanced";
@@ -538,18 +555,15 @@ export class Player implements PlayerData {
       }
     }
 
-    // Accelerated decline for aging players (32+)
-    if (this.age > 32) {
-      ageBias -= (this.age - 32) * 0.25;
-    }
-
     const attrs: (keyof PlayerRatings)[] = [
       "battingIQ", "timing", "power", "running",
       "wicketTaking", "economy", "accuracy", "clutch",
     ];
 
+    const batAttrs = new Set<keyof PlayerRatings>(["battingIQ", "timing", "power", "running"]);
     for (const attr of attrs) {
       const focusBoost = (focusBias[attr] ?? 0) * gainMultiplier;
+      const ageBias = batAttrs.has(attr) ? batBias : bowlBias;
       const next = clamp(
         Math.round(this.ratings[attr] + randomNormal(ageBias + focusBoost + potentialBoost, deviation * volatility)),
         1,

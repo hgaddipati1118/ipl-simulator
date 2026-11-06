@@ -191,3 +191,5 @@ export type { YouthProspect } from "./youth-academy.js";
 
 export { calculateFantasyPoints, accumulateFantasyPoints, enrichFantasyNames } from "./fantasy.js";
 export type { FantasyPoints } from "./fantasy.js";
+export { AGE_CURVES, ageCurveDelta } from "./age-curves.js";
+export type { AgeCurveGender, AgeCurveKind } from "./age-curves.js";

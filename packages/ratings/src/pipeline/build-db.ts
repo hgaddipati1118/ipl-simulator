@@ -19,7 +19,7 @@ import { createInterface } from 'readline';
 import { createGunzip } from 'zlib';
 import { DatabaseSync } from 'node:sqlite';
 import type { ArchiveProfile } from './archive-profile-parse.js';
-import { inningsTeam, type Scorecard } from './scorecard-parse.js';
+import { inferGender, inningsTeam, type Scorecard } from './scorecard-parse.js';
 
 const DATA = new URL('../../data', import.meta.url).pathname;
 export const DB_FILE = `${DATA}/cricket.db`;
@@ -119,7 +119,9 @@ async function main() {
     CREATE TABLE bowling (
       match_id INTEGER, innings INTEGER, team TEXT, team_id INTEGER, player_id INTEGER,
       player_name TEXT, overs TEXT, maidens INTEGER, runs INTEGER, wickets INTEGER,
-      wides INTEGER, no_balls INTEGER, dots INTEGER, economy REAL
+      wides INTEGER, no_balls INTEGER, dots INTEGER, economy REAL,
+      -- Balls bowled when the card gives them directly (The Hundred has no overs; its Econ is runs per 100 balls)
+      balls INTEGER
     );
   `);
 
@@ -152,7 +154,7 @@ async function main() {
   const insMatch = db.prepare('INSERT OR REPLACE INTO matches VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
   const insBat = db.prepare('INSERT INTO batting VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
   const insWicket = db.prepare('INSERT INTO wickets VALUES (?,?,?,?,?,?,?,?)');
-  const insBowl = db.prepare('INSERT INTO bowling VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+  const insBowl = db.prepare('INSERT INTO bowling VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
   // Players seen only on scorecards still get a players row (name + DOB from the tooltip)
   const insCardPlayer = db.prepare('INSERT OR IGNORE INTO players (id, name, full_name, dob) VALUES (?,?,?,?)');
   let cards = 0;
@@ -162,7 +164,7 @@ async function main() {
     const [t1, t2] = c.teams;
     const dateText = c.info.Venue?.split(' on ')[1] ?? c.date ?? null;
     insMatch.run(c.id, c.title, parseCricketDate(dateText ?? undefined), dateText, idx?.season ?? null, idx?.country ?? null,
-      JSON.stringify(idx?.lists ?? []), JSON.stringify(c.levels), c.gender, c.event?.name ?? null, c.venue?.name ?? null,
+      JSON.stringify(idx?.lists ?? []), JSON.stringify(c.levels), inferGender(c.levels, c.matchCodes ?? [], c.title ?? ''), c.event?.name ?? null, c.venue?.name ?? null,
       c.info.Toss ?? null, c.info.Result ?? null, t1?.name ?? null, t1?.id ?? null, t2?.name ?? null, t2?.id ?? null);
 
     c.innings.forEach((inn, i) => {
@@ -188,7 +190,8 @@ async function main() {
       for (const w of inn.bowling) {
         insBowl.run(c.id, i + 1, bowlingSide?.name ?? null, bowlingSide?.id ?? null, w.player.id, w.player.name,
           (w.stats.Overs as string | null) ?? null, numStat(w.stats, 'Mdns'), numStat(w.stats, 'Runs'), numStat(w.stats, 'Wkts'),
-          numStat(w.stats, 'Wides'), numStat(w.stats, 'No-Balls'), numStat(w.stats, 'Dots'), numStat(w.stats, 'Econ'));
+          numStat(w.stats, 'Wides'), numStat(w.stats, 'No-Balls'), numStat(w.stats, 'Dots'), numStat(w.stats, 'Econ'),
+          numStat(w.stats, 'Balls'));
         insCardPlayer.run(w.player.id, w.player.name, null, null);
       }
     });

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Player, PlayerData } from "../player.js";
+import { ageCurveDelta } from "../age-curves.js";
 
 function makePlayerData(overrides?: Partial<PlayerData>): PlayerData {
   return {
@@ -219,8 +220,38 @@ describe("Player progression", () => {
     expect(p.workloadHistory).toEqual([]);
   });
 
+  it("follows the real-career age curves: young players rise, veterans decline", () => {
+    // Box-Muller with u1 = 0.5, u2 = 0.25 gives z = 0, so randomNormal returns its mean and only the trend remains
+    let call = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => (call++ % 2 === 0 ? 0.5 : 0.25));
+    const ratings = {
+      battingIQ: 60, timing: 60, power: 60, running: 60,
+      wicketTaking: 60, economy: 60, accuracy: 60, clutch: 60,
+    };
+    const young = new Player(makePlayerData({ age: 19, bowlingStyle: "right-arm-fast", ratings: { ...ratings } }));
+    const veteran = new Player(makePlayerData({ age: 36, bowlingStyle: "right-arm-fast", ratings: { ...ratings } }));
+    for (let i = 0; i < 3; i++) { young.progress(); veteran.progress(); }
+    expect(young.battingOvr).toBeGreaterThan(60);
+    expect(young.bowlingOvr).toBeGreaterThan(60);
+    expect(veteran.battingOvr).toBeLessThan(60);
+    expect(veteran.bowlingOvr).toBeLessThan(60);
+    vi.restoreAllMocks();
+  });
+
+  it("uses each discipline's own curve: spinners hold up better than pace bowlers in their thirties", () => {
+    let pace = 0, spin = 0;
+    for (let age = 30; age < 37; age++) {
+      pace += ageCurveDelta("male", "pace", age);
+      spin += ageCurveDelta("male", "spin", age);
+    }
+    expect(spin).toBeGreaterThan(pace);
+  });
+
   it("lets training focus bias growth under the same random noise", () => {
-    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    // u1 = 0.5, u2 = 0.25 -> Box-Muller z = 0, so the comparison is the training bias alone (a constant 0.5 gives
+    // z = -1.18, and with the age-curve trend the two plans could round to the same value)
+    let call = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => (call++ % 2 === 0 ? 0.5 : 0.25));
 
     const battingPlan = new Player(makePlayerData({
       age: 24,

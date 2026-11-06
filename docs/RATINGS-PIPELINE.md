@@ -394,8 +394,39 @@ Analysis only; the game's runtime ratings are unchanged. From `packages/ratings`
     duckdb < src/analysis/ca-player-seasons.sql      # scorecards -> player x competition x year cells (~10 s)
     python3 -I src/analysis/ca-ratings.py            # strengths, per-year ratings, age curves, validation (~1 min)
     python3 -I src/analysis/ca-ratings-report.py     # report + sanity checks (exit 1 on failure)
+    python3 -I src/analysis/ca-espn-map.py           # ESPN -> CricketArchive id map for the game
+    python3 -I src/analysis/export-age-curves.py     # engine age curves for career mode
 
 Outputs in `data/analysis/` (gitignored, backed up to R2): `ca_ratings_by_year.parquet` (player x format x year:
 season value, decayed rating, uncertainty, 0-99 ovr and next-year projection for batting and bowling),
 `ca_age_curves.csv`, `ca_comp_strength.csv`, `ca_validation.json`, `ca-ratings-report.md`
 (snapshot in `docs/CA-RATINGS-REPORT.md`). Needs `data/cricket.db` from `build-db.ts`.
+
+### In the game (`generate-ratings-espn.ts --model`)
+
+`ca-model.ts` loads the CA ratings for every ESPN player matched by `src/analysis/ca-espn-map.py`
+(Cricsheet's register, else same date of birth + compatible name; 99.5% correct on register pairs).
+`model-ratings.ts` then, per discipline:
+
+- **Cricsheet-rated players**: the ranking score is an inverse-variance blend of the Cricsheet score and the
+  CA T20 score mapped onto the Cricsheet scale (regression over players with 500+ balls in both). CA's
+  precision is discounted to the share of its balls Cricsheet doesn't have, so shared matches aren't
+  counted twice.
+- **Players Cricsheet can't rate**: the mapped CA score alone, falling back to List A, then (batting only)
+  first-class, translated to the T20 scale through players rated in both. They get the overall a
+  Cricsheet-rated player with the same score has (interpolated), without shifting anyone else's rating, and
+  keep the generator's attribute mix. A discipline Cricsheet judged a player barely does (< 6 balls a match)
+  stays as generated.
+- **Small-sample caps**: below B = 7/3 x K career T20 balls (K = the CA model's tuned shrinkage; 70% weight
+  on the player's own record) a discipline can't rate above the 95th percentile of established players. A
+  discipline rated only from List A / first-class can't rate above the median of players with a real T20
+  record (240+ balls), and never below what the generator gave it.
+- The pool is unchanged: CA-only players with no ESPN profile don't meet the pool's rules.
+
+### Career mode
+
+`python3 -I src/analysis/export-age-curves.py` writes `packages/engine/src/age-curves.ts` from the CA T20 age
+curves: rating points per season by gender, for batting attributes (`bat`) and bowling attributes (`pace` /
+`spin`). `Player.progress()` uses it in place of the old hand-set `(30 - age) * 0.3` trend (and extra decline
+after 32); randomness, training focus and youth potential are unchanged. Women's leagues use the women's
+curves (`nextSeason` passes the gender).

@@ -298,6 +298,21 @@ export function parseScorecard(html: string, id: number): Scorecard | null {
     .map(line => line.replace(/<[^>]+>/g, '').replace(/^\s*-->\s*/, '').trim())
     .filter(line => line && !/^<\/?div|^&nbsp/.test(line))
     .slice(0, 200);
-  card.gender = card.matchCodes.some(c => /^w/.test(c)) || /\bWomen\b/.test(card.title) ? 'female' : 'male';
+  card.gender = inferGender(card.levels, card.matchCodes, card.title);
   return card;
+}
+
+const MEN_TIERS = /^(Twenty20|International Twenty20|List A|ODI|First-Class|Test)$/;
+
+/**
+ * Women's senior matches always carry a "Women's ..." level; a men's tier name means a men's match even
+ * when a list code starts with "w" (CricketArchive's wc = World Cup, wctt = World Cup T20, wtc = World Test
+ * Championship, wcsl = World Cup Super League, wid = West Indies domestic). Only untiered cards fall back to
+ * the title or a "w" code (wmisc, nzaw).
+ */
+export function inferGender(levels: string[], matchCodes: string[], title: string): 'male' | 'female' {
+  if (levels.some(l => /^Women's /.test(l))) return 'female';
+  if (levels.some(l => MEN_TIERS.test(l))) return 'male';
+  if (/\bWomen\b/.test(title)) return 'female';
+  return [...levels, ...matchCodes].some(c => /^w/.test(c)) ? 'female' : 'male';
 }
