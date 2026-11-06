@@ -386,3 +386,16 @@ See TESTING-STRATEGY.md Phase 1D-TEST:
 - Role inference accuracy
 - Regression against existing 3255-player CSV
 - Stat conversion accuracy (avg 50 → battingIQ ~90)
+
+## CricketArchive per-year ratings and age curves (all senior formats)
+
+Analysis only; the game's runtime ratings are unchanged. From `packages/ratings`:
+
+    duckdb < src/analysis/ca-player-seasons.sql      # scorecards -> player x competition x year cells (~10 s)
+    python3 -I src/analysis/ca-ratings.py            # strengths, per-year ratings, age curves, validation (~1 min)
+    python3 -I src/analysis/ca-ratings-report.py     # report + sanity checks (exit 1 on failure)
+
+Outputs in `data/analysis/` (gitignored, backed up to R2): `ca_ratings_by_year.parquet` (player x format x year:
+season value, decayed rating, uncertainty, 0-99 ovr and next-year projection for batting and bowling),
+`ca_age_curves.csv`, `ca_comp_strength.csv`, `ca_validation.json`, `ca-ratings-report.md`
+(snapshot in `docs/CA-RATINGS-REPORT.md`). Needs `data/cricket.db` from `build-db.ts`.
