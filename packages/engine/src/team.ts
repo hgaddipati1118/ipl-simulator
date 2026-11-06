@@ -359,6 +359,18 @@ export class Team {
       }
     }
 
+    // Last resort for very thin squads: a keeper can bowl (it is legal), so a side that
+    // cannot find five other options still completes its overs instead of the engine throwing.
+    if (bowlers.length < MIN_BOWLING_OPTIONS) {
+      const keepers = xi
+        .filter(p => p.isWicketKeeper && !bowlers.includes(p))
+        .sort(compareBowlingSuitability);
+      for (const wk of keepers) {
+        bowlers.push(wk);
+        if (bowlers.length >= MIN_BOWLING_OPTIONS) break;
+      }
+    }
+
     return dedupePlayers(bowlers);
   }
 

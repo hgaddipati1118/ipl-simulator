@@ -274,6 +274,10 @@ export class HostGameLogic {
     this.stopTimer();
     this.phase = "results";
 
+    // A random auction can leave a squad too thin to field a side (e.g. 7 players, 3 of them
+    // keepers). Top every squad up from the unsold pool at base price, bowling options first.
+    this.fillShortSquads();
+
     // Simulate season
     const result = runSeason(this.teams, this.rules);
     const standings = [...this.teams]
@@ -307,6 +311,31 @@ export class HostGameLogic {
     this.currentPlayerIdx++;
     this.startNextPlayer();
     this.broadcastAuctionState();
+  }
+
+  /** Fill squads below the minimum from unsold players at base price (like the engine auction). */
+  private fillShortSquads() {
+    const minSquad = Math.min(18, this.rules.maxSquadSize);
+    const maxOverseas = this.rules.maxOverseasInSquad;
+    const isBowlingOption = (p: Player) => !p.isWicketKeeper && (p.role === "bowler" || p.role === "all-rounder");
+    const unsold = this.auctionPool.filter(p => !this.teams.some(t => t.roster.includes(p)));
+    let added = true;
+    while (added && unsold.length > 0) {
+      added = false;
+      const needy = this.teams
+        .filter(t => t.roster.length < minSquad)
+        .sort((a, b) => a.roster.length - b.roster.length);
+      for (const team of needy) {
+        const overseasOk = (p: Player) => !p.isInternational || team.internationalCount < maxOverseas;
+        const needsBowling = team.roster.filter(isBowlingOption).length < 6;
+        let idx = needsBowling ? unsold.findIndex(p => isBowlingOption(p) && overseasOk(p)) : -1;
+        if (idx === -1) idx = unsold.findIndex(overseasOk);
+        if (idx === -1) continue;
+        const [player] = unsold.splice(idx, 1);
+        team.addPlayer(player, getBasePrice(player));
+        added = true;
+      }
+    }
   }
 
   /** Sim remaining auction (host only) */
