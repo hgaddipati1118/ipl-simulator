@@ -75,6 +75,9 @@ export interface TeamConfig {
   pitchType?: "flat" | "seaming" | "turning" | "balanced";
   boundarySize?: "small" | "medium" | "large";
   dewFactor?: "none" | "moderate" | "heavy";
+  /** Play home games at this franchise's ground (its measured venue data). For sides without a
+   *  ground of their own, e.g. Draft Match XIs. Defaults to the team's own id. */
+  venueTeamId?: string;
 }
 
 /**
@@ -94,7 +97,7 @@ export const LEGACY_STADIUM_BOWLING_RATINGS: Record<string, number> = {
  * uses the measurements directly; these labels drive UI, lineup advice and live-mode extras.
  */
 function withMeasuredVenue(config: TeamConfig): TeamConfig {
-  const profile = getVenueProfileForTeam(config.id);
+  const profile = getVenueProfileForTeam(config.venueTeamId ?? config.id);
   if (!profile) return config;
   return {
     ...config,

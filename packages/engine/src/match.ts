@@ -510,7 +510,7 @@ function getVenueContext(
     };
   }
 
-  const profile = getVenueProfileForTeam(homeTeam.id);
+  const profile = getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id);
   return {
     stadiumBowlRating: stadiumRatingFor(homeTeam, profile) * (2 - rules.scoringMultiplier),
     pitchType: homeTeam.config.pitchType ?? "balanced",

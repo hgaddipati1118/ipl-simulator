@@ -96,7 +96,7 @@ describe("draft room: Draft Match with 3+ peers", () => {
 
     host.start();
     expect(hub.view("p3").draft?.status).toBe("in-progress");
-    expect(hub.view("p3").pool.length).toBe(70);
+    expect(hub.view("p3").pool.length).toBeGreaterThanOrEqual(70); // topped up if a random pool lacks keepers
 
     // A pick out of turn is rejected
     const d0 = host.getDraft()!;
@@ -215,7 +215,8 @@ describe("draft room: season draft with humans and AI", () => {
 
     // h3 queues a player and then lets their clock run out every time
     const pool = hub.view("h3").pool;
-    const want = pool.find(p => p.isWicketKeeper)!.id;
+    // The last keeper in pool order: the scripted humans take the first matching players
+    const want = [...pool].reverse().find(p => p.isWicketKeeper)!.id;
     hub.send("h3", { type: "draft-queue", playerIds: [want] });
 
     let guard = 3000;

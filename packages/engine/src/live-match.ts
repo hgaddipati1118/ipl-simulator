@@ -791,7 +791,7 @@ export function createMatchState(
   const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
   const isUserTossWinner = userTeamId !== null && tossWinner.id === userTeamId;
 
-  const venueProfile = getVenueProfileForTeam(homeTeam.id);
+  const venueProfile = getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id);
   const chaseAdvantage = venueProfile?.chaseAdvantage ?? getLeagueChaseAdvantage(rules.league, rules.gender);
 
   // CPU toss decision: follow the ground's measured chase advantage

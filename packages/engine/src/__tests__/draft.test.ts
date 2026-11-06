@@ -7,13 +7,21 @@ import {
 } from "../draft.js";
 import { generatePlayerPool } from "../create-player.js";
 
-/** Generated pool with at least n/8 keepers (random pools occasionally have almost none). */
+/**
+ * Generated pool shaped like a real one: at least n/8 keepers and at least 55% domestic players
+ * (random generated pools are mostly overseas, which no overseas-capped XI can be built from).
+ */
 function pool(n: number): DraftPlayer[] {
   const players = generatePlayerPool(n).map(toDraftPlayer);
   let wk = players.filter(p => p.isWicketKeeper).length;
   for (const p of players) {
     if (wk >= Math.ceil(n / 8)) break;
     if (!p.isWicketKeeper && p.role === "batsman") { p.isWicketKeeper = true; wk++; }
+  }
+  let dom = players.filter(p => !p.isInternational).length;
+  for (const p of players) {
+    if (dom >= Math.ceil(n * 0.55)) break;
+    if (p.isInternational) { p.isInternational = false; p.country = "India"; dom++; }
   }
   return players;
 }

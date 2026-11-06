@@ -202,6 +202,8 @@ export function buildDraftMatchTeam(
     pitchType: venue?.pitchType,
     boundarySize: venue?.boundarySize,
     dewFactor: venue?.dewFactor,
+    // Measured conditions (run/six/wicket factors, pace-vs-spin edges, chase edge) for that ground
+    venueTeamId: venue?.id,
   };
   const team = new Team(config, 999);
   for (const p of players) {
