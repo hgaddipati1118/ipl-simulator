@@ -2170,6 +2170,17 @@ export function generateAllRatings(): RatedPlayer[] {
 // ── Ratings model (optional) ──────────────────────────────────────────
 
 function applyRatingsModel(rated: RatedPlayer[], gender: "male" | "female"): void {
+  // One entry per ESPN id: a roster entry can match a scraped player listed under another name
+  // (Amelia/Melie Kerr, N/Shree Charani); keep the one on a team
+  const keep = new Map<string, RatedPlayer>();
+  for (const p of rated) {
+    const seen = keep.get(p.id);
+    if (!seen || (!seen.teamId && p.teamId)) keep.set(p.id, p);
+  }
+  if (keep.size < rated.length) {
+    console.log(`Dropped ${rated.length - keep.size} duplicate player id(s)`);
+    rated.splice(0, rated.length, ...rated.filter(p => keep.get(p.id) === p));
+  }
   // Always keep the generator's own ratings (before any model re-ranking): they are the benchmark
   // the ratings model is validated against, so they must never be overwritten by its output
   if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
