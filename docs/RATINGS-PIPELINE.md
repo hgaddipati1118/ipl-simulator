@@ -430,3 +430,19 @@ curves: rating points per season by gender, for batting attributes (`bat`) and b
 `spin`). `Player.progress()` uses it in place of the old hand-set `(30 - age) * 0.3` trend (and extra decline
 after 32); randomness, training focus and youth potential are unchanged. Women's leagues use the women's
 curves (`nextSeason` passes the gender).
+
+## Venues, pitches, toss/chase and geography (analysis only)
+
+From `packages/ratings` (needs `data/cricket.db`, `data/analysis/match_strength.parquet` from `league-strength-index.py`, and the
+Cricsheet `deliveries.parquet` / `matches.parquet`):
+
+    python3 -I src/analysis/venue-conditions.py          # ~4 min; REUSE_BALL=1 skips rebuilding the ball-level stage
+    python3 -I src/analysis/venue-conditions-report.py   # report + data-export/venue-conditions.json
+
+Ground names are canonicalised by `src/analysis/venue_canon.py` + `venue_aliases.csv` (renames and sponsor names). Outputs in
+`data/analysis/`: `venue_factors.csv` / `venue_factors_by_era.csv` (run / wicket / six factors and pitch profile per ground x
+format x scope (all, T20I, ODI, Test) x gender), `venue_ball_factors.csv` (phase and Test-day profiles), `venue_bowler_types.csv`
+(bowler-type edges by ground / country / region, phase and batter hand), `toss_chase.csv`, `geography_effects.csv`,
+`player_region_splits.parquet`, `venue_validation.csv`, `venue-conditions-report.md` (snapshot in
+`docs/VENUE-CONDITIONS-REPORT.md`). `data-export/venue-conditions.json` is a compact table the engine could load later; it is
+not wired in (see section 11 of the report for where it would plug in).

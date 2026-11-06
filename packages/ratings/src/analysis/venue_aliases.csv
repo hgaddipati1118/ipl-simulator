@@ -1,0 +1,117 @@
+pattern,canonical,city,country
+# Regex (case-insensitive, matched against the raw venue string, CricketArchive or Cricsheet) -> canonical ground.
+# Only renames / sponsor names that the generic normaliser cannot merge need a row; first match wins.
+feroz shah kotla|arun jaitley,Arun Jaitley Stadium (Feroz Shah Kotla),Delhi,IND
+sardar patel stadium.*(motera|ahmedabad)|narendra modi stadium|motera,Narendra Modi Stadium (Motera),Ahmedabad,IND
+chinnaswamy,M Chinnaswamy Stadium,Bengaluru,IND
+punjab cricket association.*mohali|is bindra|bindra stadium|pca stadium|pca new stadium.*mohali,Punjab Cricket Association IS Bindra Stadium,Mohali,IND
+yadavindra singh|mullanpur,Maharaja Yadavindra Singh Stadium,Mullanpur,IND
+rajiv gandhi international.*(hyderabad|uppal),Rajiv Gandhi International Stadium,Hyderabad,IND
+chidambaram|chepauk,MA Chidambaram Stadium (Chepauk),Chennai,IND
+wankhede,Wankhede Stadium,Mumbai,IND
+brabourne,Brabourne Stadium,Mumbai,IND
+dy patil (stadium|sports),DY Patil Stadium,Navi Mumbai,IND
+maharashtra cricket association|subrata roy sahara|gahunje|mca international stadium.*pune,Maharashtra Cricket Association Stadium,Pune,IND
+sawai mansingh,Sawai Mansingh Stadium,Jaipur,IND
+\bekana|bharat ratna shri atal bihari vajpayee,Ekana Cricket Stadium,Lucknow,IND
+barsapara|assam cricket association stadium,Barsapara Cricket Stadium,Guwahati,IND
+dharamsala|dharmasala|himachal pradesh cricket association,HPCA Stadium,Dharamsala,IND
+holkar (cricket )?stadium,Holkar Cricket Stadium,Indore,IND
+jsca international|jharkhand state cricket association international,JSCA International Stadium,Ranchi,IND
+vidarbha cricket association stadium|jamtha,VCA Stadium (Jamtha),Nagpur,IND
+green park,Green Park,Kanpur,IND
+aca-vdca|dr y ?s ?rajasekhara reddy,ACA-VDCA Stadium,Visakhapatnam,IND
+eden gardens,Eden Gardens,Kolkata,IND
+saurashtra cricket association stadium|niranjan shah stadium,Saurashtra Cricket Association Stadium,Rajkot,IND
+greenfield international,Greenfield International Stadium,Thiruvananthapuram,IND
+kennington oval|the oval|kia oval|brit oval|foster's oval|amp oval|oval..?london,The Oval,London,ENG
+lord's|lords cricket ground,Lord's,London,ENG
+old trafford,Old Trafford,Manchester,ENG
+rose bowl|ageas bowl|utilita bowl|hampshire bowl,The Rose Bowl,Southampton,ENG
+riverside ground|chester-le-street|chester le street,Riverside Ground,Chester-le-Street,ENG
+sophia gardens|swalec stadium wales stadium|cardiff,Sophia Gardens,Cardiff,ENG
+headingley,Headingley,Leeds,ENG
+trent bridge,Trent Bridge,Nottingham,ENG
+edgbaston(?! foundation),Edgbaston,Birmingham,ENG
+county ground.*hove|central county ground,County Ground,Hove,ENG
+grace road|uptonsteel county ground,Grace Road,Leicester,ENG
+new road.*worcester|county ground.*worcester,New Road,Worcester,ENG
+county ground.*chelmsford|cloud county ground|cloudfm county ground,County Ground,Chelmsford,ENG
+county ground.*taunton|cooper associates county ground,County Ground,Taunton,ENG
+county ground.*bristol|seat unique stadium,County Ground,Bristol,ENG
+county ground.*derby|incora county ground,County Ground,Derby,ENG
+county ground.*northampton|wantage road,County Ground,Northampton,ENG
+st lawrence ground|spitfire ground,St Lawrence Ground,Canterbury,ENG
+western australia cricket association|waca,WACA Ground,Perth,AUS
+perth stadium|optus stadium,Perth Stadium,Perth,AUS
+brisbane cricket ground|woolloongabba|the gabba,The Gabba,Brisbane,AUS
+melbourne cricket ground,Melbourne Cricket Ground,Melbourne,AUS
+sydney cricket ground,Sydney Cricket Ground,Sydney,AUS
+adelaide oval,Adelaide Oval,Adelaide,AUS
+bellerive|blundstone arena|ninja stadium,Bellerive Oval,Hobart,AUS
+manuka oval,Manuka Oval,Canberra,AUS
+docklands|etihad stadium|marvel stadium|telstra dome,Docklands Stadium,Melbourne,AUS
+kardinia park|gmhba stadium|simonds stadium,Kardinia Park,Geelong,AUS
+carrara|metricon stadium|people first stadium|heritage bank stadium,Carrara Stadium,Gold Coast,AUS
+newlands,Newlands,Cape Town,RSA
+wanderers stadium,Wanderers Stadium,Johannesburg,RSA
+kingsmead,Kingsmead,Durban,RSA
+supersport park park|centurion,SuperSport Park,Centurion,RSA
+st george's park|st georges park,St George's Park,Gqeberha,RSA
+boland park.*paarl,Boland Park,Paarl,RSA
+buffalo park,Buffalo Park,East London,RSA
+mangaung oval|goodyear park|chevrolet park|outsurance oval,Mangaung Oval,Bloemfontein,RSA
+senwes park,Senwes Park,Potchefstroom,RSA
+diamond oval,Diamond Oval,Kimberley,RSA
+willowmoore,Willowmoore Park,Benoni,RSA
+dubai international cricket stadium|dubai sports city|dubai \(dsc\),Dubai International Cricket Stadium,Dubai,UAE
+sheikh zayed|zayed cricket stadium,Sheikh Zayed Stadium,Abu Dhabi,UAE
+sharjah,Sharjah Cricket Stadium,Sharjah,UAE
+basin reserve,Basin Reserve,Wellington,NZ
+westpac stadium|westpac trust stadium|sky stadium|wellington regional stadium,Wellington Regional Stadium,Wellington,NZ
+hagley oval,Hagley Oval,Christchurch,NZ
+seddon park,Seddon Park,Hamilton,NZ
+eden park,Eden Park,Auckland,NZ
+bay oval,Bay Oval,Mount Maunganui,NZ
+university oval\W+dunedin,University Oval,Dunedin,NZ
+mclean park,McLean Park,Napier,NZ
+saxton oval,Saxton Oval,Nelson,NZ
+kensington oval,Kensington Oval,Bridgetown,WI
+queen's park oval|queens park oval,Queen's Park Oval,Port of Spain,WI
+sabina park,Sabina Park,Kingston,WI
+providence stadium|guyana national stadium,Providence Stadium,Providence,WI
+beausejour|darr?en sammy,Daren Sammy Stadium,Gros Islet,WI
+warner park,Warner Park,Basseterre,WI
+sir vivian richards|north sound,Sir Vivian Richards Stadium,North Sound,WI
+brian lara|tarouba,Brian Lara Stadium,Tarouba,WI
+arnos vale,Arnos Vale,Kingstown,WI
+shere bangla|mirpur (cricket )?stadium,Shere Bangla National Stadium,Mirpur,BDESH
+zahur ahmed chowdhury|zohur ahmed chowdhury,Zahur Ahmed Chowdhury Stadium,Chattogram,BDESH
+sylhet stadium|sylhet international,Sylhet Stadium,Sylhet,BDESH
+premadasa,R Premadasa Stadium,Colombo,SL
+sinhalese sports club|ssc..?colombo,Sinhalese Sports Club Ground,Colombo,SL
+p sara oval|paikiasothy saravanamuttu,P Sara Oval,Colombo,SL
+galle international,Galle International Stadium,Galle,SL
+pallekele,Pallekele International Stadium,Pallekele,SL
+dambulla|rangiri,Rangiri Dambulla Stadium,Dambulla,SL
+mahinda rajapaksa|hambantota|sooriyawewa,Mahinda Rajapaksa International Stadium,Hambantota,SL
+gaddafi,Gaddafi Stadium,Lahore,PAK
+national stadium.*karachi|national bank stadium,National Stadium,Karachi,PAK
+rawalpindi cricket stadium|pindi cricket stadium,Rawalpindi Cricket Stadium,Rawalpindi,PAK
+multan cricket stadium,Multan Cricket Stadium,Multan,PAK
+iqbal stadium,Iqbal Stadium,Faisalabad,PAK
+harare sports club,Harare Sports Club,Harare,ZIM
+queens sports club,Queens Sports Club,Bulawayo,ZIM
+al amerat cricket ground|ministry turf 1,Al Amerat Cricket Ground,Al Amerat,OMAN
+ministry turf 2|al amerat cricket ground turf 2,Al Amerat Cricket Ground Turf 2,Al Amerat,OMAN
+universiti kebangsaan malaysia|ysd-ukm|ukm cricket oval,UKM Cricket Oval,Bangi,MAL
+udayana cricket,Udayana Cricket Ground,Bali,INA
+moara vlasiei,Moara Vlasiei Cricket Ground,Ilfov,ROM
+malahide|the village.*dublin,The Village Malahide,Dublin,IRELAND
+marsa sports club,Marsa Sports Club,Marsa,MALTA
+grand prairie stadium,Grand Prairie Stadium,Dallas,USA
+mission road ground,Mission Road Ground,Hong Kong,HKG
+junction oval,Junction Oval,Melbourne,AUS
+church street park|morrisville,Church Street Park,Morrisville,USA
+central broward|lauderhill,Central Broward Regional Park,Lauderhill,USA
+nassau county|eisenhower park,Nassau County International Cricket Stadium,New York,USA
