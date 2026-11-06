@@ -452,10 +452,8 @@ export function simulateNextMatch(
 
   applyPostMatchCondition(result, teams);
 
-  // Heal injuries for all teams
-  for (const t of teams) {
-    healInjuries(t);
-  }
+  // One match has passed for the two teams that played; players injured in it start their layoff
+  healAfterMatch(result, [home, away]);
 
   // Mid-season training tick every 5 matches
   if ((matchIndex + 1) % 5 === 0) {
@@ -600,13 +598,21 @@ export function applyLiveResult(
   for (const p of home.roster) { if (homeXISet.has(p.id)) p.stats.matches++; }
   for (const p of away.roster) { if (awayXISet.has(p.id)) p.stats.matches++; }
 
+  // Live matches get the same post-match injury checks as simulated ones
+  const injuriesEnabled = rules.injuriesEnabled ?? true;
+  result.injuries = [...result.injuries];
+  for (const [team, ids] of [[home, homeXISet], [away, awayXISet]] as const) {
+    const xi = team.roster.filter(p => ids.has(p.id));
+    for (const { player, injury } of runPostMatchInjuryChecks(xi, injuriesEnabled, { gender: rules.gender })) {
+      result.injuries.push({ playerId: player.id, playerName: player.name, teamId: team.id, injury });
+    }
+  }
+
   updateLiveMatchForm(result, teams);
   applyPostMatchCondition(result, teams);
 
-  // Heal injuries for all teams
-  for (const t of teams) {
-    healInjuries(t);
-  }
+  // One match has passed for the two teams that played; players injured in it start their layoff
+  healAfterMatch(result, [home, away]);
 
   // Mid-season training tick every 5 matches
   if ((matchIndex + 1) % 5 === 0) {
@@ -762,7 +768,7 @@ function playAndPush(
     countTowardStandings: false,
   });
   schedule.push(match);
-  for (const t of teams) healInjuries(t);
+  healAfterMatch(match.result, [home, away]);
   return match.result;
 }
 
@@ -918,6 +924,16 @@ function runEliminatorFormat(
   return getWinner(finalResult, q1Winner, q2Winner);
 }
 
+/**
+ * Heal the two teams that just played by one match. Injury durations count the injured
+ * player's own team matches, so other teams' fixtures don't shorten a layoff, and a player
+ * injured in this match misses the next N matches in full.
+ */
+function healAfterMatch(result: MatchResult, playedTeams: Team[]): void {
+  const justInjured = new Set((result.injuries ?? []).map(i => i.playerId));
+  for (const t of playedTeams) healInjuries(t, justInjured);
+}
+
 /** Run a full season: group stage + playoffs */
 export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): SeasonResult {
   // Reset all teams
@@ -932,10 +948,8 @@ export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): Season
     const away = teamMap.get(match.awayTeamId)!;
     match.result = simulateMatch(home, away, rules);
 
-    // Heal injuries after each match
-    for (const t of teams) {
-      healInjuries(t);
-    }
+    // One match has passed for the two teams that played
+    healAfterMatch(match.result, [home, away]);
   }
 
   // Standings

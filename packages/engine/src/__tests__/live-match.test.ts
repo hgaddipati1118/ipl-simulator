@@ -393,7 +393,7 @@ describe("live match venue logic", () => {
   it("uses venue-aware toss logic for heavy dew and seaming pitches", () => {
     for (let i = 0; i < 5; i++) {
       const dewState = createMatchState(
-        buildTeam(0, { dewFactor: "heavy", pitchType: "balanced" }),
+        buildTeam(0, { id: "custom-dew", dewFactor: "heavy", pitchType: "balanced" }),
         buildTeam(1),
         RULE_PRESETS.modern,
         null,
@@ -401,7 +401,7 @@ describe("live match venue logic", () => {
       expect(dewState.tossDecision).toBe("bowl");
 
       const seamState = createMatchState(
-        buildTeam(2, { dewFactor: "none", pitchType: "seaming" }),
+        buildTeam(2, { id: "custom-seam", dewFactor: "none", pitchType: "seaming" }),
         buildTeam(3),
         RULE_PRESETS.modern,
         null,
@@ -428,12 +428,12 @@ describe("live match venue logic", () => {
     const matches = 16;
     const flat = averageLiveFirstInnings(
       matches,
-      () => buildSpinHeavyTeam(0, { pitchType: "flat", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
+      () => buildSpinHeavyTeam(0, { id: "custom-flat", pitchType: "flat", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
       () => buildSpinHeavyTeam(1),
     );
     const turning = averageLiveFirstInnings(
       matches,
-      () => buildSpinHeavyTeam(0, { pitchType: "turning", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
+      () => buildSpinHeavyTeam(0, { id: "custom-turning", pitchType: "turning", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
       () => buildSpinHeavyTeam(1),
     );
 

@@ -130,20 +130,15 @@ describe("IPL_TEAMS stadium bowling ratings", () => {
     }
   });
 
-  it("spin-friendly venues (Chennai, Kolkata) have higher bowling ratings", () => {
-    const csk = IPL_TEAMS.find(t => t.id === "csk")!;
-    const kkr = IPL_TEAMS.find(t => t.id === "kkr")!;
-    // Chepauk and Eden Gardens are historically spin-friendly
-    expect(csk.stadiumBowlingRating!).toBeGreaterThanOrEqual(1.0);
-    expect(kkr.stadiumBowlingRating!).toBeGreaterThanOrEqual(0.95);
-  });
-
-  it("batting-friendly venues (Bengaluru, Mumbai) have lower bowling ratings", () => {
-    const rcb = IPL_TEAMS.find(t => t.id === "rcb")!;
-    const mi = IPL_TEAMS.find(t => t.id === "mi")!;
-    // Chinnaswamy and Wankhede are high-scoring grounds
-    expect(rcb.stadiumBowlingRating!).toBeLessThanOrEqual(0.9);
-    expect(mi.stadiumBowlingRating!).toBeLessThanOrEqual(0.9);
+  it("ratings follow the measured grounds: Chepauk and Ekana bowler-friendly, Chinnaswamy and Wankhede batter-friendly", () => {
+    const r = (id: string) => IPL_TEAMS.find(t => t.id === id)!.stadiumBowlingRating!;
+    // Measured run factors (venue report): Chepauk 95.5, Ekana 92.9 vs Chinnaswamy 102.9, Wankhede 102.3
+    expect(r("csk")).toBeGreaterThan(1.0);
+    expect(r("lsg")).toBeGreaterThan(1.0);
+    expect(r("rcb")).toBeLessThan(1.0);
+    expect(r("mi")).toBeLessThan(1.0);
+    expect(r("csk")).toBeGreaterThan(r("rcb"));
+    expect(r("lsg")).toBeGreaterThan(r("mi"));
   });
 });
 

@@ -101,6 +101,8 @@ export interface PlayerData {
   injuryGamesLeft: number;
   injuryType?: string;          // "hamstring", "shoulder", "back", "finger", "ankle", "side strain"
   injurySeverity?: InjurySeverity;
+  /** Injuries this season [0] and last season [1] (drives the previous-injury risk multiplier) */
+  injuryHistory?: number[];
   trainingFocus?: TrainingFocus;
   formHistory?: number[];       // last 5 match performance scores (0-100)
   fatigue?: number;             // 0-100 accumulated workload, lower is fresher
@@ -275,6 +277,7 @@ export class Player implements PlayerData {
   injuryGamesLeft: number;
   injuryType?: string;
   injurySeverity?: InjurySeverity;
+  injuryHistory: number[];
   trainingFocus: TrainingFocus;
   formHistory: number[];
   fatigue: number;
@@ -305,6 +308,7 @@ export class Player implements PlayerData {
     this.injuryGamesLeft = data.injuryGamesLeft ?? 0;
     this.injuryType = data.injuryType;
     this.injurySeverity = data.injurySeverity;
+    this.injuryHistory = data.injuryHistory ? [...data.injuryHistory] : [];
     this.trainingFocus = data.trainingFocus ?? "balanced";
     this.formHistory = data.formHistory ? [...data.formHistory] : [];
     this.fatigue = data.fatigue ?? 0;
@@ -613,6 +617,7 @@ export class Player implements PlayerData {
       injuryGamesLeft: this.injuryGamesLeft,
       injuryType: this.injuryType,
       injurySeverity: this.injurySeverity,
+      injuryHistory: [...this.injuryHistory],
       trainingFocus: this.trainingFocus,
       formHistory: [...this.formHistory],
       fatigue: this.fatigue,

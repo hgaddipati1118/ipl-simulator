@@ -305,15 +305,22 @@ describe("simulateNextMatch", () => {
     const teams = buildTeams();
     const schedule = generateIPLSchedule(teams, 14);
 
-    // Injure a player on one of the teams
+    // Injure a player on one of the teams, and one on a team that doesn't play next
+    const idx = schedule.findIndex(m => m.homeTeamId === teams[0].id || m.awayTeamId === teams[0].id);
+    const m = schedule[idx];
+    const idle = teams.find(t => t.id !== m.homeTeamId && t.id !== m.awayTeamId)!;
     teams[0].roster[0].injured = true;
     teams[0].roster[0].injuryGamesLeft = 1;
+    idle.roster[0].injured = true;
+    idle.roster[0].injuryGamesLeft = 1;
 
-    simulateNextMatch(schedule, 0, teams);
+    simulateNextMatch(schedule, idx, teams, { ...RULE_PRESETS.modern, injuriesEnabled: false });
 
-    // Injury should have been healed (games left decremented to 0)
+    // A layoff counts the injured player's own team matches
     expect(teams[0].roster[0].injuryGamesLeft).toBe(0);
     expect(teams[0].roster[0].injured).toBe(false);
+    expect(idle.roster[0].injured).toBe(true);
+    expect(idle.roster[0].injuryGamesLeft).toBe(1);
   });
 
   it("applies match fatigue to the XI while resting other squads", () => {

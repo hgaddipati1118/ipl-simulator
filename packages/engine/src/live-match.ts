@@ -11,6 +11,8 @@ import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
 import { createRNG, randomSeed, type RNG } from "./rng.js";
+import { getVenueProfileForTeam, getLeagueChaseAdvantage, applyVenueProfile, applyChaseEdge, type VenueProfile } from "./venues.js";
+import { stadiumRatingFor } from "./match.js";
 import {
   type BattingHand,
   type BowlingStyle,
@@ -314,6 +316,10 @@ interface MatchStateInternal {
   pitchType: "flat" | "seaming" | "turning" | "balanced";
   boundarySize: "small" | "medium" | "large";
   dewFactor: "none" | "moderate" | "heavy";
+  /** Measured home-ground conditions (absent in states saved before measured venues) */
+  venueProfile?: VenueProfile | null;
+  /** P(chaser wins) - 0.5 for equal sides at this venue */
+  chaseAdvantage?: number;
 
   // Phase-specific bowling plans per team
   homeBowlingPlan?: BowlingPlan;
@@ -544,6 +550,8 @@ function runOneBall(
   rng: RNG = Math.random,
   isHomeBatting: boolean = false,
   isDayNight: boolean = true,
+  venueProfile: VenueProfile | null = null,
+  chaseAdvantage: number | undefined = undefined,
 ): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped" } {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
@@ -562,6 +570,10 @@ function runOneBall(
   probs["4"] *= (2 - stadiumEffect);
   probs["6"] *= (2 - stadiumEffect);
 
+  // Measured ground: run / six / wicket factors and bowler-type edges; chase edge in innings 2
+  if (venueProfile) applyVenueProfile(probs, venueProfile, bowler.bowlingStyle);
+  if (isSecondInnings && chaseAdvantage !== undefined) applyChaseEdge(probs, chaseAdvantage);
+
   // Ball change rule (IPL 2026): bowling team can request ball change after over 10 in 2nd innings
   // Addresses dew — replacement ball has similar wear but is drier, helping pace bowlers grip
   if (isSecondInnings && over >= 10 && isPaceBowler(bowler.bowlingStyle)) {
@@ -579,6 +591,7 @@ function runOneBall(
     boundarySize,
     dewFactor,
     isSecondInnings,
+    measuredVenue: !!venueProfile,
   });
   probs.wicket *= matchupMods.wicketMod;
   probs["4"] *= matchupMods.fourMod;
@@ -778,15 +791,18 @@ export function createMatchState(
   const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
   const isUserTossWinner = userTeamId !== null && tossWinner.id === userTeamId;
 
-  // CPU toss decision logic: dew → prefer chasing (bowl first), seaming → prefer batting first
+  const venueProfile = getVenueProfileForTeam(homeTeam.id);
+  const chaseAdvantage = venueProfile?.chaseAdvantage ?? getLeagueChaseAdvantage(rules.league, rules.gender);
+
+  // CPU toss decision: follow the ground's measured chase advantage
   const tossDecision: "bat" | "bowl" = isUserTossWinner
     ? "bowl"
-    : decideTossChoice({ pitchType, dewFactor });
+    : decideTossChoice({ pitchType, dewFactor, chaseAdvantage: venueProfile ? chaseAdvantage : undefined, rng });
 
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
   const bowlingFirst = battingFirst === homeTeam ? awayTeam : homeTeam;
 
-  const stadiumRating = (homeTeam.config.stadiumBowlingRating ?? 1.0) * (2 - rules.scoringMultiplier);
+  const stadiumRating = stadiumRatingFor(homeTeam, venueProfile) * (2 - rules.scoringMultiplier);
 
   const firstXI = battingFirst === homeTeam ? homeXI : awayXI;
   const firstBowlXI = battingFirst === homeTeam ? awayXI : homeXI;
@@ -954,6 +970,8 @@ export function createMatchState(
       pitchType,
       boundarySize,
       dewFactor,
+      venueProfile,
+      chaseAdvantage,
       homeBowlingPlan,
       awayBowlingPlan,
       batterAggression: { ...homeTeam.batterAggression, ...awayTeam.batterAggression },
@@ -1075,6 +1093,8 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     rng,
     state.battingTeamId === state.homeTeam.id, // isHomeBatting
     true, // isDayNight (all IPL matches are day-night)
+    int.venueProfile ?? null,
+    int.chaseAdvantage,
   );
 
   // Clone state for mutation
@@ -2984,7 +3004,12 @@ export function autoResolveDecision(state: MatchState): MatchState {
     case 'toss_decision': {
       // CPU auto-decides: conditions-based (already computed a default toss decision)
       const ni = state._internal;
-      const choice = decideTossChoice({ pitchType: ni.pitchType, dewFactor: ni.dewFactor });
+      const choice = decideTossChoice({
+        pitchType: ni.pitchType,
+        dewFactor: ni.dewFactor,
+        chaseAdvantage: ni.venueProfile ? ni.chaseAdvantage : undefined,
+        rng: ni.rng,
+      });
       return applyDecision(state, { type: 'toss_decision', selectedPlayerId: choice });
     }
 

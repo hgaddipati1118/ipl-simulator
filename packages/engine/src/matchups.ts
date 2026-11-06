@@ -51,13 +51,26 @@ export function getMatchPhase(over: number): MatchPhase {
   return "death";
 }
 
+/**
+ * How strongly CPU captains follow a ground's chase advantage at the toss. With the IPL's measured
+ * ~+5.6% chase edge this gives ~80% field-first, the real IPL 2024-26 share (172 of 215 tosses).
+ */
+export const TOSS_CHASE_SLOPE = 5.5;
+
 /** Venue-aware toss choice heuristic used by CPU-controlled sims. */
 export function decideTossChoice(params: {
   pitchType?: PitchType;
   dewFactor?: DewFactor;
+  /** Measured P(chaser wins) - 0.5 at this ground; when given it drives the decision */
+  chaseAdvantage?: number;
   rng?: () => number;
 }): "bat" | "bowl" {
   const { pitchType = "balanced", dewFactor = "none", rng = Math.random } = params;
+
+  if (params.chaseAdvantage !== undefined) {
+    const pBowl = Math.max(0.2, Math.min(0.92, 0.5 + TOSS_CHASE_SLOPE * params.chaseAdvantage));
+    return rng() < pBowl ? "bowl" : "bat";
+  }
 
   if (dewFactor === "heavy") return "bowl";
   if (dewFactor === "moderate") return rng() < 0.65 ? "bowl" : "bat";
@@ -321,6 +334,8 @@ export function getMatchupModifiers(params: {
   boundarySize?: BoundarySize;
   dewFactor?: DewFactor;
   isSecondInnings?: boolean;
+  /** Measured venue profile in use: skip the hand-set pitch / dew / boundary-size multipliers */
+  measuredVenue?: boolean;
 }): {
   wicketMod: number;
   fourMod: number;
@@ -338,8 +353,12 @@ export function getMatchupModifiers(params: {
   const phase = getMatchPhase(over);
   const hand = getHandMatchupModifier(bowlingStyle, battingHand);
   const phaseM = getPhaseModifier(bowlingStyle, phase);
-  const pitchM = getPitchModifier(bowlingStyle, pitchType, dewFactor, isSecondInnings);
-  const boundM = getBoundaryModifier(boundarySize);
+  const pitchM = params.measuredVenue
+    ? { wicketMod: 1, boundaryMod: 1 }
+    : getPitchModifier(bowlingStyle, pitchType, dewFactor, isSecondInnings);
+  const boundM = params.measuredVenue
+    ? { fourMod: 1, sixMod: 1 }
+    : getBoundaryModifier(boundarySize);
 
   // Batter affinity vs bowling type (pace/spin preference)
   const affinityM = params.batterRatings

@@ -9,6 +9,8 @@ import {
   getAvailablePlayers,
   getInjuredPlayersInXI,
   getTeamInjuryReport,
+  getInjuryChance,
+  getInjuryArchetype,
   type InjuryStatus,
 } from "../injury.js";
 
@@ -123,88 +125,79 @@ describe("checkForInjury", () => {
     expect(result!.injuryType).toBe("hamstring");
   });
 
-  it("bowlers have higher injury chance than batsmen", () => {
-    // Use roll 0.02 which is between batsman (0.015) and bowler (0.04)
+  it("pace bowlers have a higher injury chance than batsmen (measured ~1.8x)", () => {
+    const batsman = makePureDeterministicPlayer("inj_4a", "batsman", { age: 28 });
+    const quick = makePureDeterministicPlayer("inj_4b", "bowler", { age: 28, bowlingStyle: "right-arm-fast" });
+    const spinner = makePureDeterministicPlayer("inj_4c", "bowler", { age: 28, bowlingStyle: "off-spin" });
+    expect(getInjuryChance(quick)).toBeGreaterThan(getInjuryChance(batsman) * 1.5);
+    expect(getInjuryChance(quick)).toBeGreaterThan(getInjuryChance(spinner));
 
-    // Batsman: 0.02 >= 0.015 => no injury
-    vi.spyOn(Math, "random").mockReturnValue(0.02);
-    const batsman = makePureDeterministicPlayer("inj_4a", "batsman");
+    // A roll between the two chances injures the quick but not the batsman
+    const roll = (getInjuryChance(batsman) + getInjuryChance(quick)) / 2;
+    vi.spyOn(Math, "random").mockReturnValue(roll);
     expect(checkForInjury(batsman)).toBeNull();
-
     vi.restoreAllMocks();
-
-    // Bowler: 0.02 < 0.04 => injury
     let idx = 0;
-    const values = [0.02, 0.1, 0.0, 0.0];
-    vi.spyOn(Math, "random").mockImplementation(() => {
-      return idx < values.length ? values[idx++] : 0.99;
-    });
-    const bowler = makePureDeterministicPlayer("inj_4b", "bowler");
-    expect(checkForInjury(bowler)).not.toBeNull();
+    const values = [roll, 0.1, 0.0, 0.0];
+    vi.spyOn(Math, "random").mockImplementation(() => (idx < values.length ? values[idx++] : 0.99));
+    expect(checkForInjury(quick)).not.toBeNull();
   });
 
-  it("older players (>34) have increased injury chance", () => {
-    // Base chance for batsman: 0.015, plus age penalty: 0.02 => total 0.035
-
-    // Young batsman: chance = 0.015, roll 0.02 >= 0.015 => no injury
-    vi.spyOn(Math, "random").mockReturnValue(0.02);
-    const young = makePureDeterministicPlayer("inj_5a", "batsman", { age: 25 });
-    expect(checkForInjury(young)).toBeNull();
-
-    vi.restoreAllMocks();
-
-    // Old batsman: chance = 0.015 + 0.02 = 0.035, roll 0.02 < 0.035 => injury
-    let idx = 0;
-    const values = [0.02, 0.1, 0.0, 0.0];
-    vi.spyOn(Math, "random").mockImplementation(() => {
-      return idx < values.length ? values[idx++] : 0.99;
-    });
-    const old = makePureDeterministicPlayer("inj_5b", "batsman", { age: 36 });
-    expect(checkForInjury(old)).not.toBeNull();
+  it("uses the measured age bands (regular young players miss the most time)", () => {
+    const young = makePureDeterministicPlayer("inj_5a", "batsman", { age: 21 });
+    const prime = makePureDeterministicPlayer("inj_5b", "batsman", { age: 28 });
+    const veteran = makePureDeterministicPlayer("inj_5c", "batsman", { age: 35 });
+    expect(getInjuryChance(young)).toBeGreaterThan(getInjuryChance(prime));
+    // Survivors: older regulars are no more injury-prone in the data than prime-age ones
+    expect(getInjuryChance(veteran)).toBeLessThanOrEqual(getInjuryChance(prime));
   });
 
-  it("all-rounders have moderate injury chance (0.03)", () => {
-    // 0.025 is below 0.03 but above 0.015 (batsman)
-    let idx = 0;
-    const values = [0.025, 0.1, 0.0, 0.0];
-    vi.spyOn(Math, "random").mockImplementation(() => {
-      return idx < values.length ? values[idx++] : 0.99;
-    });
-
-    const ar = makePureDeterministicPlayer("inj_6", "all-rounder");
-    expect(checkForInjury(ar)).not.toBeNull();
+  it("previous injuries raise the chance (1: +11%, 2+: +22%)", () => {
+    const clean = makePureDeterministicPlayer("inj_5d", "batsman", { age: 28 });
+    const once = makePureDeterministicPlayer("inj_5e", "batsman", { age: 28, injuryHistory: [1, 0] });
+    const twice = makePureDeterministicPlayer("inj_5f", "batsman", { age: 28, injuryHistory: [1, 1] });
+    expect(getInjuryChance(once) / getInjuryChance(clean)).toBeCloseTo(1.113, 3);
+    expect(getInjuryChance(twice) / getInjuryChance(clean)).toBeCloseTo(1.22, 3);
   });
 
-  it("returns valid severity values (minor, moderate, severe)", () => {
-    // Test minor severity: severity roll 0.5 <= 0.60
+  it("women's cricket uses the measured 0.58x rate and fatigue only adds risk", () => {
+    const p = makePureDeterministicPlayer("inj_5g", "batsman", { age: 28 });
+    expect(getInjuryChance(p, { gender: "women" }) / getInjuryChance(p)).toBeCloseTo(0.576, 3);
+    const tired = makePureDeterministicPlayer("inj_5h", "batsman", { age: 28, fatigue: 100 });
+    const fresh = makePureDeterministicPlayer("inj_5i", "batsman", { age: 28, fatigue: 10 });
+    expect(getInjuryChance(tired)).toBeGreaterThan(getInjuryChance(fresh));
+  });
+
+  it("maps players to the analysis's types", () => {
+    expect(getInjuryArchetype(makePureDeterministicPlayer("inj_6a", "bowler", { bowlingStyle: "left-arm-fast-medium" }))).toBe("pace");
+    expect(getInjuryArchetype(makePureDeterministicPlayer("inj_6b", "bowler", { bowlingStyle: "right-arm-medium" }))).toBe("medium");
+    expect(getInjuryArchetype(makePureDeterministicPlayer("inj_6c", "bowler", { bowlingStyle: "left-arm-orthodox" }))).toBe("finger spin");
+    expect(getInjuryArchetype(makePureDeterministicPlayer("inj_6d", "bowler", { bowlingStyle: "leg-spin" }))).toBe("wrist spin");
+    expect(getInjuryArchetype(makePureDeterministicPlayer("inj_6e", "batsman", { isWicketKeeper: true }))).toBe("wicketkeeper");
+    const ar = getInjuryArchetype(makePureDeterministicPlayer("inj_6f", "all-rounder"));
+    expect(["batting all-rounder", "bowling all-rounder"]).toContain(ar);
+  });
+
+  it("returns valid severity values (minor, moderate, severe) from the measured duration split", () => {
+    // Batsman ("other" group): 51% 1-2 matches, 39% 3-5, 10% 6+
     let idx = 0;
-    let values = [0.001, 0.5, 0.0, 0.0];
-    vi.spyOn(Math, "random").mockImplementation(() => {
-      return idx < values.length ? values[idx++] : 0.99;
-    });
-    const minor = checkForInjury(makePureDeterministicPlayer("sev_1", "bowler"));
+    let values = [0.001, 0.3, 0.0, 0.0];
+    vi.spyOn(Math, "random").mockImplementation(() => (idx < values.length ? values[idx++] : 0.99));
+    const minor = checkForInjury(makePureDeterministicPlayer("inj_sev1", "batsman"));
     expect(minor!.severity).toBe("minor");
-
     vi.restoreAllMocks();
 
-    // Test moderate severity: severity roll 0.7 > 0.60 and <= 0.90
     idx = 0;
     values = [0.001, 0.7, 0.0, 0.0];
-    vi.spyOn(Math, "random").mockImplementation(() => {
-      return idx < values.length ? values[idx++] : 0.99;
-    });
-    const moderate = checkForInjury(makePureDeterministicPlayer("sev_2", "bowler"));
+    vi.spyOn(Math, "random").mockImplementation(() => (idx < values.length ? values[idx++] : 0.99));
+    const moderate = checkForInjury(makePureDeterministicPlayer("inj_sev2", "batsman"));
     expect(moderate!.severity).toBe("moderate");
-
     vi.restoreAllMocks();
 
-    // Test severe severity: severity roll 0.95 > 0.90
     idx = 0;
     values = [0.001, 0.95, 0.0, 0.0];
-    vi.spyOn(Math, "random").mockImplementation(() => {
-      return idx < values.length ? values[idx++] : 0.99;
-    });
-    const severe = checkForInjury(makePureDeterministicPlayer("sev_3", "bowler"));
+    vi.spyOn(Math, "random").mockImplementation(() => (idx < values.length ? values[idx++] : 0.99));
+    const severe = checkForInjury(makePureDeterministicPlayer("inj_sev3", "batsman"));
     expect(severe!.severity).toBe("severe");
   });
 
@@ -260,23 +253,10 @@ describe("checkForInjury", () => {
     }
   });
 
-  it("wicket-keepers have same chance as batsmen (0.015)", () => {
-    // WK is now role=batsman with isWicketKeeper=true, same injury rate
-    // Roll 0.016 is above 0.015 => no injury for WK
-    vi.spyOn(Math, "random").mockReturnValue(0.016);
-    const wk = makePureDeterministicPlayer("wk_1", "batsman", { isWicketKeeper: true });
-    expect(checkForInjury(wk)).toBeNull();
-
-    vi.restoreAllMocks();
-
-    // Roll 0.01 is below 0.015 => injury for WK
-    let idx = 0;
-    const values = [0.01, 0.1, 0.0, 0.0];
-    vi.spyOn(Math, "random").mockImplementation(() => {
-      return idx < values.length ? values[idx++] : 0.99;
-    });
-    const wk2 = makePureDeterministicPlayer("wk_2", "batsman", { isWicketKeeper: true });
-    expect(checkForInjury(wk2)).not.toBeNull();
+  it("wicket-keepers have a lower chance than batsmen (measured 0.79x)", () => {
+    const wk = makePureDeterministicPlayer("inj_wk1", "batsman", { isWicketKeeper: true, age: 28 });
+    const bat = makePureDeterministicPlayer("inj_wk2", "batsman", { age: 28 });
+    expect(getInjuryChance(wk)).toBeLessThan(getInjuryChance(bat));
   });
 });
 
@@ -434,6 +414,24 @@ describe("runPostMatchInjuryChecks", () => {
 
     const result = runPostMatchInjuryChecks(xi, true);
     expect(result.length).toBeGreaterThan(1);
+  });
+});
+
+describe("injury history and match-based healing", () => {
+  it("applyInjury counts the injury in this season's history", () => {
+    const p = makePlayer();
+    applyInjury(p, { isInjured: true, injuryType: "back", matchesRemaining: 2, severity: "minor" });
+    expect(p.injuryHistory[0]).toBe(1);
+  });
+
+  it("healInjuries skips players injured in the match just played", () => {
+    const team = makeTeamWithRoster();
+    const [a, b] = team.roster;
+    applyInjury(a, { isInjured: true, injuryType: "back", matchesRemaining: 1, severity: "minor" });
+    applyInjury(b, { isInjured: true, injuryType: "back", matchesRemaining: 1, severity: "minor" });
+    healInjuries(team, new Set([b.id]));
+    expect(a.injured).toBe(false);
+    expect(b.injured).toBe(true);
   });
 });
 

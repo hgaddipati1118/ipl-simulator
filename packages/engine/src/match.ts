@@ -28,6 +28,15 @@ import {
   type PitchType,
 } from "./matchups.js";
 import { createRNG, randomSeed, type RNG } from "./rng.js";
+import {
+  getVenueProfileForTeam,
+  getLeagueChaseAdvantage,
+  applyVenueProfile,
+  applyChaseEdge,
+  deriveStadiumBowlingRating,
+  type VenueProfile,
+} from "./venues.js";
+import { LEGACY_STADIUM_BOWLING_RATINGS } from "./team.js";
 
 export type BallOutcome = "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
 
@@ -78,6 +87,10 @@ interface VenueContext {
   pitchType: PitchType;
   boundarySize: BoundarySize;
   dewFactor: DewFactor;
+  /** Measured home-ground conditions (null at neutral venues and for unmapped teams) */
+  profile: VenueProfile | null;
+  /** P(chaser wins) - 0.5 for equal sides at this venue */
+  chaseAdvantage: number;
 }
 
 /* ───── Detailed scorecard types (from WT2) ───── */
@@ -265,10 +278,15 @@ function simulateBall(
     probs[key] *= phaseMult[key] ?? 1;
   }
 
-  // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel
+  // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel.
+  // With a measured ground this is neutral unless the stadium editor changed the rating.
   const stadiumEffect = 1 + (venue.stadiumBowlRating - 1) * 0.5;
   probs.wicket *= stadiumEffect;
   probs.dot *= stadiumEffect;
+
+  // Measured ground: run / six / wicket factors and bowler-type edges
+  if (venue.profile) applyVenueProfile(probs, venue.profile, bowler.bowlingStyle);
+  if (isSecondInnings) applyChaseEdge(probs, venue.chaseAdvantage);
 
   // Style, handedness, and venue context
   const matchupMods = getMatchupModifiers({
@@ -279,6 +297,7 @@ function simulateBall(
     boundarySize: venue.boundarySize,
     dewFactor: venue.dewFactor,
     isSecondInnings,
+    measuredVenue: venue.profile !== null,
   });
   probs.wicket *= matchupMods.wicketMod;
   probs["4"] *= matchupMods.fourMod;
@@ -479,21 +498,41 @@ function getVenueContext(
   rules: RuleSet,
   options?: MatchOptions,
 ): VenueContext {
+  const leagueChase = getLeagueChaseAdvantage(rules.league, rules.gender);
   if (options?.neutralVenue) {
     return {
       stadiumBowlRating: 1.0 * (2 - rules.scoringMultiplier),
       pitchType: "balanced",
       boundarySize: "medium",
       dewFactor: "none",
+      profile: null,
+      chaseAdvantage: leagueChase,
     };
   }
 
+  const profile = getVenueProfileForTeam(homeTeam.id);
   return {
-    stadiumBowlRating: (homeTeam.config.stadiumBowlingRating ?? 1.0) * (2 - rules.scoringMultiplier),
+    stadiumBowlRating: stadiumRatingFor(homeTeam, profile) * (2 - rules.scoringMultiplier),
     pitchType: homeTeam.config.pitchType ?? "balanced",
     boundarySize: homeTeam.config.boundarySize ?? "medium",
     dewFactor: homeTeam.config.dewFactor ?? "none",
+    profile,
+    chaseAdvantage: profile?.chaseAdvantage ?? leagueChase,
   };
+}
+
+/**
+ * Stadium rating to feed the legacy stadium effect. For a measured ground the measured factors do
+ * the work, so only a user's edit in the stadium editor (relative to the measured default) applies.
+ * An old save still holding the pre-measurement hand-set default counts as unedited.
+ */
+export function stadiumRatingFor(team: Team, profile: VenueProfile | null): number {
+  const rating = team.config.stadiumBowlingRating ?? 1.0;
+  if (!profile) return rating;
+  const measuredDefault = deriveStadiumBowlingRating(profile);
+  const legacy = LEGACY_STADIUM_BOWLING_RATINGS[team.id];
+  if (legacy !== undefined && Math.abs(rating - legacy) < 1e-9) return 1.0;
+  return rating / measuredDefault;
 }
 
 function getNRRBallDenominator(innings: InningsScore, maxOvers = 20): number {
@@ -1220,7 +1259,12 @@ export function simulateMatch(
   // Toss
   const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
   const venue = getVenueContext(homeTeam, rules, options);
-  const tossDecision = decideTossChoice(venue);
+  // Measured grounds: follow the chase record. Unmapped (custom) venues keep the dew/pitch heuristic.
+  const tossDecision = decideTossChoice({
+    ...venue,
+    chaseAdvantage: venue.profile ? venue.chaseAdvantage : undefined,
+    rng,
+  });
 
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
   const bowlingFirst = battingFirst === homeTeam ? awayTeam : homeTeam;
@@ -1326,7 +1370,7 @@ export function simulateMatch(
   // Run injury checks using the injury system (WT3)
   const injuries: MatchInjuryEvent[] = [];
   const injuriesEnabled = rules.injuriesEnabled ?? true;
-  const homeInjuries = runPostMatchInjuryChecks(homeXI, injuriesEnabled);
+  const homeInjuries = runPostMatchInjuryChecks(homeXI, injuriesEnabled, { gender: rules.gender });
   for (const { player, injury } of homeInjuries) {
     injuries.push({
       playerId: player.id,
@@ -1335,7 +1379,7 @@ export function simulateMatch(
       injury,
     });
   }
-  const awayInjuries = runPostMatchInjuryChecks(awayXI, injuriesEnabled);
+  const awayInjuries = runPostMatchInjuryChecks(awayXI, injuriesEnabled, { gender: rules.gender });
   for (const { player, injury } of awayInjuries) {
     injuries.push({
       playerId: player.id,

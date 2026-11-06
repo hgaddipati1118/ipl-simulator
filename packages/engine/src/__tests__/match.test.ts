@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { Team, IPL_TEAMS, type TeamConfig } from "../team.js";
+import { Team, IPL_TEAMS, LEGACY_STADIUM_BOWLING_RATINGS, type TeamConfig } from "../team.js";
+import { getVenueProfileForTeam, deriveStadiumBowlingRating } from "../venues.js";
 import { Player, type PlayerData } from "../player.js";
-import { simulateMatch } from "../match.js";
+import { simulateMatch, stadiumRatingFor } from "../match.js";
 import { RULE_PRESETS } from "../rules.js";
 
 type TestPlayerOptions = {
@@ -277,13 +278,13 @@ describe("simulateMatch", () => {
   it("uses venue-aware toss logic for heavy dew and seaming pitches", () => {
     for (let i = 0; i < 5; i++) {
       const dewResult = simulateMatch(
-        buildTeam(0, { dewFactor: "heavy", pitchType: "balanced" }),
+        buildTeam(0, { id: "custom-dew", dewFactor: "heavy", pitchType: "balanced" }),
         buildTeam(1),
       );
       expect(dewResult.tossDecision).toBe("bowl");
 
       const seamResult = simulateMatch(
-        buildTeam(2, { dewFactor: "none", pitchType: "seaming" }),
+        buildTeam(2, { id: "custom-seam", dewFactor: "none", pitchType: "seaming" }),
         buildTeam(3),
       );
       expect(seamResult.tossDecision).toBe("bat");
@@ -323,17 +324,55 @@ describe("simulateMatch", () => {
     const matches = 90;
     const flat = averageFirstInnings(
       matches,
-      () => buildSpinHeavyTeam(0, { pitchType: "flat", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
+      () => buildSpinHeavyTeam(0, { id: "custom-flat", pitchType: "flat", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
       () => buildSpinHeavyTeam(1),
     );
     const turning = averageFirstInnings(
       matches,
-      () => buildSpinHeavyTeam(0, { pitchType: "turning", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
+      () => buildSpinHeavyTeam(0, { id: "custom-turning", pitchType: "turning", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
       () => buildSpinHeavyTeam(1),
     );
 
     expect(turning.wickets).toBeGreaterThan(flat.wickets);
     expect(turning.runs).toBeLessThan(flat.runs);
+  });
+});
+
+describe("measured venue conditions", () => {
+  const idx = (id: string) => IPL_TEAMS.findIndex(t => t.id === id);
+
+  it("franchise venue labels come from the measured home grounds", () => {
+    const rcb = getVenueProfileForTeam("rcb")!;
+    const lsg = getVenueProfileForTeam("lsg")!;
+    expect(rcb.runMult).toBeGreaterThan(lsg.runMult);
+    expect(getVenueProfileForTeam("custom-team")).toBeNull();
+    const cfg = IPL_TEAMS[idx("csk")];
+    expect(cfg.stadiumBowlingRating).toBe(deriveStadiumBowlingRating(getVenueProfileForTeam("csk")!));
+  });
+
+  it("CPU captains follow the ground's chase advantage at the toss", () => {
+    let bowlFirst = 0;
+    for (let i = 0; i < 60; i++) {
+      const r = simulateMatch(buildTeam(idx("rcb")), buildTeam(idx("lsg")), RULE_PRESETS.modern, 1000 + i);
+      if (r.tossDecision === "bowl") bowlFirst++;
+    }
+    // Chinnaswamy chases are strong (measured), so most toss winners field first
+    expect(bowlFirst).toBeGreaterThan(40);
+  });
+
+  it("high-scoring measured grounds out-score low-scoring ones in aggregate", { timeout: 30000 }, () => {
+    const matches = 90;
+    const rcb = averageFirstInnings(matches, () => buildTeam(idx("rcb")), () => buildTeam(idx("csk")));
+    const lsg = averageFirstInnings(matches, () => buildTeam(idx("lsg")), () => buildTeam(idx("csk")));
+    expect(rcb.runs).toBeGreaterThan(lsg.runs);
+  });
+
+  it("the stadium editor still works on top of a measured ground; old saves count as unedited", () => {
+    const profile = getVenueProfileForTeam("rcb")!;
+    const measured = deriveStadiumBowlingRating(profile);
+    expect(stadiumRatingFor(buildTeam(idx("rcb")), profile)).toBeCloseTo(1, 6);
+    expect(stadiumRatingFor(buildTeam(idx("rcb"), { stadiumBowlingRating: LEGACY_STADIUM_BOWLING_RATINGS.rcb }), profile)).toBe(1);
+    expect(stadiumRatingFor(buildTeam(idx("rcb"), { stadiumBowlingRating: measured * 1.2 }), profile)).toBeCloseTo(1.2, 6);
   });
 });
 
