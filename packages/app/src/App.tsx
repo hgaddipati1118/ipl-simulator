@@ -27,6 +27,8 @@ import { TrainingPage } from "./pages/TrainingPage";
 import { HallOfFamePage } from "./pages/HallOfFamePage";
 import { LobbyPage } from "./pages/LobbyPage";
 import { MultiAuctionPage } from "./pages/MultiAuctionPage";
+import { DraftPage } from "./pages/DraftPage";
+import { DraftMatchPage } from "./pages/DraftMatchPage";
 import { getTeamLogo } from "./team-logos";
 import { useTheme } from "./hooks/useTheme";
 import {
@@ -80,6 +82,13 @@ import {
   liveAuctionSimRemaining,
   finalizeLiveAuction,
   signFreeAgent,
+  initSeasonDraft,
+  draftUserPick,
+  draftUserAutoPick,
+  draftCpuPicks,
+  draftUndoUserPick,
+  draftSimRemaining,
+  finalizeSeasonDraft,
   type SaveSlotInfo,
 } from "./game-state";
 import { saveState, loadState, clearState } from "./storage";
@@ -267,7 +276,7 @@ export default function App() {
             else if (gs.schedule.length > 0) { navigate("/season", { replace: true }); }
             break;
           case "auction":
-            navigate("/auction-live", { replace: true });
+            navigate(gs.draftState ? "/draft" : "/auction-live", { replace: true });
             break;
           case "trade":
             navigate("/trade", { replace: true });
@@ -336,6 +345,13 @@ export default function App() {
   };
 
   const handleSelectTeam = (teamId: string) => {
+    // Draft mode: every squad is built in a live draft instead of the auction
+    if (state.rules.squadBuilding === "draft") {
+      const withDraft = initSeasonDraft({ ...state, userTeamId: teamId });
+      update(withDraft);
+      navigate("/draft");
+      return;
+    }
     // If teams already have full rosters (real players loaded), skip auction
     const minSquad = state.rules.maxSquadSize >= 18 ? 18 : 11;
     const allTeamsStaffed = state.teams.every(t => t.roster.length >= minSquad);
@@ -497,6 +513,11 @@ export default function App() {
 
   const handleFinishRetention = () => {
     const retainedState = finishRetention(state);
+    if (state.rules.squadBuilding === "draft") {
+      update(initSeasonDraft(retainedState));
+      navigate("/draft");
+      return;
+    }
     const withAuction = initLiveAuction(retainedState);
     update(withAuction);
     navigate("/auction-live");
@@ -596,6 +617,37 @@ export default function App() {
     } else {
       navigate("/season");
     }
+  };
+
+  // ── Season draft handlers ──
+
+  const handleDraftPick = (playerId: string): string | undefined => {
+    const { state: next, error } = draftUserPick(state, playerId);
+    if (!error) update(next);
+    return error;
+  };
+
+  const handleDraftAutoPick = (queue: string[]) => {
+    update(draftUserAutoPick(state, queue));
+  };
+
+  const handleDraftCpuPick = () => {
+    update(draftCpuPicks(state, 1));
+  };
+
+  const handleDraftUndo = () => {
+    update(draftUndoUserPick(state));
+  };
+
+  const handleDraftSimRemaining = () => {
+    update(draftSimRemaining(state));
+  };
+
+  const handleDraftFinish = () => {
+    const next = finalizeSeasonDraft(state);
+    const afterInit = initSeason(next);
+    update(afterInit);
+    navigate(afterInit.needsLineup ? "/lineup" : "/season");
   };
 
   const handleUpdateStadium = (rating: number) => {
@@ -758,6 +810,18 @@ export default function App() {
             onToggleWatchlist={handleToggleWatchlist}
           />
         } />
+        <Route path="/draft" element={
+          <DraftPage
+            state={state}
+            onPick={handleDraftPick}
+            onAutoPick={handleDraftAutoPick}
+            onCpuPick={handleDraftCpuPick}
+            onUndo={handleDraftUndo}
+            onSimRemaining={handleDraftSimRemaining}
+            onFinish={handleDraftFinish}
+          />
+        } />
+        <Route path="/draft-match" element={<DraftMatchPage />} />
         <Route path="/team/:teamId" element={
           <TeamView
             teams={state.teams}

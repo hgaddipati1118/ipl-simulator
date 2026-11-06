@@ -2633,14 +2633,16 @@ export function applyDecision(
     }
   }
 
-  // Only clear pendingDecision if the case didn't set a new one (e.g. DRS -> choose_batter)
-  if (newState.status !== "waiting_for_decision") {
+  // A case can chain a new decision (e.g. DRS wicket -> choose_batter): that sets a new
+  // pendingDecision object. Otherwise the original one is resolved and must be cleared.
+  const chainedDecision = newState.status === "waiting_for_decision" && !!newState.pendingDecision && newState.pendingDecision !== pending;
+  if (!chainedDecision) {
     newState.pendingDecision = undefined;
   }
 
   if (pending.type === "drs_review") {
     // If a new decision was set inside the DRS case (e.g. choose_batter after wicket), return it
-    if (newState.status === "waiting_for_decision" && newState.pendingDecision) {
+    if (chainedDecision) {
       return newState;
     }
 

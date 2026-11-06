@@ -199,3 +199,15 @@ export { calculateFantasyPoints, accumulateFantasyPoints, enrichFantasyNames } f
 export type { FantasyPoints } from "./fantasy.js";
 export { AGE_CURVES, ageCurveDelta } from "./age-curves.js";
 export type { AgeCurveGender, AgeCurveKind } from "./age-curves.js";
+
+export {
+  createDraft, applyDraftAction, runAiPicks, simulateRemainingDraft, chooseAiPick,
+  buildPickOrder, shuffleSeats, toDraftPlayer, isDraftBowlingOption,
+  getCurrentSeatId, getCurrentRound, isDraftComplete, getDraftPlayer, getSquad,
+  getAvailablePlayers as getDraftAvailablePlayers, getSquadNeeds, getPickError, getLegalPlayers,
+  canFieldValidXI, squadStrength,
+} from "./draft.js";
+export type {
+  DraftType, DraftAiPersonality, DraftPlayer, DraftSeat, DraftConfig, DraftPick,
+  DraftStatus, DraftState, DraftAction, DraftActionResult, SquadNeeds,
+} from "./draft.js";

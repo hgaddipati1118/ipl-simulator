@@ -324,6 +324,13 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
         >
           Multiplayer
         </button>
+        <button
+          onClick={() => navigate("/draft-match")}
+          data-testid="draft-match-quick"
+          className="w-full rounded-lg border border-orange-500/30 bg-orange-500/[0.06] px-4 py-2.5 text-sm font-display font-semibold text-orange-400 transition-all duration-200 hover:bg-orange-500/[0.12]"
+        >
+          Draft Match
+        </button>
       </fieldset>
 
       {/* Custom League Panel */}
@@ -415,6 +422,55 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
           </label>
         </div>
       )}
+
+      {/* Squad building: auction or draft */}
+      <div className="mb-10 flex flex-col items-center gap-3" data-testid="squad-building">
+        <div className="text-[10px] uppercase tracking-wider font-display font-semibold text-th-muted">Squad building</div>
+        <div className="inline-flex overflow-hidden rounded-lg border border-th">
+          {([
+            { value: "auction", label: "Auction" },
+            { value: "draft", label: "Draft" },
+          ] as const).map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => onRulesChange({ ...rules, squadBuilding: opt.value })}
+              className={`px-5 py-2 text-xs font-display font-semibold transition-colors ${
+                (rules.squadBuilding ?? "auction") === opt.value
+                  ? "bg-white/10 text-th-primary"
+                  : "text-th-muted hover:text-th-primary hover:bg-th-hover"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {rules.squadBuilding === "draft" && (
+          <div className="flex flex-wrap justify-center gap-3 text-xs font-display text-th-muted">
+            <label className="flex items-center gap-2">
+              Order
+              <select
+                value={rules.draftType ?? "snake"}
+                onChange={e => onRulesChange({ ...rules, draftType: e.target.value as "snake" | "linear" })}
+                className="bg-th-raised border border-th rounded-lg px-2 py-1 text-th-secondary"
+              >
+                <option value="snake">Snake</option>
+                <option value="linear">Linear</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              Pick clock
+              <select
+                value={rules.draftPickSeconds ?? 45}
+                onChange={e => onRulesChange({ ...rules, draftPickSeconds: Number(e.target.value) })}
+                className="bg-th-raised border border-th rounded-lg px-2 py-1 text-th-secondary"
+              >
+                {[0, 15, 30, 45, 60, 90].map(n => <option key={n} value={n}>{n === 0 ? "Off" : `${n}s`}</option>)}
+              </select>
+            </label>
+            <span className="text-th-faint">Every squad is drafted from the whole player pool. Retained players fill early rounds in later seasons.</span>
+          </div>
+        )}
+      </div>
 
       {/* Team grid */}
       <div className="grid gap-3 sm:gap-4 stagger grid-cols-2 sm:grid-cols-3 md:grid-cols-5">

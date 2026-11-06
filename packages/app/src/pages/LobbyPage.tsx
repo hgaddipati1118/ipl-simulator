@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { MultiplayerHost, MultiplayerGuest } from "../multiplayer/peer";
 import { HostGameLogic } from "../multiplayer/host-logic";
 import type {
@@ -8,16 +8,34 @@ import type {
   TeamBudgetInfo,
   HostMessage,
   RoomPhase,
+  RoomMode,
 } from "../multiplayer/protocol";
+import { DraftRoomHost, reduceDraftRoomView, EMPTY_DRAFT_ROOM_VIEW, type DraftRoomView } from "../multiplayer/draft-room";
+import { realDraftRoomDeps } from "../multiplayer/draft-room-deps";
+import { DraftRoom, type DraftRoomActions } from "../components/DraftRoom";
 import { RULE_PRESETS, IPL_TEAMS, type RuleSet } from "@ipl-sim/engine";
 import { TeamBadge } from "../components/TeamBadge";
 
-type Mode = "choose" | "host" | "guest";
+type Mode = "choose" | "host" | "guest" | "draft-host";
+
+const ROOM_MODES: { value: RoomMode; label: string; desc: string }[] = [
+  { value: "auction", label: "Auction", desc: "Bid against friends for players" },
+  { value: "season-draft", label: "Season Draft", desc: "Snake-draft full squads, then a season" },
+  { value: "draft-match", label: "Draft Match", desc: "Pick XIs head-to-head and play now" },
+];
 
 const ALL_TEAM_CONFIGS = IPL_TEAMS;
 
 export function LobbyPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [roomMode, setRoomMode] = useState<RoomMode>(
+    ((location.state as { mode?: RoomMode } | null)?.mode) ?? "auction",
+  );
+  const [draftView, setDraftView] = useState<DraftRoomView>(EMPTY_DRAFT_ROOM_VIEW);
+  const [inDraftRoom, setInDraftRoom] = useState(false);
+  const inDraftRoomRef = useRef(false);
+  const draftHostRef = useRef<DraftRoomHost | null>(null);
 
   // Connection mode
   const [mode, setMode] = useState<Mode>("choose");
@@ -44,6 +62,7 @@ export function LobbyPage() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      draftHostRef.current?.destroy();
       logicRef.current?.destroy();
       hostRef.current?.destroy();
       guestRef.current?.destroy();
@@ -75,6 +94,15 @@ export function LobbyPage() {
       hostRef.current = host;
       const code = await host.create();
       setRoomCode(code);
+
+      if (roomMode !== "auction") {
+        const room = new DraftRoomHost(host, realDraftRoomDeps, { mode: roomMode }, name.trim());
+        draftHostRef.current = room;
+        room.onLocal = (msg) => setDraftView(v => reduceDraftRoomView(v, msg));
+        setDraftView(v => ({ ...v, room: room.getRoomInfo() }));
+        setMode("draft-host");
+        return;
+      }
 
       const rules: RuleSet = { ...RULE_PRESETS.modern };
       const logic = new HostGameLogic(host, rules);
@@ -128,7 +156,7 @@ export function LobbyPage() {
     } finally {
       setConnecting(false);
     }
-  }, [name]);
+  }, [name, roomMode]);
 
   const handleHostPickTeam = useCallback((teamId: string) => {
     if (!logicRef.current) return;
@@ -164,6 +192,9 @@ export function LobbyPage() {
 
       guest.onMessage = (data) => {
         const msg = data as HostMessage;
+        // Draft rooms speak "draft-*" messages; once we see one, this is a draft room
+        if (msg.type.startsWith("draft-")) { inDraftRoomRef.current = true; setInDraftRoom(true); }
+        if (inDraftRoomRef.current) { setDraftView(v => reduceDraftRoomView(v, msg)); return; }
         switch (msg.type) {
           case "lobby-state":
             setPlayers(msg.players);
@@ -211,6 +242,52 @@ export function LobbyPage() {
     setTimeout(() => setCopied(false), 2000);
   }, [roomCode]);
 
+  // ── Draft rooms (season draft / Draft Match) ──
+
+  const leaveDraftRoom = () => {
+    draftHostRef.current?.destroy();
+    draftHostRef.current = null;
+    guestRef.current?.destroy();
+    guestRef.current = null;
+    navigate("/");
+  };
+
+  if (mode === "draft-host" && draftHostRef.current) {
+    const room = draftHostRef.current;
+    const actions: DraftRoomActions = {
+      claimSeat: id => room.claimSeat(id),
+      pick: id => room.pick(id),
+      setQueue: ids => room.setQueue(ids),
+      submitLineup: l => room.submitLineup(l.battingOrder, l.captainId),
+      rematch: () => room.rematch(),
+      leave: leaveDraftRoom,
+      host: {
+        updateSettings: patch => room.updateSettings(patch),
+        start: () => room.start(),
+        pause: () => room.pause(),
+        resume: () => room.resume(),
+        undo: () => room.undo(),
+        simRemaining: () => room.simRemaining(),
+        kick: id => room.kick(id),
+        setSeatAI: id => room.setSeatAI(id),
+      },
+    };
+    return <DraftRoom view={draftView} myPeerId="host" actions={actions} />;
+  }
+
+  if (inDraftRoom && guestRef.current) {
+    const g = guestRef.current;
+    const actions: DraftRoomActions = {
+      claimSeat: seatId => g.send({ type: "draft-claim-seat", seatId }),
+      pick: playerId => g.send({ type: "draft-pick", playerId }),
+      setQueue: playerIds => g.send({ type: "draft-queue", playerIds }),
+      submitLineup: l => g.send({ type: "draft-lineup", battingOrder: l.battingOrder, captainId: l.captainId }),
+      rematch: () => g.send({ type: "draft-rematch" }),
+      leave: leaveDraftRoom,
+    };
+    return <DraftRoom view={draftView} myPeerId={g.peerId} actions={actions} />;
+  }
+
   // ── Derived State ──
 
   const isHost = mode === "host";
@@ -227,14 +304,29 @@ export function LobbyPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl sm:text-5xl font-display font-extrabold tracking-tight mb-3">
             <span className="text-gradient-orange">Multiplayer</span>
-            <span className="text-th-primary ml-3">Auction</span>
           </h1>
           <p className="text-th-muted text-lg font-display">
-            Compete with friends in a real-time P2P auction
+            Play friends in real time: auction, season draft, or a quick Draft Match
           </p>
         </div>
 
         <div className="space-y-4 max-w-md mx-auto">
+          {/* Room type (host picks; guests join whatever the host made) */}
+          <div>
+            <label className="text-[10px] uppercase tracking-wider font-display font-semibold text-th-muted mb-2 block">
+              Room type (when creating)
+            </label>
+            <div className="grid grid-cols-3 gap-2" data-testid="room-mode">
+              {ROOM_MODES.map(m => (
+                <button key={m.value} onClick={() => setRoomMode(m.value)}
+                  className={`rounded-xl border px-2 py-2.5 text-left transition-colors ${roomMode === m.value ? "border-orange-500/40 bg-orange-500/[0.08]" : "border-th bg-th-surface hover:bg-th-hover"}`}>
+                  <div className="text-xs font-display font-semibold text-th-primary">{m.label}</div>
+                  <div className="text-[10px] text-th-muted leading-tight mt-0.5">{m.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Name input */}
           <div>
             <label className="text-[10px] uppercase tracking-wider font-display font-semibold text-th-muted mb-2 block">

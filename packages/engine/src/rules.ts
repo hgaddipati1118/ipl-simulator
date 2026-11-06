@@ -32,6 +32,9 @@ export interface RuleSet {
   megaAuctionCycle?: number;     // seasons between mega auctions (default 3 for IPL)
   maxRetentions?: number;        // max players retained at mega auction (default 6)
   maxMiniRetentions?: number;    // max players retained at mini auction (default 4)
+  squadBuilding?: "auction" | "draft"; // how squads are built (default "auction")
+  draftType?: "snake" | "linear";      // season draft pick order (default "snake")
+  draftPickSeconds?: number;           // season draft pick clock, 0 = off (default 45)
 }
 
 /** 8 original IPL franchises (2014-2021 era) */

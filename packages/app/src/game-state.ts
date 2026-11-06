@@ -57,7 +57,11 @@ import {
   getScaledRetentions,
   getAuctionPoolSize,
   type ExpiringContractReport,
+  createDraft, applyDraftAction, runAiPicks, simulateRemainingDraft, toDraftPlayer, shuffleSeats,
+  randomSeed,
+  type DraftState, type DraftType,
 } from "@ipl-sim/engine";
+import { seasonDraftConfig, draftRoundPrice } from "./draft-pools";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
@@ -152,6 +156,10 @@ export interface GameState {
   // Live auction state
   auctionLiveState?: AuctionState;
 
+  // Season draft (when rules.squadBuilding === "draft")
+  draftState?: DraftState;
+  draftHistory?: SeasonDraftRecord[];
+
   // Youth academy prospects (generated between seasons)
   youthProspects: YouthProspect[];
 
@@ -167,6 +175,13 @@ export interface GameState {
 
   // Hall of Fame — retired legends with career summaries
   hallOfFame?: HallOfFameEntry[];
+}
+
+export interface SeasonDraftRecord {
+  seasonNumber: number;
+  type: DraftType;
+  picks: { pickNo: number; round: number; teamId: string; playerId: string; playerName: string; auto: boolean }[];
+  keepers: Record<string, string[]>;
 }
 
 export interface HallOfFameEntry {
@@ -1908,6 +1923,146 @@ export function finalizeLiveAuction(state: GameState): GameState {
     auctionResult,
     playerPool: unsold,
     auctionLiveState: undefined,
+  });
+}
+
+// ── Season Draft ───────────────────────────────────────────────────────
+
+/**
+ * Start a season draft instead of an auction.
+ * First season: a full fantasy draft (every rostered player goes back into the pool).
+ * Later seasons: retained players stay as keepers and use up their team's early rounds.
+ */
+export function initSeasonDraft(state: GameState, seed: number = randomSeed()): GameState {
+  const firstDraft = state.seasonNumber === 1 && state.history.length === 0;
+  const pool = [...state.playerPool];
+  const keepers: Record<string, string[]> = {};
+  for (const team of state.teams) {
+    if (firstDraft) {
+      for (const p of [...team.roster]) {
+        team.removePlayer(p.id);
+        pool.push(p);
+      }
+      team.totalSpent = 0;
+    } else {
+      keepers[team.id] = team.roster.map(p => p.id);
+    }
+  }
+
+  const config = seasonDraftConfig(state.rules, seed, true);
+  const maxKept = Math.max(0, ...Object.values(keepers).map(k => k.length));
+  if (maxKept >= config.rounds) config.rounds = Math.min(state.rules.maxSquadSize, maxKept + 3);
+
+  // Order: reverse of last season's standings when there is one, otherwise a seeded shuffle.
+  const standings = state.seasonResult?.standings ?? [];
+  const ordered = standings.length === state.teams.length
+    ? [...standings].reverse().map(s => state.teams.find(t => t.id === s.teamId)!).filter(Boolean)
+    : shuffleSeats(state.teams, seed);
+  const seats = ordered.map(t => ({
+    id: t.id,
+    name: t.name,
+    controller: (t.id === state.userTeamId ? "human" : "ai") as "human" | "ai",
+  }));
+
+  const everyone = [...pool, ...state.teams.flatMap(t => t.roster)];
+  let draftState = createDraft({ config, seats, pool: everyone.map(toDraftPlayer), keepers });
+  draftState = applyDraftAction(draftState, { type: "start" }).state;
+
+  return withSyncedScouting({
+    ...state,
+    phase: "auction",
+    playerPool: pool,
+    draftState,
+  });
+}
+
+function userSeat(state: GameState): string | null {
+  return state.userTeamId && state.draftState?.seats.some(s => s.id === state.userTeamId) ? state.userTeamId : null;
+}
+
+/** The user drafts a player (no-op with an error message if it isn't legal). */
+export function draftUserPick(state: GameState, playerId: string): { state: GameState; error?: string } {
+  const seat = userSeat(state);
+  if (!state.draftState || !seat) return { state, error: "No draft in progress" };
+  const res = applyDraftAction(state.draftState, { type: "pick", seatId: seat, playerId });
+  if (res.error) return { state, error: res.error };
+  return { state: { ...state, draftState: res.state } };
+}
+
+/** Pick for the user (clock ran out / "auto-draft"): their queue first, otherwise best available. */
+export function draftUserAutoPick(state: GameState, queue: string[] = []): GameState {
+  const seat = userSeat(state);
+  if (!state.draftState || !seat) return state;
+  const res = applyDraftAction(state.draftState, { type: "auto-pick", seatId: seat, queue });
+  return res.error ? state : { ...state, draftState: res.state };
+}
+
+/** Let CPU teams make up to `count` picks (stops at the user's turn). */
+export function draftCpuPicks(state: GameState, count = 1): GameState {
+  if (!state.draftState) return state;
+  const { state: next } = runAiPicks(state.draftState, count);
+  return { ...state, draftState: next };
+}
+
+/** Undo back to (and including) the user's most recent pick. */
+export function draftUndoUserPick(state: GameState): GameState {
+  const seat = userSeat(state);
+  let d = state.draftState;
+  if (!d || !seat || !d.picks.some(p => p.seatId === seat && !p.auto)) return state;
+  while (d.picks.length > 0) {
+    const last = d.picks[d.picks.length - 1];
+    d = applyDraftAction(d, { type: "undo" }).state;
+    if (last.seatId === seat) break;
+  }
+  return { ...state, draftState: d };
+}
+
+/** Auto-draft everything that's left, the user's picks included. */
+export function draftSimRemaining(state: GameState): GameState {
+  if (!state.draftState) return state;
+  return { ...state, draftState: simulateRemainingDraft(state.draftState) };
+}
+
+/** Turn the finished draft into rosters, then hand over to the season like an auction would. */
+export function finalizeSeasonDraft(state: GameState): GameState {
+  const draft = state.draftState;
+  if (!draft) return state;
+  const done = draft.status === "complete" ? draft : simulateRemainingDraft(draft);
+  const byId = new Map<string, Player>(state.playerPool.map(p => [p.id, p]));
+  const cap = state.rules.salaryCap;
+  const bids: AuctionResult["bids"] = [];
+
+  for (const pick of done.picks) {
+    const team = state.teams.find(t => t.id === pick.seatId);
+    const player = byId.get(pick.playerId);
+    if (!team || !player) continue;
+    const price = draftRoundPrice(pick.round, cap);
+    team.addPlayer(player, price);
+    byId.delete(pick.playerId);
+    bids.push({ playerId: player.id, playerName: player.name, teamId: team.id, amount: price, round: pick.round });
+  }
+
+  if (state.userTeamId) {
+    const userTeam = state.teams.find(t => t.id === state.userTeamId);
+    if (userTeam) userTeam.isUserControlled = true;
+  }
+
+  const nameOf = new Map(done.pool.map(p => [p.id, p.name]));
+  const record: SeasonDraftRecord = {
+    seasonNumber: state.seasonNumber,
+    type: done.config.type,
+    picks: done.picks.map(p => ({ ...p, teamId: p.seatId, playerName: nameOf.get(p.playerId) ?? p.playerId })),
+    keepers: done.keepers,
+  };
+  const unsold = [...byId.values()];
+
+  return withSyncedScouting({
+    ...state,
+    phase: "season",
+    auctionResult: { bids, unsold },
+    playerPool: unsold,
+    draftState: undefined,
+    draftHistory: [...(state.draftHistory ?? []), record],
   });
 }
 

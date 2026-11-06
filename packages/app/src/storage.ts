@@ -32,7 +32,7 @@ const IDB_KEYS = [
   "history", "tradeOffers", "completedTrades",
   "schedule", "matchResults", "recentInjuries", "narrativeEvents", "trainingReport",
   "scouting", "scoutingAssignments", "scoutingInbox", "recruitment", "youthProspects", "fantasyLeaderboard", "boardState",
-  "contractReport", "auctionLiveState", "hallOfFame",
+  "contractReport", "auctionLiveState", "hallOfFame", "draftState", "draftHistory",
 ] as const;
 
 function slotKey(slotId: string, key: string): string {
@@ -345,6 +345,8 @@ export async function saveState(state: GameState): Promise<void> {
       set(slotKey(slotId, "auctionLiveState"), state.auctionLiveState
         ? serializeAuctionLiveState(state.auctionLiveState) : undefined, idbStore),
       set(slotKey(slotId, "hallOfFame"), state.hallOfFame ?? [], idbStore),
+      set(slotKey(slotId, "draftState"), state.draftState, idbStore),
+      set(slotKey(slotId, "draftHistory"), state.draftHistory ?? [], idbStore),
     ]);
   } catch { /* IDB write failed */ }
 }
@@ -371,7 +373,8 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
     const [teamsData, poolData, seasonResult, auctionResult, history, tradeOffers, completedTrades,
            schedule, matchResults, recentInjuries, narrativeEvents, trainingReport, scouting,
            scoutingAssignments, scoutingInbox,
-           recruitment, youthProspects, fantasyLeaderboard, boardState, contractReport, auctionLiveStateRaw, hallOfFame] =
+           recruitment, youthProspects, fantasyLeaderboard, boardState, contractReport, auctionLiveStateRaw, hallOfFame,
+           draftState, draftHistory] =
       await Promise.all([
         get(slotKey(slotId, "teams"), idbStore),
         get(slotKey(slotId, "playerPool"), idbStore),
@@ -395,6 +398,8 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
         get(slotKey(slotId, "contractReport"), idbStore),
         get(slotKey(slotId, "auctionLiveState"), idbStore),
         get(slotKey(slotId, "hallOfFame"), idbStore),
+        get(slotKey(slotId, "draftState"), idbStore),
+        get(slotKey(slotId, "draftHistory"), idbStore),
       ]);
 
     if (!teamsData || !poolData) return null;
@@ -443,6 +448,8 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       auctionLiveState: auctionLiveStateRaw
         ? deserializeAuctionLiveState(auctionLiveStateRaw) : undefined,
       hallOfFame: hallOfFame ?? [],
+      draftState: draftState ?? undefined,
+      draftHistory: draftHistory ?? [],
     };
   } catch {
     return null;
@@ -625,6 +632,8 @@ export interface SaveFile {
   boardState?: GameState["boardState"];
   contractReport?: GameState["contractReport"];
   hallOfFame?: GameState["hallOfFame"];
+  draftState?: GameState["draftState"];
+  draftHistory?: GameState["draftHistory"];
 }
 
 /** Export current game state as a downloadable JSON file */
@@ -664,6 +673,8 @@ export function exportSave(state: GameState): void {
     boardState: state.boardState,
     contractReport: state.contractReport,
     hallOfFame: state.hallOfFame,
+    draftState: state.draftState,
+    draftHistory: state.draftHistory,
   };
 
   downloadJSON(saveFile, `${leaguePrefix(state)}-sim-season${state.seasonNumber}-${Date.now()}.json`);
@@ -721,6 +732,8 @@ export async function importSave(file: File): Promise<GameState> {
     boardState: data.boardState ?? undefined,
     contractReport: data.contractReport ?? undefined,
     hallOfFame: data.hallOfFame ?? [],
+    draftState: data.draftState ?? undefined,
+    draftHistory: data.draftHistory ?? [],
     contractsResolved: data.meta?.contractsResolved ?? data.contractsResolved ?? true,
   };
 
