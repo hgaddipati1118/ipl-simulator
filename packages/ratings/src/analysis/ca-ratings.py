@@ -21,7 +21,7 @@ Method, per (side, format, gender):
     ("T20I v India"), so this also learns opponent strength in international cricket.
     Adjusted rate a = rate + strength[c].
  3. Weak-tier translation: the additive fit under-corrects weak competitions, so for the bottom tier (strength
-    below the 30th ball-weighted percentile) a' = alpha + rho * a, fitted on players with enough balls in both
+    below the 30th ball-weighted percentile, plus every associate competition) a' = alpha + rho * a, fitted on players with enough balls in both
     tiers in the same year (rho clipped to [0.3, 1]).
  4. Ratings: exponentially decayed (half-life h years) ball-weighted mean of a' up to year Y, shrunk toward a
     prior worth K balls.  Prior = the player's decayed mean competition pool level (mean a' in the competitions he
@@ -46,10 +46,18 @@ WORK.mkdir(parents=True, exist_ok=True)
 FORMATS = ("T20", "ListA", "FC")
 PRIOR = {"T20": 2000, "ListA": 4000, "FC": 10000}
 CLASS_PRIOR_MULT = 5          # class / super-class means are shrunk with 5x the competition prior
+# Which cell value to fit: "raw" (relative to the competition-season average) or "ms" (plus the bottom-up
+# match-strength adjustment from match_strength.parquet). Chosen by held-out validation, see the report.
+VALUE_SOURCE = os.environ.get("CA_VALUE", "ms")
+# Franchise leagues hosted in associate countries play at full-member level; without this they would sit in the
+# host country's (associate) class and drag the associate prior up
+FRANCHISE_IN_ASSOCIATE_COUNTRIES = {"international league twenty20", "major league cricket", "global super league"}
 FULL_MEMBER_CODES = {"ENG", "IND", "RSA", "AUS", "PAK", "SL", "NZ", "WI", "BDESH", "ZIM", "IRELAND", "AFG"}
 
 
 def super_class(cls):
+    if cls == "franchise":
+        return "full"
     if cls.startswith("intl_"):
         return "full" if cls == "intl_full" else "assoc"
     return "full" if cls[4:] in FULL_MEMBER_CODES else "assoc"
@@ -100,7 +108,8 @@ def wmse(xs, ys, ws):
 # ── load ────────────────────────────────────────────────────────────────────────
 
 def load():
-    rows = duck("SELECT side, format, gender, comp, comp_class, year, player_id, balls, value, mean_position FROM 'data/analysis/ca_cells.parquet' WHERE balls > 0 AND value IS NOT NULL")
+    col = "value_ms" if VALUE_SOURCE == "ms" else "value"
+    rows = duck(f"SELECT side, format, gender, comp, comp_class, year, player_id, balls, {col} AS value, mean_position FROM 'data/analysis/ca_cells.parquet' WHERE balls > 0 AND {col} IS NOT NULL")
     groups = defaultdict(list)
     for r in rows:
         groups[(r["side"], r["format"], r["gender"])].append(
@@ -148,13 +157,15 @@ def fit(cells, fmt, cutoff, roles):
     for i, c in enumerate(use):
         by_py[(c[2], c[1])].append(i)
     links = {k: v for k, v in by_py.items() if len({use[i][0] for i in v}) >= 2}
+    if os.environ.get("CA_NO_ALS"):
+        links = {}
     strength = defaultdict(float)
     comp_balls = defaultdict(float)
     cls_votes = defaultdict(lambda: defaultdict(float))
     for c in use:
         comp_balls[c[0]] += c[3]
         cls_votes[c[0]][c[6]] += c[3]
-    comp_cls = {comp: max(v, key=v.get) for comp, v in cls_votes.items()}
+    comp_cls = {comp: ("franchise" if comp in FRANCHISE_IN_ASSOCIATE_COUNTRIES else max(v, key=v.get)) for comp, v in cls_votes.items()}
     tot = sum(comp_balls.values())
     cp = CLASS_PRIOR_MULT * PRIOR[fmt]
     for _ in range(40):
@@ -194,7 +205,10 @@ def fit(cells, fmt, cutoff, roles):
         if acc >= 0.3 * tot:
             cut = strength[comp]
             break
-    weak = {comp for comp in comp_balls if strength[comp] < cut}
+    # Weak tier = bottom 30% of balls by fitted strength, plus every associate competition (associate T20Is and
+    # associate-country domestic cricket): those are linked to the elite game by few players, so their fitted
+    # strength is least reliable and the link-player translation is what discounts them
+    weak = {comp for comp in comp_balls if strength[comp] < cut or super_class(comp_cls[comp]) == "assoc"}
     # within player-year noise per ball (per-100 units): pooled variance of cell rates around the player-year mean
     sn = sd_ = 0.0
     for k, idx in by_py.items():
@@ -205,27 +219,40 @@ def fit(cells, fmt, cutoff, roles):
         m = sum(v * b for v, b in vals) / bsum
         sn += sum(b * (v - m) ** 2 for v, b in vals); sd_ += len(vals) - 1
     sigma2 = sn / sd_ if sd_ else 0.0
-    xs, ys, ws, nx = [], [], [], []
-    for k, idx in by_py.items():
-        wb = sum(use[i][3] for i in idx if use[i][0] in weak)
-        ob = sum(use[i][3] for i in idx if use[i][0] not in weak)
-        if wb >= MIN_LINK[fmt] and ob >= MIN_LINK[fmt]:
-            xs.append(sum(100 * use[i][4] + use[i][3] * strength[use[i][0]] for i in idx if use[i][0] in weak) / wb)
-            ys.append(sum(100 * use[i][4] + use[i][3] * strength[use[i][0]] for i in idx if use[i][0] not in weak) / ob)
-            ws.append(2 * wb * ob / (wb + ob))
-            nx.append(sigma2 / wb)
-    if len(xs) >= 20:
-        sw = sum(ws)
-        mx = sum(x * w for x, w in zip(xs, ws)) / sw
-        my = sum(y * w for y, w in zip(ys, ws)) / sw
-        # errors-in-variables: remove the sampling noise of the weak-tier value from its variance
-        sxx = sum(w * (x - mx) ** 2 for x, w in zip(xs, ws)) - sum(w * n for w, n in zip(ws, nx))
-        rho = sum(w * (x - mx) * (y - my) for x, y, w in zip(xs, ys, ws)) / sxx if sxx > 0 else 1.0
-        rho = min(1.0, max(0.3, rho))
-        alpha = my - rho * mx
-    else:
-        rho, alpha = 1.0, 0.0
+    # Separate translations for the associate tier and the weak full-member tier: associate cricket is linked to the
+    # elite game by few (selected) players, so pooling it with weak full-member domestic comps under-discounts it
+    tiers = {
+        "assoc": {comp for comp in weak if super_class(comp_cls[comp]) == "assoc"},
+        "weak": {comp for comp in weak if super_class(comp_cls[comp]) != "assoc"},
+    }
+    translation = {}
+    for tname, tier in tiers.items():
+        xs, ys, ws, nx = [], [], [], []
+        for k, idx in by_py.items():
+            wb = sum(use[i][3] for i in idx if use[i][0] in tier)
+            ob = sum(use[i][3] for i in idx if use[i][0] not in weak)
+            if wb >= MIN_LINK[fmt] and ob >= MIN_LINK[fmt]:
+                xs.append(sum(100 * use[i][4] + use[i][3] * strength[use[i][0]] for i in idx if use[i][0] in tier) / wb)
+                ys.append(sum(100 * use[i][4] + use[i][3] * strength[use[i][0]] for i in idx if use[i][0] not in weak) / ob)
+                ws.append(2 * wb * ob / (wb + ob))
+                nx.append(sigma2 / wb)
+        if len(xs) >= 20:
+            sw = sum(ws)
+            mx = sum(x * w for x, w in zip(xs, ws)) / sw
+            my = sum(y * w for y, w in zip(ys, ws)) / sw
+            # errors-in-variables: remove the sampling noise of the weak-tier value from its variance
+            sxx = sum(w * (x - mx) ** 2 for x, w in zip(xs, ws)) - sum(w * n for w, n in zip(ws, nx))
+            rho = sum(w * (x - mx) * (y - my) for x, y, w in zip(xs, ys, ws)) / sxx if sxx > 0 else 1.0
+            rho = min(1.0, max(0.3, rho))
+            alpha = my - rho * mx
+        else:
+            rho, alpha = 1.0, 0.0
+        translation[tname] = {"alpha": alpha, "rho": rho, "links": len(xs)}
+    comp_tr = {comp: translation[t] for t, tier in tiers.items() for comp in tier}
+    rho, alpha = translation["weak"]["rho"], translation["weak"]["alpha"]
+    xs = [None] * (translation["weak"]["links"] + translation["assoc"]["links"])
     model = {"strength": strength, "weak": weak, "rho": rho, "alpha": alpha, "links": len(xs), "fmt": fmt, "sigma2_within": sigma2,
+             "translation": translation, "comp_tr": comp_tr,
              "class_mean": cls_mean, "super_mean": sup_mean, "comp_class": comp_cls}
     # pools and role offsets on translated values
     pool_n, pool_d = defaultdict(float), defaultdict(float)
@@ -247,8 +274,9 @@ def fit(cells, fmt, cutoff, roles):
 
 def adjusted(model, c):
     a = 100 * c[4] / c[3] + model["strength"].get(c[0], 0.0)
-    if c[0] in model["weak"]:
-        a = model["alpha"] + model["rho"] * a
+    t = model["comp_tr"].get(c[0])
+    if t:
+        a = t["alpha"] + t["rho"] * a
     return a
 
 
@@ -462,7 +490,8 @@ def main():
         table, vmodel, _ = evaluate(cells, fmt, 2023, roles, meta, best, cur)
         validation["/".join(key)] = {"params": {"half_life": best[0], "K": best[1], "trend_beta": best[2]},
                                      "tuning_fold_mse_corr_n": res[best], "held_out": table,
-                                     "translation": {"rho": round(vmodel["rho"], 3), "alpha": round(vmodel["alpha"], 2), "links": vmodel["links"]}}
+                                     "translation": {"rho": round(vmodel["rho"], 3), "alpha": round(vmodel["alpha"], 2), "links": vmodel["links"],
+                                                     "by_tier": {k: {kk: round(vv, 3) for kk, vv in v.items()} for k, v in vmodel["translation"].items()}}}
         # final fit on everything for the output table
         model = fit(cells, fmt, LAST_YEAR, roles)
         py = player_years(model, cells, LAST_YEAR)
@@ -556,8 +585,17 @@ def main():
     with open(DATA / "ca_comp_strength.csv", "w", newline="") as f:
         wr = csv.DictWriter(f, fieldnames=list(strengths[0]))
         wr.writeheader(); wr.writerows(sorted(strengths, key=lambda r: (r["side"], r["format"], r["gender"], -r["strength"])))
+    def clean(x):
+        # NaN (e.g. a correlation over < 3 players) isn't valid JSON; write null instead
+        if isinstance(x, float) and x != x:
+            return None
+        if isinstance(x, dict):
+            return {k: clean(v) for k, v in x.items()}
+        if isinstance(x, (list, tuple)):
+            return [clean(v) for v in x]
+        return x
     with open(DATA / "ca_validation.json", "w") as f:
-        json.dump(validation, f, indent=1, default=str)
+        json.dump(clean(validation), f, indent=1, default=str, allow_nan=False)
     log(f"wrote {len(rows)} player-format-years")
 
 

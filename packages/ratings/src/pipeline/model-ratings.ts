@@ -8,10 +8,21 @@
  * Each player's four batting (and four bowling) attributes are then shifted together so his
  * batting/bowling overall lands at the model's rank for its overall, which carries the
  * conservative, experience-adjusted rating. Players the model doesn't cover are unchanged.
+ *
+ * With CricketArchive scores (ca-model.ts) the ranking score becomes:
+ *   - Cricsheet-rated players: an inverse-variance blend of the Cricsheet score and the CA score mapped onto
+ *     the Cricsheet scale. CA's T20 record includes the same matches Cricsheet has, so CA's precision is
+ *     discounted to the share of its balls Cricsheet doesn't cover (at least 5%) to avoid counting them twice.
+ *   - Players Cricsheet can't rate (too few balls, or not in it): the mapped CA score alone. They don't join the
+ *     ranking (thousands of them would shift the value pool the Cricsheet-rated players are ranked against);
+ *     instead each gets the overall a Cricsheet-rated player with the same score gets, interpolated along that
+ *     score -> overall curve. They keep the generator's attribute mix (CA has no components).
+ * The CA -> Cricsheet mapping is a regression over players with >= MAP_MIN_BALLS in both.
  */
 
 import { execFileSync } from "child_process";
 import { existsSync } from "fs";
+import type { CaPlayer } from "./ca-model.js";
 
 const MODEL_FILE = new URL("../../data/analysis/player_ratings_by_season.parquet", import.meta.url).pathname;
 
@@ -112,7 +123,7 @@ function reassign<T>(
 }
 
 /** Shift a player's batting (or bowling) attributes together until the overall hits `target` */
-function shiftTo(r: GameRatings, keys: (keyof GameRatings)[], overall: (r: GameRatings) => number, target: number): void {
+export function shiftTo(r: GameRatings, keys: (keyof GameRatings)[], overall: (r: GameRatings) => number, target: number): void {
   for (let pass = 0; pass < 4; pass++) {
     const delta = target - overall(r);
     if (delta === 0) return;
@@ -124,15 +135,42 @@ export interface ApplyReport {
   batting: number;
   bowling: number;
   unmatched: number;
+  /** Cricsheet-rated players whose score was blended with CA */
+  blendedBatting?: number;
+  blendedBowling?: number;
+  /** Players ranked on CA alone, by CA source format */
+  caOnlyBatting?: Record<string, number>;
+  caOnlyBowling?: Record<string, number>;
+  caMap?: { bat: { a: number; b: number; n: number }; bowl: { a: number; b: number; n: number } };
+  /** Career T20 balls of evidence per player (max of Cricsheet and CA), for small-sample caps */
+  evidence: Map<string, { bat: number; bowl: number }>;
+  /** Players whose rating for a side comes only from List A / first-class (no usable T20 record) */
+  t20Unproven?: { bat: Set<string>; bowl: Set<string> };
+}
+
+const MAP_MIN_BALLS = 500;
+/** CA's independent share of evidence never drops below this (keeps the blend defined) */
+const MIN_CA_INDEPENDENT = 0.05;
+
+interface Mapping { a: number; b: number; n: number }
+
+function fitMapping(pairs: { x: number; y: number; w: number }[]): Mapping {
+  if (pairs.length < 30) return { a: 0, b: 1, n: pairs.length };
+  const sw = pairs.reduce((t, p) => t + p.w, 0);
+  const mx = pairs.reduce((t, p) => t + p.w * p.x, 0) / sw;
+  const my = pairs.reduce((t, p) => t + p.w * p.y, 0) / sw;
+  const sxx = pairs.reduce((t, p) => t + p.w * (p.x - mx) ** 2, 0);
+  const b = sxx > 0 ? pairs.reduce((t, p) => t + p.w * (p.x - mx) * (p.y - my), 0) / sxx : 1;
+  return { a: my - b * mx, b, n: pairs.length };
 }
 
 /**
  * Re-rank `players` in place. Each needs an `espn_<cricinfo id>` id to be matched to the model.
  */
-export function applyModelRatings(players: RateablePlayer[], model: Map<number, ModelRow>): ApplyReport {
+export function applyModelRatings(players: RateablePlayer[], model: Map<number, ModelRow>, ca?: Map<number, CaPlayer>): ApplyReport {
+  const espnId = (p: RateablePlayer) => Number(p.id.replace(/^espn_/, ""));
   const matched = players.flatMap(player => {
-    const id = Number(player.id.replace(/^espn_/, ""));
-    const row = model.get(id);
+    const row = model.get(espnId(player));
     return row ? [{ player, row }] : [];
   });
   const bat = matched.filter(m =>
@@ -143,8 +181,75 @@ export function applyModelRatings(players: RateablePlayer[], model: Map<number, 
   // Targets first, from the overalls as they stand, so the attribute shuffle doesn't move them
   const batScore = (row: ModelRow) => row.bat_rank_value_proj ?? row.bat_value_proj! - FALLBACK_CONSERVATISM * (row.bat_sd ?? 0);
   const bowlScore = (row: ModelRow) => row.bowl_rank_value_proj ?? row.bowl_value_proj! - FALLBACK_CONSERVATISM * (row.bowl_sd ?? 0);
-  const batTargets = rankTargets(bat, m => battingOvr(m.player.ratings), m => batScore(m.row));
-  const bowlTargets = rankTargets(bowl, m => bowlingOvr(m.player.ratings), m => bowlScore(m.row));
+
+  // ── CricketArchive: map onto the Cricsheet scale, blend, and add players Cricsheet can't rate ──
+  const evidence = new Map<string, { bat: number; bowl: number }>();
+  for (const m of matched) evidence.set(m.player.id, { bat: m.row.bat_balls_career ?? 0, bowl: m.row.bowl_balls_career ?? 0 });
+  const report: Omit<ApplyReport, "batting" | "bowling" | "unmatched"> = { evidence };
+  type Ranked = { player: RateablePlayer; score: number; caOnly?: boolean };
+  const batRanked: Ranked[] = bat.map(m => ({ player: m.player, score: batScore(m.row) }));
+  const bowlRanked: Ranked[] = bowl.map(m => ({ player: m.player, score: bowlScore(m.row) }));
+  if (ca && ca.size > 0) {
+    for (const p of players) {
+      const c = ca.get(espnId(p));
+      if (!c) continue;
+      const e = evidence.get(p.id) ?? { bat: 0, bowl: 0 };
+      evidence.set(p.id, { bat: Math.max(e.bat, c.t20BatBalls), bowl: Math.max(e.bowl, c.t20BowlBalls) });
+    }
+    const sides = [
+      { side: "bat" as const, list: bat, ranked: batRanked, value: (r: ModelRow) => r.bat_value_proj, balls: (r: ModelRow) => r.bat_balls_career ?? 0, sd: (r: ModelRow) => r.bat_sd ?? 0 },
+      { side: "bowl" as const, list: bowl, ranked: bowlRanked, value: (r: ModelRow) => r.bowl_value_proj, balls: (r: ModelRow) => r.bowl_balls_career ?? 0, sd: (r: ModelRow) => r.bowl_sd ?? 0 },
+    ];
+    report.caMap = { bat: { a: 0, b: 1, n: 0 }, bowl: { a: 0, b: 1, n: 0 } };
+    report.t20Unproven = { bat: new Set(), bowl: new Set() };
+    for (const s of sides) {
+      const pairs = s.list.flatMap(m => {
+        const c = ca.get(espnId(m.player))?.[s.side];
+        const v = s.value(m.row);
+        return c && c.source === "T20" && c.balls >= MAP_MIN_BALLS && s.balls(m.row) >= MAP_MIN_BALLS && v !== null
+          ? [{ x: c.score, y: v, w: Math.min(c.balls, s.balls(m.row)) }] : [];
+      });
+      const map = fitMapping(pairs);
+      report.caMap[s.side] = map;
+      const mapped = (c: { score: number; sd: number }) => ({ mean: map.a + map.b * c.score, sd: Math.abs(map.b) * c.sd });
+      let blended = 0;
+      const inModel = new Set(s.list.map(m => m.player.id));
+      for (const r of s.ranked) {
+        const m = s.list.find(x => x.player === r.player)!;
+        const c = ca.get(espnId(r.player))?.[s.side];
+        if (!c || c.source !== "T20") continue;
+        const cs = mapped(c);
+        const caBalls = s.side === "bat" ? ca.get(espnId(r.player))!.t20BatBalls : ca.get(espnId(r.player))!.t20BowlBalls;
+        const independent = Math.max(MIN_CA_INDEPENDENT, caBalls > 0 ? (caBalls - s.balls(m.row)) / caBalls : 0);
+        const vCs = Math.max(1e-6, s.sd(m.row) ** 2);
+        const vCa = Math.max(1e-6, cs.sd ** 2) / independent;
+        const caScore = cs.mean - FALLBACK_CONSERVATISM * cs.sd;
+        r.score = (r.score / vCs + caScore / vCa) / (1 / vCs + 1 / vCa);
+        blended++;
+      }
+      const caOnly: Record<string, number> = {};
+      for (const p of players) {
+        if (inModel.has(p.id)) continue;
+        // Cricsheet has him and judged this a discipline he barely does (under 6 balls a match): respect that
+        const row = model.get(espnId(p));
+        const perMatch = row ? (s.side === "bat" ? row.bat_balls_per_match : row.bowl_balls_per_match) : null;
+        const csBalls = row ? (row.bat_balls_career ?? 0) + (row.bowl_balls_career ?? 0) : 0;
+        if (row && csBalls >= MIN_BAT_BALLS && perMatch !== null && perMatch < (s.side === "bat" ? MIN_BAT_BALLS_PER_MATCH : MIN_BOWL_BALLS_PER_MATCH)) continue;
+        const c = ca.get(espnId(p))?.[s.side];
+        if (!c) continue;
+        const cs = mapped(c);
+        s.ranked.push({ player: p, score: cs.mean - FALLBACK_CONSERVATISM * cs.sd, caOnly: true });
+        caOnly[c.source] = (caOnly[c.source] ?? 0) + 1;
+        if (c.source !== "T20") report.t20Unproven![s.side].add(p.id);
+      }
+      if (s.side === "bat") { report.blendedBatting = blended; report.caOnlyBatting = caOnly; }
+      else { report.blendedBowling = blended; report.caOnlyBowling = caOnly; }
+    }
+  }
+  const batTargets = rankTargets(batRanked.filter(r => !r.caOnly), m => battingOvr(m.player.ratings), m => m.score);
+  const bowlTargets = rankTargets(bowlRanked.filter(r => !r.caOnly), m => bowlingOvr(m.player.ratings), m => m.score);
+  placeOnCurve(batRanked, batTargets);
+  placeOnCurve(bowlRanked, bowlTargets);
 
   const n = (v: number | null) => v ?? 0;
   reassign(bat, r => r.battingIQ, (r, v) => { r.battingIQ = v; }, row => n(row.bat_dismissal) + n(row.bat_runs));
@@ -158,10 +263,33 @@ export function applyModelRatings(players: RateablePlayer[], model: Map<number, 
   const withExperience = matched.filter(m => m.row.experience !== null);
   if (withExperience.length > 0) reassign(withExperience, r => r.clutch, (r, v) => { r.clutch = v; }, row => n(row.experience));
 
-  for (const m of bat) shiftTo(m.player.ratings, ["battingIQ", "timing", "power", "running"], battingOvr, batTargets.get(m.player.id)!);
-  for (const m of bowl) shiftTo(m.player.ratings, ["wicketTaking", "economy"], bowlingOvr, bowlTargets.get(m.player.id)!);
+  for (const m of batRanked) shiftTo(m.player.ratings, ["battingIQ", "timing", "power", "running"], battingOvr, batTargets.get(m.player.id)!);
+  for (const m of bowlRanked) shiftTo(m.player.ratings, ["wicketTaking", "economy"], bowlingOvr, bowlTargets.get(m.player.id)!);
 
-  return { batting: bat.length, bowling: bowl.length, unmatched: players.length - matched.length };
+  return { batting: batRanked.length, bowling: bowlRanked.length, unmatched: players.length - matched.length, ...report };
+}
+
+/**
+ * Give each CA-only player the overall a ranked (Cricsheet-rated) player with the same score has: linear
+ * interpolation along the ranked players' score -> target curve, clamped to its ends.
+ */
+function placeOnCurve(items: { player: RateablePlayer; score: number; caOnly?: boolean }[], targets: Map<string, number>): void {
+  const curve = items.filter(i => !i.caOnly && targets.has(i.player.id))
+    .map(i => ({ x: i.score, y: targets.get(i.player.id)! })).sort((a, b) => a.x - b.x);
+  if (curve.length === 0) return;
+  for (const i of items) {
+    if (!i.caOnly) continue;
+    let y: number;
+    if (i.score <= curve[0].x) y = curve[0].y;
+    else if (i.score >= curve[curve.length - 1].x) y = curve[curve.length - 1].y;
+    else {
+      let lo = 0, hi = curve.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (curve[mid].x <= i.score) lo = mid; else hi = mid; }
+      const t = (i.score - curve[lo].x) / Math.max(1e-9, curve[hi].x - curve[lo].x);
+      y = curve[lo].y + t * (curve[hi].y - curve[lo].y);
+    }
+    targets.set(i.player.id, Math.round(y));
+  }
 }
 
 /** The current overall values, handed out in the model's order */

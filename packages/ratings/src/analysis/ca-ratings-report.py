@@ -49,7 +49,10 @@ def main():
     L.append("""- **Cells.** Every senior scorecard innings since 2000 with balls recorded -> player x competition x year. Batting value = runs - balls x rpb - (outs - balls x opb) x W; bowling the mirror image; rpb/opb are the competition-season rates (blended toward the format-year average with a 3000-ball prior). W, the run value of a wicket, is 0.3 / 0.5 / 1.0 x the competition-season runs per wicket for T20 / List A / first-class.
 - **Competitions.** Domestic = event name without season or group. Internationals are split by opponent (`T20I v India`), so opponent strength in international cricket is learned the same way as league strength.
 - **Strength.** rate[p,c,y] = skill[p,y] - strength[c], alternating weighted least squares over player-years that played 2+ competitions that year. Each competition's strength is shrunk toward its class mean (country for domestic; full-member vs associate opponent for internationals), which is shrunk toward a full-member / associate mean, then 0. Without that hierarchy, unlinked associate competitions defaulted to "average" and associate bowlers topped the T20 list.
-- **Weak-tier translation.** For the bottom 30% of balls by strength, a' = alpha + rho x a, fitted on players with balls in both tiers in the same year, with an errors-in-variables correction (raw regression pinned rho at its 0.3 floor because of noise in the weak-tier value).
+- **Match-level opponent adjustment.** Each innings is credited with its competition-season's mean batting/bowling level and this opponent's deviation from it, from the bottom-up index (`match_strength.parquet`, built from every player's pre-match rating). Without it, associate competitions, which are linked to the elite game by few players, kept close to league-average levels. The index was built from the previous ratings, so this is one fixed-point step; rebuild the index after big changes.
+- **Franchise leagues in associate countries** (ILT20, MLC, Global Super League) get their own class, grouped with the full members; before, they sat in the UAE/USA domestic class and pulled the associate prior up.
+- **Weak-tier translation.** For the bottom 30% of balls by strength plus every associate competition, a' = alpha + rho x a, fitted on players with balls in both tiers in the same year, with an errors-in-variables correction. The associate tier and the weak full-member tier get separate fits.
+- **The Hundred's bowling** is counted (its cards give balls, not overs).
 - **Ratings.** `*_rating` = exponentially decayed (half-life h years) ball-weighted mean of a' up to that year, shrunk toward a prior worth K balls (the player's competition pool level + a role offset: batting position bucket, or pace/spin). `*_season` = the same shrinkage on that year alone. h, K and a trend weight were tuned on a 2020 -> 2021-22 fold.
 - **Age curves.** Delta method on consecutive shrunk season values of the same player, weighted by the harmonic mean of balls, smoothed +-2 years, role curves shrunk toward the all-player curve, and centred so the mean change is zero (values are league-relative, so ageing is zero-sum; the raw mean change is survivor bias).
 - **Projection.** `*_proj_next` = rating + age-curve change at the player's age (+ trend term where tuning chose one).
@@ -63,6 +66,8 @@ def main():
         p = d["params"]
         L.append(f"**{key}** (half-life {p['half_life']} y, K {p['K']} balls, trend {p['trend_beta']}; translation rho {d['translation']['rho']}, {d['translation']['links']} links)\n")
         L.append(md_table(d["held_out"], ["predictor", "players", "corr", "mse"]) + "\n")
+    L.append("## 2b. Associate calibration (vs the bottom-up league index)\n")
+    L.append("The index puts associate-v-associate T20Is about 19 runs/100 balls below full-member T20Is for bowling (2024-25). The fitted competition pools give the same gap, and associate-heavy players (>= 70% of their 2023+ T20 balls in associate T20Is) sit well below full-member regulars. On one target for every variant (raw 2024-25 value in elite competitions only) the match-level adjustment neither helps nor hurts prediction (corr 0.43-0.51 men); it is there for calibration.\n")
     L.append("## 3. Age curves\n")
     peaks = []
     for key, d in v.items():
@@ -119,7 +124,7 @@ def main():
         fails.append(f"ovr outside 25-99: {rng}")
     for key in ("bat/T20/male", "bowl/T20/male", "bat/T20/female", "bat/ListA/male", "bat/FC/male"):
         h = {r["predictor"]: r for r in v[key]["held_out"]}
-        if not h["new: + age curve + trend (final)"]["corr"] > h["naive: career raw value to cutoff"]["corr"]:
+        if not (h["new: + age curve + trend (final)"]["corr"] or 0) > (h["naive: career raw value to cutoff"]["corr"] or 0):
             fails.append(f"{key}: model does not beat the naive career baseline")
     if (by.get(101095) or {}).get("bat_ovr") and int(by[101095]["bat_ovr"]) < 80:
         fails.append("Kohli T20 batting below 80")

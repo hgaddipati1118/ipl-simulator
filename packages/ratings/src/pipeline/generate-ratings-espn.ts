@@ -22,7 +22,8 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
-import { applyModelRatings, loadModel, modelAvailable } from "./model-ratings.js";
+import { applyModelRatings, loadModel, modelAvailable, shiftTo, battingOvr as modelBattingOvr, bowlingOvr as modelBowlingOvr } from "./model-ratings.js";
+import { caAvailable, caTunedK, loadCa } from "./ca-model.js";
 import { join, dirname } from "path";
 import { pathToFileURL } from "url";
 import { calculateRatings, inferRole, type GenderPop, type CalculatedRatings } from "../calculator.js";
@@ -2175,14 +2176,84 @@ function applyRatingsModel(rated: RatedPlayer[], gender: "male" | "female"): voi
   writeFileSync(gender === "male" ? OUTPUT_JSON_BASE : OUTPUT_JSON_WOMEN_BASE, JSON.stringify(rated, null, 2), "utf-8");
   if (!USE_MODEL) return;
   if (!modelAvailable()) throw new Error("--model needs data/analysis/player_ratings_by_season.parquet (run src/analysis/ratings-model.py)");
-  const report = applyModelRatings(rated, loadModel(gender));
+  const ca = caAvailable() ? loadCa(gender) : null;
+  const generated = new Map(rated.map(p => [p.id, { bat: modelBattingOvr(p.ratings), bowl: modelBowlingOvr(p.ratings) }]));
+  const report = applyModelRatings(rated, loadModel(gender), ca?.byEspn);
+  const caps = applySmallSampleCaps(rated, report.evidence, gender, report.t20Unproven, generated);
   for (const p of rated) {
     const battingOvr = calculateBattingOverall(p.ratings);
     const bowlingOvr = calculateBowlingOverall(p.ratings);
     p.overalls = { battingOvr, bowlingOvr, overall: calculateOverallRating(battingOvr, bowlingOvr) };
   }
   rated.sort((a, b) => b.overalls.overall - a.overalls.overall);
-  console.log(`\nRatings model (${gender}): re-ranked batting ${report.batting}, bowling ${report.bowling}; ${report.unmatched} players not in the model kept as generated`);
+  console.log(`\nRatings model (${gender}): re-ranked batting ${report.batting}, bowling ${report.bowling}; ${report.unmatched} players not in the Cricsheet model`);
+  if (ca) {
+    const t = ca.report.translations;
+    console.log(`  CricketArchive: ${ca.report.players} ESPN players matched; blended with Cricsheet bat ${report.blendedBatting} / bowl ${report.blendedBowling}; ` +
+      `CA-only bat ${JSON.stringify(report.caOnlyBatting)} / bowl ${JSON.stringify(report.caOnlyBowling)}`);
+    console.log(`  CA -> Cricsheet scale: bat ${fmtMap(report.caMap?.bat)}, bowl ${fmtMap(report.caMap?.bowl)}; ` +
+      `List A -> T20 bat b=${t["bat/ListA"].b.toFixed(2)} (n=${t["bat/ListA"].n}), FC -> T20 bat b=${t["bat/FC"].b.toFixed(2)} (n=${t["bat/FC"].n})`);
+  }
+  console.log(`  Small-sample caps: bat <${caps.bat.threshold} balls capped at ${caps.bat.cap} (${caps.bat.capped} players), ` +
+    `bowl <${caps.bowl.threshold} balls capped at ${caps.bowl.cap} (${caps.bowl.capped} players); ` +
+    `T20-unproven (List A / FC only) capped at the median: bat ${caps.bat.unprovenCap} (${caps.bat.unprovenCapped}), bowl ${caps.bowl.unprovenCap} (${caps.bowl.unprovenCapped})`);
+}
+
+const fmtMap = (m?: { a: number; b: number; n: number }) => (m ? `${m.a.toFixed(2)} + ${m.b.toFixed(2)}x (n=${m.n})` : "n/a");
+
+/**
+ * Small-sample cap: a player whose career T20 evidence (max of Cricsheet and CricketArchive balls) for a
+ * discipline is below the threshold can't rate above the 95th percentile of established players in it.
+ * Threshold = the balls at which the CA model's shrinkage puts 70% weight on the player's own record:
+ * B / (B + K) = 0.7  =>  B = 7/3 K, with K tuned out-of-sample per side and gender (rounded up to 100).
+ * Uncertainty already pulls thin records toward the prior; the cap stops a hot first season (or a
+ * teenager's) from topping the game before he has the record of an established player.
+ * A side rated only from List A / first-class (no usable T20 record) is capped harder, at the median of
+ * players with a real T20 record (>= 240 balls) in that discipline: the format translation is a weak predictor (it carries the regression's residual
+ * variance), so until a player shows it in T20 he rates no better than a typical established one.
+ */
+const CAP_RELIABILITY = 0.7;
+const CAP_PERCENTILE = 0.95;
+const T20_RECORD_BALLS = 240;
+
+function applySmallSampleCaps(
+  rated: RatedPlayer[],
+  evidence: Map<string, { bat: number; bowl: number }>,
+  gender: "male" | "female",
+  t20Unproven?: { bat: Set<string>; bowl: Set<string> },
+  generated?: Map<string, { bat: number; bowl: number }>,
+): Record<"bat" | "bowl", { threshold: number; cap: number; capped: number; unprovenCap: number; unprovenCapped: number }> {
+  const K = caTunedK(gender);
+  const out = {} as Record<"bat" | "bowl", { threshold: number; cap: number; capped: number; unprovenCap: number; unprovenCapped: number }>;
+  for (const side of ["bat", "bowl"] as const) {
+    const threshold = Math.ceil((K[side] * CAP_RELIABILITY) / (1 - CAP_RELIABILITY) / 100) * 100;
+    const ovr = side === "bat" ? modelBattingOvr : modelBowlingOvr;
+    const keys = side === "bat"
+      ? (["battingIQ", "timing", "power", "running"] as const)
+      : (["wicketTaking", "economy"] as const);
+    const established = rated.filter(p => (evidence.get(p.id)?.[side] ?? 0) >= threshold).map(p => ovr(p.ratings)).sort((a, b) => a - b);
+    if (established.length < 20) { out[side] = { threshold, cap: 99, capped: 0, unprovenCap: 99, unprovenCapped: 0 }; continue; }
+    const cap = established[Math.floor(CAP_PERCENTILE * (established.length - 1))];
+    // Median of players with a real T20 record in this discipline (>= 240 balls, the CA model’s minimum)
+    const regulars = rated.filter(p => (evidence.get(p.id)?.[side] ?? 0) >= T20_RECORD_BALLS).map(p => ovr(p.ratings)).sort((x, y) => x - y);
+    const unprovenCap = regulars[Math.floor(0.5 * (regulars.length - 1))] ?? 99;
+    let capped = 0;
+    let unprovenCapped = 0;
+    for (const p of rated) {
+      // Never below what the generator gave him from his own ESPN record before any modelling
+      const unprovenTarget = Math.max(unprovenCap, generated?.get(p.id)?.[side] ?? 0);
+      if (t20Unproven?.[side].has(p.id) && ovr(p.ratings) > unprovenTarget) {
+        shiftTo(p.ratings, [...keys], ovr, unprovenTarget);
+        unprovenCapped++;
+        continue;
+      }
+      if ((evidence.get(p.id)?.[side] ?? 0) >= threshold || ovr(p.ratings) <= cap) continue;
+      shiftTo(p.ratings, [...keys], ovr, cap);
+      capped++;
+    }
+    out[side] = { threshold, cap, capped, unprovenCap, unprovenCapped };
+  }
+  return out;
 }
 
 // ── TypeScript module output ──────────────────────────────────────────
