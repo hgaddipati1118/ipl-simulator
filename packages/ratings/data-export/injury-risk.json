@@ -1,0 +1,105 @@
+{
+ "description": "Per-match probability that a regular starts an injury absence after the match (T20 men, 2018+ rates; confirmed + likely evidence). Validation-grade, not wired into the engine.",
+ "source": "packages/ratings/src/analysis/injury-risk.py (see docs/INJURY-RISK-REPORT.md)",
+ "base_per_match_by_archetype_and_age": {
+  "express/fast": {
+   "<=22": 0.04498,
+   "23-26": 0.03671,
+   "27-30": 0.03266,
+   "31-33": 0.03185,
+   "34+": 0.02961
+  },
+  "fast-medium": {
+   "<=22": 0.03783,
+   "23-26": 0.03087,
+   "27-30": 0.02747,
+   "31-33": 0.02678,
+   "34+": 0.0249
+  },
+  "medium": {
+   "<=22": 0.04375,
+   "23-26": 0.0357,
+   "27-30": 0.03177,
+   "31-33": 0.03098,
+   "34+": 0.0288
+  },
+  "wrist spin": {
+   "<=22": 0.02554,
+   "23-26": 0.02084,
+   "27-30": 0.01855,
+   "31-33": 0.01809,
+   "34+": 0.01681
+  },
+  "finger spin": {
+   "<=22": 0.02427,
+   "23-26": 0.0198,
+   "27-30": 0.01762,
+   "31-33": 0.01719,
+   "34+": 0.01597
+  },
+  "batter": {
+   "<=22": 0.02245,
+   "23-26": 0.01832,
+   "27-30": 0.0163,
+   "31-33": 0.01589,
+   "34+": 0.01477
+  },
+  "bowling all-rounder": {
+   "<=22": 0.02059,
+   "23-26": 0.0168,
+   "27-30": 0.01495,
+   "31-33": 0.01458,
+   "34+": 0.01355
+  },
+  "batting all-rounder": {
+   "<=22": 0.01862,
+   "23-26": 0.01519,
+   "27-30": 0.01352,
+   "31-33": 0.01319,
+   "34+": 0.01226
+  },
+  "wicketkeeper": {
+   "<=22": 0.01738,
+   "23-26": 0.01418,
+   "27-30": 0.01262,
+   "31-33": 0.01231,
+   "34+": 0.01144
+  }
+ },
+ "low_bound_scale": 0.039,
+ "previous_injury_multiplier": {
+  "0": 1.0,
+  "1": 1.113,
+  "2+": 1.22
+ },
+ "women_multiplier": 0.576,
+ "format_multiplier": {
+  "T20": 1.0,
+  "ODI/List A": 0.947,
+  "Test/FC": 1.26
+ },
+ "matches_missed_distribution": {
+  "pace": {
+   "1-2": 0.487,
+   "3-5": 0.408,
+   "6+": 0.105
+  },
+  "spin": {
+   "1-2": 0.488,
+   "3-5": 0.409,
+   "6+": 0.104
+  },
+  "other": {
+   "1-2": 0.512,
+   "3-5": 0.389,
+   "6+": 0.099
+  }
+ },
+ "workload_note": "Scorecard workload shows no injury-raising effect (selection); keep any fatigue penalty as a design choice.",
+ "role_map": {
+  "batsman": "batter",
+  "wicket-keeper": "wicketkeeper",
+  "all-rounder": "batting all-rounder / bowling all-rounder",
+  "bowler": "express/fast | fast-medium | medium | finger spin | wrist spin (by bowlingStyle)"
+ }
+}
