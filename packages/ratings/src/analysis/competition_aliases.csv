@@ -1,0 +1,209 @@
+format,gender,event_key,season_from,season_to,competition,tier
+T20,male,indian premier league,,,Indian Premier League,franchise
+T20,male,champions league,,,Champions League T20,franchise
+T20,male,kfc twenty20 big bash,2012,,Big Bash League,franchise
+T20,male,kfc twenty20 big bash,,2011,Australian state T20 (KFC Big Bash),domestic
+T20,male,hbl pakistan super league,,,Pakistan Super League,franchise
+T20,male,caribbean premier league,,,Caribbean Premier League,franchise
+T20,male,bangladesh premier league,,,Bangladesh Premier League,franchise
+T20,male,lanka premier league,,,Lanka Premier League,franchise
+T20,male,sri lanka premier league,,,Sri Lanka Premier League (2012),franchise
+T20,male,sa20,,,SA20,franchise
+T20,male,mzansi super league,,,Mzansi Super League,franchise
+T20,male,international league twenty20,,,ILT20,franchise
+T20,male,major league cricket,,,Major League Cricket,franchise
+T20,male,the men's hundred,,,The Hundred (men),franchise
+T20,male,global super league,,,Global Super League,franchise
+T20,male,afghanistan premier league,,,Afghanistan Premier League,franchise
+T20,male,stanford twenty20,,,Stanford Twenty20,domestic
+T20,male,twenty20 cup,,,T20 Blast,domestic
+T20,male,friends provident t20,,,T20 Blast,domestic
+T20,male,friends life t20,,,T20 Blast,domestic
+T20,male,natwest t20 blast,,,T20 Blast,domestic
+T20,male,the vitality blast,,,T20 Blast,domestic
+T20,male,the men's vitality blast,,,T20 Blast,domestic
+T20,male,syed mushtaq ali trophy,,,Syed Mushtaq Ali Trophy,domestic
+T20,male,inter state twenty-20 tournament,,,Syed Mushtaq Ali Trophy,domestic
+T20,male,state twenty20,,,Super Smash,domestic
+T20,male,hrv cup,,,Super Smash,domestic
+T20,male,hrv twenty20,,,Super Smash,domestic
+T20,male,georgie pie super smash,,,Super Smash,domestic
+T20,male,mcdonald's super smash,,,Super Smash,domestic
+T20,male,burger king super smash,,,Super Smash,domestic
+T20,male,dream 11 super smash,,,Super Smash,domestic
+T20,male,super smash,,,Super Smash,domestic
+T20,male,abn-amro twenty-20 cup,,,Pakistan National T20 Cup,domestic
+T20,male,royal bank of scotland twenty-20 cup,,,Pakistan National T20 Cup,domestic
+T20,male,faysal bank t-20 cup,,,Pakistan National T20 Cup,domestic
+T20,male,faysal bank super eight t-20 cup,,,Pakistan National T20 Cup,domestic
+T20,male,faysal bank t-20 cup for departments,,,Pakistan National T20 Cup,domestic
+T20,male,bank albaraka presents haier t20 cup,,,Pakistan National T20 Cup,domestic
+T20,male,cool and cool presents haier mobile t-20 cup,,,Pakistan National T20 Cup,domestic
+T20,male,cool and cool presents national t-20 cup,,,Pakistan National T20 Cup,domestic
+T20,male,national t-20 cup,,,Pakistan National T20 Cup,domestic
+T20,male,national t20 cup,,,Pakistan National T20 Cup,domestic
+T20,male,national t20 cup qualifiers,,,Pakistan National T20 Cup,domestic
+T20,male,standard bank pro20 series,,,CSA T20 Challenge,domestic
+T20,male,miway t20 challenge,,,CSA T20 Challenge,domestic
+T20,male,ram slam t20 challenge,,,CSA T20 Challenge,domestic
+T20,male,csa t20 challenge,,,CSA T20 Challenge,domestic
+T20,male,csa t20 challenge division one,,,CSA T20 Challenge,domestic
+T20,male,yesplay pro20 cup,,,CSA T20 Challenge,domestic
+T20,male,csa provincial t20,,,CSA Provincial T20,domestic
+T20,male,csa provincial t20 cup,,,CSA Provincial T20,domestic
+T20,male,csa provincial t20 challenge,,,CSA Provincial T20,domestic
+T20,male,africa t20 cup,,,CSA Provincial T20,domestic
+T20,male,csa t20 challenge division two,,,CSA Provincial T20,domestic
+T20,male,csa t20 knock-out competition,,,CSA Provincial T20,domestic
+T20,male,caribbean t20,,,WI Regional T20,domestic
+T20,male,twenty20 cup (sri lanka),,,SL Domestic T20,domestic
+T20,male,inter-provincial twenty20 tournament,,,SL Domestic T20,domestic
+T20,male,csn premier clubs t20 tournament,,,SL Domestic T20,domestic
+T20,male,aia premier t20 tournament,,,SL Domestic T20,domestic
+T20,male,sri lanka cricket twenty-20 tournament,,,SL Domestic T20,domestic
+T20,male,sri lanka cricket twenty20 tournament,,,SL Domestic T20,domestic
+T20,male,sri lanka cricket major clubs t20 tournament,,,SL Domestic T20,domestic
+T20,male,shpageeza t20 tournament,,,Shpageeza,domestic
+T20,male,afghanistan national t20 cup,,,Afghanistan National T20 Cup,domestic
+T20,male,qosh tepa national t20 cup,,,Afghanistan National T20 Cup,domestic
+T20,male,metropolitan bank twenty20,,,Zimbabwe Domestic T20,domestic
+T20,male,stanbic bank twenty20,,,Zimbabwe Domestic T20,domestic
+T20,male,zimbabwe domestic twenty20 competition,,,Zimbabwe Domestic T20,domestic
+T20,male,zimbabwe domestic twenty20 championship,,,Zimbabwe Domestic T20,domestic
+T20,male,provincial twenty20 competition,,,Zimbabwe Domestic T20,domestic
+T20,male,inter-provincial trophy,,,Ireland Inter-Provincial T20,domestic
+T20,male,hanley energy inter-provincial trophy,,,Ireland Inter-Provincial T20,domestic
+T20,male,dhaka premier division twenty20 cricket league,,,Bangladesh Domestic T20,domestic
+T20,male,national cricket twenty20 league,,,Bangladesh Domestic T20,domestic
+T20,male,bangabandhu t20 cup,,,Bangabandhu T20 Cup,domestic
+T20,female,women's premier league,,,Women's Premier League,franchise
+T20,female,women's big bash league,,,Women's Big Bash League,franchise
+T20,female,rebel women's big bash league,,,Women's Big Bash League,franchise
+T20,female,weber women's big bash league,,,Women's Big Bash League,franchise
+T20,female,the women's hundred,,,The Hundred (women),franchise
+T20,female,kia super league,,,Women's Cricket Super League,franchise
+T20,female,women's caribbean premier league,,,Women's Caribbean Premier League,franchise
+T20,female,charlotte edwards cup,,,Charlotte Edwards Cup,domestic
+T20,female,the women's vitality blast,,,Women's Vitality Blast (tier 1),domestic
+T20,female,the women's vitality blast league two,,,Women's Vitality Blast League Two,domestic
+T20,female,ecb women's twenty20 cup,,,Women's County T20,domestic
+T20,female,natwest women's twenty20 cup,,,Women's County T20,domestic
+T20,female,vitality women's twenty20 cup,,,Women's County T20,domestic
+T20,female,vitality women's county t20,,,Women's County T20,domestic
+T20,female,women's county twenty20,,,Women's County T20,domestic
+T20,female,vitality women's county cup,,,Women's County T20,domestic
+T20,female,australian women's twenty20 cup,,,Australian Women's T20 Cup,domestic
+T20,female,inter state women's twenty20 competition,,,Senior Women's T20 Trophy (India),domestic
+T20,female,women's inter-zonal twenty20 competition,,,Women's Inter-Zonal T20 (India),domestic
+T20,female,women's twenty20 challenger trophy,,,Women's T20 Challenger Trophy (India),domestic
+T20,female,state league twenty20,,,Women's Super Smash,domestic
+T20,female,action cricket twenty20,,,Women's Super Smash,domestic
+T20,female,new zealand women's twenty20 competition,,,Women's Super Smash,domestic
+T20,female,burger king women's super smash,,,Women's Super Smash,domestic
+T20,female,dream 11 women's super smash,,,Women's Super Smash,domestic
+T20,female,women's super smash,,,Women's Super Smash,domestic
+T20,female,csa women's provincial t20 competition,,,CSA Women's Provincial T20,domestic
+T20,female,women's provincial t20 division 2,,,CSA Women's Provincial T20,domestic
+T20,female,csa women's professional t20 competition,,,CSA Women's Pro T20,domestic
+T20,female,hollywoodbets pro 20,,,CSA Women's Pro T20,domestic
+T20,female,west indies cricket board regional women's twenty20 championship,,,WI Women's T20 Blaze,domestic
+T20,female,west indies cricket board women's twenty20 blaze,,,WI Women's T20 Blaze,domestic
+T20,female,west indies cricket board women's twenty20 cup,,,WI Women's T20 Blaze,domestic
+T20,female,cricket west indies women's twenty20 blaze,,,WI Women's T20 Blaze,domestic
+T20,female,national women's t20 tournament,,,Pakistan National Women's T20,domestic
+T20,female,departmental t20 women's championship,,,Pakistan National Women's T20,domestic
+ListA,male,ing cup,,,Australian One-Day Cup,domestic
+ListA,male,ford ranger cup,,,Australian One-Day Cup,domestic
+ListA,male,ryobi one-day cup,,,Australian One-Day Cup,domestic
+ListA,male,matador bbqs one-day cup,,,Australian One-Day Cup,domestic
+ListA,male,jlt one-day cup,,,Australian One-Day Cup,domestic
+ListA,male,marsh one-day cup,,,Australian One-Day Cup,domestic
+ListA,male,cheltenham and gloucester trophy,,,English One-Day Cup,domestic
+ListA,male,friends provident trophy,,,English One-Day Cup,domestic
+ListA,male,royal london one-day cup,,,English One-Day Cup,domestic
+ListA,male,royal london cup,,,English One-Day Cup,domestic
+ListA,male,metro bank one day cup,,,English One-Day Cup,domestic
+ListA,male,metro bank men's one day cup,,,English One-Day Cup,domestic
+ListA,male,norwich union national league,,,English 40-over League,domestic
+ListA,male,norwich union league,,,English 40-over League,domestic
+ListA,male,national league,,,English 40-over League,domestic
+ListA,male,totesport league,,,English 40-over League,domestic
+ListA,male,natwest pro40 league,,,English 40-over League,domestic
+ListA,male,clydesdale bank 40,,,English 40-over League,domestic
+ListA,male,yorkshire bank 40,,,English 40-over League,domestic
+ListA,male,vijay hazare trophy,,,Vijay Hazare Trophy,domestic
+ListA,male,ranji trophy one day,,,Vijay Hazare Trophy,domestic
+ListA,male,state shield,,,Ford Trophy,domestic
+ListA,male,the ford trophy,,,Ford Trophy,domestic
+ListA,male,standard bank cup,,,CSA One-Day Cup (franchise),domestic
+ListA,male,mtn domestic championship,,,CSA One-Day Cup (franchise),domestic
+ListA,male,momentum one day cup,,,CSA One-Day Cup (franchise),domestic
+ListA,male,south african airways provincial one-day challenge,,,CSA Provincial One-Day,domestic
+ListA,male,csa provincial one-day competition,,,CSA Provincial One-Day,domestic
+ListA,male,csa provincial 50 over challenge,,,CSA Provincial One-Day,domestic
+ListA,male,csa provincial one day challenge,,,CSA Provincial One-Day,domestic
+ListA,male,premier limited overs tournament,,,SL Major Clubs List A,domestic
+ListA,male,sri lanka cricket limited overs tournament,,,SL Major Clubs List A,domestic
+ListA,male,sri lanka cricket major clubs limited overs tournament,,,SL Major Clubs List A,domestic
+ListA,male,red stripe bowl,,,WI Super50,domestic
+ListA,male,regional super50,,,WI Super50,domestic
+ListA,female,women's county championship,,,Women's County Championship (50 over),domestic
+ListA,female,frizzell women's county championship,,,Women's County Championship (50 over),domestic
+ListA,female,lv women's county championship,,,Women's County Championship (50 over),domestic
+ListA,female,royal london women's one-day cup,,,Women's County Championship (50 over),domestic
+ListA,female,rachael heyhoe-flint trophy,,,Rachael Heyhoe-Flint Trophy,domestic
+ListA,female,metro bank women's one day cup,,,Women's One Day Cup (tier 1),domestic
+ListA,female,women's national cricket league,,,Women's National Cricket League,domestic
+ListA,female,state league,,,Hallyburton Johnstone Shield,domestic
+ListA,female,new zealand women's one-day competition,,,Hallyburton Johnstone Shield,domestic
+ListA,female,hallyburton johnstone shield,,,Hallyburton Johnstone Shield,domestic
+ListA,female,inter state women's one day competition,,,Senior Women's One Day Trophy (India),domestic
+ListA,female,women's provincial league,,,CSA Women's Provincial One-Day,domestic
+ListA,female,csa women's provincial league,,,CSA Women's Provincial One-Day,domestic
+ListA,female,csa women's provincial programme,,,CSA Women's Provincial One-Day,domestic
+ListA,female,women's provincial one-day division 2,,,CSA Women's Provincial One-Day,domestic
+ListA,female,csa women's professional league,,,CSA Women's Pro 50,domestic
+ListA,female,hollywoodbets pro 50,,,CSA Women's Pro 50,domestic
+FC,male,pura cup,,,Sheffield Shield,domestic
+FC,male,sheffield shield,,,Sheffield Shield,domestic
+FC,male,ppp healthcare county championship,,,County Championship,domestic
+FC,male,cricinfo championship,,,County Championship,domestic
+FC,male,frizzell county championship,,,County Championship,domestic
+FC,male,liverpool victoria county championship,,,County Championship,domestic
+FC,male,lv county championship,,,County Championship,domestic
+FC,male,specsavers county championship,,,County Championship,domestic
+FC,male,bob willis trophy,,,County Championship,domestic
+FC,male,lv= insurance county championship,,,County Championship,domestic
+FC,male,vitality county championship,,,County Championship,domestic
+FC,male,rothesay county championship,,,County Championship,domestic
+FC,male,ranji trophy,,,Ranji Trophy,domestic
+FC,male,state championship,,,Plunket Shield,domestic
+FC,male,plunket shield,,,Plunket Shield,domestic
+FC,male,quaid-e-azam trophy,,,Quaid-e-Azam Trophy,domestic
+FC,male,quaid-e-azam trophy gold league,,,Quaid-e-Azam Trophy,domestic
+FC,male,quaid-e-azam trophy silver league,,,Quaid-e-Azam Trophy (silver),domestic
+FC,male,pcb patron's trophy,,,Patron's / President's Trophy,domestic
+FC,male,abn-amro patron's trophy,,,Patron's / President's Trophy,domestic
+FC,male,president's trophy,,,Patron's / President's Trophy,domestic
+FC,male,supersport series,,,CSA 4-Day Series,domestic
+FC,male,sunfoil series,,,CSA 4-Day Series,domestic
+FC,male,four day franchise series,,,CSA 4-Day Series,domestic
+FC,male,csa 4-day series,,,CSA 4-Day Series,domestic
+FC,male,south african airways provincial three-day challenge,,,CSA Provincial 3-Day,domestic
+FC,male,csa provincial three-day competition,,,CSA Provincial 3-Day,domestic
+FC,male,sunfoil 3-day cup,,,CSA Provincial 3-Day,domestic
+FC,male,csa provincial 3-day cup,,,CSA Provincial 3-Day,domestic
+FC,male,busta cup,,,WI 4-Day Championship,domestic
+FC,male,carib beer cup,,,WI 4-Day Championship,domestic
+FC,male,regional four day competition,,,WI 4-Day Championship,domestic
+FC,male,wicb professional cricket league regional 4 day tournament,,,WI 4-Day Championship,domestic
+FC,male,west indies 4-day championship,,,WI 4-Day Championship,domestic
+FC,male,ispahani mirzapore tea national cricket league,,,Bangladesh National Cricket League,domestic
+FC,male,national cricket league,,,Bangladesh National Cricket League,domestic
+FC,male,walton national cricket league,,,Bangladesh National Cricket League,domestic
+FC,male,walton led tv national cricket league,,,Bangladesh National Cricket League,domestic
+FC,male,premier championship,,,SL Premier / Major League (tier A),domestic
+FC,male,aia premier league tournament,,,SL Premier / Major League (tier A),domestic
+FC,male,premier league tournament tier a,,,SL Premier / Major League (tier A),domestic
+FC,male,sri lanka major league tournament,,,SL Premier / Major League (tier A),domestic
+FC,male,premier league tournament tier b,,,SL Premier League (tier B),domestic
