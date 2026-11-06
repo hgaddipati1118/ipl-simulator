@@ -9,7 +9,7 @@
  * written; fetch errors are logged and retried on the next run rather than marked done.
  *
  * Usage:
- *   npx tsx src/pipeline/archive-profiles.ts [--limit N] [--all-index]
+ *   npx tsx src/pipeline/archive-profiles.ts [--limit N] [--all-index] [--ids 1,2,3 | --ids @file]
  */
 
 import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync } from 'fs';
@@ -78,7 +78,12 @@ async function main() {
 
   mkdirSync(ARCHIVE_DIR, { recursive: true });
   const done = await loadDoneIds();
-  const tiers = await buildQueue(allIndex);
+  // --ids 1,2,3 or --ids @file (one id per line): fetch exactly these players, e.g. to fill gaps
+  const idsArg = args.includes("--ids") ? args[args.indexOf("--ids") + 1] : null;
+  const explicit = idsArg
+    ? (idsArg.startsWith("@") ? readFileSync(idsArg.slice(1), "utf-8") : idsArg).split(/[\s,]+/).filter(Boolean).map(Number)
+    : null;
+  const tiers = explicit ? [{ tier: "ids", ids: explicit }] : await buildQueue(allIndex);
   console.log(`Already scraped: ${done.size}`);
   for (const t of tiers) console.log(`  ${t.tier}: ${t.ids.length} players (${t.ids.filter(id => !done.has(id)).length} to do)`);
 
