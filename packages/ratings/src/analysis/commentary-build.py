@@ -477,8 +477,11 @@ def main():
             continue
         n_text += 1
         if ck == "W:run_out" and r.get("out") and r["out"] == (r.get("nons") or {}).get("id"):
-            # the non-striker was run out: in the game the dismissed batter is {batter}, his partner {nonstriker}
-            r = dict(r, batter=r["nons"], nons=r["batter"])
+            # The non-striker was run out. The game only runs out the striker, and these lines say who played the shot
+            # ("{nonstriker} went for the pull") as well as who was out, so swapping names misattributes the shot:
+            # leave them out.
+            reasons["nonstriker_run_out"] += 1
+            continue
         for t in make_templates(r, lex, args.max_len, reasons):
             if not ck.startswith("W:") and NONWICKET_CONTEXT.search(t):
                 reasons["nonwicket_event_word"] += 1

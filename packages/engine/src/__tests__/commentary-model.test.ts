@@ -328,3 +328,12 @@ describe("commentary model helpers", () => {
     expect(pickModelCommentary({ outcome: "dot", over: 1, ball: 1, score: 0, wickets: 0, isSecondInnings: false, batterName: "A B", bowlerName: "C D" }, createRNG(1))).toBeNull();
   });
 });
+
+describe("run-out lines credit the right batter", () => {
+  it.runIf(model !== null)("no run-out template has the non-striker playing the shot (the game only runs out the striker)", () => {
+    const lines = (model as unknown as { lines: Record<string, { t: string[] }> }).lines["W:run_out"]?.t ?? [];
+    const shotByPartner = /\{nonstriker\}\s+(went|goes|looks?|looked|tried|tries|plays?|played|pulls?|pulled|drives?|drove|cuts?|flicks?|hooks?|punche[sd]|tap(s|ped)|nudge[sd]|push(es|ed))\b/i;
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.filter(t => shotByPartner.test(t))).toEqual([]);
+  });
+});
