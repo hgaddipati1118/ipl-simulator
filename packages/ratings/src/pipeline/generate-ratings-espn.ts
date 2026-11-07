@@ -24,6 +24,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
 import { applyModelRatings, loadModel, modelAvailable, shiftTo, battingOvr as modelBattingOvr, bowlingOvr as modelBowlingOvr } from "./model-ratings.js";
 import { caAvailable, caTunedK, loadCa } from "./ca-model.js";
+import { applyFieldingRatings, fieldingAvailable } from "./fielding-model.js";
 import { join, dirname } from "path";
 import { pathToFileURL } from "url";
 import { calculateRatings, inferRole, type GenderPop, type CalculatedRatings } from "../calculator.js";
@@ -42,11 +43,13 @@ import {
 // ── Input / output paths ──────────────────────────────────────────────
 
 const ESPN_FILE = join(OUTPUT_DIR, "espn-players.json");
-const OUTPUT_JSON = join(OUTPUT_DIR, "espn-ratings.json");
-const OUTPUT_JSON_WOMEN = join(OUTPUT_DIR, "espn-ratings-women.json");
+/** RATINGS_OUT_DIR redirects the JSON outputs (the inputs still come from OUTPUT_DIR) */
+const JSON_OUT_DIR = process.env.RATINGS_OUT_DIR ?? OUTPUT_DIR;
+const OUTPUT_JSON = join(JSON_OUT_DIR, "espn-ratings.json");
+const OUTPUT_JSON_WOMEN = join(JSON_OUT_DIR, "espn-ratings-women.json");
 /** Pre-model ratings (identical to the above when run without --model) */
-const OUTPUT_JSON_BASE = join(OUTPUT_DIR, "espn-ratings-base.json");
-const OUTPUT_JSON_WOMEN_BASE = join(OUTPUT_DIR, "espn-ratings-women-base.json");
+const OUTPUT_JSON_BASE = join(JSON_OUT_DIR, "espn-ratings-base.json");
+const OUTPUT_JSON_WOMEN_BASE = join(JSON_OUT_DIR, "espn-ratings-women-base.json");
 const OUTPUT_TS = join(dirname(OUTPUT_DIR), "..", "src", "all-players.ts");
 const OUTPUT_TS_WOMEN = join(dirname(OUTPUT_DIR), "..", "src", "wpl-players.ts");
 
@@ -140,6 +143,9 @@ interface RatedPlayer {
     economy: number;
     accuracy: number;
     clutch: number;
+    /** 0-99, 50 = average; from src/analysis/fielding-ratings.py (absent = engine default) */
+    fielding?: number;
+    keeping?: number;
   };
   overalls: {
     battingOvr: number;
@@ -2155,9 +2161,10 @@ export function generateAllRatings(): RatedPlayer[] {
   }
 
   applyRatingsModel(rated, "male");
+  applyFielding(rated, "male");
 
   // Save as JSON
-  if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
+  if (!existsSync(JSON_OUT_DIR)) mkdirSync(JSON_OUT_DIR, { recursive: true });
   writeFileSync(OUTPUT_JSON, JSON.stringify(rated, null, 2), "utf-8");
   console.log(`\nJSON output: ${OUTPUT_JSON}`);
 
@@ -2165,6 +2172,13 @@ export function generateAllRatings(): RatedPlayer[] {
   generateTypeScriptModule(rated);
 
   return rated;
+}
+
+/** Fielding / keeping ratings from the Cricsheet analysis (no-op when data/analysis/fielding_ratings.csv is absent) */
+function applyFielding(rated: RatedPlayer[], gender: "male" | "female"): void {
+  if (!fieldingAvailable()) { console.log("No fielding_ratings.csv: fielding / keeping left at the engine defaults"); return; }
+  const r = applyFieldingRatings(rated, gender);
+  console.log(`Fielding ratings (${gender}): fielding ${r.fielding}, keeping ${r.keeping}, not in Cricsheet ${r.unmatched}`);
 }
 
 // ── Ratings model (optional) ──────────────────────────────────────────
@@ -2183,7 +2197,7 @@ function applyRatingsModel(rated: RatedPlayer[], gender: "male" | "female"): voi
   }
   // Always keep the generator's own ratings (before any model re-ranking): they are the benchmark
   // the ratings model is validated against, so they must never be overwritten by its output
-  if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
+  if (!existsSync(JSON_OUT_DIR)) mkdirSync(JSON_OUT_DIR, { recursive: true });
   writeFileSync(gender === "male" ? OUTPUT_JSON_BASE : OUTPUT_JSON_WOMEN_BASE, JSON.stringify(rated, null, 2), "utf-8");
   if (!USE_MODEL) return;
   if (!modelAvailable()) throw new Error("--model needs data/analysis/player_ratings_by_season.parquet (run src/analysis/ratings-model.py)");
@@ -2267,6 +2281,11 @@ function applySmallSampleCaps(
   return out;
 }
 
+/** `, fielding: N, keeping: M` for the ratings that exist */
+function fieldingFields(r: { fielding?: number; keeping?: number }): string {
+  return `${r.fielding !== undefined ? `, fielding: ${r.fielding}` : ""}${r.keeping !== undefined ? `, keeping: ${r.keeping}` : ""}`;
+}
+
 // ── TypeScript module output ──────────────────────────────────────────
 
 /**
@@ -2285,7 +2304,7 @@ function generateTypeScriptModule(players: RatedPlayer[]): void {
     age: ${p.age},
     country: ${JSON.stringify(p.country)},
     role: ${JSON.stringify(p.role)},
-    ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
+    ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch}${fieldingFields(p.ratings)} },
     isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}
     bowlingStyle: ${JSON.stringify(p.bowlingStyle)},
     battingHand: ${JSON.stringify(p.battingHand)},${p.imageUrl ? `\n    imageUrl: ${JSON.stringify(p.imageUrl)},` : ""}
@@ -2971,9 +2990,10 @@ export function generateWomenRatings(): RatedPlayer[] {
   }
 
   applyRatingsModel(rated, "female");
+  applyFielding(rated, "female");
 
   // Save as JSON
-  if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
+  if (!existsSync(JSON_OUT_DIR)) mkdirSync(JSON_OUT_DIR, { recursive: true });
   writeFileSync(OUTPUT_JSON_WOMEN, JSON.stringify(rated, null, 2), "utf-8");
   console.log(`\nJSON output: ${OUTPUT_JSON_WOMEN}`);
 
@@ -3001,7 +3021,7 @@ function generateWPLTypeScriptModule(players: RatedPlayer[]): void {
     age: ${p.age},
     country: ${JSON.stringify(p.country)},
     role: ${JSON.stringify(p.role)},
-    ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch} },
+    ratings: { battingIQ: ${p.ratings.battingIQ}, timing: ${p.ratings.timing}, power: ${p.ratings.power}, running: ${p.ratings.running}, wicketTaking: ${p.ratings.wicketTaking}, economy: ${p.ratings.economy}, accuracy: ${p.ratings.accuracy}, clutch: ${p.ratings.clutch}${fieldingFields(p.ratings)} },
     isInternational: ${p.isInternational},${p.isWicketKeeper ? `\n    isWicketKeeper: true,` : ""}
     bowlingStyle: ${JSON.stringify(p.bowlingStyle)},
     battingHand: ${JSON.stringify(p.battingHand)},${p.imageUrl ? `\n    imageUrl: ${JSON.stringify(p.imageUrl)},` : ""}
@@ -3044,6 +3064,8 @@ export interface WPLPlayerData {
   economy: number;
   accuracy: number;
   clutch: number;
+  fielding?: number;
+  keeping?: number;
   teamId: string;
   isWicketKeeper?: boolean;
 }
@@ -3066,6 +3088,8 @@ export function getWPLPlayers(): WPLPlayerData[] {
       economy: p.ratings.economy,
       accuracy: p.ratings.accuracy,
       clutch: p.ratings.clutch,
+      ...(p.ratings.fielding !== undefined ? { fielding: p.ratings.fielding } : {}),
+      ...(p.ratings.keeping !== undefined ? { keeping: p.ratings.keeping } : {}),
       teamId: p.teamId,
       isWicketKeeper: p.isWicketKeeper,
     }));
