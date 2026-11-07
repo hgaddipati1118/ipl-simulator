@@ -167,6 +167,12 @@ export class HostGameLogic {
     return isWomenLeague(this.rules) ? "female" : "male";
   }
 
+  /**
+   * An extra league's auction is a mega auction of the league's players: the real squads and free agents a
+   * single-player game of the league starts with (prepareLeaguePool, then createGameState) all go under the hammer,
+   * and every franchise starts empty with the league's budget. (Pre-filling the real squads, as the IPL room does,
+   * would leave these leagues' smaller budgets spent before the first bid.)
+   */
   private async startLeagueAuction(): Promise<void> {
     const league = this.league;
     let pool: Player[] = [];
@@ -174,21 +180,16 @@ export class HostGameLogic {
       const [{ prepareLeaguePool }, { createGameState }] = await Promise.all([import("../extended-pool"), import("../game-state")]);
       await prepareLeaguePool(league);
       const state = createGameState(this.rules);
-      for (const team of this.teams) {
-        const real = state.teams.find(t => t.id === team.id);
-        for (const p of real?.roster ?? []) {
-          if (team.roster.length >= this.rules.maxSquadSize) break;
-          team.addPlayer(p, p.bid);
-        }
-      }
-      pool = state.playerPool;
+      pool = [...state.teams.flatMap(t => t.roster), ...state.playerPool];
+      for (const p of pool) { p.teamId = undefined; p.bid = 0; }
     } catch {
       pool = [];
     }
-    // Free agents of the league (best first), topped up with generated players when the pool is thin
-    const poolSize = this.teams.length <= 5 ? 80 : 200;
+    // Enough for every squad plus spares, best first; generated players top up a thin pool
+    const needed = this.teams.length * this.rules.maxSquadSize;
+    const poolSize = Math.min(320, Math.max(this.teams.length <= 5 ? 80 : 200, Math.ceil(needed * 1.4)));
     pool = [...pool].sort((a, b) => b.marketValue - a.marketValue).slice(0, poolSize);
-    if (pool.length < poolSize / 2) {
+    if (pool.length < poolSize) {
       const generated = generatePlayerPool(poolSize - pool.length, Math.random, this.generatedGender());
       for (const p of generated) p.isInternational = isOverseasIn(league, p.country);
       pool = [...pool, ...generated];

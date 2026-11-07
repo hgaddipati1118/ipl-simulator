@@ -56,7 +56,7 @@ describe("auction room", () => {
     logic.destroy?.();
   });
 
-  it("an extra league's auction starts from its real squads, with overseas status relative to the league", async () => {
+  it("an extra league's auction is a mega auction of its real players with the league's budgets, and its season plays", async () => {
     const host = new MockHost();
     const logic = new HostGameLogic(host as never, multiplayerAuctionRules("psl"));
     let state: MultiAuctionState | null = null;
@@ -68,11 +68,22 @@ describe("auction room", () => {
     expect(state!.phase).toBe("auction");
     const teams = state!.teams;
     expect(teams.map(t => t.teamId)).toEqual(getLeague("psl")!.teams.map(t => t.id));
-    expect(teams.every(t => t.rosterCount >= 11)).toBe(true);
+    // a mega auction: empty squads with the league's full budget, the league's real players in the pool
+    expect(teams.every(t => t.rosterCount === 0 && t.budget === getLeague("psl")!.rules.salaryCap)).toBe(true);
     expect(state!.currentPlayer).toBeTruthy();
+    expect(state!.totalPlayers).toBeGreaterThanOrEqual(8 * getLeague("psl")!.rules.maxSquadSize);
     // a Pakistani player is domestic in the PSL
     expect(isOverseasIn("psl", "Pakistan")).toBe(false);
-    (logic as unknown as { stopTimer: () => void }).stopTimer();
+    // the host sims the rest: every squad can field a side and the league's season is played
+    vi.useFakeTimers();
+    try {
+      logic.simRemaining();
+      vi.advanceTimersByTime(3500);
+      expect(host.messages.some(m => m.type === "season-results")).toBe(true);
+      expect(state!.teams.every(t => t.rosterCount >= 11)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

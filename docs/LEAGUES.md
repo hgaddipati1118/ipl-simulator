@@ -75,8 +75,9 @@ players in the XI).
   League setting with every league, and Draft Match has a "<league> <season> squads" pool for each extra league (its
   overseas cap per XI, random grounds from that league). An extra league's room loads its squads the way a single-player
   new game does: `prepareLeaguePool(league)` (extended CricketArchive pool, on the host only) and then `createGameState(rules)`;
-  the auction pool is that game's free agents (best 200, or 80 for five or fewer teams), topped up with generated players
-  if thin; the season-draft pool is its squads plus free agents (capped at 600, best first). IPL and WPL rooms behave
+  an auction room is then a mega auction: every franchise starts empty with the league's budget and the league's real
+  players (squads and free agents, best first, 1.4 squads' worth per team, capped at 320) go under the hammer, topped up
+  with generated players (the women's model in a women's league) if thin; the season-draft pool is its squads plus free agents (capped at 600, best first). IPL and WPL rooms behave
   as before. Guests receive everything from the host, so they need no league data. Draft Match itself plays T20 rules
   in every pool (as the WPL pool always has).
 
