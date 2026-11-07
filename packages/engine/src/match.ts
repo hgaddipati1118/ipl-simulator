@@ -52,6 +52,8 @@ import {
 import { T20_FORMAT, matchFormatFor, phaseOver, type MatchFormatSpec } from "./format.js";
 import {
   EXTRAS_RATE_CAL,
+  trimRunningRuns,
+  SUPER_OVER_CAL,
   applyFreeHitToProbs,
   batterFaced,
   bowlerRuns,
@@ -303,7 +305,7 @@ function baseOutcomeProbabilities(
   // Tuned to match IPL 2025 ball-outcome distributions:
   //   IPL 2025 had 52 scores above 200, avg innings ~178, record boundaries
   //   Target avg innings score: 175-185 (Impact Player era, flat pitches, short boundaries)
-  return {
+  const p: Record<BallOutcome, number> = {
     dot:    clamp(0.355 - balance * 0.12, 0.19, 0.50),
     "1":    clamp(0.278 + balance * 0.02, 0.19, 0.37),
     "2":    clamp(0.052 + balance * 0.015, 0.02, 0.10),
@@ -315,6 +317,8 @@ function baseOutcomeProbabilities(
     noball:  clamp(0.005 - (bowler.ratings.accuracy / 100) * 0.003, 0.001, 0.02) * EXTRAS_RATE_CAL.noball,
     legbye: 0.015 * EXTRAS_RATE_CAL.legbye,
   };
+  trimRunningRuns(p);
+  return p;
 }
 
 /** Adjust probabilities for chase context in 2nd innings */
@@ -354,6 +358,8 @@ interface BallRules {
   fmt: MatchFormatSpec;
   gender: Gender;
   bench?: readonly Player[];
+  /** A super over: wickets come faster (SUPER_OVER_CAL) */
+  superOver?: boolean;
 }
 
 /** Simulate a single ball */
@@ -445,6 +451,8 @@ function simulateBall(
   probs["6"] *= batterMoraleMod;
   probs.wicket *= bowlerMoraleMod;
   probs.dot *= bowlerMoraleMod;
+
+  if (rules.superOver) { probs.wicket *= SUPER_OVER_CAL.wicket; probs["4"] *= SUPER_OVER_CAL.boundary; probs["6"] *= SUPER_OVER_CAL.boundary; }
 
   // A free hit: boundaries come easier and only the run-out family can dismiss
   if (rules.freeHit) applyFreeHitToProbs(probs);
@@ -1012,7 +1020,7 @@ function simulateInnings(
         rng,
         fieldingUnit,
         fmt.totalBalls,
-        { freeHit, fmt, gender, bench },
+        { freeHit, fmt, gender, bench, superOver: !!so },
         nonStriker,
       );
       event.over = over;
@@ -1144,7 +1152,10 @@ function updatePlayerStats(
 
     // Catches taken in the field (the opposing innings is the one this side bowled in)
     for (const ev of bowlingInnings.ballLog) {
-      if (ev.isWicket && (ev.wicketType === "caught" || ev.wicketType === "caught_and_bowled") && ev.fielderId === player.id) player.stats.catches++;
+      if (!ev.isWicket || ev.substitute) continue; // a substitute fielder's credit is nobody's in the XI
+      if ((ev.wicketType === "caught" || ev.wicketType === "caught_and_bowled") && ev.fielderId === player.id) player.stats.catches++;
+      else if (ev.wicketType === "stumped" && ev.fielderId === player.id) player.stats.stumpings = (player.stats.stumpings ?? 0) + 1;
+      else if (ev.wicketType === "run_out" && (ev.fielderId === player.id || ev.fielder2Id === player.id)) player.stats.runOuts = (player.stats.runOuts ?? 0) + 1;
     }
 
     if (bowlStat && (bowlStat.overs > 0 || bowlStat.balls > 0)) {

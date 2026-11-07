@@ -1086,7 +1086,10 @@ export function LiveMatchPage({
 
           {/* Current batters */}
           <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-th pt-3 text-xs sm:text-sm">
-            {state.batterStats.filter(b => !b.isOut).slice(-2).map(b => {
+            {[state.strikerIdx, state.nonStrikerIdx]
+              .map(i => state.batterStats.find(bs => bs.playerId === state._internal.battingOrderIds[i]))
+              .filter((b): b is NonNullable<typeof b> => !!b && !b.isOut)
+              .map(b => {
               const isStriker = b.playerId === state._internal.battingOrderIds[state.strikerIdx];
               return (
                 <span key={b.playerId} className={`font-mono flex items-center gap-1.5 ${isStriker ? "text-th-primary font-semibold" : "text-th-secondary"}`}>
@@ -1096,6 +1099,9 @@ export function LiveMatchPage({
                 </span>
               );
             })}
+            {state.freeHit && (
+              <span data-testid="free-hit" className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-display font-semibold uppercase tracking-widest text-amber-300">Free hit</span>
+            )}
             <span className="mx-1 hidden text-th-faint sm:inline">|</span>
             {state.bowlerStats.length > 0 && (() => {
               const b = state.bowlerStats.find(b => b.playerId === state._internal.bowlingOrderIds[state.currentBowlerIdx])

@@ -29,6 +29,8 @@ import {
 import { generateBallCommentaryDetailed } from "./commentary.js";
 import {
   EXTRAS_RATE_CAL,
+  trimRunningRuns,
+  SUPER_OVER_CAL,
   applyFreeHitToProbs,
   bowlerRuns,
   batterFaced,
@@ -122,9 +124,11 @@ export interface LiveSuperOver {
   bowlingTeamId: string;
   runs: number;
   wickets: number;
-  /** The three nominated batters, the bowler */
+  /** The three nominated batters, the bowler (ids) */
   batters: string[];
   bowler: string;
+  /** Batters dismissed in this super over (they cannot be nominated in the next one) */
+  out: string[];
   balls: DetailedBallEvent[];
 }
 
@@ -478,6 +482,8 @@ function baseOutcomeProbabilities(
     legbye: 0.015 * EXTRAS_RATE_CAL.legbye,
   };
 
+  trimRunningRuns(probs);
+
   // Apply form modifier to boundary and wicket probabilities
   probs["4"] *= (1 + formMod);
   probs["6"] *= (1 + formMod);
@@ -591,6 +597,8 @@ export function applyLiveBallContextModifiers(
 /** What the Laws add to a live ball: free hit, gender (fitted rates), substitute fielders */
 interface LiveRulesCtx {
   freeHit: boolean;
+  /** A super over: wickets come faster (SUPER_OVER_CAL) */
+  superOver?: boolean;
   gender: Gender;
   bench: readonly FielderLike[];
   nonStrikerName?: string;
@@ -756,6 +764,8 @@ function runOneBall(
   probs["6"] *= 1.15;
   probs.dot *= 0.92;
   probs.wicket *= 0.95;
+
+  if (rulesCtx.superOver) { probs.wicket *= SUPER_OVER_CAL.wicket; probs["4"] *= SUPER_OVER_CAL.boundary; probs["6"] *= SUPER_OVER_CAL.boundary; }
 
   // A free hit: boundaries come easier and only the run-out family can dismiss
   if (rulesCtx.freeHit) applyFreeHitToProbs(probs);
@@ -1214,7 +1224,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       .sort((a, b) => (pm[b].bowlingOvr ?? 0) - (pm[a].bowlingOvr ?? 0));
     if (pool.length > 0) {
       (int.unavailableBowlers ??= []).push(bowlerId);
-      int.bowlerOvers[bowlerId] = (int.bowlerOvers[bowlerId] ?? 0) + 1;
+      int.bowlerOvers[bowlerId] = int.maxOversPerBowler; // off the field for good: his four are used up
       let idx = int.bowlingOrderIds.indexOf(pool[0]);
       if (idx < 0) { int.bowlingOrderIds.push(pool[0]); idx = int.bowlingOrderIds.length - 1; }
       int.bowlerOvers[pool[0]] = int.bowlerOvers[pool[0]] ?? 0;
@@ -3810,7 +3820,7 @@ function completeMatch(state: MatchState): void {
  * batter dismissed in it cannot bat again. Under "repeated-super-over" the super overs go on until one side wins; under
  * the old boundary rule the side with more boundaries (the match and the super over together) wins after one.
  */
-function playLiveSuperOvers(state: MatchState): void {
+export function playLiveSuperOvers(state: MatchState): void {
   const ni = state._internal;
   const pm = ni.playerDataMap;
   const rng = ni.rng;
@@ -3832,7 +3842,7 @@ function playLiveSuperOvers(state: MatchState): void {
   let winnerId: string | undefined;
   let resultText = "";
 
-  const runInnings = (round: number, batId: string, bowlId: string, target: number | undefined): LiveSuperOver & { out: Set<string> } => {
+  const runInnings = (round: number, batId: string, bowlId: string, target: number | undefined): LiveSuperOver => {
     const outs = prevOut[batId] ?? new Set<string>();
     let batPool = xiOf(batId).filter(id => !outs.has(id) && pm[id]);
     if (batPool.length < 3) batPool = xiOf(batId).filter(id => pm[id]);
@@ -3851,7 +3861,7 @@ function playLiveSuperOvers(state: MatchState): void {
         bat, pm[bowlerId], 19, target !== undefined, target ?? 0, runs, 6 - legal, wickets, ni.stadiumRating, 50, "standard",
         ni.pitchType, ni.boundarySize, ni.dewFactor, 0, 0, legal, 0, rng, batId === homeId, true,
         ni.venueProfile ?? null, ni.chaseAdvantage, unit, { gender: gender === "female" ? "female" : "male", nonStrikerName: pm[batters[non]]?.name },
-        { freeHit, gender, bench: [], nonStrikerName: pm[batters[non]]?.name },
+        { freeHit, gender, bench: [], nonStrikerName: pm[batters[non]]?.name, superOver: true },
       );
       const d = res.detail;
       runs += res.runs + res.extras;
@@ -3881,7 +3891,7 @@ function playLiveSuperOvers(state: MatchState): void {
       });
     }
     return {
-      round, battingTeamId: batId, bowlingTeamId: bowlId, runs, wickets: Math.min(wickets, 2), batters, bowler: bowlerId, balls, out,
+      round, battingTeamId: batId, bowlingTeamId: bowlId, runs, wickets: Math.min(wickets, 2), batters, bowler: bowlerId, out: [...out], balls,
     };
   };
 
@@ -3889,8 +3899,7 @@ function playLiveSuperOvers(state: MatchState): void {
     const second = first === ni.battingFirstId ? ni.bowlingFirstId : ni.battingFirstId;
     const a = runInnings(round, first, second, undefined);
     const b = runInnings(round, second, first, a.runs + 1);
-    const { out: oa, ...ra } = a;
-    const { out: ob, ...rb } = b;
+    const ra = a, rb = b;
     rounds.push(ra, rb);
     const sb = (x: LiveSuperOver) => x.balls.filter(e => e.eventType === "four" || e.eventType === "six").length;
     boundaries[first] += sb(ra);
@@ -3911,7 +3920,7 @@ function playLiveSuperOvers(state: MatchState): void {
       break;
     }
     prevBowler = { [second]: a.bowler, [first]: b.bowler };
-    prevOut = { [first]: oa, [second]: ob };
+    prevOut = { [first]: new Set(a.out), [second]: new Set(b.out) };
     first = second; // the side that batted second goes first next time
   }
   if (!winnerId) {

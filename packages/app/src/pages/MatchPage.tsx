@@ -467,7 +467,7 @@ function BattingCard({ innings }: { innings: InningsScorecard }) {
             {/* Extras row */}
             <tr className="border-t border-th">
               <td className="px-4 py-2 text-th-secondary text-xs" colSpan={2}>
-                Extras: {innings.extras.total} (w {innings.extras.wides}, nb {innings.extras.noBalls}, lb {innings.extras.legByes})
+                Extras: {innings.extras.total} (b {innings.extras.byes ?? 0}, lb {innings.extras.legByes}, w {innings.extras.wides}, nb {innings.extras.noBalls}{innings.extras.penalty ? `, pen ${innings.extras.penalty}` : ""})
               </td>
               <td colSpan={5}></td>
             </tr>

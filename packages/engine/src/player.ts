@@ -57,6 +57,9 @@ export interface PlayerStats {
   maidens: number;
   // fielding
   catches: number;
+  /** Stumpings and run outs credited (absent in older saves) */
+  stumpings?: number;
+  runOuts?: number;
   // per-match tracking
   matchLog: MatchPerformance[];
 }

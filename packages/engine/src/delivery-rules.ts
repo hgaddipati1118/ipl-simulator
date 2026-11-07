@@ -50,6 +50,32 @@ export const retireParams = () => ({
  */
 export const EXTRAS_RATE_CAL = { wide: 1.55, noball: 1.6, legbye: 1.45 } as const;
 
+/**
+ * The engine used to leave about 4 extras an innings out of the 8 the data has, and its batters made them up: bringing
+ * the extras to the data adds ~3.8 runs an innings. This trims the runs run between the wickets (singles, twos,
+ * threes; boundaries are untouched, so fours and sixes stay on their calibration) so the innings total moves by about
+ * +1.4% rather than +2.9%; the rest is the engine being too low on extras (RULES-MATCH.md section 12, balance).
+ */
+export const RUNNING_RUNS_CAL = 0.94;
+
+/**
+ * Super overs in the data (208 innings): 10.3 runs and 0.74 wickets an over, and 23% of them lose both wickets. The
+ * base model gives 10.0 runs but only 0.30 wickets (the bowler is the side's best, the batters play under pressure).
+ * These factors on the wicket and on fours / sixes reproduce the data (benchmark in RULES-MATCH.md section 12).
+ */
+export const SUPER_OVER_CAL = { wicket: 2.7, boundary: 1.4 } as const;
+
+/** Trim the running runs, handing their probability to the dot ball so wickets and boundaries keep their share */
+export function trimRunningRuns(probs: Record<string, number>): void {
+  let cut = 0;
+  for (const k of ["1", "2", "3"]) {
+    const v = probs[k] ?? 0;
+    cut += v * (1 - RUNNING_RUNS_CAL);
+    probs[k] = v * RUNNING_RUNS_CAL;
+  }
+  probs.dot = (probs.dot ?? 0) + cut;
+}
+
 /** Scoring-outcome weights on a free hit (Cricsheet free hits against the other legal balls of the same competitions) */
 export function freeHitFactors(): Record<string, number> {
   const s = D.freeHit.scoring;

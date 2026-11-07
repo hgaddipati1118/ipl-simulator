@@ -170,6 +170,7 @@ export {
   applyImpactSub,
   setAggression,
   setFieldSetting,
+  playLiveSuperOvers,
 } from "./live-match.js";
 export type {
   MatchState,
