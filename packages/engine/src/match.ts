@@ -31,12 +31,14 @@ import { createRNG, randomSeed, type RNG } from "./rng.js";
 import {
   getVenueProfileForTeam,
   getLeagueChaseAdvantage,
+  getNeutralVenueProfile,
   applyVenueProfile,
   applyChaseEdge,
   deriveStadiumBowlingRating,
   type VenueProfile,
 } from "./venues.js";
 import { LEGACY_STADIUM_BOWLING_RATINGS } from "./team.js";
+import { T20_FORMAT, matchFormatFor, phaseOver, type MatchFormatSpec } from "./format.js";
 
 export type BallOutcome = "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
 
@@ -73,6 +75,8 @@ export interface InningsScore {
   batterStats: Map<string, { runs: number; balls: number; fours: number; sixes: number; isOut: boolean }>;
   bowlerStats: Map<string, { overs: number; balls: number; runs: number; wickets: number; wides: number; noballs: number }>;
   impactSub?: ImpactSubEvent;
+  /** Balls per over (set) in this innings' format: 6 for T20, 5 for The Hundred. Absent = 6. */
+  ballsPerOver?: number;
 }
 
 export interface MatchInjuryEvent {
@@ -268,6 +272,7 @@ function simulateBall(
   wicketsDown: number,
   venue: VenueContext,
   rng: RNG = Math.random,
+  inningsBalls = 120,
 ): BallEvent {
   let probs = baseOutcomeProbabilities(batter, bowler);
 
@@ -317,8 +322,8 @@ function simulateBall(
   // Chase context
   if (isSecondInnings && ballsRemaining > 0) {
     const requiredRate = ((target - currentScore) / ballsRemaining) * 6;
-    const currentRate = ballsRemaining < 120
-      ? (currentScore / (120 - ballsRemaining)) * 6
+    const currentRate = ballsRemaining < inningsBalls
+      ? (currentScore / (inningsBalls - ballsRemaining)) * 6
       : 0;
     probs = chaseAdjustment(probs, requiredRate, currentRate, wicketsDown);
   }
@@ -483,8 +488,9 @@ function generateCommentary(
 }
 
 /** Create empty innings score */
-function emptyInnings(teamId: string): InningsScore {
+function emptyInnings(teamId: string, ballsPerOver = 6): InningsScore {
   return {
+    ...(ballsPerOver !== 6 ? { ballsPerOver } : {}),
     teamId, runs: 0, wickets: 0, overs: 0, balls: 0,
     totalBalls: 0, extras: 0, fours: 0, sixes: 0,
     ballLog: [],
@@ -505,7 +511,7 @@ function getVenueContext(
       pitchType: "balanced",
       boundarySize: "medium",
       dewFactor: "none",
-      profile: null,
+      profile: getNeutralVenueProfile(rules.league),
       chaseAdvantage: leagueChase,
     };
   }
@@ -535,9 +541,9 @@ export function stadiumRatingFor(team: Team, profile: VenueProfile | null): numb
   return rating / measuredDefault;
 }
 
-function getNRRBallDenominator(innings: InningsScore, maxOvers = 20): number {
-  if (innings.wickets >= 10 && innings.totalBalls < maxOvers * 6) {
-    return maxOvers * 6;
+function getNRRBallDenominator(innings: InningsScore, maxBalls = 120): number {
+  if (innings.wickets >= 10 && innings.totalBalls < maxBalls) {
+    return maxBalls;
   }
   return innings.totalBalls;
 }
@@ -627,8 +633,10 @@ function simulateInnings(
   battingSubs: Player[] = [],
   bowlingSubs: Player[] = [],
   rng: RNG = Math.random,
+  fmt: MatchFormatSpec = T20_FORMAT,
 ): InningsScore {
-  const innings = emptyInnings(battingTeam.id);
+  const innings = emptyInnings(battingTeam.id, fmt.ballsPerOver);
+  const ballsPerOver = fmt.ballsPerOver;
   const battingOrder = battingTeam.getBattingOrder(xi);
   const bowlers = bowlingTeam.getBowlingOrder(bowlingXI);
 
@@ -647,7 +655,8 @@ function simulateInnings(
   }
 
   // Bowling allocation: each bowler can bowl max 4 overs (or 1 in super over)
-  const maxOversPerBowler = maxOvers === 1 ? 1 : 4;
+  const maxOversPerBowler = maxOvers === 1 ? 1 : fmt.maxOversPerBowler;
+  let consecutiveOvers = 0; // overs in a row by the current bowler (The Hundred allows two sets in a row)
   const bowlerOvers = new Map<string, number>();
   for (const b of bowlers) bowlerOvers.set(b.id, 0);
 
@@ -704,7 +713,7 @@ function simulateInnings(
 
     let eligibleBowlers = bowlers.filter(b =>
       (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler &&
-      b.id !== lastBowlerId
+      (b.id !== lastBowlerId || consecutiveOvers < fmt.maxConsecutiveOvers)
     );
 
     // If no one eligible (consecutive-over rule conflict), relax the consecutive rule
@@ -725,17 +734,19 @@ function simulateInnings(
       Math.floor(rng() * Math.min(3, eligibleBowlers.length))
     ];
 
+    consecutiveOvers = bowler.id === lastBowlerId ? consecutiveOvers + 1 : 1;
+
     let ballsInOver = 0;
     let legalBalls = 0;
 
-    while (legalBalls < 6) {
+    while (legalBalls < ballsPerOver) {
       const striker = battingOrder[strikerIdx];
-      const ballsRemaining = (maxOvers - over) * 6 - legalBalls;
+      const ballsRemaining = (maxOvers - over) * ballsPerOver - legalBalls;
 
       const event = simulateBall(
         striker,
         bowler,
-        over,
+        phaseOver(over, fmt),
         isSecondInnings,
         target,
         innings.runs,
@@ -743,7 +754,9 @@ function simulateInnings(
         innings.wickets,
         venue,
         rng,
+        fmt.totalBalls,
       );
+      event.over = over;
 
       event.ball = legalBalls + 1;
       innings.ballLog.push(event);
@@ -774,7 +787,7 @@ function simulateInnings(
         const bs = innings.bowlerStats.get(bowler.id) ?? { overs: 0, balls: 0, runs: 0, wickets: 0, wides: 0, noballs: 0 };
         bs.balls++;
         bs.runs += event.runs + event.extras;
-        if (legalBalls === 6) {
+        if (legalBalls === ballsPerOver) {
           bs.overs++;
           bs.balls = 0;
         }
@@ -820,6 +833,7 @@ function updatePlayerStats(
   innings: InningsScore,
   matchId: string,
   bowlingInnings: InningsScore,
+  ballsPerOver = 6,
 ): void {
   for (const player of team.roster) {
     const batStat = innings.batterStats.get(player.id);
@@ -870,7 +884,8 @@ function updatePlayerStats(
       const runs = batStat?.runs ?? 0;
       const balls = batStat?.balls ?? 0;
       const wickets = bowlStat?.wickets ?? 0;
-      const bowlOvers = bowlStat ? bowlStat.overs + bowlStat.balls / 6 : 0;
+      // economy is always runs per 6 balls so form scores are comparable across formats
+      const bowlOvers = bowlStat ? (bowlStat.overs * ballsPerOver + bowlStat.balls) / 6 : 0;
       const bowlRuns = bowlStat?.runs ?? 0;
       const sr = balls > 0 ? (runs / balls) * 100 : 0;
       const econ = bowlOvers > 0 ? bowlRuns / bowlOvers : 99;
@@ -947,6 +962,7 @@ function buildInningsScorecard(
   bowlingXI: Player[],
   rng: RNG = Math.random,
 ): InningsScorecard {
+  const ballsPerOver = inningsScore.ballsPerOver ?? 6;
   const playerMap = new Map<string, Player>();
   for (const p of [...battingTeam.roster, ...bowlingTeam.roster]) {
     playerMap.set(p.id, p);
@@ -1044,7 +1060,10 @@ function buildInningsScorecard(
     if (!stat) continue;
     if (stat.overs === 0 && stat.balls === 0) continue;
 
-    const oversStr = stat.balls > 0 ? `${stat.overs}.${stat.balls}` : `${stat.overs}.0`;
+    // The Hundred has no overs: bowlers' figures are in balls
+    const oversStr = ballsPerOver !== 6
+      ? String(stat.overs * ballsPerOver + stat.balls)
+      : stat.balls > 0 ? `${stat.overs}.${stat.balls}` : `${stat.overs}.0`;
 
     let dots = 0;
     let maidens = 0;
@@ -1062,12 +1081,12 @@ function buildInningsScorecard(
     }
 
     for (const [, ballRuns] of overBuckets) {
-      if (ballRuns.length === 6 && ballRuns.every(r => r === 0)) {
+      if (ballsPerOver === 6 && ballRuns.length === 6 && ballRuns.every(r => r === 0)) {
         maidens++;
       }
     }
 
-    const effectiveOvers = stat.overs + stat.balls / 6;
+    const effectiveOvers = (stat.overs * ballsPerOver + stat.balls) / 6; // economy is runs per 6 balls in every format
     bowlers.push({
       playerId: bowler.id,
       playerName: bowler.name,
@@ -1084,7 +1103,9 @@ function buildInningsScorecard(
 
   const lastBall = inningsScore.ballLog[inningsScore.ballLog.length - 1];
   let oversDisplay: string;
-  if (lastBall) {
+  if (ballsPerOver !== 6) {
+    oversDisplay = `${inningsScore.totalBalls} balls`;
+  } else if (lastBall) {
     const legalBallsInLastOver = lastBall.ball;
     if (legalBallsInLastOver === 6) {
       oversDisplay = `${lastBall.over + 1}.0`;
@@ -1249,6 +1270,7 @@ export function simulateMatch(
   const rng = createRNG(seed ?? randomSeed());
   const matchId = `match_${++matchCounter}`;
 
+  const fmt = matchFormatFor(rules);
   const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
   const awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI);
 
@@ -1279,9 +1301,9 @@ export function simulateMatch(
   const innings1 = simulateInnings(
     battingFirst, bowlingFirst,
     firstXI, firstBowlXI,
-    false, 0, venue, 20,
+    false, 0, venue, fmt.overs,
     firstBatSubs, firstBowlSubs,
-    rng,
+    rng, fmt,
   );
 
   // Second innings
@@ -1294,9 +1316,9 @@ export function simulateMatch(
   const innings2 = simulateInnings(
     bowlingFirst, battingFirst,
     secondXI, secondBowlXI,
-    true, target, venue, 20,
+    true, target, venue, fmt.overs,
     secondBatSubs, secondBowlSubs,
-    rng,
+    rng, fmt,
   );
 
   // Determine winner
@@ -1311,8 +1333,8 @@ export function simulateMatch(
     margin = `${innings1.runs - innings2.runs} runs`;
   } else {
     // Tie -> Super Over (no impact subs in super over)
-    let so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1, [], [], rng);
-    let so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1, [], [], rng);
+    let so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1, [], [], rng, fmt);
+    let so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1, [], [], rng, fmt);
 
     if (so2.runs > so1.runs) {
       winnerId = bowlingFirst.id;
@@ -1320,8 +1342,8 @@ export function simulateMatch(
       winnerId = battingFirst.id;
     } else if (rules.superOverTieBreaker === "repeated-super-over") {
       while (so2.runs === so1.runs) {
-        so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1, [], [], rng);
-        so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1, [], [], rng);
+        so1 = simulateInnings(battingFirst, bowlingFirst, firstXI, firstBowlXI, false, 0, venue, 1, [], [], rng, fmt);
+        so2 = simulateInnings(bowlingFirst, battingFirst, secondXI, secondBowlXI, true, so1.runs + 1, venue, 1, [], [], rng, fmt);
       }
       winnerId = so2.runs > so1.runs ? bowlingFirst.id : battingFirst.id;
     } else {
@@ -1349,14 +1371,14 @@ export function simulateMatch(
     const awayBowling = battingFirst === awayTeam ? innings2 : innings1;
 
     homeTeam.runsFor += homeBatting.runs;
-    homeTeam.ballsFacedFor += getNRRBallDenominator(homeBatting);
+    homeTeam.ballsFacedFor += getNRRBallDenominator(homeBatting, fmt.totalBalls);
     homeTeam.runsAgainst += homeBowling.runs;
     homeTeam.ballsFacedAgainst += homeBowling.totalBalls;
     homeTeam.wicketsTaken += homeBowling.wickets;
     homeTeam.updateNRR();
 
     awayTeam.runsFor += awayBatting.runs;
-    awayTeam.ballsFacedFor += getNRRBallDenominator(awayBatting);
+    awayTeam.ballsFacedFor += getNRRBallDenominator(awayBatting, fmt.totalBalls);
     awayTeam.runsAgainst += awayBowling.runs;
     awayTeam.ballsFacedAgainst += awayBowling.totalBalls;
     awayTeam.wicketsTaken += awayBowling.wickets;
@@ -1364,8 +1386,8 @@ export function simulateMatch(
   }
 
   // Update player stats
-  updatePlayerStats(battingFirst, innings1, matchId, innings2);
-  updatePlayerStats(bowlingFirst, innings2, matchId, innings1);
+  updatePlayerStats(battingFirst, innings1, matchId, innings2, fmt.ballsPerOver);
+  updatePlayerStats(bowlingFirst, innings2, matchId, innings1, fmt.ballsPerOver);
 
   // Run injury checks using the injury system (WT3)
   const injuries: MatchInjuryEvent[] = [];

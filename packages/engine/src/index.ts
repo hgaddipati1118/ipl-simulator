@@ -92,6 +92,8 @@ export {
   simulateNextMatch,
   applyLiveResult,
   addPlayoffMatches,
+  progressPlayoffs,
+  generateBalancedSchedule,
   addQualifier2,
   addFinal,
   getGroupStageCount,
@@ -110,7 +112,14 @@ export { generateRandomPlayer, generatePlayerPool, createPlayerFromData, nextPla
 export { randomNormal, clamp, weightedRandom, shuffle, normSInv, displayOversToReal } from "./math.js";
 
 export { RULE_PRESETS, DEFAULT_RULES, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_IDS, ALL_TEAM_IDS, getAuctionType, getMaxRetentions, getSeasonSalaryCap, getScaledRetentions, getAuctionPoolSize } from "./rules.js";
-export type { RuleSet, LeagueType, PlayoffFormat, GenderOption, PlayerSource, AuctionType } from "./rules.js";
+export type { RuleSet, LeagueType, ExtraLeagueId, PlayoffFormat, MatchFormatId, GenderOption, PlayerSource, AuctionType } from "./rules.js";
+export {
+  ALL_LEAGUES, EXTRA_LEAGUES, LEAGUE_RULE_PRESETS, LEAGUE_SCORING_MULTIPLIER,
+  getLeague, getExtraLeagueTeams, isExtraLeague, isWomenLeague, isOverseasIn,
+} from "./leagues.js";
+export type { LeagueDef, LeagueDefData } from "./leagues.js";
+export { T20_FORMAT, HUNDRED_FORMAT, matchFormatFor, phaseOver } from "./format.js";
+export type { MatchFormatSpec } from "./format.js";
 
 export {
   evaluateTradeAI, executeTrade, createTradeOffer,

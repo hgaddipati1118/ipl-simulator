@@ -421,6 +421,2273 @@ export const VENUE_DATA: VenueDataFile = {
    "chaseAdvantage": 0.032,
    "edges": {},
    "source": "female T20 ground (41 matches)"
+  },
+  "bbl-ads": {
+   "name": "Adelaide Oval",
+   "country": "AUS",
+   "matches": 114,
+   "runFactor": 97.8,
+   "sixFactor": 89.3,
+   "wicketFactor": 103.3,
+   "chaseAdvantage": -0.043,
+   "edges": {
+    "off-spin": {
+     "wkts": -0.278,
+     "econ": 0.069
+    },
+    "LA pace": {
+     "wkts": -0.16,
+     "econ": 0.233
+    },
+    "RA fast": {
+     "wkts": 0.134,
+     "econ": -0.065
+    },
+    "RA fast-medium": {
+     "wkts": 0.064,
+     "econ": 0.061
+    },
+    "wrist-spin": {
+     "wkts": 0.074,
+     "econ": -0.183
+    }
+   },
+   "source": "male T20 ground (114 matches)"
+  },
+  "bbl-brh": {
+   "name": "The Gabba",
+   "country": "AUS",
+   "matches": 94,
+   "runFactor": 98.7,
+   "sixFactor": 91.7,
+   "wicketFactor": 104.2,
+   "chaseAdvantage": 0.007,
+   "edges": {
+    "LA orthodox": {
+     "wkts": -0.274,
+     "econ": -0.133
+    },
+    "LA pace": {
+     "wkts": 0.22,
+     "econ": -0.018
+    },
+    "off-spin": {
+     "wkts": -0.023,
+     "econ": -0.177
+    },
+    "RA fast-medium": {
+     "wkts": 0.081,
+     "econ": 0.193
+    },
+    "RA fast": {
+     "wkts": -0.022,
+     "econ": 0.231
+    },
+    "wrist-spin": {
+     "wkts": -0.095,
+     "econ": -0.176
+    }
+   },
+   "source": "male T20 ground (94 matches)"
+  },
+  "bbl-hbh": {
+   "name": "Bellerive Oval",
+   "country": "AUS",
+   "matches": 101,
+   "runFactor": 97.9,
+   "sixFactor": 83.6,
+   "wicketFactor": 103.2,
+   "chaseAdvantage": -0.009,
+   "edges": {
+    "LA orthodox": {
+     "wkts": -0.103,
+     "econ": -0.04
+    },
+    "LA pace": {
+     "wkts": 0.128,
+     "econ": 0.103
+    },
+    "off-spin": {
+     "wkts": -0.001,
+     "econ": -0.053
+    },
+    "wrist-spin": {
+     "wkts": -0.103,
+     "econ": 0.065
+    },
+    "RA fast-medium": {
+     "wkts": -0.091,
+     "econ": -0.113
+    },
+    "RA fast": {
+     "wkts": 0.409,
+     "econ": -0.041
+    }
+   },
+   "source": "male T20 ground (101 matches)"
+  },
+  "bbl-mlr": {
+   "name": "Docklands Stadium",
+   "country": "AUS",
+   "matches": 72,
+   "runFactor": 94.4,
+   "sixFactor": 87.5,
+   "wicketFactor": 102.3,
+   "chaseAdvantage": 0.062,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.124,
+     "econ": 0.178
+    },
+    "wrist-spin": {
+     "wkts": -0.018,
+     "econ": -0.063
+    },
+    "off-spin": {
+     "wkts": 0.11,
+     "econ": -0.138
+    },
+    "LA pace": {
+     "wkts": 0.036,
+     "econ": -0.045
+    }
+   },
+   "source": "male T20 ground (72 matches)"
+  },
+  "bbl-mls": {
+   "name": "Melbourne Cricket Ground",
+   "country": "AUS",
+   "matches": 109,
+   "runFactor": 92.5,
+   "sixFactor": 76.7,
+   "wicketFactor": 102.3,
+   "chaseAdvantage": 0.069,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.31,
+     "econ": 0.049
+    },
+    "wrist-spin": {
+     "wkts": -0.042,
+     "econ": -0.085
+    },
+    "RA fast": {
+     "wkts": -0.21,
+     "econ": 0.037
+    },
+    "off-spin": {
+     "wkts": -0.095,
+     "econ": -0.035
+    },
+    "LA pace": {
+     "wkts": 0.04,
+     "econ": 0.139
+    },
+    "LA orthodox": {
+     "wkts": -0.28,
+     "econ": 0.113
+    }
+   },
+   "source": "male T20 ground (109 matches)"
+  },
+  "bbl-prs": {
+   "name": "Perth Stadium",
+   "country": "AUS",
+   "matches": 56,
+   "runFactor": 93.3,
+   "sixFactor": 88.2,
+   "wicketFactor": 107.9,
+   "chaseAdvantage": 0.034,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.112,
+     "econ": -0.098
+    },
+    "wrist-spin": {
+     "wkts": -0.095,
+     "econ": 0.149
+    },
+    "RA fast": {
+     "wkts": 0.057,
+     "econ": -0.294
+    },
+    "LA pace": {
+     "wkts": 0.025,
+     "econ": -0.103
+    }
+   },
+   "source": "male T20 ground (56 matches)"
+  },
+  "bbl-sys": {
+   "name": "Sydney Cricket Ground",
+   "country": "AUS",
+   "matches": 87,
+   "runFactor": 95.4,
+   "sixFactor": 81.5,
+   "wicketFactor": 106.7,
+   "chaseAdvantage": 0.019,
+   "edges": {
+    "off-spin": {
+     "wkts": -0.113,
+     "econ": -0.207
+    },
+    "LA pace": {
+     "wkts": 0.158,
+     "econ": 0.023
+    },
+    "LA orthodox": {
+     "wkts": 0.112,
+     "econ": -0.118
+    },
+    "RA fast-medium": {
+     "wkts": 0.177,
+     "econ": 0.01
+    },
+    "wrist-spin": {
+     "wkts": 0.011,
+     "econ": -0.131
+    },
+    "RA fast": {
+     "wkts": -0.162,
+     "econ": 0.39
+    }
+   },
+   "source": "male T20 ground (87 matches)"
+  },
+  "bbl-syt": {
+   "name": "Sydney Showground Stadium, Sydney",
+   "country": "AUS",
+   "matches": 16,
+   "runFactor": 92.7,
+   "sixFactor": 85.0,
+   "wicketFactor": 108.0,
+   "chaseAdvantage": null,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.091,
+     "econ": 0.02
+    }
+   },
+   "source": "male T20 ground (16 matches)"
+  },
+  "wbbl-ads": {
+   "name": "Karen Rolton Oval",
+   "country": "AUS",
+   "matches": 41,
+   "runFactor": 101.5,
+   "sixFactor": 93.9,
+   "wicketFactor": 109.5,
+   "chaseAdvantage": 0.036,
+   "edges": {
+    "RA medium": {
+     "wkts": -0.005,
+     "econ": 0.023
+    },
+    "RA fast-medium": {
+     "wkts": -0.162,
+     "econ": -0.022
+    }
+   },
+   "source": "female T20 ground (41 matches)"
+  },
+  "wbbl-brh": {
+   "name": "Allan Border Field",
+   "country": "AUS",
+   "matches": 73,
+   "runFactor": 93.4,
+   "sixFactor": 94.6,
+   "wicketFactor": 116.3,
+   "chaseAdvantage": 0.025,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.045,
+     "econ": 0.069
+    },
+    "RA medium": {
+     "wkts": 0.019,
+     "econ": -0.065
+    },
+    "off-spin": {
+     "wkts": 0.022,
+     "econ": 0.011
+    }
+   },
+   "source": "female T20 ground (73 matches)"
+  },
+  "wbbl-hbh": {
+   "name": "Bellerive Oval",
+   "country": "AUS",
+   "matches": 75,
+   "runFactor": 93.9,
+   "sixFactor": 93.6,
+   "wicketFactor": 116.4,
+   "chaseAdvantage": 0.038,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.26,
+     "econ": 0.038
+    },
+    "RA medium": {
+     "wkts": -0.128,
+     "econ": 0.054
+    },
+    "off-spin": {
+     "wkts": 0.263,
+     "econ": -0.02
+    }
+   },
+   "source": "female T20 ground (75 matches)"
+  },
+  "wbbl-mlr": {
+   "name": "St Kilda Cricket Ground",
+   "country": "AUS",
+   "matches": 80,
+   "runFactor": 96.3,
+   "sixFactor": 98.5,
+   "wicketFactor": 109.6,
+   "chaseAdvantage": 0.072,
+   "edges": {},
+   "source": "female T20 ground (80 matches)"
+  },
+  "wbbl-mls": {
+   "name": "St Kilda Cricket Ground",
+   "country": "AUS",
+   "matches": 80,
+   "runFactor": 96.3,
+   "sixFactor": 98.5,
+   "wicketFactor": 109.6,
+   "chaseAdvantage": 0.072,
+   "edges": {},
+   "source": "female T20 ground (80 matches)"
+  },
+  "wbbl-prs": {
+   "name": "WACA Ground",
+   "country": "AUS",
+   "matches": 64,
+   "runFactor": 90.3,
+   "sixFactor": 98.5,
+   "wicketFactor": 108.6,
+   "chaseAdvantage": 0.012,
+   "edges": {
+    "off-spin": {
+     "wkts": 0.123,
+     "econ": 0.094
+    },
+    "RA fast-medium": {
+     "wkts": -0.034,
+     "econ": -0.023
+    },
+    "RA medium": {
+     "wkts": -0.101,
+     "econ": -0.106
+    }
+   },
+   "source": "female T20 ground (64 matches)"
+  },
+  "wbbl-sys": {
+   "name": "North Sydney Oval",
+   "country": "AUS",
+   "matches": 90,
+   "runFactor": 103.3,
+   "sixFactor": 115.2,
+   "wicketFactor": 117.4,
+   "chaseAdvantage": -0.044,
+   "edges": {
+    "off-spin": {
+     "wkts": -0.099,
+     "econ": -0.004
+    },
+    "LA orthodox": {
+     "wkts": -0.166,
+     "econ": 0.305
+    },
+    "RA fast-medium": {
+     "wkts": 0.165,
+     "econ": -0.023
+    },
+    "RA medium": {
+     "wkts": 0.063,
+     "econ": -0.049
+    },
+    "wrist-spin": {
+     "wkts": 0.016,
+     "econ": 0.059
+    }
+   },
+   "source": "female T20 ground (90 matches)"
+  },
+  "wbbl-syt": {
+   "name": "Drummoyne Oval",
+   "country": "AUS",
+   "matches": 37,
+   "runFactor": 81.3,
+   "sixFactor": 95.1,
+   "wicketFactor": 120.8,
+   "chaseAdvantage": 0.049,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.034,
+     "econ": -0.112
+    },
+    "RA medium": {
+     "wkts": -0.149,
+     "econ": -0.124
+    }
+   },
+   "source": "female T20 ground (37 matches)"
+  },
+  "psl-hyk": {
+   "name": "National Bank Cricket Arena",
+   "country": "PAK",
+   "matches": 78,
+   "runFactor": 102.8,
+   "sixFactor": 102.9,
+   "wicketFactor": 92.9,
+   "chaseAdvantage": 0.06,
+   "edges": {
+    "LA orthodox": {
+     "wkts": -0.028,
+     "econ": 0.242
+    },
+    "LA pace": {
+     "wkts": 0.118,
+     "econ": -0.062
+    },
+    "RA fast-medium": {
+     "wkts": -0.089,
+     "econ": 0.082
+    },
+    "wrist-spin": {
+     "wkts": 0.153,
+     "econ": -0.218
+    }
+   },
+   "source": "male T20 ground (78 matches)"
+  },
+  "psl-isu": {
+   "name": "Rawalpindi Cricket Stadium",
+   "country": "PAK",
+   "matches": 236,
+   "runFactor": 106.9,
+   "sixFactor": 92.5,
+   "wicketFactor": 93.0,
+   "chaseAdvantage": 0.03,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.143,
+     "econ": 0.114
+    },
+    "wrist-spin": {
+     "wkts": 0.101,
+     "econ": 0.115
+    },
+    "RA fast": {
+     "wkts": -0.08,
+     "econ": 0.065
+    },
+    "LA pace": {
+     "wkts": 0.031,
+     "econ": 0.022
+    }
+   },
+   "source": "male T20 ground (236 matches)"
+  },
+  "psl-krk": {
+   "name": "National Bank Cricket Arena",
+   "country": "PAK",
+   "matches": 78,
+   "runFactor": 102.8,
+   "sixFactor": 102.9,
+   "wicketFactor": 92.9,
+   "chaseAdvantage": 0.06,
+   "edges": {
+    "LA orthodox": {
+     "wkts": -0.028,
+     "econ": 0.242
+    },
+    "LA pace": {
+     "wkts": 0.118,
+     "econ": -0.062
+    },
+    "RA fast-medium": {
+     "wkts": -0.089,
+     "econ": 0.082
+    },
+    "wrist-spin": {
+     "wkts": 0.153,
+     "econ": -0.218
+    }
+   },
+   "source": "male T20 ground (78 matches)"
+  },
+  "psl-lq": {
+   "name": "Gaddafi Stadium",
+   "country": "PAK",
+   "matches": 265,
+   "runFactor": 105.4,
+   "sixFactor": 97.2,
+   "wicketFactor": 92.4,
+   "chaseAdvantage": 0.013,
+   "edges": {
+    "LA pace": {
+     "wkts": -0.009,
+     "econ": -0.044
+    },
+    "off-spin": {
+     "wkts": -0.344,
+     "econ": -0.001
+    },
+    "LA orthodox": {
+     "wkts": 0.014,
+     "econ": -0.045
+    },
+    "RA fast-medium": {
+     "wkts": 0.134,
+     "econ": -0.027
+    },
+    "wrist-spin": {
+     "wkts": -0.014,
+     "econ": 0.024
+    },
+    "RA fast": {
+     "wkts": 0.047,
+     "econ": 0.01
+    }
+   },
+   "source": "male T20 ground (265 matches)"
+  },
+  "psl-ms": {
+   "name": "Multan Cricket Stadium",
+   "country": "PAK",
+   "matches": 105,
+   "runFactor": 104.5,
+   "sixFactor": 92.8,
+   "wicketFactor": 93.8,
+   "chaseAdvantage": 0.01,
+   "edges": {},
+   "source": "male T20 ground (105 matches)"
+  },
+  "psl-pz": {
+   "name": "Imran Khan Cricket Stadium",
+   "country": "PAK",
+   "matches": 19,
+   "runFactor": 113.7,
+   "sixFactor": 96.2,
+   "wicketFactor": 93.8,
+   "chaseAdvantage": null,
+   "edges": {},
+   "source": "male T20 ground (19 matches)"
+  },
+  "psl-qg": {
+   "name": "National Bank Cricket Arena",
+   "country": "PAK",
+   "matches": 78,
+   "runFactor": 102.8,
+   "sixFactor": 102.9,
+   "wicketFactor": 92.9,
+   "chaseAdvantage": 0.06,
+   "edges": {
+    "LA orthodox": {
+     "wkts": -0.028,
+     "econ": 0.242
+    },
+    "LA pace": {
+     "wkts": 0.118,
+     "econ": -0.062
+    },
+    "RA fast-medium": {
+     "wkts": -0.089,
+     "econ": 0.082
+    },
+    "wrist-spin": {
+     "wkts": 0.153,
+     "econ": -0.218
+    }
+   },
+   "source": "male T20 ground (78 matches)"
+  },
+  "psl-rwp": {
+   "name": "Rawalpindi Cricket Stadium",
+   "country": "PAK",
+   "matches": 236,
+   "runFactor": 106.9,
+   "sixFactor": 92.5,
+   "wicketFactor": 93.0,
+   "chaseAdvantage": 0.03,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.143,
+     "econ": 0.114
+    },
+    "wrist-spin": {
+     "wkts": 0.101,
+     "econ": 0.115
+    },
+    "RA fast": {
+     "wkts": -0.08,
+     "econ": 0.065
+    },
+    "LA pace": {
+     "wkts": 0.031,
+     "econ": 0.022
+    }
+   },
+   "source": "male T20 ground (236 matches)"
+  },
+  "sa20-dsg": {
+   "name": "Kingsmead",
+   "country": "RSA",
+   "matches": 162,
+   "runFactor": 95.8,
+   "sixFactor": 86.3,
+   "wicketFactor": 104.5,
+   "chaseAdvantage": -0.035,
+   "edges": {
+    "off-spin": {
+     "wkts": -0.081,
+     "econ": 0.007
+    },
+    "LA pace": {
+     "wkts": -0.048,
+     "econ": -0.004
+    },
+    "LA orthodox": {
+     "wkts": 0.22,
+     "econ": -0.168
+    },
+    "RA fast-medium": {
+     "wkts": -0.017,
+     "econ": 0.028
+    },
+    "wrist-spin": {
+     "wkts": 0.052,
+     "econ": 0.133
+    },
+    "RA fast": {
+     "wkts": 0.235,
+     "econ": -0.086
+    },
+    "RA medium": {
+     "wkts": -0.025,
+     "econ": 0.034
+    }
+   },
+   "source": "male T20 ground (162 matches)"
+  },
+  "sa20-jsk": {
+   "name": "Wanderers Stadium",
+   "country": "RSA",
+   "matches": 160,
+   "runFactor": 100.5,
+   "sixFactor": 92.9,
+   "wicketFactor": 101.7,
+   "chaseAdvantage": 0.019,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.151,
+     "econ": 0.131
+    },
+    "RA medium": {
+     "wkts": 0.097,
+     "econ": 0.115
+    },
+    "RA fast": {
+     "wkts": 0.239,
+     "econ": 0.019
+    },
+    "wrist-spin": {
+     "wkts": -0.009,
+     "econ": -0.123
+    },
+    "LA orthodox": {
+     "wkts": 0.422,
+     "econ": -0.168
+    },
+    "off-spin": {
+     "wkts": -0.276,
+     "econ": 0.105
+    },
+    "LA pace": {
+     "wkts": -0.043,
+     "econ": -0.311
+    }
+   },
+   "source": "male T20 ground (160 matches)"
+  },
+  "sa20-mict": {
+   "name": "Newlands",
+   "country": "RSA",
+   "matches": 137,
+   "runFactor": 95.4,
+   "sixFactor": 89.6,
+   "wicketFactor": 102.0,
+   "chaseAdvantage": 0.031,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.073,
+     "econ": -0.007
+    },
+    "RA fast": {
+     "wkts": -0.044,
+     "econ": -0.042
+    },
+    "wrist-spin": {
+     "wkts": 0.271,
+     "econ": 0.051
+    },
+    "LA orthodox": {
+     "wkts": -0.046,
+     "econ": 0.024
+    },
+    "LA pace": {
+     "wkts": 0.019,
+     "econ": 0.016
+    },
+    "off-spin": {
+     "wkts": -0.108,
+     "econ": -0.169
+    }
+   },
+   "source": "male T20 ground (137 matches)"
+  },
+  "sa20-prl": {
+   "name": "Boland Park, Paarl",
+   "country": "RSA",
+   "matches": 95,
+   "runFactor": 93.5,
+   "sixFactor": 83.3,
+   "wicketFactor": 97.9,
+   "chaseAdvantage": 0.052,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.131,
+     "econ": 0.193
+    },
+    "LA orthodox": {
+     "wkts": 0.024,
+     "econ": -0.168
+    },
+    "off-spin": {
+     "wkts": 0.065,
+     "econ": 0.004
+    }
+   },
+   "source": "male T20 ground (95 matches)"
+  },
+  "sa20-ptc": {
+   "name": "SuperSport Park",
+   "country": "RSA",
+   "matches": 143,
+   "runFactor": 103.1,
+   "sixFactor": 98.6,
+   "wicketFactor": 100.7,
+   "chaseAdvantage": 0.06,
+   "edges": {
+    "LA pace": {
+     "wkts": 0.078,
+     "econ": -0.032
+    },
+    "off-spin": {
+     "wkts": -0.154,
+     "econ": -0.122
+    },
+    "LA orthodox": {
+     "wkts": -0.155,
+     "econ": 0.139
+    },
+    "RA fast-medium": {
+     "wkts": 0.082,
+     "econ": 0.06
+    },
+    "wrist-spin": {
+     "wkts": -0.08,
+     "econ": 0.106
+    },
+    "RA fast": {
+     "wkts": -0.188,
+     "econ": -0.06
+    },
+    "RA medium": {
+     "wkts": 0.268,
+     "econ": -0.157
+    }
+   },
+   "source": "male T20 ground (143 matches)"
+  },
+  "sa20-sec": {
+   "name": "St George's Park",
+   "country": "RSA",
+   "matches": 96,
+   "runFactor": 93.4,
+   "sixFactor": 81.9,
+   "wicketFactor": 101.8,
+   "chaseAdvantage": 0.0,
+   "edges": {
+    "LA pace": {
+     "wkts": -0.07,
+     "econ": 0.115
+    },
+    "LA orthodox": {
+     "wkts": 0.051,
+     "econ": -0.256
+    },
+    "off-spin": {
+     "wkts": -0.045,
+     "econ": -0.096
+    },
+    "RA fast-medium": {
+     "wkts": -0.052,
+     "econ": 0.041
+    },
+    "RA medium": {
+     "wkts": 0.127,
+     "econ": 0.084
+    },
+    "RA fast": {
+     "wkts": 0.103,
+     "econ": -0.036
+    },
+    "wrist-spin": {
+     "wkts": 0.028,
+     "econ": 0.037
+    }
+   },
+   "source": "male T20 ground (96 matches)"
+  },
+  "hundred-m-bph": {
+   "name": "Edgbaston",
+   "country": "ENG",
+   "matches": 226,
+   "runFactor": 99.3,
+   "sixFactor": 96.0,
+   "wicketFactor": 109.1,
+   "chaseAdvantage": -0.045,
+   "edges": {
+    "LA pace": {
+     "wkts": 0.056,
+     "econ": 0.033
+    },
+    "LA orthodox": {
+     "wkts": 0.114,
+     "econ": -0.055
+    },
+    "off-spin": {
+     "wkts": -0.109,
+     "econ": -0.152
+    },
+    "RA fast-medium": {
+     "wkts": 0.062,
+     "econ": 0.113
+    },
+    "RA medium": {
+     "wkts": -0.106,
+     "econ": 0.013
+    },
+    "wrist-spin": {
+     "wkts": -0.111,
+     "econ": 0.052
+    },
+    "RA fast": {
+     "wkts": 0.201,
+     "econ": -0.211
+    }
+   },
+   "source": "male T20 ground (226 matches)"
+  },
+  "hundred-m-lds": {
+   "name": "Lord's",
+   "country": "ENG",
+   "matches": 116,
+   "runFactor": 97.4,
+   "sixFactor": 82.2,
+   "wicketFactor": 106.3,
+   "chaseAdvantage": -0.065,
+   "edges": {
+    "off-spin": {
+     "wkts": -0.007,
+     "econ": -0.067
+    },
+    "LA pace": {
+     "wkts": -0.278,
+     "econ": 0.041
+    },
+    "LA orthodox": {
+     "wkts": 0.312,
+     "econ": -0.164
+    },
+    "RA fast-medium": {
+     "wkts": -0.1,
+     "econ": 0.002
+    },
+    "wrist-spin": {
+     "wkts": 0.13,
+     "econ": 0.024
+    }
+   },
+   "source": "male T20 ground (116 matches)"
+  },
+  "hundred-m-mil": {
+   "name": "The Oval",
+   "country": "ENG",
+   "matches": 194,
+   "runFactor": 99.5,
+   "sixFactor": 94.0,
+   "wicketFactor": 106.3,
+   "chaseAdvantage": 0.046,
+   "edges": {
+    "RA fast": {
+     "wkts": 0.205,
+     "econ": 0.201
+    },
+    "RA fast-medium": {
+     "wkts": -0.173,
+     "econ": -0.117
+    },
+    "RA medium": {
+     "wkts": 0.044,
+     "econ": 0.148
+    },
+    "wrist-spin": {
+     "wkts": 0.055,
+     "econ": 0.037
+    },
+    "off-spin": {
+     "wkts": 0.097,
+     "econ": 0.066
+    },
+    "LA orthodox": {
+     "wkts": 0.027,
+     "econ": -0.01
+    },
+    "LA pace": {
+     "wkts": 0.022,
+     "econ": -0.139
+    }
+   },
+   "source": "male T20 ground (194 matches)"
+  },
+  "hundred-m-msg": {
+   "name": "Old Trafford",
+   "country": "ENG",
+   "matches": 163,
+   "runFactor": 96.8,
+   "sixFactor": 96.5,
+   "wicketFactor": 103.1,
+   "chaseAdvantage": -0.011,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.059,
+     "econ": 0.174
+    },
+    "wrist-spin": {
+     "wkts": -0.019,
+     "econ": 0.021
+    },
+    "off-spin": {
+     "wkts": -0.147,
+     "econ": -0.109
+    },
+    "LA orthodox": {
+     "wkts": -0.044,
+     "econ": -0.166
+    },
+    "LA pace": {
+     "wkts": 0.087,
+     "econ": -0.144
+    }
+   },
+   "source": "male T20 ground (163 matches)"
+  },
+  "hundred-m-srl": {
+   "name": "Headingley",
+   "country": "ENG",
+   "matches": 156,
+   "runFactor": 104.4,
+   "sixFactor": 96.8,
+   "wicketFactor": 104.1,
+   "chaseAdvantage": -0.06,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.081,
+     "econ": 0.036
+    },
+    "RA fast": {
+     "wkts": 0.07,
+     "econ": -0.032
+    },
+    "wrist-spin": {
+     "wkts": 0.029,
+     "econ": 0.02
+    },
+    "off-spin": {
+     "wkts": -0.034,
+     "econ": -0.199
+    },
+    "LA pace": {
+     "wkts": -0.069,
+     "econ": 0.233
+    },
+    "LA orthodox": {
+     "wkts": -0.164,
+     "econ": 0.117
+    }
+   },
+   "source": "male T20 ground (156 matches)"
+  },
+  "hundred-m-sbr": {
+   "name": "The Rose Bowl",
+   "country": "ENG",
+   "matches": 178,
+   "runFactor": 95.4,
+   "sixFactor": 86.1,
+   "wicketFactor": 101.8,
+   "chaseAdvantage": -0.034,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.02,
+     "econ": -0.041
+    },
+    "RA medium": {
+     "wkts": -0.035,
+     "econ": 0.086
+    },
+    "wrist-spin": {
+     "wkts": -0.141,
+     "econ": -0.041
+    },
+    "RA fast": {
+     "wkts": 0.084,
+     "econ": -0.091
+    },
+    "LA orthodox": {
+     "wkts": 0.127,
+     "econ": -0.075
+    },
+    "off-spin": {
+     "wkts": -0.085,
+     "econ": -0.011
+    },
+    "LA pace": {
+     "wkts": -0.12,
+     "econ": 0.192
+    }
+   },
+   "source": "male T20 ground (178 matches)"
+  },
+  "hundred-m-trk": {
+   "name": "Trent Bridge",
+   "country": "ENG",
+   "matches": 191,
+   "runFactor": 99.5,
+   "sixFactor": 86.8,
+   "wicketFactor": 104.7,
+   "chaseAdvantage": -0.014,
+   "edges": {
+    "LA orthodox": {
+     "wkts": 0.144,
+     "econ": -0.05
+    },
+    "off-spin": {
+     "wkts": 0.182,
+     "econ": -0.177
+    },
+    "LA pace": {
+     "wkts": -0.126,
+     "econ": -0.161
+    },
+    "RA fast-medium": {
+     "wkts": 0.036,
+     "econ": -0.002
+    },
+    "RA medium": {
+     "wkts": -0.195,
+     "econ": 0.169
+    },
+    "wrist-spin": {
+     "wkts": -0.023,
+     "econ": 0.189
+    },
+    "RA fast": {
+     "wkts": -0.14,
+     "econ": 0.06
+    }
+   },
+   "source": "male T20 ground (191 matches)"
+  },
+  "hundred-m-wlf": {
+   "name": "Sophia Gardens",
+   "country": "ENG",
+   "matches": 161,
+   "runFactor": 95.2,
+   "sixFactor": 83.9,
+   "wicketFactor": 104.9,
+   "chaseAdvantage": 0.031,
+   "edges": {
+    "LA orthodox": {
+     "wkts": -0.052,
+     "econ": -0.022
+    },
+    "off-spin": {
+     "wkts": -0.182,
+     "econ": 0.134
+    },
+    "LA pace": {
+     "wkts": 0.058,
+     "econ": -0.093
+    },
+    "RA medium": {
+     "wkts": -0.126,
+     "econ": 0.186
+    },
+    "RA fast-medium": {
+     "wkts": 0.173,
+     "econ": -0.085
+    },
+    "RA fast": {
+     "wkts": 0.114,
+     "econ": -0.158
+    },
+    "wrist-spin": {
+     "wkts": -0.072,
+     "econ": 0.028
+    }
+   },
+   "source": "male T20 ground (161 matches)"
+  },
+  "hundred-w-bph": {
+   "name": "Edgbaston",
+   "country": "ENG",
+   "matches": 68,
+   "runFactor": 103.1,
+   "sixFactor": 87.9,
+   "wicketFactor": 112.2,
+   "chaseAdvantage": -0.018,
+   "edges": {
+    "off-spin": {
+     "wkts": -0.148,
+     "econ": -0.089
+    },
+    "LA orthodox": {
+     "wkts": 0.034,
+     "econ": 0.019
+    },
+    "RA medium": {
+     "wkts": 0.081,
+     "econ": 0.007
+    },
+    "wrist-spin": {
+     "wkts": -0.112,
+     "econ": 0.047
+    },
+    "RA fast-medium": {
+     "wkts": 0.121,
+     "econ": -0.025
+    }
+   },
+   "source": "female T20 ground (68 matches)"
+  },
+  "hundred-w-lds": {
+   "name": "Lord's",
+   "country": "ENG",
+   "matches": 42,
+   "runFactor": 99.3,
+   "sixFactor": 100.0,
+   "wicketFactor": 110.6,
+   "chaseAdvantage": 0.113,
+   "edges": {
+    "off-spin": {
+     "wkts": -0.065,
+     "econ": 0.102
+    },
+    "RA medium": {
+     "wkts": 0.096,
+     "econ": -0.118
+    },
+    "RA fast-medium": {
+     "wkts": 0.035,
+     "econ": -0.058
+    }
+   },
+   "source": "female T20 ground (42 matches)"
+  },
+  "hundred-w-mil": {
+   "name": "The Oval",
+   "country": "ENG",
+   "matches": 60,
+   "runFactor": 105.3,
+   "sixFactor": 93.9,
+   "wicketFactor": 112.8,
+   "chaseAdvantage": 0.081,
+   "edges": {
+    "off-spin": {
+     "wkts": -0.019,
+     "econ": 0.198
+    },
+    "LA orthodox": {
+     "wkts": 0.01,
+     "econ": 0.018
+    },
+    "RA fast-medium": {
+     "wkts": -0.208,
+     "econ": 0.133
+    },
+    "RA medium": {
+     "wkts": 0.226,
+     "econ": -0.202
+    },
+    "wrist-spin": {
+     "wkts": -0.15,
+     "econ": 0.03
+    }
+   },
+   "source": "female T20 ground (60 matches)"
+  },
+  "hundred-w-msg": {
+   "name": "Old Trafford",
+   "country": "ENG",
+   "matches": 54,
+   "runFactor": 99.7,
+   "sixFactor": 92.8,
+   "wicketFactor": 108.3,
+   "chaseAdvantage": 0.082,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.117,
+     "econ": 0.032
+    },
+    "RA medium": {
+     "wkts": -0.125,
+     "econ": 0.256
+    },
+    "off-spin": {
+     "wkts": 0.091,
+     "econ": -0.215
+    },
+    "LA orthodox": {
+     "wkts": 0.282,
+     "econ": 0.007
+    }
+   },
+   "source": "female T20 ground (54 matches)"
+  },
+  "hundred-w-srl": {
+   "name": "Headingley",
+   "country": "ENG",
+   "matches": 54,
+   "runFactor": 104.2,
+   "sixFactor": 94.5,
+   "wicketFactor": 112.3,
+   "chaseAdvantage": -0.035,
+   "edges": {
+    "LA orthodox": {
+     "wkts": 0.076,
+     "econ": 0.055
+    },
+    "off-spin": {
+     "wkts": -0.004,
+     "econ": -0.064
+    },
+    "RA medium": {
+     "wkts": -0.079,
+     "econ": 0.225
+    },
+    "RA fast-medium": {
+     "wkts": 0.137,
+     "econ": -0.11
+    },
+    "wrist-spin": {
+     "wkts": -0.035,
+     "econ": -0.148
+    }
+   },
+   "source": "female T20 ground (54 matches)"
+  },
+  "hundred-w-sbr": {
+   "name": "The Rose Bowl",
+   "country": "ENG",
+   "matches": 68,
+   "runFactor": 101.4,
+   "sixFactor": 94.2,
+   "wicketFactor": 105.0,
+   "chaseAdvantage": -0.049,
+   "edges": {
+    "LA orthodox": {
+     "wkts": 0.201,
+     "econ": -0.111
+    },
+    "off-spin": {
+     "wkts": 0.067,
+     "econ": 0.12
+    },
+    "RA medium": {
+     "wkts": -0.14,
+     "econ": 0.044
+    },
+    "RA fast-medium": {
+     "wkts": -0.168,
+     "econ": 0.007
+    },
+    "wrist-spin": {
+     "wkts": 0.015,
+     "econ": -0.021
+    }
+   },
+   "source": "female T20 ground (68 matches)"
+  },
+  "hundred-w-trk": {
+   "name": "Trent Bridge",
+   "country": "ENG",
+   "matches": 39,
+   "runFactor": 101.7,
+   "sixFactor": 89.9,
+   "wicketFactor": 111.3,
+   "chaseAdvantage": 0.025,
+   "edges": {
+    "off-spin": {
+     "wkts": 0.166,
+     "econ": -0.091
+    },
+    "RA medium": {
+     "wkts": -0.064,
+     "econ": 0.134
+    },
+    "RA fast-medium": {
+     "wkts": 0.023,
+     "econ": -0.053
+    }
+   },
+   "source": "female T20 ground (39 matches)"
+  },
+  "hundred-w-wlf": {
+   "name": "Sophia Gardens",
+   "country": "ENG",
+   "matches": 33,
+   "runFactor": 100.3,
+   "sixFactor": 93.6,
+   "wicketFactor": 109.5,
+   "chaseAdvantage": 0.015,
+   "edges": {},
+   "source": "female T20 ground (33 matches)"
+  },
+  "cpl-abf": {
+   "name": "Sir Vivian Richards Stadium",
+   "country": "WI",
+   "matches": 66,
+   "runFactor": 95.6,
+   "sixFactor": 110.9,
+   "wicketFactor": 100.9,
+   "chaseAdvantage": 0.018,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.038,
+     "econ": 0.032
+    }
+   },
+   "source": "male T20 ground (66 matches)"
+  },
+  "cpl-bt": {
+   "name": "Kensington Oval",
+   "country": "WI",
+   "matches": 116,
+   "runFactor": 94.4,
+   "sixFactor": 103.7,
+   "wicketFactor": 105.3,
+   "chaseAdvantage": -0.003,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.189,
+     "econ": 0.158
+    },
+    "wrist-spin": {
+     "wkts": 0.417,
+     "econ": -0.181
+    },
+    "RA medium": {
+     "wkts": -0.097,
+     "econ": 0.021
+    },
+    "RA fast": {
+     "wkts": 0.071,
+     "econ": -0.154
+    },
+    "off-spin": {
+     "wkts": 0.135,
+     "econ": -0.101
+    },
+    "LA orthodox": {
+     "wkts": -0.126,
+     "econ": 0.228
+    },
+    "LA pace": {
+     "wkts": -0.103,
+     "econ": -0.083
+    }
+   },
+   "source": "male T20 ground (116 matches)"
+  },
+  "cpl-gaw": {
+   "name": "Providence Stadium",
+   "country": "WI",
+   "matches": 128,
+   "runFactor": 90.7,
+   "sixFactor": 99.0,
+   "wicketFactor": 104.1,
+   "chaseAdvantage": 0.007,
+   "edges": {
+    "RA fast": {
+     "wkts": 0.013,
+     "econ": -0.158
+    },
+    "wrist-spin": {
+     "wkts": 0.2,
+     "econ": -0.247
+    },
+    "RA fast-medium": {
+     "wkts": -0.045,
+     "econ": 0.282
+    },
+    "LA orthodox": {
+     "wkts": -0.176,
+     "econ": -0.079
+    },
+    "LA pace": {
+     "wkts": -0.195,
+     "econ": 0.149
+    },
+    "off-spin": {
+     "wkts": 0.224,
+     "econ": -0.134
+    }
+   },
+   "source": "male T20 ground (128 matches)"
+  },
+  "cpl-jk": {
+   "name": "Sabina Park",
+   "country": "WI",
+   "matches": 46,
+   "runFactor": 97.7,
+   "sixFactor": 113.4,
+   "wicketFactor": 102.1,
+   "chaseAdvantage": 0.013,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.173,
+     "econ": 0.106
+    },
+    "RA fast": {
+     "wkts": 0.262,
+     "econ": 0.015
+    }
+   },
+   "source": "male T20 ground (46 matches)"
+  },
+  "cpl-skn": {
+   "name": "Warner Park",
+   "country": "WI",
+   "matches": 111,
+   "runFactor": 101.9,
+   "sixFactor": 107.0,
+   "wicketFactor": 106.0,
+   "chaseAdvantage": 0.049,
+   "edges": {
+    "RA fast": {
+     "wkts": -0.214,
+     "econ": 0.123
+    },
+    "RA fast-medium": {
+     "wkts": 0.086,
+     "econ": 0.005
+    },
+    "wrist-spin": {
+     "wkts": 0.191,
+     "econ": 0.1
+    },
+    "RA medium": {
+     "wkts": 0.202,
+     "econ": 0.139
+    },
+    "LA orthodox": {
+     "wkts": -0.001,
+     "econ": -0.213
+    },
+    "LA pace": {
+     "wkts": 0.008,
+     "econ": 0.004
+    },
+    "off-spin": {
+     "wkts": -0.347,
+     "econ": -0.052
+    }
+   },
+   "source": "male T20 ground (111 matches)"
+  },
+  "cpl-slk": {
+   "name": "Daren Sammy Stadium",
+   "country": "WI",
+   "matches": 89,
+   "runFactor": 100.4,
+   "sixFactor": 107.0,
+   "wicketFactor": 99.6,
+   "chaseAdvantage": 0.09,
+   "edges": {
+    "LA pace": {
+     "wkts": -0.072,
+     "econ": 0.123
+    },
+    "off-spin": {
+     "wkts": -0.039,
+     "econ": 0.194
+    },
+    "LA orthodox": {
+     "wkts": -0.179,
+     "econ": 0.003
+    },
+    "RA fast-medium": {
+     "wkts": 0.06,
+     "econ": -0.032
+    },
+    "wrist-spin": {
+     "wkts": 0.079,
+     "econ": -0.152
+    },
+    "RA medium": {
+     "wkts": 0.05,
+     "econ": 0.011
+    },
+    "RA fast": {
+     "wkts": -0.025,
+     "econ": 0.046
+    }
+   },
+   "source": "male T20 ground (89 matches)"
+  },
+  "cpl-tkr": {
+   "name": "Queen's Park Oval",
+   "country": "WI",
+   "matches": 91,
+   "runFactor": 95.3,
+   "sixFactor": 105.5,
+   "wicketFactor": 103.5,
+   "chaseAdvantage": 0.06,
+   "edges": {
+    "off-spin": {
+     "wkts": 0.132,
+     "econ": -0.203
+    },
+    "LA orthodox": {
+     "wkts": 0.102,
+     "econ": 0.017
+    },
+    "RA fast-medium": {
+     "wkts": -0.137,
+     "econ": 0.003
+    },
+    "RA medium": {
+     "wkts": 0.03,
+     "econ": 0.079
+    },
+    "wrist-spin": {
+     "wkts": 0.113,
+     "econ": -0.103
+    }
+   },
+   "source": "male T20 ground (91 matches)"
+  },
+  "ilt20-adkr": {
+   "name": "Sheikh Zayed Stadium",
+   "country": "UAE",
+   "matches": 218,
+   "runFactor": 95.4,
+   "sixFactor": 92.0,
+   "wicketFactor": 94.1,
+   "chaseAdvantage": 0.042,
+   "edges": {
+    "LA pace": {
+     "wkts": 0.088,
+     "econ": 0.071
+    },
+    "off-spin": {
+     "wkts": -0.143,
+     "econ": 0.085
+    },
+    "LA orthodox": {
+     "wkts": -0.153,
+     "econ": 0.149
+    },
+    "RA fast-medium": {
+     "wkts": 0.082,
+     "econ": -0.194
+    },
+    "RA fast": {
+     "wkts": 0.086,
+     "econ": -0.013
+    },
+    "wrist-spin": {
+     "wkts": 0.016,
+     "econ": -0.137
+    },
+    "RA medium": {
+     "wkts": 0.046,
+     "econ": 0.045
+    }
+   },
+   "source": "male T20 ground (218 matches)"
+  },
+  "ilt20-dv": {
+   "name": "Dubai International Cricket Stadium",
+   "country": "UAE",
+   "matches": 273,
+   "runFactor": 93.8,
+   "sixFactor": 80.6,
+   "wicketFactor": 100.6,
+   "chaseAdvantage": 0.073,
+   "edges": {
+    "LA pace": {
+     "wkts": 0.036,
+     "econ": 0.028
+    },
+    "LA orthodox": {
+     "wkts": 0.023,
+     "econ": -0.032
+    },
+    "off-spin": {
+     "wkts": -0.154,
+     "econ": -0.104
+    },
+    "RA fast-medium": {
+     "wkts": 0.007,
+     "econ": 0.179
+    },
+    "wrist-spin": {
+     "wkts": 0.075,
+     "econ": -0.128
+    },
+    "RA medium": {
+     "wkts": -0.26,
+     "econ": 0.115
+    },
+    "RA fast": {
+     "wkts": 0.35,
+     "econ": -0.114
+    }
+   },
+   "source": "male T20 ground (273 matches)"
+  },
+  "ilt20-duc": {
+   "name": "Dubai International Cricket Stadium",
+   "country": "UAE",
+   "matches": 273,
+   "runFactor": 93.8,
+   "sixFactor": 80.6,
+   "wicketFactor": 100.6,
+   "chaseAdvantage": 0.073,
+   "edges": {
+    "LA pace": {
+     "wkts": 0.036,
+     "econ": 0.028
+    },
+    "LA orthodox": {
+     "wkts": 0.023,
+     "econ": -0.032
+    },
+    "off-spin": {
+     "wkts": -0.154,
+     "econ": -0.104
+    },
+    "RA fast-medium": {
+     "wkts": 0.007,
+     "econ": 0.179
+    },
+    "wrist-spin": {
+     "wkts": 0.075,
+     "econ": -0.128
+    },
+    "RA medium": {
+     "wkts": -0.26,
+     "econ": 0.115
+    },
+    "RA fast": {
+     "wkts": 0.35,
+     "econ": -0.114
+    }
+   },
+   "source": "male T20 ground (273 matches)"
+  },
+  "ilt20-gg": {
+   "name": "Dubai International Cricket Stadium",
+   "country": "UAE",
+   "matches": 273,
+   "runFactor": 93.8,
+   "sixFactor": 80.6,
+   "wicketFactor": 100.6,
+   "chaseAdvantage": 0.073,
+   "edges": {
+    "LA pace": {
+     "wkts": 0.036,
+     "econ": 0.028
+    },
+    "LA orthodox": {
+     "wkts": 0.023,
+     "econ": -0.032
+    },
+    "off-spin": {
+     "wkts": -0.154,
+     "econ": -0.104
+    },
+    "RA fast-medium": {
+     "wkts": 0.007,
+     "econ": 0.179
+    },
+    "wrist-spin": {
+     "wkts": 0.075,
+     "econ": -0.128
+    },
+    "RA medium": {
+     "wkts": -0.26,
+     "econ": 0.115
+    },
+    "RA fast": {
+     "wkts": 0.35,
+     "econ": -0.114
+    }
+   },
+   "source": "male T20 ground (273 matches)"
+  },
+  "ilt20-mie": {
+   "name": "Sharjah Cricket Stadium",
+   "country": "UAE",
+   "matches": 189,
+   "runFactor": 96.2,
+   "sixFactor": 91.5,
+   "wicketFactor": 99.3,
+   "chaseAdvantage": 0.061,
+   "edges": {
+    "LA pace": {
+     "wkts": -0.151,
+     "econ": -0.031
+    },
+    "LA orthodox": {
+     "wkts": -0.075,
+     "econ": 0.008
+    },
+    "off-spin": {
+     "wkts": -0.177,
+     "econ": 0.176
+    },
+    "RA fast-medium": {
+     "wkts": -0.049,
+     "econ": -0.091
+    },
+    "RA medium": {
+     "wkts": 0.216,
+     "econ": -0.112
+    },
+    "wrist-spin": {
+     "wkts": 0.285,
+     "econ": -0.02
+    },
+    "RA fast": {
+     "wkts": 0.172,
+     "econ": 0.012
+    }
+   },
+   "source": "male T20 ground (189 matches)"
+  },
+  "ilt20-sw": {
+   "name": "Sharjah Cricket Stadium",
+   "country": "UAE",
+   "matches": 189,
+   "runFactor": 96.2,
+   "sixFactor": 91.5,
+   "wicketFactor": 99.3,
+   "chaseAdvantage": 0.061,
+   "edges": {
+    "LA pace": {
+     "wkts": -0.151,
+     "econ": -0.031
+    },
+    "LA orthodox": {
+     "wkts": -0.075,
+     "econ": 0.008
+    },
+    "off-spin": {
+     "wkts": -0.177,
+     "econ": 0.176
+    },
+    "RA fast-medium": {
+     "wkts": -0.049,
+     "econ": -0.091
+    },
+    "RA medium": {
+     "wkts": 0.216,
+     "econ": -0.112
+    },
+    "wrist-spin": {
+     "wkts": 0.285,
+     "econ": -0.02
+    },
+    "RA fast": {
+     "wkts": 0.172,
+     "econ": 0.012
+    }
+   },
+   "source": "male T20 ground (189 matches)"
+  },
+  "mlc-lakr": {
+   "name": "Oakland Coliseum",
+   "country": "USA",
+   "matches": 21,
+   "runFactor": 101.9,
+   "sixFactor": 105.6,
+   "wicketFactor": 106.3,
+   "chaseAdvantage": -0.032,
+   "edges": {},
+   "source": "male T20 ground (21 matches)"
+  },
+  "mlc-miny": {
+   "name": "Grand Prairie Stadium",
+   "country": "USA",
+   "matches": 53,
+   "runFactor": 104.8,
+   "sixFactor": 101.8,
+   "wicketFactor": 95.4,
+   "chaseAdvantage": 0.068,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.096,
+     "econ": -0.059
+    },
+    "RA fast": {
+     "wkts": -0.058,
+     "econ": 0.07
+    },
+    "RA medium": {
+     "wkts": -0.151,
+     "econ": 0.164
+    },
+    "LA pace": {
+     "wkts": -0.036,
+     "econ": -0.098
+    },
+    "LA orthodox": {
+     "wkts": 0.169,
+     "econ": -0.105
+    }
+   },
+   "source": "male T20 ground (53 matches)"
+  },
+  "mlc-sfu": {
+   "name": "Oakland Coliseum",
+   "country": "USA",
+   "matches": 21,
+   "runFactor": 101.9,
+   "sixFactor": 105.6,
+   "wicketFactor": 106.3,
+   "chaseAdvantage": -0.032,
+   "edges": {},
+   "source": "male T20 ground (21 matches)"
+  },
+  "mlc-seo": {
+   "name": "Central Broward Regional Park",
+   "country": "USA",
+   "matches": 42,
+   "runFactor": 95.4,
+   "sixFactor": 97.1,
+   "wicketFactor": 99.8,
+   "chaseAdvantage": -0.059,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.203,
+     "econ": 0.086
+    },
+    "LA orthodox": {
+     "wkts": 0.052,
+     "econ": -0.166
+    }
+   },
+   "source": "male T20 ground (42 matches)"
+  },
+  "mlc-tsk": {
+   "name": "Grand Prairie Stadium",
+   "country": "USA",
+   "matches": 53,
+   "runFactor": 104.8,
+   "sixFactor": 101.8,
+   "wicketFactor": 95.4,
+   "chaseAdvantage": 0.068,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.096,
+     "econ": -0.059
+    },
+    "RA fast": {
+     "wkts": -0.058,
+     "econ": 0.07
+    },
+    "RA medium": {
+     "wkts": -0.151,
+     "econ": 0.164
+    },
+    "LA pace": {
+     "wkts": -0.036,
+     "econ": -0.098
+    },
+    "LA orthodox": {
+     "wkts": 0.169,
+     "econ": -0.105
+    }
+   },
+   "source": "male T20 ground (53 matches)"
+  },
+  "mlc-wsh": {
+   "name": "Central Broward Regional Park",
+   "country": "USA",
+   "matches": 42,
+   "runFactor": 95.4,
+   "sixFactor": 97.1,
+   "wicketFactor": 99.8,
+   "chaseAdvantage": -0.059,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.203,
+     "econ": 0.086
+    },
+    "LA orthodox": {
+     "wkts": 0.052,
+     "econ": -0.166
+    }
+   },
+   "source": "male T20 ground (42 matches)"
+  },
+  "bpl-chr": {
+   "name": "Zahur Ahmed Chowdhury Stadium",
+   "country": "BDESH",
+   "matches": 130,
+   "runFactor": 101.1,
+   "sixFactor": 87.6,
+   "wicketFactor": 97.7,
+   "chaseAdvantage": -0.002,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": -0.066,
+     "econ": 0.225
+    },
+    "RA medium": {
+     "wkts": -0.051,
+     "econ": 0.002
+    },
+    "RA fast": {
+     "wkts": 0.17,
+     "econ": -0.043
+    },
+    "wrist-spin": {
+     "wkts": 0.19,
+     "econ": -0.092
+    },
+    "LA orthodox": {
+     "wkts": -0.007,
+     "econ": 0.023
+    },
+    "LA pace": {
+     "wkts": 0.146,
+     "econ": -0.199
+    },
+    "off-spin": {
+     "wkts": -0.318,
+     "econ": -0.057
+    }
+   },
+   "source": "male T20 ground (130 matches)"
+  },
+  "bpl-dhc": {
+   "name": "Shere Bangla National Stadium",
+   "country": "BDESH",
+   "matches": 468,
+   "runFactor": 94.7,
+   "sixFactor": 90.6,
+   "wicketFactor": 98.6,
+   "chaseAdvantage": 0.049,
+   "edges": {
+    "LA pace": {
+     "wkts": -0.027,
+     "econ": -0.088
+    },
+    "off-spin": {
+     "wkts": -0.067,
+     "econ": -0.016
+    },
+    "LA orthodox": {
+     "wkts": 0.043,
+     "econ": -0.092
+    },
+    "RA fast-medium": {
+     "wkts": -0.007,
+     "econ": 0.08
+    },
+    "RA medium": {
+     "wkts": -0.063,
+     "econ": 0.1
+    },
+    "RA fast": {
+     "wkts": -0.005,
+     "econ": 0.037
+    },
+    "wrist-spin": {
+     "wkts": -0.081,
+     "econ": -0.059
+    }
+   },
+   "source": "male T20 ground (468 matches)"
+  },
+  "bpl-noe": {
+   "name": "Sylhet Stadium",
+   "country": "BDESH",
+   "matches": 133,
+   "runFactor": 100.2,
+   "sixFactor": 100.6,
+   "wicketFactor": 93.9,
+   "chaseAdvantage": 0.088,
+   "edges": {
+    "LA orthodox": {
+     "wkts": 0.01,
+     "econ": -0.064
+    },
+    "off-spin": {
+     "wkts": 0.023,
+     "econ": 0.174
+    },
+    "LA pace": {
+     "wkts": 0.132,
+     "econ": 0.047
+    },
+    "RA medium": {
+     "wkts": 0.151,
+     "econ": 0.048
+    },
+    "RA fast-medium": {
+     "wkts": -0.084,
+     "econ": -0.17
+    }
+   },
+   "source": "male T20 ground (133 matches)"
+  },
+  "bpl-raw": {
+   "name": "Sylhet Stadium",
+   "country": "BDESH",
+   "matches": 133,
+   "runFactor": 100.2,
+   "sixFactor": 100.6,
+   "wicketFactor": 93.9,
+   "chaseAdvantage": 0.088,
+   "edges": {
+    "LA orthodox": {
+     "wkts": 0.01,
+     "econ": -0.064
+    },
+    "off-spin": {
+     "wkts": 0.023,
+     "econ": 0.174
+    },
+    "LA pace": {
+     "wkts": 0.132,
+     "econ": 0.047
+    },
+    "RA medium": {
+     "wkts": 0.151,
+     "econ": 0.048
+    },
+    "RA fast-medium": {
+     "wkts": -0.084,
+     "econ": -0.17
+    }
+   },
+   "source": "male T20 ground (133 matches)"
+  },
+  "bpl-rar": {
+   "name": "Shere Bangla National Stadium",
+   "country": "BDESH",
+   "matches": 468,
+   "runFactor": 94.7,
+   "sixFactor": 90.6,
+   "wicketFactor": 98.6,
+   "chaseAdvantage": 0.049,
+   "edges": {
+    "LA pace": {
+     "wkts": -0.027,
+     "econ": -0.088
+    },
+    "off-spin": {
+     "wkts": -0.067,
+     "econ": -0.016
+    },
+    "LA orthodox": {
+     "wkts": 0.043,
+     "econ": -0.092
+    },
+    "RA fast-medium": {
+     "wkts": -0.007,
+     "econ": 0.08
+    },
+    "RA medium": {
+     "wkts": -0.063,
+     "econ": 0.1
+    },
+    "RA fast": {
+     "wkts": -0.005,
+     "econ": 0.037
+    },
+    "wrist-spin": {
+     "wkts": -0.081,
+     "econ": -0.059
+    }
+   },
+   "source": "male T20 ground (468 matches)"
+  },
+  "bpl-syt": {
+   "name": "Sylhet Stadium",
+   "country": "BDESH",
+   "matches": 133,
+   "runFactor": 100.2,
+   "sixFactor": 100.6,
+   "wicketFactor": 93.9,
+   "chaseAdvantage": 0.088,
+   "edges": {
+    "LA orthodox": {
+     "wkts": 0.01,
+     "econ": -0.064
+    },
+    "off-spin": {
+     "wkts": 0.023,
+     "econ": 0.174
+    },
+    "LA pace": {
+     "wkts": 0.132,
+     "econ": 0.047
+    },
+    "RA medium": {
+     "wkts": 0.151,
+     "econ": 0.048
+    },
+    "RA fast-medium": {
+     "wkts": -0.084,
+     "econ": -0.17
+    }
+   },
+   "source": "male T20 ground (133 matches)"
+  },
+  "lpl-cok": {
+   "name": "R Premadasa Stadium",
+   "country": "SL",
+   "matches": 203,
+   "runFactor": 97.6,
+   "sixFactor": 98.4,
+   "wicketFactor": 103.3,
+   "chaseAdvantage": 0.012,
+   "edges": {
+    "RA fast": {
+     "wkts": 0.124,
+     "econ": 0.196
+    },
+    "RA fast-medium": {
+     "wkts": 0.018,
+     "econ": 0.154
+    },
+    "wrist-spin": {
+     "wkts": 0.077,
+     "econ": -0.183
+    },
+    "RA medium": {
+     "wkts": 0.024,
+     "econ": 0.118
+    },
+    "LA orthodox": {
+     "wkts": -0.01,
+     "econ": -0.283
+    },
+    "off-spin": {
+     "wkts": -0.051,
+     "econ": -0.17
+    },
+    "LA pace": {
+     "wkts": 0.063,
+     "econ": 0.121
+    }
+   },
+   "source": "male T20 ground (203 matches)"
+  },
+  "lpl-das": {
+   "name": "Rangiri Dambulla Stadium",
+   "country": "SL",
+   "matches": 31,
+   "runFactor": 102.9,
+   "sixFactor": 99.4,
+   "wicketFactor": 101.1,
+   "chaseAdvantage": -0.02,
+   "edges": {
+    "RA fast-medium": {
+     "wkts": 0.037,
+     "econ": -0.086
+    }
+   },
+   "source": "male T20 ground (31 matches)"
+  },
+  "lpl-gag": {
+   "name": "Sinhalese Sports Club Ground",
+   "country": "SL",
+   "matches": 117,
+   "runFactor": 104.4,
+   "sixFactor": 97.7,
+   "wicketFactor": 101.1,
+   "chaseAdvantage": 0.024,
+   "edges": {},
+   "source": "male T20 ground (117 matches)"
+  },
+  "lpl-jak": {
+   "name": "P Sara Oval",
+   "country": "SL",
+   "matches": 103,
+   "runFactor": 101.4,
+   "sixFactor": 97.5,
+   "wicketFactor": 100.2,
+   "chaseAdvantage": 0.041,
+   "edges": {},
+   "source": "male T20 ground (103 matches)"
+  },
+  "lpl-kar": {
+   "name": "Pallekele International Stadium",
+   "country": "SL",
+   "matches": 94,
+   "runFactor": 103.0,
+   "sixFactor": 92.6,
+   "wicketFactor": 103.7,
+   "chaseAdvantage": -0.044,
+   "edges": {
+    "LA orthodox": {
+     "wkts": 0.05,
+     "econ": -0.135
+    },
+    "LA pace": {
+     "wkts": 0.018,
+     "econ": 0.127
+    },
+    "off-spin": {
+     "wkts": -0.017,
+     "econ": -0.045
+    },
+    "RA fast-medium": {
+     "wkts": -0.033,
+     "econ": 0.143
+    },
+    "wrist-spin": {
+     "wkts": -0.048,
+     "econ": -0.087
+    },
+    "RA fast": {
+     "wkts": 0.082,
+     "econ": 0.01
+    }
+   },
+   "source": "male T20 ground (94 matches)"
   }
  },
  "countries": {
@@ -903,7 +3170,20 @@ export const VENUE_DATA: VenueDataFile = {
   "ipl": 0.056,
   "wpl": 0.037,
   "male": 0.023,
-  "female": 0.023
+  "female": 0.023,
+  "leagues": {
+   "bbl": 0.022,
+   "wbbl": 0.029,
+   "psl": 0.043,
+   "sa20": 0.005,
+   "hundred-m": 0.027,
+   "hundred-w": 0.027,
+   "cpl": 0.045,
+   "ilt20": 0.048,
+   "mlc": 0.033,
+   "bpl": 0.036,
+   "lpl": 0.011
+  }
  },
  "tossValueWin": 0.01,
  "fieldShare2024_26": 0.631,

@@ -5,8 +5,18 @@
  * and fully custom leagues with configurable playoff formats.
  */
 
-export type LeagueType = "ipl" | "wpl" | "custom";
-export type PlayoffFormat = "eliminator" | "simple" | "none";
+/** The extra T20 leagues (see leagues.ts and docs/LEAGUES.md). */
+export type ExtraLeagueId =
+  | "bbl" | "wbbl" | "psl" | "sa20" | "hundred-m" | "hundred-w" | "cpl" | "ilt20" | "mlc" | "bpl" | "lpl";
+export type LeagueType = "ipl" | "wpl" | "custom" | ExtraLeagueId;
+/**
+ * - "eliminator": IPL-style (4 teams: Q1 1v2, Eliminator 3v4, Q2, Final; 3 teams: Q1 1v2, then loser v 3rd)
+ * - "top3": 1st goes straight to the final, 2nd v 3rd eliminator (The Hundred)
+ * - "wbbl": top 4, 1st goes straight to the final; Knockout 3v4, Challenger 2nd v Knockout winner, Final
+ */
+export type PlayoffFormat = "eliminator" | "simple" | "none" | "top3" | "wbbl";
+/** "hundred": 100-ball innings of 20 five-ball sets, a bowler delivers at most 20 balls (see format.ts) */
+export type MatchFormatId = "t20" | "hundred";
 export type GenderOption = "men" | "women" | "combined";
 export type PlayerSource = "real" | "generated";
 
@@ -33,6 +43,8 @@ export interface RuleSet {
   maxRetentions?: number;        // max players retained at mega auction (default 6)
   maxMiniRetentions?: number;    // max players retained at mini auction (default 4)
   squadBuilding?: "auction" | "draft"; // how squads are built (default "auction")
+  matchFormat?: MatchFormatId;         // innings format (default "t20"; The Hundred = "hundred")
+  minSquadSize?: number;               // smallest legal squad (default 18)
   draftType?: "snake" | "linear";      // season draft pick order (default "snake")
   draftPickSeconds?: number;           // season draft pick clock, 0 = off (default 45)
 }
