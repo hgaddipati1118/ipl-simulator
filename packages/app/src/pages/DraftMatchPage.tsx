@@ -54,7 +54,7 @@ export function DraftMatchPage() {
   // ── Start a draft (new series or next game) ──
   const beginGame = (nextSeries: Series) => {
     const built = buildDraftMatchPool(poolId, nations);
-    const pool = ensurePoolCoverage(built.players, 2);
+    const pool = ensurePoolCoverage(built.players, 2, built.maxOverseasInXI);
     setPlayers(new Map(pool.map(p => [p.id, p])));
     setMaxOs(built.maxOverseasInXI);
     setPoolLabel(built.label);

@@ -96,6 +96,8 @@ interface SaveMeta {
   rules: RuleSet;
   retentionState?: GameState["retentionState"];
   contractsResolved?: boolean;
+  /** Seed for seeded generation and progression between seasons */
+  worldSeed?: number;
   // Season progress (lightweight scalars in localStorage)
   currentMatchIndex?: number;
   playoffsStarted?: boolean;
@@ -311,6 +313,7 @@ export async function saveState(state: GameState): Promise<void> {
     rules: state.rules,
     retentionState: state.retentionState,
     contractsResolved: state.contractsResolved,
+    worldSeed: state.worldSeed,
     currentMatchIndex: state.currentMatchIndex,
     playoffsStarted: state.playoffsStarted,
     needsLineup: state.needsLineup,
@@ -445,6 +448,7 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       boardState: boardState ?? undefined,
       contractReport: contractReport ?? undefined,
       contractsResolved: meta.contractsResolved ?? true,
+      worldSeed: meta.worldSeed,
       retentionState: meta.retentionState,
       auctionLiveState: auctionLiveStateRaw
         ? deserializeAuctionLiveState(auctionLiveStateRaw) : undefined,
@@ -650,6 +654,7 @@ export function exportSave(state: GameState): void {
       rules: state.rules,
       retentionState: state.retentionState,
       contractsResolved: state.contractsResolved,
+      worldSeed: state.worldSeed,
       currentMatchIndex: state.currentMatchIndex,
       playoffsStarted: state.playoffsStarted,
       needsLineup: state.needsLineup,
@@ -736,6 +741,7 @@ export async function importSave(file: File): Promise<GameState> {
     draftState: data.draftState ?? undefined,
     draftHistory: data.draftHistory ?? [],
     contractsResolved: data.meta?.contractsResolved ?? data.contractsResolved ?? true,
+    worldSeed: data.meta?.worldSeed,
   };
 
   // Create a new slot for the import

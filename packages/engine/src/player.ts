@@ -4,7 +4,11 @@
  */
 
 import { clamp, randomNormal, displayOversToReal } from "./math.js";
-import { ageCurveDelta, type AgeCurveGender } from "./age-curves.js";
+import type { RNG } from "./rng.js";
+import {
+  sampleChange, estimateExperience, meanPathOvr, type ProgressionState, type ProgressionGender,
+  type BatKind, type BowlKind,
+} from "./progression.js";
 
 export interface PlayerRatings {
   battingIQ: number;    // 0-99: shot selection, rotation, game sense
@@ -85,6 +89,16 @@ export type InjurySeverity = "minor" | "moderate" | "severe";
 export type TrainingFocus = "balanced" | "batting" | "power" | "bowling" | "control" | "fitness" | "clutch";
 export type TrainingIntensity = "light" | "balanced" | "hard";
 
+/** Ratings during a season, recorded when the player progresses to the next one */
+export interface RatingHistoryEntry {
+  season: number;
+  overall: number;
+  batting: number;
+  bowling: number;
+  /** Age during that season */
+  age?: number;
+}
+
 export interface PlayerProgressReport {
   focus: TrainingFocus;
   intensity: TrainingIntensity;
@@ -121,7 +135,11 @@ export interface PlayerData {
   fatigue?: number;             // 0-100 accumulated workload, lower is fresher
   workloadHistory?: number[];   // last 5 workload scores for management surfaces
   potential?: number;           // 0-99 ceiling for youth academy prospects (higher = develops faster)
-  ratingHistory?: { season: number; overall: number; batting: number; bowling: number }[];
+  ratingHistory?: RatingHistoryEntry[];
+  /** Seasons of rating evidence behind the rating (new players move more); estimated from age and matches when absent */
+  experience?: number;
+  /** Points of talent (above or below the typical path) still to realise on the way to `potential` */
+  talentLeft?: number;
   morale?: number;              // 0-100 player happiness, affects clutch (default 70)
   contractYears?: number;       // years remaining on contract (0 = free agent)
 }
@@ -270,6 +288,26 @@ export function calculateMarketValue(input: {
   return Math.max(0.2, Math.min(20, Math.round(value * 100) / 100));
 }
 
+/** Seasons of ratings kept per player (the "ratings over time" chart reads these) */
+export const RATING_HISTORY_MAX = 25;
+/** Age at which prospects are assumed to reach their potential */
+const PEAK_AGE = 27;
+/** Prospects' own luck is scaled down so their talent plus luck spread what real careers show (TALENT_SD = 3.5 of ~8) */
+const TALENT_LUCK_SCALE = 0.9;
+/** Individual attribute noise around the discipline's fitted change (points); not identifiable from per-discipline data */
+const ATTRIBUTE_NOISE = 1.8;
+
+function battingKind(position: BattingPosition): BatKind {
+  if (position === "opener" || position === "top-order") return "top";
+  if (position === "lower-order") return "lower";
+  return "middle";
+}
+
+function bowlingKind(style: BowlingStyle): BowlKind {
+  if (style === "unknown") return "unknown";
+  return isSpinStyle(style) ? "spin" : "pace";
+}
+
 export class Player implements PlayerData {
   id: string;
   name: string;
@@ -296,7 +334,9 @@ export class Player implements PlayerData {
   fatigue: number;
   workloadHistory: number[];
   potential?: number;
-  ratingHistory: { season: number; overall: number; batting: number; bowling: number }[];
+  ratingHistory: RatingHistoryEntry[];
+  experience?: number;
+  talentLeft?: number;
   morale: number;
   contractYears: number;
   stats: PlayerStats;
@@ -328,6 +368,8 @@ export class Player implements PlayerData {
     this.workloadHistory = data.workloadHistory ? [...data.workloadHistory] : [];
     this.potential = data.potential;
     this.ratingHistory = data.ratingHistory ? [...data.ratingHistory] : [];
+    this.experience = data.experience;
+    this.talentLeft = data.talentLeft;
     this.morale = data.morale ?? 70;
     this.contractYears = data.contractYears ?? 1; // IPL annual contracts
     this.stats = this.emptyStats();
@@ -518,35 +560,63 @@ export class Player implements PlayerData {
     return clamp(Math.round(score), 0, 100);
   }
 
+  /** The state the progression model works from (ages are those after the coming birthday) */
+  getProgressionState(
+    gender: ProgressionGender = "male",
+    experience = this.experience ?? estimateExperience(this.age, this.careerStats?.m ?? 0),
+    prev: RatingHistoryEntry | undefined = this.ratingHistory[this.ratingHistory.length - 1],
+  ): ProgressionState {
+    const batting = this.battingOvr;
+    const bowling = this.bowlingOvr;
+    return {
+      gender,
+      age: this.age + 1,
+      experience,
+      bat: { ovr: batting, prevOvr: prev?.batting, regular: this.role !== "bowler", kind: battingKind(this.battingPosition) },
+      bowl: {
+        ovr: bowling, prevOvr: prev?.bowling, regular: this.role !== "batsman" || bowling >= 55,
+        kind: bowlingKind(this.bowlingStyle),
+      },
+    };
+  }
+
   /**
-   * Season-to-season progression: attributes shift based on age and potential.
-   * The age trend comes from real careers (CricketArchive T20 age curves, see age-curves.ts): batting
-   * attributes follow the batters' curve, bowling attributes the pace or spin curve, by gender.
-   * Randomness, training focus and youth potential work as before on top of it.
+   * Season-to-season progression, fitted on real careers (CricketArchive per-year ratings, see progression.ts):
+   * each discipline's overall moves by an expected change (age, level, last season's change, experience) plus a
+   * draw from the real spread of outcomes (fat tails: breakouts and collapses). The change is then spread over
+   * the discipline's attributes with a little individual noise. Training focus and intensity work on top of it,
+   * and youth `potential` steers prospects toward the mature rating it promises.
+   * Pass `rng` for a deterministic result.
    */
   progress(input?: {
     focus?: TrainingFocus;
     intensity?: TrainingIntensity;
     seasonNumber?: number;
-    /** Which league's curves to use; defaults to men's */
-    gender?: AgeCurveGender;
+    /** Which league's fit to use; defaults to men's */
+    gender?: ProgressionGender;
+    rng?: RNG;
+    /** Seasons of rating history to keep (default RATING_HISTORY_MAX) */
+    historyLimit?: number;
   }): PlayerProgressReport {
+    const rng = input?.rng ?? Math.random;
+    const gender = input?.gender ?? "male";
+    const prev = this.ratingHistory[this.ratingHistory.length - 1];
+    const experience = this.experience ?? estimateExperience(this.age, this.careerStats?.m ?? 0);
+    const state = this.getProgressionState(gender, experience, prev);
+
     // Snapshot current ratings before progression
     this.ratingHistory.push({
       season: input?.seasonNumber ?? this.ratingHistory.length + 1,
       overall: this.overall,
       batting: this.battingOvr,
       bowling: this.bowlingOvr,
+      age: this.age,
     });
-    if (this.ratingHistory.length > 10) this.ratingHistory = this.ratingHistory.slice(-10);
+    const keep = input?.historyLimit ?? RATING_HISTORY_MAX;
+    if (this.ratingHistory.length > keep) this.ratingHistory = this.ratingHistory.slice(-keep);
 
     this.age++;
-    const gender = input?.gender ?? "male";
-    const batBias = ageCurveDelta(gender, "bat", this.age);
-    const bowlBias = this.bowlingStyle === "unknown"
-      ? (ageCurveDelta(gender, "pace", this.age) + ageCurveDelta(gender, "spin", this.age)) / 2
-      : ageCurveDelta(gender, isSpinStyle(this.bowlingStyle) ? "spin" : "pace", this.age);
-    const deviation = Math.pow(Math.abs(30 - this.age), 0.7);
+    this.experience = experience + 1;
     const focus = input?.focus ?? this.trainingFocus ?? "balanced";
     const intensity = input?.intensity ?? "balanced";
     const gainMultiplier = TRAINING_GAIN_MULTIPLIER[intensity];
@@ -557,38 +627,46 @@ export class Player implements PlayerData {
     const beforeOverall = this.overall;
     const ratingChanges: Partial<Record<keyof PlayerRatings, number>> = {};
 
-    // Potential-based development boost for youth prospects
-    let potentialBoost = 0;
-    if (this.potential !== undefined) {
-      if (this.potential > 90 && this.age < 23) {
-        // Generational talent: +3 to +6 per season
-        potentialBoost = 3 + Math.random() * 3;
-      } else if (this.potential > 80 && this.age < 25) {
-        // High potential: +2 to +4 per season
-        potentialBoost = 2 + Math.random() * 2;
-      } else if (this.potential > 70 && this.age < 27) {
-        // Decent potential: +1 to +2 per season
-        potentialBoost = 1 + Math.random();
+    const batRegular = state.bat.regular;
+    const bowlRegular = state.bowl.regular;
+
+    // Potential (prospects): the talent drawn at creation is realised evenly over the years up to the peak age, on top
+    // of the usual path. Prospects get a little less luck of their own so the total spread stays what real careers show.
+    let talent = 0;
+    let luck = 1;
+    if (this.potential !== undefined && this.age <= PEAK_AGE) {
+      if (this.talentLeft === undefined) {
+        // older save or hand-made prospect: the whole gap to potential from the typical path is the talent
+        const main = beforeBatting >= beforeBowling ? "bat" : "bowl";
+        this.talentLeft = this.potential - meanPathOvr(main, state, PEAK_AGE);
       }
+      const yearsLeft = Math.max(1, PEAK_AGE - this.age + 1);
+      talent = this.talentLeft / yearsLeft;
+      this.talentLeft -= talent;
+      luck = TALENT_LUCK_SCALE;
     }
 
-    const attrs: CoreRatingKey[] = [
-      "battingIQ", "timing", "power", "running",
-      "wicketTaking", "economy", "accuracy", "clutch",
-    ];
+    const dBat = sampleChange("bat", state, rng, { volatility: volatility * luck, extraDrift: batRegular ? talent : 0 });
+    const dBowl = sampleChange("bowl", state, rng, { volatility: volatility * luck, extraDrift: bowlRegular ? talent : 0 });
+    // Clutch follows the discipline the player is picked for
+    const dClutch = this.role === "bowler" ? dBowl : this.role === "all-rounder" ? (dBat + dBowl) / 2 : dBat;
 
-    const batAttrs = new Set<CoreRatingKey>(["battingIQ", "timing", "power", "running"]);
-    for (const attr of attrs) {
-      const focusBoost = (focusBias[attr] ?? 0) * gainMultiplier;
-      const ageBias = batAttrs.has(attr) ? batBias : bowlBias;
-      const next = clamp(
-        Math.round(this.ratings[attr] + randomNormal(ageBias + focusBoost + potentialBoost, deviation * volatility)),
-        1,
-        99,
-      );
-      ratingChanges[attr] = next - this.ratings[attr];
-      this.ratings[attr] = next;
-    }
+    const apply = (attrs: CoreRatingKey[], weights: number[], delta: number, clutchDelta?: number) => {
+      // individual noise with zero effect on the discipline overall, so the fitted overall change is kept
+      const e = attrs.map(() => randomNormal(0, ATTRIBUTE_NOISE, rng));
+      const ww = weights.reduce((acc, w) => acc + w * w, 0);
+      const we = weights.reduce((acc, w, i) => acc + w * e[i], 0);
+      attrs.forEach((attr, i) => {
+        const noise = e[i] - (we / ww) * weights[i];
+        const focusBoost = (focusBias[attr] ?? 0) * gainMultiplier;
+        const d = attr === "clutch" && clutchDelta !== undefined ? clutchDelta : delta;
+        const next = clamp(Math.round(this.ratings[attr] + d + noise + focusBoost), 1, 99);
+        ratingChanges[attr] = (ratingChanges[attr] ?? 0) + next - this.ratings[attr];
+        this.ratings[attr] = next;
+      });
+    };
+    apply(["battingIQ", "timing", "power", "running"], [0.30, 0.30, 0.35, 0.05], dBat);
+    apply(["wicketTaking", "economy", "accuracy", "clutch"], [0.55, 0.20, 0.10, 0.15], dBowl, dClutch);
 
     this.trainingFocus = focus;
     this.stats = this.emptyStats();
@@ -637,6 +715,8 @@ export class Player implements PlayerData {
       workloadHistory: [...this.workloadHistory],
       potential: this.potential,
       ratingHistory: [...this.ratingHistory],
+      experience: this.experience,
+      talentLeft: this.talentLeft,
       morale: this.morale,
       contractYears: this.contractYears,
       stats: this.stats,

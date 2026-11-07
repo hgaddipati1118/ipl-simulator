@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Player, PlayerData } from "../player.js";
 import { ageCurveDelta } from "../age-curves.js";
+import { createRNG } from "../rng.js";
 
 function makePlayerData(overrides?: Partial<PlayerData>): PlayerData {
   return {
@@ -220,22 +221,42 @@ describe("Player progression", () => {
     expect(p.workloadHistory).toEqual([]);
   });
 
-  it("follows the real-career age curves: young players rise, veterans decline", () => {
-    // Box-Muller with u1 = 0.5, u2 = 0.25 gives z = 0, so randomNormal returns its mean and only the trend remains
-    let call = 0;
-    vi.spyOn(Math, "random").mockImplementation(() => (call++ % 2 === 0 ? 0.5 : 0.25));
+  it("follows the fitted real-career progression: young players rise on average, elite veterans fall back", () => {
     const ratings = {
       battingIQ: 60, timing: 60, power: 60, running: 60,
       wicketTaking: 60, economy: 60, accuracy: 60, clutch: 60,
     };
-    const young = new Player(makePlayerData({ age: 19, bowlingStyle: "right-arm-fast", ratings: { ...ratings } }));
-    const veteran = new Player(makePlayerData({ age: 36, bowlingStyle: "right-arm-fast", ratings: { ...ratings } }));
-    for (let i = 0; i < 3; i++) { young.progress(); veteran.progress(); }
-    expect(young.battingOvr).toBeGreaterThan(60);
-    expect(young.bowlingOvr).toBeGreaterThan(60);
-    expect(veteran.battingOvr).toBeLessThan(60);
-    expect(veteran.bowlingOvr).toBeLessThan(60);
-    vi.restoreAllMocks();
+    const elite = {
+      battingIQ: 88, timing: 88, power: 88, running: 88,
+      wicketTaking: 88, economy: 88, accuracy: 88, clutch: 88,
+    };
+    const rng = createRNG(5);
+    let youngGain = 0, eliteVeteranGain = 0;
+    const runs = 300;
+    for (let i = 0; i < runs; i++) {
+      const young = new Player(makePlayerData({ age: 19, role: "all-rounder", bowlingStyle: "right-arm-fast", ratings: { ...ratings } }));
+      const veteran = new Player(makePlayerData({ age: 35, role: "all-rounder", bowlingStyle: "right-arm-fast", ratings: { ...elite } }));
+      const y0 = young.battingOvr + young.bowlingOvr, v0 = veteran.battingOvr + veteran.bowlingOvr;
+      for (let k = 0; k < 3; k++) { young.progress({ rng }); veteran.progress({ rng }); }
+      youngGain += young.battingOvr + young.bowlingOvr - y0;
+      eliteVeteranGain += veteran.battingOvr + veteran.bowlingOvr - v0;
+    }
+    expect(youngGain / runs).toBeGreaterThan(1.5);
+    expect(eliteVeteranGain / runs).toBeLessThan(-3);
+  });
+
+  it("is deterministic for a given rng", () => {
+    const a = new Player(makePlayerData({ age: 24 }));
+    const b = new Player(makePlayerData({ age: 24 }));
+    for (let k = 0; k < 4; k++) { a.progress({ rng: createRNG(11 + k) }); b.progress({ rng: createRNG(11 + k) }); }
+    expect(a.ratings).toEqual(b.ratings);
+  });
+
+  it("keeps a per-season rating history with the age", () => {
+    const p = new Player(makePlayerData({ age: 22 }));
+    for (let k = 0; k < 3; k++) p.progress({ seasonNumber: k + 1, rng: createRNG(k) });
+    expect(p.ratingHistory.map(h => h.season)).toEqual([1, 2, 3]);
+    expect(p.ratingHistory.map(h => h.age)).toEqual([22, 23, 24]);
   });
 
   it("uses each discipline's own curve: spinners hold up better than pace bowlers in their thirties", () => {
@@ -248,35 +269,28 @@ describe("Player progression", () => {
   });
 
   it("lets training focus bias growth under the same random noise", () => {
-    // u1 = 0.5, u2 = 0.25 -> Box-Muller z = 0, so the comparison is the training bias alone (a constant 0.5 gives
-    // z = -1.18, and with the age-curve trend the two plans could round to the same value)
-    let call = 0;
-    vi.spyOn(Math, "random").mockImplementation(() => (call++ % 2 === 0 ? 0.5 : 0.25));
-
-    const battingPlan = new Player(makePlayerData({
+    const mk = (focus: "batting" | "bowling") => new Player(makePlayerData({
       age: 24,
       role: "all-rounder",
-      trainingFocus: "batting",
+      trainingFocus: focus,
       ratings: {
         battingIQ: 64, timing: 64, power: 64, running: 60,
         wicketTaking: 64, economy: 64, accuracy: 64, clutch: 60,
       },
     }));
-    const bowlingPlan = new Player(makePlayerData({
-      age: 24,
-      role: "all-rounder",
-      trainingFocus: "bowling",
-      ratings: {
-        battingIQ: 64, timing: 64, power: 64, running: 60,
-        wicketTaking: 64, economy: 64, accuracy: 64, clutch: 60,
-      },
-    }));
-
-    battingPlan.progress({ focus: "batting", intensity: "balanced" });
-    bowlingPlan.progress({ focus: "bowling", intensity: "balanced" });
-
-    expect(battingPlan.ratings.timing).toBeGreaterThan(bowlingPlan.ratings.timing);
-    expect(bowlingPlan.ratings.wicketTaking).toBeGreaterThan(battingPlan.ratings.wicketTaking);
+    // same seed for both, so the draws are identical and the comparison is the training bias alone, averaged over runs
+    let timingEdge = 0, wicketEdge = 0;
+    const runs = 200;
+    for (let i = 0; i < runs; i++) {
+      const battingPlan = mk("batting");
+      const bowlingPlan = mk("bowling");
+      battingPlan.progress({ focus: "batting", intensity: "balanced", rng: createRNG(i) });
+      bowlingPlan.progress({ focus: "bowling", intensity: "balanced", rng: createRNG(i) });
+      timingEdge += battingPlan.ratings.timing - bowlingPlan.ratings.timing;
+      wicketEdge += bowlingPlan.ratings.wicketTaking - battingPlan.ratings.wicketTaking;
+    }
+    expect(timingEdge / runs).toBeGreaterThan(0.3);
+    expect(wicketEdge / runs).toBeGreaterThan(0.3);
   });
 });
 

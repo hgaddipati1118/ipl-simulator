@@ -63,3 +63,15 @@ export function shuffle<T>(rng: RNG, arr: T[]): T[] {
   }
   return arr;
 }
+
+/** Combine numbers (a world seed, a season, a counter ...) into one 32-bit seed, so each step of a game has its own reproducible stream */
+export function deriveSeed(...parts: number[]): number {
+  let h = 0x811c9dc5;
+  for (const p of parts) {
+    h ^= (p | 0) >>> 0;
+    h = Math.imul(h, 0x01000193);
+    h ^= h >>> 15;
+    h = Math.imul(h, 0x2c1b3c6d);
+  }
+  return (h ^ (h >>> 13)) >>> 0;
+}

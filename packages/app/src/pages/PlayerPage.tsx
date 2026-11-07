@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { GameState } from "../game-state";
 import { ovrBgClass, roleLabel, teamLabelColor, bowlingStyleLabel, battingHandLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
@@ -9,6 +9,8 @@ import { getPlayerScoutingView, getScoutingAssignment, MAX_SCOUTING_ASSIGNMENTS 
 import { getRecruitmentTag } from "../recruitment";
 import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentControls";
 import { displayOversToReal } from "@ipl-sim/engine";
+import { RatingsOverTime } from "../components/RatingsOverTime";
+import { isWomanInHistory, loadRatingHistory, projectionFor, summariseProjection, type RatingHistoryData } from "../rating-history";
 
 interface Props {
   state: GameState;
@@ -156,6 +158,20 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
 
     return log;
   }, [player, team, state]);
+
+  // Real history (for the player's gender) and the simulated projection behind the Rating Projection card
+  const [historyData, setHistoryData] = useState<RatingHistoryData | null>(null);
+  useEffect(() => {
+    let alive = true;
+    loadRatingHistory().then(d => { if (alive) setHistoryData(d); });
+    return () => { alive = false; };
+  }, []);
+  const leagueGender = (state.rules.league === "wpl" || state.rules.gender === "women") ? "female" : "male";
+  const projectionPoints = useMemo(() => {
+    if (!player) return null;
+    const gender = (isWomanInHistory(historyData, player.id) ?? leagueGender === "female") ? "female" : "male";
+    return projectionFor(player, state.seasonNumber, gender);
+  }, [player, historyData, leagueGender, state.seasonNumber]);
 
   // Compute season stats from match log
   const seasonStats = useMemo(() => {
@@ -642,20 +658,15 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
         </div>
       )}
 
-      {/* Rating Projection */}
-      {isUserPlayer && scoutingView.exactRatings && (() => {
-        const ageBias = (30 - (player.age + 1)) * 0.3;
-        const potBoost = player.potential !== undefined
-          ? (player.potential > 90 && player.age < 22 ? 4.5
-            : player.potential > 80 && player.age < 24 ? 3
-            : player.potential > 70 && player.age < 26 ? 1.5 : 0)
-          : 0;
-        const declineExtra = player.age >= 32 ? (player.age - 31) * 0.25 : 0;
-        const netChange = ageBias + potBoost - declineExtra;
-        const projectedOvr = Math.round(Math.min(99, Math.max(15, player.overall + netChange)));
-        const trajectory = netChange >= 2 ? "Developing" : netChange >= 0.3 ? "Steady growth" : netChange >= -0.5 ? "Peak years" : netChange >= -2 ? "Gradual decline" : "Sharp decline";
-        const trajectoryColor = netChange >= 2 ? "text-emerald-400" : netChange >= 0.3 ? "text-emerald-300/70" : netChange >= -0.5 ? "text-amber-400" : netChange >= -2 ? "text-orange-400" : "text-red-400";
-        const peakAge = player.potential !== undefined && player.potential > 80 ? "25-29" : "27-31";
+      {/* Rating Projection: simulated from the progression model fitted on real careers */}
+      {scoutingView.exactRatings && projectionPoints && (() => {
+        const summary = summariseProjection(player, projectionPoints);
+        const projectedOvr = summary.nextOverall;
+        const netChange = summary.nextChange;
+        const trajectory = summary.trajectory;
+        const trajectoryColor = trajectory === "Developing" ? "text-emerald-400" : trajectory === "Steady growth" ? "text-emerald-300/70"
+          : trajectory === "Peak years" ? "text-amber-400" : trajectory === "Gradual decline" ? "text-orange-400" : "text-red-400";
+        const peakAge = summary.peakFrom === summary.peakTo ? `${summary.peakFrom}` : `${summary.peakFrom}-${summary.peakTo}`;
 
         return (
           <div className="rounded-2xl border border-th bg-th-surface p-4 sm:p-5 mb-6">
@@ -666,7 +677,7 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
                 <div className={`font-display font-bold text-lg stat-num ${ovrBgClass(player.overall).includes("amber") ? "text-amber-400" : "text-th-primary"}`}>{player.overall}</div>
               </div>
               <div className="rounded-xl border border-th bg-th-raised px-3 py-2.5">
-                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Next Season Est.</div>
+                <div className="text-th-faint text-[10px] uppercase tracking-wider font-display">Next Season (median)</div>
                 <div className={`font-display font-bold text-lg stat-num ${ovrBgClass(projectedOvr).includes("amber") ? "text-amber-400" : "text-th-primary"}`}>
                   ~{projectedOvr}
                   <span className={`text-xs ml-1 ${netChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -688,7 +699,7 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
                 <span className="font-display font-semibold text-th-faint uppercase tracking-wider">Potential</span>
                 <div className="flex-1 bg-th-raised rounded-full h-2 overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${player.potential >= 85 ? "bg-emerald-500" : player.potential >= 70 ? "bg-amber-500" : "bg-th-muted"}`}
+                    className={`h-full rounded-full ${player.potential >= 75 ? "bg-emerald-500" : player.potential >= 66 ? "bg-amber-500" : "bg-th-muted"}`}
                     style={{ width: `${player.potential}%` }}
                   />
                 </div>
@@ -700,6 +711,13 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
                 Age {player.age} — {player.age <= 28 ? "still in development window" : player.age <= 32 ? "peak years, expect stability" : "veteran phase, expect gradual decline"}
               </div>
             )}
+
+            <RatingsOverTime
+              player={player}
+              seasonNumber={state.seasonNumber}
+              leagueGender={leagueGender}
+              projection={projectionPoints}
+            />
 
             {/* Rating History */}
             {player.ratingHistory.length > 0 && (

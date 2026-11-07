@@ -425,11 +425,136 @@ season value, decayed rating, uncertainty, 0-99 ovr and next-year projection for
 
 ### Career mode
 
-`python3 -I src/analysis/export-age-curves.py` writes `packages/engine/src/age-curves.ts` from the CA T20 age
-curves: rating points per season by gender, for batting attributes (`bat`) and bowling attributes (`pace` /
-`spin`). `Player.progress()` uses it in place of the old hand-set `(30 - age) * 0.3` trend (and extra decline
-after 32); randomness, training focus and youth potential are unchanged. Women's leagues use the women's
-curves (`nextSeason` passes the gender).
+`python3 -I src/analysis/export-age-curves.py` still writes `packages/engine/src/age-curves.ts` from the CA T20 age
+curves (rating points per season by gender and bat / pace / spin), but `Player.progress()` no longer uses it: since the
+progression model below, season-to-season movement comes from `progression-model.ts`. The age curves stay exported for
+analysis and the spin-vs-pace test.
+
+## Progression model (ratings over time)
+
+Fitted on the CricketArchive per-year T20 ratings (`ca_ratings_by_year.parquet`, men and women), exported to
+`packages/engine/src/progression-model.ts`, sampled by `packages/engine/src/progression.ts` and used by
+`Player.progress()`. From `packages/ratings`:
+
+    python3 -I src/analysis/progression.py        # fit + export engine params, validation cohort fixture, report (~3 s)
+    npm run progression -- --validate             # simulated vs real cohorts (tsx; build the engine first)
+    npm run progression -- --player "Shubman Gill" --seasons 8
+    npm run progression -- --age 19 --bat 55 --bowl 25 --role batsman
+
+Outputs: `data/analysis/progression_params.json`, `progression-report.md` (fit tables, year effects, retirement
+calibration), `packages/engine/src/__tests__/fixtures/progression-cohort.json` (the 2015 men / 2018 women cohorts the
+tests validate against; committed, ~140 KB).
+
+**What is modelled.** For each discipline (batting, bowling) the next season's overall (0-99; the game's discipline
+overalls sit on the same scale, slope ~1.0 batting / ~0.9 bowling against the CA values of current players) moves by
+
+    change = mean(age, level, last change, experience, kind) + sd(age, experience) * z
+
+fitted on consecutive-season pairs of players who were regulars (120+ T20 balls) in that discipline, men and women
+separately (women ridge-shrunk toward the men's coefficients):
+
+| piece | what the data say (men, batting; bowling is similar) |
+|---|---|
+| age and experience | 10 age bins (linear between bin centres) plus log seasons of rating evidence. Net, for a 65 batter with typical experience: +0.3 a year at 20, +0.7 at 23-26, +0.5 at 29, +0.2 at 32, about -0.1 from 35. The age gradient is gentle: most of the decline of good players is regression to the mean plus retirement |
+| regression to the mean | -0.073 points a season per point above 65 (a little weaker above 80): a 50 climbs 1.4-1.8 a year, an 80 falls 0.4-1.2, a 90 falls 0.9-1.7 |
+| coming off an outlier season | the last season's change enters with a negative coefficient for batting (-0.03; about 0 for bowling): part of a jump is given back |
+| experience (spread) | new players are rated from little data, so they move more: sd 3.9 points at one season of evidence, 2.5 at ten |
+| kind | lower-order batters (-0.4), spinners (+0.7 bowling): small offsets |
+| spread and tails | residual sd ~3.1 points; the empirical standardised residual quantiles are kept, so breakouts and collapses occur at their real rate: |z| > 3 in 1.0% of seasons (a normal would give 0.27%), |z| > 2 in 5.7% (4.6%) |
+| calendar drift | the ovr scale is re-normalised each year, so a whole cohort drifts together (mean change by year swings between about -5 and +5). That is an artefact, so the fit and the validation both work net of it (`yearEffects` in the params JSON) |
+| retirement | logistic hazard of never playing T20 again within four seasons, by age (10 bins), level, role (batter / pace / spin / all-rounder) and gender; calibrates to the observed rates by age (3.8% under 23, 6.5% at 29-31, 14% at 34-35, 26% at 38-39, 31% at 42+) |
+
+Secondary disciplines (a bowler's batting) are not identified from the CA data (those ratings are heavily shrunk on a
+different scale), so they are a judgement: half the age drift, 0.6x the spread, 8% a year reversion to the secondary
+mean of the game's players (42 batting for bowlers, 35 bowling for batters).
+
+**In the engine.** `Player.progress({ rng, gender })` draws the batting and bowling change, spreads each over the
+discipline's attributes (weighted so the discipline overall moves by exactly the draw) with 1.8 points of individual
+attribute noise, then applies the training focus and intensity as before. The previous season's overall comes from
+`ratingHistory`, experience from `Player.experience` (estimated from age and T20 matches for real players). `potential`
+(prospects) is a drawn talent (sd 3.5 points) on top of the typical path: `talentLeft` is realised evenly up to age 27 and
+the prospect's own luck is scaled by 0.9 so the total spread stays what real careers show. `rng` makes it deterministic.
+
+**Standalone simulator.** `projectPlayer(player, { seasons, runs, seed, gender })` in `progression-sim.ts` returns, per
+season ahead, the share still playing and p10/p25/p50/p75/p90 bands of batting, bowling and overall; `simulateCareer`
+runs one career; `retirementProbability` is the hazard. The CLI above wraps them.
+
+**Validation** (`progression-validation.ts`; `npx vitest run packages/engine/src/__tests__/progression.test.ts`).
+Real players' states in 2015 (men, 779 regulars) and 2018 (women, 490) are simulated forward with `Player.progress()` and
+the retirement hazard (100 runs each) and compared with what happened, net of the calendar drift. Men:
+
+| seasons ahead | still playing real / sim | ovr mean | ovr sd | mean change | share who improve | +8 breakouts | -8 collapses |
+|---|---|---|---|---|---|---|---|
+| 1 | 93% / 94% | 65.5 / 65.3 | 11.0 / 10.7 | -0.2 / +0.1 | 35% / 40% | 2.4% / 2.5% | 0.8% / 0.7% |
+| 3 | 81% / 81% | 66.7 / 65.8 | 10.7 / 10.1 | 0.0 / +0.3 | 42% / 46% | 9.8% / 8.9% | 7.3% / 5.5% |
+| 5 | 68% / 68% | 67.9 / 66.3 | 10.1 / 9.6 | +0.3 / +0.5 | 49% / 48% | 12.6% / 13.5% | 11.7% / 10.1% |
+| 8 | 49% / 49% | 67.1 / 67.0 | 9.0 / 8.9 | +0.9 / +0.7 | 51% / 50% | 18.6% / 18.9% | 12.6% / 14.0% |
+
+Peak age of players aged 18-24 at the start (best of the observed seasons): 26.8 real / 27.1 simulated. Median age of the
+last regular season: batters 33 / 33, pace 31 / 31, spin 32 / 33, all-rounders 35 / 35. Women (cohort of 2018, thinner
+data): still playing 96/94, 81/82, 70/70, 49/52%; spread at 5 seasons 8.6 / 9.1; peak age 24.0 / 24.9; the model keeps
+a slight upward drift for women (+0.4 against -0.8 real at 5 seasons) that the tests allow for. The mean ovr of
+survivors is up to 1.6 points lower in the simulation at 3-5 seasons because the simulated players never skip a year
+(a real player with a gap year is missing from "plays that season" but still counts as playing).
+
+**League balance.** A 20-season sim of a 500-player pool (hazard retirement, a regen per retiree, youth) keeps the average
+overall within 1 point of where it started and the top-150 average within 1 (tests assert 2.5), with the spread about
+15% narrower (the youngest entrants are rated from little data) and the average age settled near 28.
+
+## Generated players
+
+`packages/engine/src/player-generator.ts` samples fictional players from the real joint distribution of the game's ratings;
+fit with `python3 -I src/analysis/player-generation.py` (needs `data/analysis/game_players.json` from
+`npx tsx src/analysis/export-game-players.ts`), which writes `generation-model.ts` and `name-model.ts` into the engine.
+
+- **Strata**: gender x role class (batter, keeper, all-rounder, pace, spin) of the 7,920 rated players (5,541 men, 2,379
+  women). Per stratum each of the 8 ratings is turned into a normal score (rank -> normal quantile), regressed on age
+  (quadratic) and region (India, other subcontinent, England/Australia/NZ/South Africa, West Indies, tier-2 nations, other),
+  and the correlation of the residuals is kept as a Cholesky factor. Sampling draws correlated normals, adds the age /
+  region mean, and maps every score back through the stratum's own marginal quantiles (21 quantiles per attribute), so
+  marginals, between-attribute correlations (batting block ~0.6-0.95, bowling ~0.4-0.7) and the age and region shifts are
+  the real ones. The result goes through `createPlayerFromData`, so the game's own role inference and secondary-rating
+  balancing apply; draws that would be re-labelled (an all-rounder that is not good enough at both) are redrawn.
+- **Role, country, age**: a role class, country and age (or range) can be asked for; the default role mix is that of the
+  players on IPL / WPL rosters, tilted a little toward bowlers and all-rounders (a squad needs five bowling options and a
+  keeper); countries default to the old T20 mix (India 40%, ...). `kind` presets: `youth` (17-20), `regen` (18-23),
+  `fill` (22-34), `pool` (the real age profile). `overall: [lo, hi]` redraws until the player falls in a window.
+- **Bowling style and hand** come from the stratum's real mix (batters: 80% don't bowl; 25-30% left-handed).
+- **Potential**: for youth / regen / young pool players a talent is drawn (sd 3.5 points), `potential` = the typical
+  path's rating at 27 + talent (0-99 rating scale: the best prospects reach the high 70s), `talentLeft` is what
+  `progress()` still has to realise. Scout grades: Diamond 78+ (top ~4%), Gold 71+, Silver 64+.
+- **Names** (`names.ts`): first and last names are drawn independently from pools built from ESPN long names, per name
+  group (India, Pakistan, Bangladesh, Sri Lanka, Afghanistan, Nepal, British Isles, Australia, New Zealand, South Africa,
+  West Indies, Africa, Gulf, diaspora, Asia-Pacific, Europe) and gender; frequencies are flattened (power 0.75) so common
+  names don't dominate. A hashed blocklist (`REAL_NAME_HASHES`, FNV-1a, 9,511 hashes) holds every real full name
+  (ESPN + all CricketArchive names, 34,874) that a first + last mix from the pools could reproduce, and generation
+  redraws on a hit, so a generated player never carries a real person's full name (first or last names alone do repeat,
+  as in real life).
+- **Seeded**: everything draws from the `rng` passed in; `generatePlayers(n, rng, opts, idPrefix)` gives ids
+  `prefix_1..n`, so a seed reproduces the same players, names and ids.
+
+Samples (seed 3, `npm run progression -- --generate 6 --kind youth --seed 3`):
+
+    Darren McAllister  West Indies  19 batsman     57 bat  27 bowl  57 ovr  potential 71
+    Suresh Dinda       India        20 bowler      31 bat  56 bowl  56 ovr  potential 59
+    Ali Faizan         Pakistan     20 bowler      37 bat  71 bowl  72 ovr  potential 72
+    Ben Perchard       England      20 batsman+wk  80 bat  30 bowl  80 ovr  potential 81
+
+**Where it is used.** Career mode (`nextSeason`): a regen replaces every retiree (same role class, country and gender),
+15 fill-in squad players and 2-4 youth academy prospects join the pool, all seeded from `GameState.worldSeed`; the
+fully-generated pools (`generatePlayerPool`, `generateRandomPlayer`, `playerSource: "generated"` leagues, the
+multiplayer draft top-ups) use the same generator.
+
+## Ratings over time (app)
+
+`python3 -I src/analysis/export-rating-history.py` writes `packages/app/public/data/rating-history.json` (~520 KB,
+~155 KB gzipped, fetched lazily by the player page): per game player the real T20 batting and bowling overall for each
+year from first to last season (`-1` = none), keyed by CricketArchive id with a game-id map. The player page's
+"Rating Projection" card now draws, on one age axis: the real history (blue), the career so far in the game
+(`Player.ratingHistory`, one entry per season with the age, 25 seasons kept; green), and the simulated future (orange:
+median, 50% and 80% bands over the careers still playing, 200 seeded runs). The real line is shown shifted by a few
+points to meet the game's rating at the start of the career (stated under the chart); series buttons switch between
+overall, batting and bowling.
 
 ## Extended pool: every CricketArchive player, down to club cricket
 
