@@ -7,8 +7,7 @@ import {
   type Player, Team, type RuleSet,
   getBasePrice, getBidIncrement,
   generatePlayerPool, createPlayerFromData,
-  IPL_TEAMS, WPL_TEAMS,
-  runSeason,
+  runSeason, isOverseasIn,
 } from "@ipl-sim/engine";
 import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
@@ -18,6 +17,9 @@ import type {
 } from "./protocol";
 import { BID_TIMER_SECONDS } from "./protocol";
 import { MultiplayerHost } from "./peer";
+import {
+  isExtraMultiplayerLeague, isMultiplayerLeague, multiplayerAuctionRules, multiplayerLeagueTeams, type MultiplayerLeagueId,
+} from "./leagues";
 
 export class HostGameLogic {
   private host: MultiplayerHost;
@@ -31,6 +33,8 @@ export class HostGameLogic {
   private secondsLeft = BID_TIMER_SECONDS;
   private recentSales: { playerName: string; teamName: string; amount: number }[] = [];
   private phase: RoomPhase = "lobby";
+  /** An extra league's auction is loading its squads */
+  private starting = false;
   private rules: RuleSet;
   private onStateChange: (state: MultiAuctionState) => void = () => {};
 
@@ -48,16 +52,39 @@ export class HostGameLogic {
     });
 
     // Initialize teams
-    const teamConfigs = rules.league === "wpl" ? WPL_TEAMS : IPL_TEAMS;
-    const activeIds = new Set(rules.teamIds);
-    this.teams = teamConfigs
-      .filter(c => activeIds.has(c.id))
-      .map(c => new Team(c, rules.salaryCap));
+    this.teams = this.buildTeams();
 
     // Setup message handling
     host.onMessage = (peerId, data) => this.handleMessage(peerId, data as GuestMessage);
     host.onConnection = (peerId) => console.log("[HostLogic] Peer connected:", peerId);
     host.onDisconnect = (peerId) => this.handleDisconnect(peerId);
+  }
+
+  /** The league's franchises that the rules field (IPL, WPL or an extra league) */
+  private buildTeams(): Team[] {
+    const league: MultiplayerLeagueId = isMultiplayerLeague(this.rules.league) ? this.rules.league : "ipl";
+    return multiplayerLeagueTeams(league, this.rules).map(c => new Team(c, this.rules.salaryCap));
+  }
+
+  /** The league being played */
+  get league(): MultiplayerLeagueId {
+    return isMultiplayerLeague(this.rules.league) ? this.rules.league : "ipl";
+  }
+
+  /**
+   * Host switches the room's league in the lobby: its rules and franchises (same registry as single player). Team
+   * claims are cleared (the franchises change); members stay.
+   */
+  setLeague(league: MultiplayerLeagueId) {
+    if (this.phase !== "lobby" || this.starting || league === this.league) return;
+    this.rules = multiplayerAuctionRules(league);
+    this.teams = this.buildTeams();
+    this.players = this.players.filter(p => !p.isCPU).map(p => ({ ...p, teamId: null }));
+    this.broadcastLobbyState();
+  }
+
+  getTeamsInfo(): TeamBudgetInfo[] {
+    return this.getTeamBudgets();
   }
 
   setStateChangeHandler(handler: (state: MultiAuctionState) => void) {
@@ -99,8 +126,17 @@ export class HostGameLogic {
     this.broadcastLobbyState();
   }
 
-  /** Start the auction */
-  startAuction() {
+  /**
+   * Start the auction. IPL / WPL start at once; an extra league first loads its squads the way a single-player game
+   * does (prepareLeaguePool, then createGameState), so the returned promise resolves once the auction is running.
+   */
+  startAuction(): Promise<void> | void {
+    if (this.phase !== "lobby") return;
+    if (isExtraMultiplayerLeague(this.league) && (this.rules.playerSource ?? "real") === "real") {
+      if (this.starting) return;
+      this.starting = true;
+      return this.startLeagueAuction().finally(() => { this.starting = false; });
+    }
     this.phase = "auction";
 
     // Load players
@@ -121,6 +157,39 @@ export class HostGameLogic {
     this.auctionPool = generatePlayerPool(poolSize)
       .sort((a, b) => b.marketValue - a.marketValue);
 
+    this.currentPlayerIdx = 0;
+    this.startNextPlayer();
+    this.broadcastAuctionState();
+  }
+
+  private async startLeagueAuction(): Promise<void> {
+    const league = this.league;
+    let pool: Player[] = [];
+    try {
+      const [{ prepareLeaguePool }, { createGameState }] = await Promise.all([import("../extended-pool"), import("../game-state")]);
+      await prepareLeaguePool(league);
+      const state = createGameState(this.rules);
+      for (const team of this.teams) {
+        const real = state.teams.find(t => t.id === team.id);
+        for (const p of real?.roster ?? []) {
+          if (team.roster.length >= this.rules.maxSquadSize) break;
+          team.addPlayer(p, p.bid);
+        }
+      }
+      pool = state.playerPool;
+    } catch {
+      pool = [];
+    }
+    // Free agents of the league (best first), topped up with generated players when the pool is thin
+    const poolSize = this.teams.length <= 5 ? 80 : 200;
+    pool = [...pool].sort((a, b) => b.marketValue - a.marketValue).slice(0, poolSize);
+    if (pool.length < poolSize / 2) {
+      const generated = generatePlayerPool(poolSize - pool.length);
+      for (const p of generated) p.isInternational = isOverseasIn(league, p.country);
+      pool = [...pool, ...generated];
+    }
+    this.auctionPool = pool.sort((a, b) => b.marketValue - a.marketValue);
+    this.phase = "auction";
     this.currentPlayerIdx = 0;
     this.startNextPlayer();
     this.broadcastAuctionState();
@@ -555,6 +624,7 @@ export class HostGameLogic {
       teams: this.getTeamBudgets(),
       roomCode: this.host.roomCode,
       phase: this.phase,
+      league: this.league,
     };
     this.host.broadcast(msg);
     this.onStateChange(this.getAuctionState());

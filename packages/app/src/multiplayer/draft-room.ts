@@ -12,7 +12,7 @@
 
 import {
   type Player, type RuleSet, type TeamConfig, type DraftState, type DraftPlayer, type DraftConfig,
-  Team, IPL_TEAMS, WPL_TEAMS, RULE_PRESETS,
+  Team, RULE_PRESETS,
   createDraft, applyDraftAction, getCurrentSeatId, getSquad, toDraftPlayer, shuffleSeats,
   isDraftComplete, runSeason, Player as PlayerClass,
 } from "@ipl-sim/engine";
@@ -24,8 +24,9 @@ import { DRAFT_AI_DELAY_MS, DRAFT_ROOM_MAX_MEMBERS } from "./protocol";
 import {
   type DraftMatchPoolResult, type DraftMatchLineup,
   seasonDraftConfig, draftRoundPrice, autoLineup, buildDraftMatchTeam, draftMatchRules,
-  simulateDraftMatch, shareableResult, draftMatchVenues, ensurePoolCoverage,
+  simulateDraftMatch, shareableResult, draftMatchVenues, draftPoolVenues, ensurePoolCoverage,
 } from "../draft-pools";
+import { multiplayerLeagueTeams, type MultiplayerLeagueId } from "./leagues";
 
 /** What the host needs from the network layer (MultiplayerHost satisfies this). */
 export interface DraftRoomTransport {
@@ -40,7 +41,9 @@ export interface DraftRoomTransport {
 
 export interface DraftRoomDeps {
   /** Season draft: teams + players + rules for a league */
-  buildSeasonPool: (league: "ipl" | "wpl") => { teams: TeamConfig[]; players: Player[]; rules: RuleSet };
+  buildSeasonPool: (league: MultiplayerLeagueId) => { teams: TeamConfig[]; players: Player[]; rules: RuleSet };
+  /** Optional async step before buildSeasonPool (the app loads the extended pool for an extra league: prepareLeaguePool) */
+  prepareSeasonPool?: (league: MultiplayerLeagueId) => Promise<void> | undefined;
   /** Draft Match pool */
   buildMatchPool: (settings: DraftRoomSettings) => DraftMatchPoolResult;
   aiDelayMs?: number;
@@ -85,6 +88,8 @@ export class DraftRoomHost {
   private gameNo = 0;
   private lastStart: DraftMatchStart | null = null;
   private seasonConfigs: TeamConfig[] = [];
+  /** Waiting for deps.prepareSeasonPool before a season draft starts */
+  private preparing = false;
   /** Local listener for the host's own UI (sees exactly what guests see) */
   onLocal: (msg: HostMessage) => void = () => {};
 
@@ -144,7 +149,17 @@ export class DraftRoomHost {
 
   start() {
     if (this.phase !== "lobby" && this.phase !== "results") return;
-    if (this.settings.mode === "season-draft") this.startSeasonDraft();
+    if (this.settings.mode === "season-draft") {
+      const prep = this.deps.prepareSeasonPool?.(this.settings.league);
+      if (!prep) { this.startSeasonDraft(); return; }
+      if (this.preparing) return;
+      this.preparing = true;
+      const league = this.settings.league;
+      void prep.catch(() => {}).then(() => {
+        this.preparing = false;
+        if ((this.phase === "lobby" || this.phase === "results") && this.settings.league === league && this.settings.mode === "season-draft") this.startSeasonDraft();
+      });
+    }
     else this.startMatchDraft(true);
   }
 
@@ -199,9 +214,7 @@ export class DraftRoomHost {
 
   private rebuildSeats() {
     if (this.settings.mode === "season-draft") {
-      const configs = this.settings.league === "wpl" ? WPL_TEAMS : IPL_TEAMS;
-      const ids = new Set(this.settings.league === "wpl" ? RULE_PRESETS.wpl.teamIds : RULE_PRESETS.modern2026.teamIds);
-      this.seasonConfigs = configs.filter(c => ids.has(c.id));
+      this.seasonConfigs = multiplayerLeagueTeams(this.settings.league);
       this.seats = this.seasonConfigs.map(c => ({ seatId: c.id, name: c.name, shortName: c.shortName, color: c.primaryColor, controller: "ai" }));
     } else {
       this.seats = Array.from({ length: this.settings.sides }, (_, i) => ({
@@ -417,7 +430,7 @@ export class DraftRoomHost {
 
   private pickVenue(): string {
     if (this.settings.venueTeamId) return this.settings.venueTeamId;
-    const venues = draftMatchVenues().filter(v => this.settings.pool === "wpl-current" ? v.teamId.endsWith("-w") || v.teamId === "upw" : !v.teamId.endsWith("-w") && v.teamId !== "upw");
+    const venues = draftPoolVenues(this.settings.pool);
     const list = venues.length ? venues : draftMatchVenues();
     return list[Math.floor(this.random() * list.length)]?.teamId ?? "mi";
   }

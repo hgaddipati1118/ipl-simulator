@@ -9,6 +9,7 @@ import { chooseAiPick, getCurrentSeatId, getSquad } from "@ipl-sim/engine";
 import type { DraftRoomView } from "../multiplayer/draft-room";
 import type { DraftRoomSettings, DraftRoomMember, DraftSeries } from "../multiplayer/protocol";
 import { DRAFT_MATCH_POOLS, draftMatchCountries, draftMatchVenues, type DraftMatchLineup } from "../draft-pools";
+import { MULTIPLAYER_LEAGUES } from "../multiplayer/leagues";
 import { DraftBoard, type SeatStyle } from "./DraftBoard";
 import { LineupEditor, DraftMatchViewer, MatchResultCard } from "./DraftMatchParts";
 
@@ -119,7 +120,8 @@ export function DraftRoom({ view, myPeerId, actions }: { view: DraftRoomView; my
               </>
             ) : (
               <>
-                <Select label="League" value={s.league} disabled={!set} onChange={v => set?.({ league: v as "ipl" | "wpl" })} options={[["ipl", "IPL (10 teams)"], ["wpl", "WPL (5 teams)"]]} />
+                <Select label="League" value={s.league} disabled={!set} onChange={v => set?.({ league: v as DraftRoomSettings["league"] })}
+                  options={MULTIPLAYER_LEAGUES.map(l => [l.id, `${l.short} (${l.teams} teams)`] as [string, string])} />
                 <Select label="Draft order" value={s.order} disabled={!set} onChange={v => set?.({ order: v as "random" | "listed" })} options={[["random", "Random"], ["listed", "As listed below"]]} />
               </>
             )}
