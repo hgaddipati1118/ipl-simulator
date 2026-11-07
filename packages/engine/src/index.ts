@@ -265,3 +265,7 @@ export { FIELDING_PROGRESSION } from "./fielding-progression-model.js";
 export { generatePlayer, generatePlayers, assignPotential, roleClassOfPlayer, roleOfClass, regionOf, sampleRatings, ROLE_CLASSES, TALENT_SD } from "./player-generator.js";
 export type { GeneratePlayerOptions, GenerationKind, RoleClass, Region } from "./player-generator.js";
 export { generateName, isRealName, nameGroupOf, normaliseName } from "./names.js";
+
+// Model commentary for instantly simulated matches, generated when a match is viewed (docs/COMMENTARY.md section 9)
+export { attachCommentaryCues, withModelCommentary } from "./instant-commentary.js";
+export type { CommentaryCues, BallCommentaryCue, DetailedWithCues } from "./instant-commentary.js";

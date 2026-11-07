@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { GameState } from "../game-state";
 import { getMatchDetail } from "../match-db";
@@ -7,6 +7,8 @@ import { PlayerLink } from "../components/PlayerLink";
 import { WormChart } from "../components/WormChart";
 import { getDrsVerdict, getDrsVerdictLabel } from "../drs-utils";
 import { oversLabel } from "../ui-utils";
+import { ensureCommentaryModel } from "../commentary-loader";
+import { hasCommentaryModel, withModelCommentary } from "@ipl-sim/engine";
 import type {
   DetailedMatchResult,
   InningsScorecard,
@@ -62,6 +64,20 @@ export function MatchPage({ state }: Props) {
       setIdbLoading(false);
     });
   }, [idx, state.seasonNumber, !!immediateDetailed, !!match]);
+
+  // Model commentary for instantly simulated matches is written only when the commentary is opened (instant-commentary.ts)
+  const [modelReady, setModelReady] = useState(() => hasCommentaryModel());
+  useEffect(() => {
+    if (!commentaryOpen || modelReady) return;
+    let live = true;
+    void ensureCommentaryModel().then(ok => { if (live && ok) setModelReady(true); });
+    return () => { live = false; };
+  }, [commentaryOpen, modelReady]);
+  const loadedDetailed = immediateDetailed ?? idbDetail;
+  const commentaryDetailed = useMemo(
+    () => (loadedDetailed && commentaryOpen && modelReady ? withModelCommentary(loadedDetailed) : loadedDetailed),
+    [loadedDetailed, commentaryOpen, modelReady],
+  );
 
   if (!schedule || !match) {
     return (
@@ -130,7 +146,7 @@ export function MatchPage({ state }: Props) {
     : { id: detailed.homeTeamId, shortName: homeTeam?.shortName ?? "HOM", primaryColor: homeTeam?.config.primaryColor ?? "#004BA0" };
 
   const activeInnings = activeTab === 1 ? detailed.innings1 : detailed.innings2;
-  const activeBalls = detailed.ballLog.filter(b => b.innings === activeTab);
+  const activeBalls = (commentaryDetailed ?? detailed).ballLog.filter(b => b.innings === activeTab);
 
   // Group balls by over for commentary
   const overGroups = groupByOver(activeBalls);

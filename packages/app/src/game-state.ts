@@ -10,7 +10,7 @@ import {
   DEFAULT_RULES,
   generateAITradeOffers, processTradeOffer, executeTrade,
   generateSchedule, simulateNextMatch, getStandings,
-  progressPlayoffs, applyLiveResult,
+  progressPlayoffs, applyLiveResult, attachCommentaryCues, genderOf,
   EXTRA_LEAGUES, isOverseasIn, isWomenLeague, type LeagueDef,
   serializeMatchResult, healInjuries, simulateMatch, calculateMVPPoints,
   initAuction as engineInitAuction,
@@ -750,6 +750,9 @@ export function playNextMatch(state: GameState): {
 
   // Capture detailed result before it's lost
   const detailed = rawResult.detailed;
+  // Cues for the model commentary the match page writes when this match is viewed (cheap: no text is generated here)
+  const cueTeams = teams.filter(t => t.id === rawResult.homeTeamId || t.id === rawResult.awayTeamId);
+  attachCommentaryCues(rawResult, cueTeams.flatMap(t => t.roster), genderOf(state.rules));
 
   // Strip the heavy `detailed` field from the schedule entry's result
   // to keep in-memory / localStorage footprint small.
