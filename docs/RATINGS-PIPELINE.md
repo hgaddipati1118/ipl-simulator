@@ -726,3 +726,66 @@ generated players are unaffected. `src/pipeline/fielding-model.ts` maps the CSV 
 (`RATINGS_OUT_DIR=<dir>` redirects the generator's JSON outputs away from `data/scraped` when experimenting). A full regeneration re-reads every
 source on disk and moves unrelated ratings, so the committed files were produced by `patch-fielding.ts`, which adds only the two fields.
 `getRealPlayers()` now also marks a player a keeper when the ESPN data does (it used to rely only on its short curated list).
+
+### Fielding and keeping progression
+
+`Player.progress()` used to move only the eight core ratings. The fielding and keeping ratings now age too, on curves fitted from the same Cricsheet
+fielding innings. From `packages/ratings` (after `fielding-stats.sql` and `fielding-ratings.py`):
+
+    python3 -I src/analysis/fielding-progression.py   # age curves -> engine/src/fielding-progression-model.ts (~10 s)
+    python3 -I src/analysis/fielding-generation.py    # distributions for generated players -> engine/src/fielding-generation-model.ts
+
+New outputs (nothing existing is touched): `packages/engine/src/fielding-progression-model.ts`, `fielding-generation-model.ts`,
+`src/__tests__/fixtures/fielding-progression-cohort.json`, and in `data/analysis/`: `fielding_player_seasons.csv` (a 0-99 fielding and keeping value per
+player-season, same shrinkage and scale as the career ratings), `fielding_progression.json`, `fielding-progression-report.md` (bin tables,
+slopes with standard errors, variance decomposition, held-out check), `fielding_generation.json`.
+
+**Data.** 14,502 fielding and 1,686 keeping player-seasons of the 2,154 players for whom a birth date is known (CricketArchive, through the Cricsheet
+register): regulars of the big leagues, which is the population that matters. Seasons are calendar years with 10+ fielding (8+ keeper) innings.
+
+**Method.** The obvious delta (next season's rating minus this season's, by age) is biased here: last season's ratio is noisy, and because a player's
+expected catches are his teammates' catches in the same innings, they fall when he takes more, so the ratio's mean is biased up and the naive
+delta shows a decline at every age (-3 to -5 points a season at 22-26). The shrunk season ratings are also attenuated by their reliability.
+Both are avoided with a player fixed-effects Poisson model, `O(i,t) ~ Poisson(E(i,t) exp(alpha_i + g(age)))`: a player's own level `alpha_i` is
+profiled out (his total is the sufficient statistic, so thin and lucky seasons do no harm), `g` is the age profile, and the expected change into age `a`
+is `g(a) - g(a-1)`. Catching and run-outs (fielding) and stumpings, keeper catches and byes (keeping) each get a profile, combined with the weights and
+scale of the rating (14 points per SD of true skill). Bins of two years of age; standard errors by bootstrap over players (80 resamples). The profile is
+then smoothed with a two-segment line (a peak age, a slope before, a slope after) fitted by precision-weighted least squares to the bins with 40+
+player-seasons, the slopes are shrunk toward their prior by empirical Bayes (prior sd 1.0 point a year for fielding, 0.8 for keeping), and women's curve
+is pulled toward the men's in proportion to its precision.
+
+**Results** (rating points per season, age after the coming birthday):
+
+| | peak age | before | after | s.e. of the slope | notes |
+|---|---|---|---|---|---|
+| fielding, men | 28 | +0.01 | **-1.24** | 0.20 (raw -1.29) | level at 33-34 is -8.6 points below 27-28 (s.e. 1.9), at 39+ -14 |
+| fielding, women | 27 | +0.70 | -1.25 | 0.66 (raw -1.81, men's curve pulled in 58%) | about 900 player-seasons; far noisier |
+| keeping, men | 28 | -0.22 | -0.59 | 4.3 (raw +0.19) | not identifiable: about 650 player-seasons, bins have s.e. 8-16 points |
+| keeping, women | 25 | +0.16 | -0.50 | | 130 player-seasons |
+
+The keeping prior is half the fielding slope (judgement: the same reflexes and legs, but the data cannot tell); with a raw slope of +0.19 +- 4.3 the data neither
+confirm nor contradict it, and the unshrunk keeping curve predicts a held-out half of the keepers worse than no ageing at all (RMS error 9.4 against 8.1 points), which is
+why it is shrunk. Fielding men's curve predicts the held-out half's age profile with an RMS error of 1.9 points against 4.7 for no ageing; for women (7 to 150
+player-seasons per bin) 8.3 against 9.7.
+
+**Spread.** The sd of a season's *persistent* change comes from the autocovariance of a player's season deviations from his own level (Poisson noise
+removed, and the negative covariance that removing a player's mean creates subtracted): there is almost nothing left over (excess covariance one season apart
++1.7 points^2 men, +3.4 women against a luck variance of 137 and 109 points^2 per season), so real year-to-year movement beyond the age curve
+is small and the data cannot separate it from luck. The sd is therefore the persistent-innovation estimate floored at 1.5 points: fielding 1.6 (men), 2.26
+(women), keeping 1.5. **Reversion** to 50 is chosen from stationarity, not fitted: innovations of sd s and a spread of true skill of 14 points are only compatible if
+a fraction `s^2 / (2 * 14^2)` of the distance to 50 is given back each season (0.007 men, 0.013 women): negligible, kept for correctness.
+
+**Validation** (`fielding-progression-validation.ts`, tested in `fielding-value-progression.test.ts`): `Player.progress()` is run forward for players starting
+at ages 22, 25, 28, 31 and 34 over 1, 3 and 5 seasons and the mean change compared with the real age profile (the unsmoothed bin profile, with its s.e.). All
+60 cells agree within two standard errors plus 1.5 points; men's fielding five-season changes are within 1.6 points of the real ones on average (real / simulated:
+28 -> 33: -7.4 / -6.0, 31 -> 36: -6.5 / -6.2, 34 -> 39: -4.3 / -6.2). The 20-season league-balance test is unchanged.
+
+### Fielding and keeping for generated players
+
+`fielding-generation.py` takes the game's rated players (`game_players.json`, joined to `fielding_ratings.csv` by the Cricinfo id inside `espn_<id>`; 20+ fielding
+innings, keepers 8+ keeper innings) and records, per gender and role class, the quantiles of the fielding rating (men: batters 52 median, keepers 50, all-rounders 53,
+pace and spin 45) and, for keepers, of the keeping rating (men 52 mean, n=159; women 56, n=40). Fielding follows quality a little (normal score regressed on the stratum-centred
+batting overall / 20 and bowling overall / 20: +0.31 and -0.05, residual sd 0.98), keeping is independent of fielding (r = 0.02). `sampleFieldingRatings` (`player-generator.ts`) draws
+from these; non-keepers get no keeping rating, as in the real data. It runs on its own stream, seeded from the generated player, so adding it did not change any other draw of a seeded
+generation.
+

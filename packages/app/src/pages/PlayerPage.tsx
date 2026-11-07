@@ -526,6 +526,12 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
             <div className="flex gap-3">
               <span className="text-orange-300/70 text-xs font-display">BAT <span className="stat-num font-bold">{scoutingView.batting.display}</span></span>
               <span className="text-purple-300/70 text-xs font-display">BWL <span className="stat-num font-bold">{scoutingView.bowling.display}</span></span>
+              {scoutingView.keeping && player.isWicketKeeper && (
+                <span className="text-cyan-300/80 text-xs font-display" title="Wicketkeeping rating">KPG <span className="stat-num font-bold">{scoutingView.keeping.display}</span></span>
+              )}
+              {scoutingView.fielding && (
+                <span className="text-emerald-300/70 text-xs font-display" title="Fielding rating">FLD <span className="stat-num font-bold">{scoutingView.fielding.display}</span></span>
+              )}
             </div>
           </div>
           {!scoutingView.exactRatings && (
@@ -600,6 +606,53 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
               );
             })}
           </div>
+
+          {/* Fielding and keeping: same scouting rules as the other attributes */}
+          {(scoutingView.fielding || scoutingView.keeping) && (
+            <div
+              className={`mt-5 rounded-xl border px-3 py-3 ${player.isWicketKeeper && scoutingView.keeping ? "border-cyan-500/30 bg-cyan-500/[0.06]" : "border-th bg-th-raised"}`}
+              data-testid="fielding-panel"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] text-th-faint uppercase tracking-wider font-display">
+                  {player.isWicketKeeper && scoutingView.keeping ? "Wicketkeeping and fielding" : "Fielding"}
+                </div>
+                {scoutingView.exactRatings && player.fieldingBonus !== 0 && (
+                  <div
+                    className="text-[10px] font-display text-th-muted"
+                    title="What fielding and keeping add to the player's market value, in points of overall"
+                  >
+                    worth <span className={`stat-num font-bold ${player.fieldingBonus > 0 ? "text-emerald-400" : "text-red-400"}`}>{player.fieldingBonus > 0 ? "+" : ""}{player.fieldingBonus.toFixed(1)}</span> ovr in value
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                {scoutingView.keeping && player.isWicketKeeper && (
+                  <div className="flex items-center gap-3" data-testid="keeping-row">
+                    <span className="text-cyan-200 text-sm font-display font-semibold w-24 flex-shrink-0">Keeping</span>
+                    <div className="flex-1 h-3 bg-th-raised rounded-full overflow-hidden" role="progressbar" aria-valuenow={scoutingView.keeping.barValue} aria-valuemin={0} aria-valuemax={99} aria-label="Keeping rating">
+                      <div className={`h-full rounded-full ${attrBarColor(scoutingView.keeping.barValue)} transition-all duration-500`} style={{ width: `${scoutingView.keeping.barValue}%` }} />
+                    </div>
+                    <span className={`stat-num text-base font-bold min-w-[44px] text-right ${attrTextColor(scoutingView.keeping.barValue)}`}>{scoutingView.keeping.display}</span>
+                  </div>
+                )}
+                {scoutingView.fielding && (
+                  <div className="flex items-center gap-3" data-testid="fielding-row">
+                    <span className="text-th-muted text-xs font-display w-24 flex-shrink-0">Fielding</span>
+                    <div className="flex-1 h-2 bg-th-raised rounded-full overflow-hidden" role="progressbar" aria-valuenow={scoutingView.fielding.barValue} aria-valuemin={0} aria-valuemax={99} aria-label="Fielding rating">
+                      <div className={`h-full rounded-full ${attrBarColor(scoutingView.fielding.barValue)} transition-all duration-500`} style={{ width: `${scoutingView.fielding.barValue}%` }} />
+                    </div>
+                    <span className={`stat-num text-sm font-bold min-w-[44px] text-right ${attrTextColor(scoutingView.fielding.barValue)}`}>{scoutingView.fielding.display}</span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 text-[10px] text-th-faint leading-4">
+                {player.isWicketKeeper && scoutingView.keeping
+                  ? "Keeping: byes, stumpings and catches behind. Fielding: catching, ground fielding and run-out threat. 50 is average."
+                  : "Catching, ground fielding and run-out threat. 50 is average."}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Season Stats Card */}

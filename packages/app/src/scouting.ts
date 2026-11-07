@@ -79,6 +79,10 @@ export interface PlayerScoutingView {
   ageDisplay: string;
   ageSortValue: number;
   marketValue: ScoutedMarketValueView;
+  /** Catching, ground fielding, run-out threat; absent when the player has no fielding rating. Same visibility as the other ratings. */
+  fielding?: ScoutedNumericView;
+  /** Wicketkeeping (byes, stumpings, catches behind): designated keepers, and anyone with a keeping rating. */
+  keeping?: ScoutedNumericView;
   strengths: string[];
   concerns: string[];
   attributes: {
@@ -574,6 +578,8 @@ function buildStrengths(
   bowling: ScoutedNumericView,
   attributes: PlayerScoutingView["attributes"],
   confidence: number,
+  fielding?: ScoutedNumericView,
+  keeping?: ScoutedNumericView,
 ): string[] {
   if (confidence < 52) {
     return ["Reports are thin. Treat this read as a rough market impression only."];
@@ -586,6 +592,8 @@ function buildStrengths(
     { label: "Control profile looks reliable.", value: Math.round((attributes.economy.sortValue + attributes.accuracy.sortValue) / 2) },
     { label: "Moves well and adds value between wickets.", value: attributes.running.sortValue },
     { label: "Handles pressure moments well.", value: attributes.clutch.sortValue },
+    ...(fielding ? [{ label: "Safe hands and a strong arm in the field.", value: fielding.sortValue + 4 }] : []),
+    ...(keeping && player.isWicketKeeper ? [{ label: "Clean gloves behind the stumps.", value: keeping.sortValue + 4 }] : []),
     { label: `Projects as a ${qualityLabel(overall.sortValue).toLowerCase()} ${roleSummary(player.role)}.`, value: overall.sortValue },
     { label: batting.sortValue >= bowling.sortValue ? "Batting output is the bigger carrying tool." : "Bowling output is the bigger carrying tool.", value: Math.max(batting.sortValue, bowling.sortValue) },
   ];
@@ -597,7 +605,9 @@ function buildStrengths(
     .map(note => note.label);
 }
 
-function buildConcerns(player: Player, confidence: number, batting: ScoutedNumericView, bowling: ScoutedNumericView): string[] {
+function buildConcerns(
+  player: Player, confidence: number, batting: ScoutedNumericView, bowling: ScoutedNumericView, keeping?: ScoutedNumericView,
+): string[] {
   const notes: string[] = [];
   if (confidence < 52) {
     notes.push("The scouting sample is still thin enough that role fit could move.");
@@ -613,6 +623,9 @@ function buildConcerns(player: Player, confidence: number, batting: ScoutedNumer
   }
   if (player.role !== "batsman" && bowling.sortValue < 58) {
     notes.push("Bowling floor still looks volatile.");
+  }
+  if (player.isWicketKeeper && keeping && keeping.sortValue < 42) {
+    notes.push("Keeping looks shaky: expect byes and chances going down.");
   }
 
   return notes.slice(0, 3);
@@ -807,14 +820,18 @@ export function getPlayerScoutingView(
       buildNumericView(player.ratings[key], confidence, `${player.id}:${key}`),
     ]),
   ) as PlayerScoutingView["attributes"];
+  const fielding = typeof player.ratings.fielding === "number"
+    ? buildNumericView(player.ratings.fielding, confidence, `${player.id}:fielding`, 5, 99) : undefined;
+  const keeping = typeof player.ratings.keeping === "number" && (player.isWicketKeeper || player.ratings.keeping > 0)
+    ? buildNumericView(player.ratings.keeping, confidence, `${player.id}:keeping`, 5, 99) : undefined;
   const overall = buildNumericView(player.overall, confidence, `${player.id}:overall`);
   const batting = buildNumericView(player.battingOvr, confidence, `${player.id}:batting`);
   const bowling = buildNumericView(player.bowlingOvr, confidence, `${player.id}:bowling`);
   const age = ageBand(player.age, confidence);
   const quality = qualityLabel(overall.sortValue);
   const marketValue = buildMarketValueView(player.marketValue, confidence, `${player.id}:market`);
-  const strengths = buildStrengths(player, overall, batting, bowling, attributes, confidence);
-  const concerns = buildConcerns(player, confidence, batting, bowling);
+  const strengths = buildStrengths(player, overall, batting, bowling, attributes, confidence, fielding, keeping);
+  const concerns = buildConcerns(player, confidence, batting, bowling, keeping);
   const label = confidenceLabel(confidence);
   const summary = exactRatings
     ? `${quality} ${roleSummary(player.role)}. Internal staff have a complete read on this player.`
@@ -836,6 +853,8 @@ export function getPlayerScoutingView(
     ageDisplay: age.display,
     ageSortValue: age.sortValue,
     marketValue,
+    fielding,
+    keeping,
     strengths,
     concerns,
     attributes,

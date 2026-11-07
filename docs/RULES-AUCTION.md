@@ -164,6 +164,15 @@ function decideBid(team, player, currentBid): BidDecision {
 }
 ```
 
+**As implemented** (`packages/engine/src/auction.ts`): each CPU team's bid probability is `(1 - currentBid / value)` scaled by the
+age, domestic, roster-size, over-bidding and budget-reserve factors above, where `value = max(marketValue, basePrice)`. `marketValue`
+(`player.ts`, `calculateMarketValue`) is built from the overall **plus what fielding and keeping are worth** (section 9). Squad need for
+a wicketkeeper is explicit: a team with no keeper bids at 1.7x the probability and values a keeper at 1.2x his market value; when the
+keepers left in the pool are no more than the teams without one, the other teams sit out the bidding for them (`keeperNeed`), and a last
+pass gives any team still without a keeper one from the unsold, or from a team with a spare, releasing its cheapest non-keeper if the
+squad, the overseas places or the budget would otherwise stop it. The step-by-step auction (`cpuBidRound`, `AuctionState.keepersLeft`) applies
+the same rules.
+
 ---
 
 ## 6. Team Composition Targets
@@ -245,6 +254,7 @@ interface AuctionState {
 See TESTING-STRATEGY.md Phase 2A and 2B for complete test specifications.
 
 ### Key Invariants to Test
+0. Every team ends the auction with a wicketkeeper (tests: `fielding-value-progression.test.ts`)
 1. No team exceeds salary cap after auction
 2. All teams have 18-25 players after auction
 3. No team has >8 overseas players
@@ -253,3 +263,87 @@ See TESTING-STRATEGY.md Phase 2A and 2B for complete test specifications.
 6. Retained players correctly excluded from auction pool
 7. Accelerated rounds correctly reduce base prices
 8. CPU AI doesn't make illegal bids (over budget, over roster limit)
+
+---
+
+## 9. What fielding and keeping are worth (market value, retention, trades, draft)
+
+`PlayerRatings.fielding` and `.keeping` (RULES-MATCH.md section 11) used to move wins but not prices. They now enter a player's value as
+points of overall, so a better fielder or keeper costs more, consistently with how batting and bowling overall map to value.
+
+### How much a rating point is worth in runs (measured in the engine)
+
+`packages/engine/src/__tests__/benchmark-fielding-value.ts` simulates IPL matches between the ten real squads (40,000 per condition, same
+match seeds) with the fielding side's whole squad shifted and reads the runs the opposition scores per innings:
+
+| change to the fielding side | runs conceded per innings | win probability |
+|---|---|---|
+| fielding of every player -30 | +7.04 | -8.3 points |
+| fielding of every player +30 | -7.67 | +8.4 |
+| keeping of the keeper -30 | +0.77 | -0.1 (noise) |
+| keeping of the keeper +30 | -0.95 | +0.7 |
+| batting of every player -10 (all four batting attributes) | -13.6 own runs | -16.6 |
+| batting of every player +10 (stars clip at 99) | +7.8 own runs | +10.2 |
+| bowling of every player -10 | +7.5 | -6.5 |
+| bowling of every player +10 | -8.0 | |
+
+(30,000 matches for the batting and bowling rows; the standard error of a runs figure is about 0.2.) Linear and symmetric for
+fielding and keeping, so per player and rating point:
+
+- **Fielding**: 7.4 runs / 30 points / 11 fielders = **0.0224 runs per match per point** (a fielder at 80 against one at 48: 0.7 runs a
+  match, about 10 a season). The mechanisms are the team's runs saved, who takes the catches and run-outs, and the keeper's catches.
+- **Keeping**: 0.86 / 30 = **0.0287 runs per match per point** of the one keeper (70 against 50: 0.57 runs a match). Noisier: the standard
+  error of this row is about 0.2 of 0.86.
+- **Batting and bowling overall**, team-wide: about 1.07 runs per innings per overall point of batting and 0.77 for bowling. A regular
+  top-six batter faces about 15% of the balls, a front-line bowler bowls 20% of the overs, so one overall point of a regular is worth
+  about **0.155 runs per match** in either discipline.
+
+### Pricing
+
+A fielding point is worth 0.0224 / 0.155 = **0.145 overall points**, a keeping point 0.0287 / 0.155 = **0.185** (`FIELDING_OVR_PER_POINT`,
+`KEEPING_OVR_PER_POINT` in `fielding.ts`):
+
+```
+bonus = 0.145 * (fielding - 48)  +  (designated keeper ? 0.185 * (keeping - 50) : 0)      clamped to [-6, +9]
+valueOverall = overall + bonus
+```
+
+The bonus is added to the overall before the quality curve of `calculateMarketValue`, so a fielder or keeper is priced exactly like a
+batter or bowler of that many more (or fewer) overall points. It is not shown as the overall and does not pick the XI. Pivots: fielding 48
+(the neutral point of the engine, a little under 50 because bowlers rate lower) and keeping 50 (an average keeper, also the mean of the keepers in
+the pool, most of whom have no record and sit at 50). Players without the ratings get a zero bonus and their old price. Only designated keepers
+are paid for keeping: for anyone else it is a rating no match uses.
+
+Where it is used: `Player.marketValue` (the auction order, the CPU bidding value, RTM decisions, the free-agent price), `tradeValue` in
+`trade.ts` (`valueOverall` instead of `overall`), CPU retention (`retainPlayers` keeps the highest `valueOverall`; the slot costs and the
+capped / uncapped rule still use the shown overall), the draft board (`DraftPlayer.fieldingBonus`, added to the overall in the draft AI's score). The
+multiplayer host's CPU bidding reads `marketValue`, so it follows.
+
+### Effect on the market (60 seeds, `benchmark-auction-value.ts`)
+
+Real data: the ten squads retain with the CPU rule, their other players join a random 40% of the 5,300 unsigned players in the pool (a
+different sample per seed, the same for both engines), then `runAuction`. Before = the engine as of the previous commit, after = this one.
+
+| | before | after |
+|---|---|---|
+| market value of the 232 rostered players (total / top 20 / top 100) | 2739.8 / 381.3 / 1588.0 Cr | 2753.7 / 392.8 / 1620.1 Cr (+0.5%) |
+| total spend per team, retention + auction, mean (Cr) | csk 130.0, dc 129.1, gt 130.2, kkr 129.5, lsg 130.1, mi 129.9, pbks 129.9, rcb 129.2, rr 129.7, srh 127.8 | csk 130.2, dc 128.5, gt 130.3, kkr 130.1, lsg 130.2, mi 130.3, pbks 130.1, rcb 129.2, rr 129.9, srh 127.9 |
+| total spend, all teams | 1295.4 Cr | 1296.6 Cr (+0.1%) |
+| price distribution of auction buys (p50 / p90 / p99) | 1.10 / 10.16 / 17.32 Cr | 0.82 / 9.43 / 18.13 Cr |
+| teams ending without a keeper | 0 of 600 | 0 of 600 |
+| keeping of the best keeper per team | 60.1 | 61.7 |
+| keepers rated 65+ bought per seed (mean price / market value ignoring keeping) | 1.2 (0.23) | 2.3 (0.79) |
+
+Spend per team is bounded by the 120 Cr purse (every team spends about all of it), so what moves is who gets bought: good fielders and keepers
+go for more, poor ones for less, a few price changes of a Cr or two at the top. Top-20 most expensive players (mean price over the seeds in which
+they were bought; Cr; fielding rating in brackets):
+
+| before | after |
+|---|---|
+| Maaz Sadaqat 18.70 (50), Vaibhav Sooryavanshi 18.20 (35), Harry Brook 17.82 (59), Ayush Mhatre 17.32 (43), Hardik Pandya 17.16 (61), Venkatesh Iyer 16.23 (44), Lalit Yadav 16.11 (75), Shadab Khan 15.97 (58), Dipendra Singh Airee 15.01 (62), Priyansh Arya 14.82 (49), Lhuan-dre Pretorius 14.81 (42, WK 56), Sai Sudharsan 14.55 (37), Saim Ayub 14.48 (50), Rahul Tewatia 14.19 (47), Yuvraj Chaudhary 14.19, Salil Arora 14.00 (35, WK 50), Kartik Sharma 13.92 (40, WK 50), Tom Curran 13.61 (48), Riyan Parag 13.44 (60), Rachin Ravindra 13.37 (49) | Hardik Pandya 18.62 (61), Lalit Yadav 18.58 (75), Maaz Sadaqat 18.24 (50), Harry Brook 18.13 (59), Lhuan-dre Pretorius 17.23 (42, WK 56), Shadab Khan 16.93 (58), Dipendra Singh Airee 16.57 (62), Chris Green 16.50 (71), Ayush Mhatre 16.43 (43), Vaibhav Sooryavanshi 16.40 (35), Riyan Parag 15.75 (60), Venkatesh Iyer 15.58 (44), Akash Vasisht 15.47 (61), Kieron Pollard 15.19 (67), Yashasvi Jaiswal 14.51 (53), Priyansh Arya 14.38 (49), Saim Ayub 14.08 (50), Sanju Samson 14.07 (53, WK 31), Gerhard Erasmus 13.93 (74), Yuvraj Chaudhary 13.72 |
+
+(The unsigned pool is dominated by players with 85+ overall at 15-20 Cr market values, so a handful of Cr moves the order a lot; the
+means over 60 different pools are what to read, not any one auction.) The same effect is tested in `fielding-value-progression.test.ts`:
+total spend, total market value and the average top-20 price stay within 3-5% of what they are with the ratings stripped from the same
+players, and every team ends with a keeper, including when the pool holds only 11 keepers for 10 teams.
+

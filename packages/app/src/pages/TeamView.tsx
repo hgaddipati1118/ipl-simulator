@@ -192,6 +192,8 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
                   tone="text-th-secondary"
                 />
                 <MiniStat label="Age" value={scoutingView.ageDisplay} />
+                {scoutingView.fielding && <MiniStat label="FLD" value={scoutingView.fielding.compactDisplay} tone="text-emerald-300" />}
+                {scoutingView.keeping && p.isWicketKeeper && <MiniStat label="KPG" value={scoutingView.keeping.compactDisplay} tone="text-cyan-300" />}
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
@@ -214,6 +216,8 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
                 <th className="text-center px-2 py-3">OVR</th>
                 <th className="text-center px-2 py-3">BAT</th>
                 <th className="text-center px-2 py-3">BWL</th>
+                <th className="text-center px-2 py-3 hidden lg:table-cell" title="Fielding rating">FLD</th>
+                <th className="text-center px-2 py-3 hidden lg:table-cell" title="Wicketkeeping rating (keepers)">KPG</th>
                 <th className="text-center px-2 py-3">Role</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Style</th>
                 <th className="text-center px-2 py-3 hidden sm:table-cell">Age</th>
@@ -256,6 +260,8 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
                   </td>
                   <td className="text-center px-2 py-2.5 stat-num text-orange-300/70 text-sm">{scoutingView.batting.compactDisplay}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-purple-300/70 text-sm">{scoutingView.bowling.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-emerald-300/60 text-sm hidden lg:table-cell">{scoutingView.fielding?.compactDisplay ?? "-"}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-cyan-300/80 text-sm font-semibold hidden lg:table-cell">{p.isWicketKeeper ? scoutingView.keeping?.compactDisplay ?? "-" : ""}</td>
                   <td className="text-center px-2 py-2.5 text-th-muted text-xs font-display">{roleLabel(p.role)}</td>
                   <td className="text-center px-2 py-2.5 text-purple-400/60 text-[10px] font-display font-semibold hidden sm:table-cell">{scoutingView.showStyleDetails ? bowlingStyleLabel(p.bowlingStyle) : scoutingView.confidenceLabel}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden sm:table-cell">{scoutingView.ageDisplay}</td>

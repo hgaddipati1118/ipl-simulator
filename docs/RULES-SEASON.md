@@ -212,6 +212,12 @@ change = mean(age, level, last season's change, seasons of evidence, kind) + sd(
   individual noise per attribute. Each player's `ratingHistory` keeps one entry per season (overall, batting, bowling, age;
   25 seasons) for the "ratings over time" chart.
 - All draws come from an RNG derived from `GameState.worldSeed` and the season number, so a seed reproduces a career.
+- **Fielding and keeping** (when a player has the ratings; absent stays absent) age on their own fitted curves (`fielding-progression.ts`,
+  parameters in the generated `fielding-progression-model.ts`; method and numbers in `docs/RATINGS-PIPELINE.md`, "Fielding and keeping
+  progression"): `change = ageEffect(age) - reversion * (rating - 50) + sd * z`, z standard normal, two draws per rating, taken after the
+  eight core draws. Fielding is flat to about 28 and then falls 1.2 points a season (men; women the same after shrinkage), so a 33-year-old
+  loses about 6 points over five seasons; the sd of a season's change is about 1.6 (2.3 women); keeping is too noisy to read off its own data
+  and falls at half the fielding rate (0.6 a season after 28), sd 1.5. Training intensity scales the sd.
 
 ### Retirement probability per season
 Fitted hazard of a real regular never playing T20 again, by the age during the season just played (halved below 30, where
@@ -241,6 +247,10 @@ Generated players are sampled from the real joint distribution of the game's rat
 - **15 fill-in squad players** (age 22-34, any nationality by the usual T20 mix).
 - **2-4 youth academy prospects** (Indian, aged 17-20) with a potential and a scouting grade (Diamond 78+, Gold 71+,
   Silver 64+, Bronze); they enter the auction pool.
+- Every generated player gets a **fielding** rating, keepers also a **keeping** rating (`sampleFieldingRatings`, drawn from the
+  real distribution of the role class and gender, with good batters and bowlers fielding a little better; generated keepers average
+  52 men / 56 women keeping, other players have none). The draw uses a stream of its own seeded from the player, so it does not
+  change any other draw of a seeded generation.
 - Names are drawn from real first and last names of the player's region and gender, mixed so that no generated player shares
   a real person's full name.
 

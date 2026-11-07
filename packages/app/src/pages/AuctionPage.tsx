@@ -342,6 +342,12 @@ export function AuctionPage({
                 <AttributeBar label="Economy" value={currentPlayerView?.attributes.economy.barValue ?? currentPlayer.ratings.economy} valueLabel={currentPlayerView?.attributes.economy.display ?? String(currentPlayer.ratings.economy)} />
                 <AttributeBar label="Accuracy" value={currentPlayerView?.attributes.accuracy.barValue ?? currentPlayer.ratings.accuracy} valueLabel={currentPlayerView?.attributes.accuracy.display ?? String(currentPlayer.ratings.accuracy)} />
                 <AttributeBar label="Clutch" value={currentPlayerView?.attributes.clutch.barValue ?? currentPlayer.ratings.clutch} valueLabel={currentPlayerView?.attributes.clutch.display ?? String(currentPlayer.ratings.clutch)} />
+                {currentPlayerView?.fielding && (
+                  <AttributeBar label="Fielding" value={currentPlayerView.fielding.barValue} valueLabel={currentPlayerView.fielding.display} />
+                )}
+                {currentPlayerView?.keeping && currentPlayer.isWicketKeeper && (
+                  <AttributeBar label="Keeping" value={currentPlayerView.keeping.barValue} valueLabel={currentPlayerView.keeping.display} />
+                )}
               </div>
 
               {currentPlayer.careerStats && currentPlayer.careerStats.m > 0 && (
@@ -556,6 +562,9 @@ export function AuctionPage({
                     <span className={`text-[9px] font-display font-semibold px-1 py-0.5 rounded ${battingPositionColor(player.battingPosition)}`}>
                       {battingPositionLabel(player.battingPosition)}
                     </span>
+                  )}
+                  {player.isWicketKeeper && scoutingView.keeping && (
+                    <span className="text-[9px] text-cyan-300/80 font-display font-semibold" title="Keeping rating">K{scoutingView.keeping.compactDisplay}</span>
                   )}
                   <span className="text-[10px] text-th-faint font-mono stat-num">{scoutingView.marketValue.compactDisplay}</span>
                 </div>

@@ -30,7 +30,7 @@ interface Props {
   onAddToPool?: (player: ExtendedPlayer) => void;
 }
 
-type SortKey = "overall" | "battingOvr" | "bowlingOvr" | "age" | "runs" | "wickets" | "name";
+type SortKey = "overall" | "battingOvr" | "bowlingOvr" | "fielding" | "age" | "runs" | "wickets" | "name";
 type RecruitmentFilter = "all" | "shortlist" | "watchlist";
 
 export function PlayerRatingsPage({
@@ -92,6 +92,7 @@ export function PlayerRatingsPage({
         case "overall": return vb.overall.sortValue - va.overall.sortValue;
         case "battingOvr": return vb.batting.sortValue - va.batting.sortValue;
         case "bowlingOvr": return vb.bowling.sortValue - va.bowling.sortValue;
+        case "fielding": return (vb.fielding?.sortValue ?? -1) - (va.fielding?.sortValue ?? -1);
         case "age": return va.ageSortValue - vb.ageSortValue;
         case "runs": return pb.stats.runs - pa.stats.runs;
         case "wickets": return pb.stats.wickets - pa.stats.wickets;
@@ -279,6 +280,8 @@ export function PlayerRatingsPage({
                 <th className="text-center px-2 py-3 hidden lg:table-cell text-purple-500/40">ECN</th>
                 <th className="text-center px-2 py-3 hidden lg:table-cell text-purple-500/40">ACC</th>
                 <th className="text-center px-2 py-3 hidden lg:table-cell text-cyan-500/40">CLT</th>
+                <SortHeader label="FLD" field="fielding" className="hidden lg:table-cell !text-emerald-500/50" />
+                <th className="text-center px-2 py-3 hidden lg:table-cell text-cyan-500/40" title="Wicketkeeping rating (keepers only)">KPG</th>
                 <SortHeader label="Age" field="age" className="hidden md:table-cell" />
                 <SortHeader label="Runs" field="runs" className="hidden sm:table-cell" />
                 <SortHeader label="Wkts" field="wickets" className="hidden sm:table-cell" />
@@ -399,6 +402,8 @@ export function PlayerRatingsPage({
                   <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.economy.compactDisplay}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-purple-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.accuracy.compactDisplay}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-cyan-400/40 text-sm hidden lg:table-cell">{scoutingView.attributes.clutch.compactDisplay}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-emerald-400/50 text-sm hidden lg:table-cell">{scoutingView.fielding?.compactDisplay ?? "-"}</td>
+                  <td className="text-center px-2 py-2.5 stat-num text-cyan-300/70 text-sm font-semibold hidden lg:table-cell">{p.isWicketKeeper ? scoutingView.keeping?.compactDisplay ?? "-" : ""}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-muted text-sm hidden md:table-cell">{scoutingView.ageDisplay}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.runs}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-th-secondary text-sm hidden sm:table-cell">{p.stats.wickets}</td>
