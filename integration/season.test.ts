@@ -209,11 +209,13 @@ describe("season stat consistency", () => {
     const { result } = setup();
     for (const match of result.schedule) {
       expect(match.result!.innings).toHaveLength(2);
+      // a match washed out by rain (no result) can have a short or unplayed innings
+      const washedOut = match.result!.margin === "No result";
       for (const inn of match.result!.innings) {
         expect(inn.runs).toBeGreaterThanOrEqual(0);
         expect(inn.wickets).toBeGreaterThanOrEqual(0);
         expect(inn.wickets).toBeLessThanOrEqual(10);
-        expect(inn.overs).toBeGreaterThanOrEqual(1);
+        if (!washedOut) expect(inn.overs).toBeGreaterThanOrEqual(1);
         expect(inn.overs).toBeLessThanOrEqual(20);
       }
     }
@@ -221,7 +223,8 @@ describe("season stat consistency", () => {
 
   it("first innings scores are realistic T20 totals", () => {
     const { result } = setup();
-    const firstInningsTotals = result.schedule.map(m => m.result!.innings[0].runs);
+    // (matches shortened or washed out by rain are left out)
+    const firstInningsTotals = result.schedule.filter(m => !m.result!.rain).map(m => m.result!.innings[0].runs);
     const avg = firstInningsTotals.reduce((s, r) => s + r, 0) / firstInningsTotals.length;
     // Average T20 first innings score should be roughly 130-200
     expect(avg).toBeGreaterThan(100);
@@ -631,7 +634,7 @@ describe("season edge cases", () => {
         // "X runs" where X >= 1
         const num = parseInt(margin);
         expect(num).toBeGreaterThanOrEqual(1);
-      } else {
+      } else if (margin !== "No result") {
         expect(margin).toBe("Super Over");
       }
     }

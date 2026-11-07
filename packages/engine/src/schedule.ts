@@ -498,6 +498,7 @@ export function simulateNextMatch(
   const result = simulateMatch(home, away, rules, undefined, {
     neutralVenue: match.isPlayoff,
     countTowardStandings: !match.isPlayoff,
+    rain: true,
   });
 
   match.result = result;
@@ -883,6 +884,7 @@ function playAndPush(
   match.result = simulateMatch(home, away, rules, undefined, {
     neutralVenue: true,
     countTowardStandings: false,
+    rain: true,
   });
   schedule.push(match);
   healAfterMatch(match.result, [home, away]);
@@ -1081,7 +1083,7 @@ export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): Season
   for (const match of schedule) {
     const home = teamMap.get(match.homeTeamId)!;
     const away = teamMap.get(match.awayTeamId)!;
-    match.result = simulateMatch(home, away, rules);
+    match.result = simulateMatch(home, away, rules, undefined, { rain: true });
 
     // One match has passed for the two teams that played
     healAfterMatch(match.result, [home, away]);

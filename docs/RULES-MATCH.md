@@ -550,8 +550,8 @@ in The Hundred). The live engine's rain (its own checks, unchanged) now uses the
 **Results and tables.** A DLS win reads "by 12 runs (DLS method)"; a tie on DLS goes to a super over. A no result is a point each (`ties`, which the
 standings already counted as tie / NR) and is left out of the NRR. When DLS revised the target, the side batting first is credited with the target minus
 one off the overs the chase was given (ICC NRR rule); each side is charged the overs it had. A knockout cannot end without a winner: the higher-placed side
-(the home side of this game's playoff fixtures) goes through. Benchmarks pass `rain: false` (option `MatchOptions.rain`) so innings compare like for like;
-with rain on, 60,000 IPL matches had 2.7% shortened and 0.72% no results, as fitted.
+(the home side of this game's playoff fixtures) goes through. Rain is on for every league and playoff match the season engine plays (`schedule.ts` passes `MatchOptions.rain`); a direct
+`simulateMatch` call (tests, benchmarks) plays a full match unless it asks for rain, so innings compare like for like. With rain on, 60,000 IPL matches had 2.7% shortened and 0.72% no results, as fitted.
 
 ### 13.4 DRS
 

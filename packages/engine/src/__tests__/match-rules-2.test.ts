@@ -125,7 +125,7 @@ describe("rain, DLS and no result in the instant sim", () => {
     withOverrides({ rainNoResult: 1, rainReduced: 0 }, () => {
       const [a, b] = makeTeams(2);
       const before = { aT: a.ties, bT: b.ties, aRF: a.runsFor, bRF: b.runsFor, aB: a.ballsFacedFor };
-      const r = simulateMatch(a, b, rules, 7, { countTowardStandings: true });
+      const r = simulateMatch(a, b, rules, 7, { countTowardStandings: true, rain: true });
       expect(r.rain?.kind).toBe("no_result");
       expect(r.winnerId).toBeNull();
       expect(r.margin).toBe("No result");
@@ -140,7 +140,7 @@ describe("rain, DLS and no result in the instant sim", () => {
   it("a washed-out knockout goes to the higher-placed (home) side", () => {
     withOverrides({ rainNoResult: 1, rainReduced: 0 }, () => {
       const [a, b] = makeTeams(2);
-      const r = simulateMatch(a, b, rules, 9, { countTowardStandings: false });
+      const r = simulateMatch(a, b, rules, 9, { countTowardStandings: false, rain: true });
       expect(r.winnerId).toBe(a.id);
     });
   });

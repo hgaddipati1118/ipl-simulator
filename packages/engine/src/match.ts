@@ -337,7 +337,8 @@ export interface MatchResult {
 }
 
 export interface MatchOptions {
-  /** Rain interruptions, DLS and no results (default true; off makes every match a full one) */
+  /** Rain interruptions, DLS and no results (off by default: the season engine, schedule.ts, turns it on for league and
+   *  playoff matches; a direct call plays a full match unless asked) */
   rain?: boolean;
   neutralVenue?: boolean;
   countTowardStandings?: boolean;
@@ -1884,7 +1885,7 @@ export function simulateMatch(
   const firstBowlSubs = battingFirst === homeTeam ? awaySubs : homeSubs;
 
   // Rain (fitted per league): a full match, a shortened one with a DLS target, or no result
-  const plan = (options?.rain ?? true) ? planRain(rules, rng, fmt) : null;
+  const plan = options?.rain ? planRain(rules, rng, fmt) : null;
   const ipl = rules.league === "ipl";
   const G = DLS_G_T20 * (rules.scoringMultiplier ?? 1) * (fmt.totalBalls / 120);
   const fullOvers = fmt.overs;

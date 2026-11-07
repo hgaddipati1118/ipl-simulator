@@ -296,7 +296,8 @@ describe("Season result integrity", () => {
 
     for (const match of result.schedule) {
       expect(match.result).toBeDefined();
-      expect(match.result!.winnerId).toBeTruthy();
+      // a washed-out group match has no winner (a point each); every knockout has one
+      if (match.isPlayoff || match.result!.margin !== "No result") expect(match.result!.winnerId).toBeTruthy();
     }
   });
 

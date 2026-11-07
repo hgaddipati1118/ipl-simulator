@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { setRuleOverrides } from "../delivery-rules.js";
 import { Team, IPL_TEAMS, WPL_TEAMS } from "../team.js";
 import { Player } from "../player.js";
 import {
@@ -202,7 +203,7 @@ describe("runSeason", () => {
     for (const match of result.schedule) {
       expect(match.result).toBeDefined();
       // a group match can be washed out (a point each); every other match has a winner
-      if (match.result!.margin === "No result") expect(match.isPlayoff).toBeFalsy();
+      if (match.result!.margin === "No result" && !match.isPlayoff) expect(match.result!.winnerId).toBeNull();
       else expect(match.result!.winnerId).toBeTruthy();
     }
   });
@@ -271,6 +272,9 @@ describe("generateSchedule", () => {
 });
 
 describe("simulateNextMatch", () => {
+  // these check one match's bookkeeping: no rain (a washed-out match has no winner; RULES-MATCH.md 13.3)
+  beforeEach(() => setRuleOverrides({ rainNoResult: 0, rainReduced: 0 }));
+  afterEach(() => setRuleOverrides(null));
   it("simulates one match and returns a result", () => {
     const teams = buildTeams();
     const schedule = generateIPLSchedule(teams, 14);
