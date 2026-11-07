@@ -246,7 +246,7 @@ def emit_match(rec, out, stats, name_tokens, team_tokens, per_comp, per_comp_tex
             row = {
                 "m": rec["matchId"], "comp": comp, "season": (rec.get("fixture") or {}).get("startDate", "")[:4], "g": gender,
                 "inn": n, "over": over, "ball": c.get("ballNumber"), "legal": legal, "oc": oc, "tot": total, "bat": bat,
-                "wk": kind, "keeper": bool(keeper),
+                "wk": kind, "keeper": bool(keeper), "out": c.get("outPlayerId"),
                 "shot": c.get("shotType"), "line": c.get("pitchLine"), "len": c.get("pitchLength"),
                 "zone": c.get("wagonZone"), "ctl": c.get("shotControl"),
                 "phase": phase_of(legal, max_balls), "score": score, "wkts": wkts, "crr": round(crr, 2), "rrr": None if rrr is None else round(rrr, 2),

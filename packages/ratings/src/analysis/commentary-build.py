@@ -48,7 +48,7 @@ CONTEXT_RE = re.compile(
     r"\bmilestone\b|\bpartnership\b|\bneeds?\b|\brequired\b|\btarget\b|\bequation\b|\boverseas\b|\bdebut\b|\bcareer\b|"
     r"\bdrs\b|\breview(s|ed)?\b|\bumpire('s)?\b|\bthird[- ]umpire\b|\breplay(s)?\b|\bultra[- ]?edge\b|\bsnicko\b|\bhawk[- ]?eye\b|\bsoft signal\b|"
     r"\bsuper over\b|\bplayer of the\b|\bimpact (player|sub)\b|\bsubstitute\b|\bsub\b|\bbreak\b|\btimeout\b|\bstrategic\b|\binjur|\bphysio\b|\brain\b|\bcovers\b on\b|"
-    r"\bnew (batter|batsman|man|ball|bowler)\b|\bopen(er|ers|ing)\b|\b(two|three|four|five|six|seven|eight|nine|ten|double|triple) (wickets?|overs?|balls? in a|boundaries|sixes|fours|in the over|in an over)\b|\bbrace\b|\b\w+-fer\b|\bwicket[- ]maiden\b|\bhat[- ]trick\b|\b(left|right)[- ]hand(ed|er|ers)?\b|\bleft[- ]arm(er)?\b|\bright[- ]arm(er)?\b|\blefty\b|\brighty\b|\bsouthpaw\b|\bcontinu\w*|\bkeeps?\b|\bgetting\b|\bdo(es)? it\b|\bfirst up\b|\bbigger and bigger\b|\bnow\b|\bfinal\b|\blast\b|\bstarts? off\b|\bopens?\b|\b(his|her) (first|second|third|fourth|fifth)\b|\bbonus\b|\bthis time\b|\b(one|two|three|four|six|yet|any) more\b|\bmore of (the same|that)\b|\bwelcomes?\b|\bfollow(ing|ed|s)\b|\bsuch a\b|\bwhat a\b|\bhere comes\b|\bover to\b|\bcomes? (on|into) (the )?attack\b|\bintroduc|\bbrings? (on|himself|herself|up)\b|\bwelcome\b|\bcheers?\b|\bhello\b|"
+    r"\bnew (batter|batsman|man|ball|bowler)\b|\bopen(er|ers|ing)\b|\b(two|three|four|five|six|seven|eight|nine|ten|double|triple) (wickets?|overs?|balls? in a|boundaries|sixes|fours|in the over|in an over)\b|\bbrace\b|\b\w+-fer\b|\bwicket[- ]maiden\b|\bhat[- ]trick\b|\b(left|right)[- ]hand(ed|er|ers)?\b|\bleft[- ]arm(er)?\b|\bright[- ]arm(er)?\b|\blefty\b|\brighty\b|\bsouthpaw\b|\bcontinu\w*|\bkeeps?\b|\bgetting\b|\bdo(es)? it\b|\bfirst up\b|\bbigger and bigger\b|\bspell\b|\bonce (more|again)\b|\byet again\b|\bonce more\b|\bsame\b|\b(to )?end (of )?the over\b|\bnow\b|\bfinal\b|\blast\b|\bstarts? off\b|\bopens?\b|\b(his|her) (first|second|third|fourth|fifth)\b|\bbonus\b|\bthis time\b|\b(one|two|three|four|six|yet|any) more\b|\bmore of (the same|that)\b|\bwelcomes?\b|\bfollow(ing|ed|s)\b|\bsuch a\b|\bwhat a\b|\bhere comes\b|\bover to\b|\bcomes? (on|into) (the )?attack\b|\bintroduc|\bbrings? (on|himself|herself|up)\b|\bwelcome\b|\bcheers?\b|\bhello\b|"
     r"\bipl\b|\bwpl\b|\bt20\b|\bseason\b|\bcrowd\b|\bstadium\b|\bgrandstand\b|\bsponsor|\bcamera\b|\btv\b|\bbroadcast|\bcommentat|\blive\b|"
     r"\bwe\b|\bour\b|\bus\b|\bi\b|\bi'm\b|\bi'd\b|\byou\b|\byour\b|[?]|[@#]|https?:|\bwww\b|\(|\)|\[|\]|\bquote\b|\"|“|”|;)",
     re.I,
@@ -476,6 +476,9 @@ def main():
         if not ck or not r["text"]:
             continue
         n_text += 1
+        if ck == "W:run_out" and r.get("out") and r["out"] == (r.get("nons") or {}).get("id"):
+            # the non-striker was run out: in the game the dismissed batter is {batter}, his partner {nonstriker}
+            r = dict(r, batter=r["nons"], nons=r["batter"])
         for t in make_templates(r, lex, args.max_len, reasons):
             if not ck.startswith("W:") and NONWICKET_CONTEXT.search(t):
                 reasons["nonwicket_event_word"] += 1

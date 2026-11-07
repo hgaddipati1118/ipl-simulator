@@ -161,7 +161,17 @@ a four never says six; wickets match the dismissal kind; spin/pace vocabulary ma
 the match result is identical with and without the model; distinct lines per match and no corpus line repeated; every name used belongs to
 a player in the match; no real name from the source survives in any template (checked against the game's name pools).
 
-## 6. Known limits
+## 6. Status (when this was written)
+
+- Scraper: measured ~45 matches/hour (about 70 s of page time + 5-11 s pacing per T20, 0 Akamai blocks in the first hours). Planned set is roughly
+  1,250 IPL, ~90 WPL, ~550 World Cup (incl. women's), ~560 T20Is since 2023/24 and ~1,900 league matches since 2021, about 4,300 matches, i.e. around 4 days
+  of scraping; the IPL alone is ~27 hours.
+- The committed model was built from the first 28 matches (IPL 2026, 6,486 balls: 100% with text, 99.4% with shot tags, 100% with line and length):
+  4,156 templates, 0.48 MB raw / 122 KB gzipped. Common outcomes are well covered; rare dismissals (stumped, lbw, run out) and 3s have few lines
+  and fall back to the built-in text (the picker steps aside when fewer than 4 unused lines are left). Regenerate on the full corpus to fill those
+  in; the size budget (`--max-gz-kb`) caps the file at ~1.4 MB gzipped.
+
+## 7. Known limits
 
 - Texts mention things the simulator doesn't model (a crowd, a particular kind of delivery after a field change); the filters remove the
   detectable ones, not all.
