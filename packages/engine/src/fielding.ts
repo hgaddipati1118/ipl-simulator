@@ -28,6 +28,7 @@
 import type { BowlingStyle } from "./player.js";
 import type { RNG } from "./rng.js";
 import { MATCH_RULES_DATA as D } from "./match-rules-data.js";
+import { MATCH_RULES_EXTRA as X } from "./match-rules-extra-data.js";
 import { canDismiss, ruleOverrides, type DismissalKind, type Gender } from "./dismissal-kinds.js";
 import { pickRunOutBatter, pickRunOutFielders, pickRunOutRuns } from "./delivery-rules.js";
 
@@ -41,7 +42,7 @@ export const DEFAULT_NONKEEPER_KEEPING = 25;
 export type WicketKind = Exclude<DismissalKind, "timed_out" | "retired_out">;
 
 /** What happened to a chance, for commentary and the ball log */
-export type FieldingNote = "dropped_catch" | "great_catch" | "missed_stumping" | "run_out_missed" | "direct_hit";
+export type FieldingNote = "dropped_catch" | "great_catch" | "missed_stumping" | "run_out_missed" | "direct_hit" | "misfield" | "six_saved";
 
 export interface FielderLike {
   id: string;
@@ -144,14 +145,14 @@ export function fieldingValueBonus(p: { fielding?: number; keeping?: number; isW
 
 /**
  * Probability that a chance is converted by an average fielder (rated TEAM_FIELDING_PIVOT; an average keeper is 50), and how much each rating point moves
- * it. Catching: ~82% of catchable chances are held at the average, 94% by an 80, 72% by a 25 (the spread of
- * catching ratios in the Cricsheet data is about +-35% between regulars, shrunk). Stumpings are cleaner;
- * run-outs are harder and move more with the fielder's rating.
+ * it. The averages are 1 - the share of chances put down in ESPNcricinfo ball-by-ball commentary (match-rules-extra-data.ts
+ * `fielding`, RULES-MATCH.md section 13.8; CricViz quote a T20 catch efficiency of 75-80%). The slopes keep the old spread: a
+ * catcher 30 points above the pivot holds ~12 points more of his chances, one 25 below ~10 fewer. Run-outs move most with the fielder.
  */
 export const CONV = {
-  catch: { base: 0.82, slope: 0.004, lo: 0.55, hi: 0.97 },
-  stump: { base: 0.90, slope: 0.003, lo: 0.60, hi: 0.99 },
-  runOut: { base: 0.75, slope: 0.005, lo: 0.45, hi: 0.95 },
+  catch: { base: 1 - X.fielding.catchDropShare, slope: 0.004, lo: 0.5, hi: 0.97 },
+  stump: { base: 1 - X.fielding.stumpingMissShare, slope: 0.003, lo: 0.55, hi: 0.99 },
+  runOut: { base: 1 - X.fielding.runOutMissShare, slope: 0.005, lo: 0.15, hi: 0.75 },
 } as const;
 
 /** `pivot`: the rating at which a fielder converts at the average rate (TEAM_FIELDING_PIVOT for fielders, 50 for keeping) */
@@ -232,6 +233,8 @@ export function applyFieldingToProbs(
     const kq = unit.keepingQuality;
     if (kq !== 0 && probs.legbye !== undefined) probs.legbye *= clampN(1 - 0.9 * kq, 0.4, 1.8);
   }
+  // A share of hits for six is saved on the rope (special-plays.ts): the six weight is raised so the sixes that clear the rope stay at the base rate
+  if (probs["6"] !== undefined) probs["6"] /= 1 - X.fielding.sixSavedShare;
   if (probs.wicket !== undefined) {
     // Chances after average conversion must give back exactly the base wicket probability p, with bowled / lbw,
     // the extras and every scoring outcome at its base probability. Chance mass is p*W (W = chanceInflation); the
@@ -271,9 +274,9 @@ export interface FieldingResolution {
   batterOut?: "striker" | "nonStriker";
   runsCompleted?: number;
   note?: FieldingNote;
+  /** A catch in the deep (on or near the boundary rope) */
+  deep?: boolean;
 }
-
-const RESAMPLE: ("dot" | "1" | "2" | "3" | "4" | "6")[] = ["dot", "1", "2", "3", "4", "6"];
 
 export interface ResolveOptions {
   gender?: Gender;
@@ -368,15 +371,39 @@ export function resolveWicketChance(
     return { outcome: "wicket", kind, fielder, fielder2, substitute: substitute || undefined, batterOut, runsCompleted, note };
   }
 
-  // Missed: the batter survives; the ball becomes one of the non-wicket outcomes in proportion to the base mix
-  const entries = RESAMPLE.map(o2 => [o2, Math.max(0, probs[o2] ?? 0)] as const);
-  const sum = entries.reduce((a, [, p]) => a + p, 0) || 1;
-  let y = rng() * sum;
-  let outcome: (typeof RESAMPLE)[number] = "dot";
-  for (const [oc, p] of entries) { y -= p; if (y <= 0) { outcome = oc; break; } }
+  // Missed: the batter survives. What the ball becomes depends on where the chance went (special plays, section 13):
+  // a catch put down on the rope often carries for four or six, one in the ring or behind the stumps is mostly a dot or a single.
+  const isKeeper = !!unit?.keeper && fielder?.id === unit.keeper.id;
+  const deep = kind === "caught" && !isKeeper && rng() < X.fielding.boundaryCatchShare;
+  const outcome = missedChanceOutcome(
+    kind === "stumped" ? "stumping" : kind === "run_out" ? "run_out" : isKeeper ? "catch_keeper" : deep ? "catch_deep" : "catch_ring", rng,
+  );
+  void probs;
   const note: FieldingNote = kind === "stumped" ? "missed_stumping" : kind === "run_out" ? "run_out_missed" : "dropped_catch";
-  return { outcome, kind, fielder, note };
+  return { outcome, kind, fielder, note, ...(deep ? { deep } : {}) };
 }
+
+/**
+ * What a missed chance turns into. A catch put down in the deep often carries for four or six; one put down in the ring
+ * or by the keeper is mostly a dot or a single. A missed stumping is a dot or a single; a missed run out still has the
+ * run(s) completed. (Assumed splits: the commentary describes the drop, rarely the runs after it.)
+ */
+export function missedChanceOutcome(
+  where: "catch_deep" | "catch_ring" | "catch_keeper" | "stumping" | "run_out",
+  rng: RNG,
+): "dot" | "1" | "2" | "3" | "4" | "6" {
+  const t = MISSED[where];
+  let x = rng();
+  for (const [k, v] of t) { x -= v; if (x <= 0) return k; }
+  return t[t.length - 1][0];
+}
+const MISSED: Record<string, readonly (readonly ["dot" | "1" | "2" | "3" | "4" | "6", number])[]> = {
+  catch_deep: [["6", 0.2], ["4", 0.15], ["1", 0.4], ["2", 0.25]],
+  catch_ring: [["dot", 0.55], ["1", 0.37], ["2", 0.08]],
+  catch_keeper: [["dot", 0.6], ["1", 0.15], ["4", 0.2], ["2", 0.05]],
+  stumping: [["dot", 0.75], ["1", 0.25]],
+  run_out: [["1", 0.6], ["2", 0.3], ["3", 0.05], ["dot", 0.05]],
+};
 
 // ── Commentary ──────────────────────────────────────────────────────────
 
@@ -393,16 +420,29 @@ export function fieldingCommentary(
   const pick = (lines: string[]) => lines[Math.floor(rng() * lines.length)];
   switch (res.note) {
     case "dropped_catch": {
+      if (res.deep) {
+        return ctx.runs >= 6
+          ? pick([
+            `${ctx.bowler} to ${ctx.batter}, DROPPED on the rope! ${f} gets both hands to it but it bursts through and over the line. SIX, and a life for ${ctx.batter}.`,
+            `${ctx.bowler} to ${ctx.batter}, ${f} misjudges it in the deep, the ball goes through the fingers and over the rope. Dropped, and six runs!`,
+          ])
+          : ctx.runs === 4
+            ? `${ctx.bowler} to ${ctx.batter}, put down in the deep! ${f} spills it and it trickles over the rope for FOUR.`
+            : pick([
+              `${ctx.bowler} to ${ctx.batter}, skied towards the boundary, ${f} gets under it... and DROPS it! They run ${ctx.runs}.`,
+              `${ctx.bowler} to ${ctx.batter}, a chance in the deep, ${f} comes in, dives, and it pops out. Dropped! ${ctx.runs} run${ctx.runs === 1 ? "" : "s"}.`,
+            ]);
+      }
       const tail = ctx.runs >= 4 ? ` and it races away for ${ctx.runs}` : ctx.runs > 0 ? `, ${ctx.runs} run${ctx.runs > 1 ? "s" : ""}` : "";
       return pick([
         `${ctx.bowler} to ${ctx.batter}, DROPPED! ${f} puts down a straightforward chance${tail}.`,
-        `${ctx.bowler} to ${ctx.batter}, it goes to ${f} and he spills it${tail}! A life for ${ctx.batter}.`,
+        `${ctx.bowler} to ${ctx.batter}, it goes to ${f}, who spills it${tail}! A life for ${ctx.batter}.`,
         `${ctx.bowler} to ${ctx.batter}, edged, ${f} gets a hand to it but can't hold on${tail}.`,
       ]);
     }
     case "missed_stumping": {
       return pick([
-        `${ctx.bowler} to ${ctx.batter}, beaten and out of his crease, but ${f} fumbles the take and the stumping chance is gone!`,
+        `${ctx.bowler} to ${ctx.batter}, beaten and out of the crease, but ${f} fumbles the take and the stumping chance is gone!`,
         `${ctx.bowler} to ${ctx.batter}, down the track, misses, and ${f} can't gather it cleanly. Reprieve!`,
       ]);
     }
@@ -414,7 +454,7 @@ export function fieldingCommentary(
     case "great_catch":
       return pick([
         `${ctx.bowler} to ${ctx.batter}, OUT! What a catch by ${f}! A stunner.`,
-        `${ctx.bowler} to ${ctx.batter}, caught! ${f} flings himself to his right and holds a blinder!`,
+        `${ctx.bowler} to ${ctx.batter}, caught! ${f} flings full length to the right and holds a blinder!`,
       ]);
     case "direct_hit":
       return pick([

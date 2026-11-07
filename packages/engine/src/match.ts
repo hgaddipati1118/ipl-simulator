@@ -64,6 +64,21 @@ import {
   type DismissalKind,
   type Gender,
 } from "./delivery-rules.js";
+import { ruleOverrides } from "./dismissal-kinds.js";
+import {
+  applyGenderExtras,
+  applyOverRatePenalty,
+  applySpecialPlays,
+  beamerSuspensionLine,
+  bowlerInjuryLine,
+  drawOverRatePenalty,
+  overRateLine,
+  specialPlayTail,
+  specialPlayText,
+} from "./special-plays.js";
+import { DRS_REVIEWS_PER_INNINGS, drsAtDismissal, drsAtDot, drsKindOf, drsText, reviewLost, type DrsReview } from "./drs.js";
+import { DLS_G_T20, dlsTarget, inningsResources, resourcesPct } from "./dls.js";
+import { MATCH_RULES_EXTRA } from "./match-rules-extra-data.js";
 
 export type BallOutcome = "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
 
@@ -114,6 +129,24 @@ export interface BallEvent {
   deadBall?: boolean;
   /** The bowler was replaced mid-over (injury) from this ball on */
   bowlerChanged?: boolean;
+  // ── Section 13 plays ──
+  /** Why a no-ball was called */
+  noBallKind?: "front_foot" | "height" | "fielding";
+  /** The no-ball was a beamer */
+  beamer?: boolean;
+  penaltyReason?: "helmet" | "fielding" | "other";
+  /** One short was signalled (a run not counted) */
+  shortRun?: boolean;
+  /** Dead ball: the ball lodged in the batter's helmet / pads (counts as a ball, nothing scored) */
+  lodged?: boolean;
+  /** The catch was taken on the boundary rope (a relay catch also sets fielder2Id: the fielder who parried it) */
+  boundaryCatch?: boolean;
+  /** A catch put down in the deep */
+  deepChance?: boolean;
+  /** A review on this ball (DRS) */
+  review?: DrsReview;
+  /** The fielding side bowled this ball under the slow over-rate restriction (four fielders out) */
+  overRatePenalty?: boolean;
 }
 
 /** A batter who left the innings away from a delivery: timed out, retired out, retired hurt */
@@ -158,6 +191,17 @@ export interface InningsScore {
   superOver?: { batters: string[]; bowler: string };
   /** Balls per over (set) in this innings' format: 6 for T20, 5 for The Hundred. Absent = 6. */
   ballsPerOver?: number;
+  /** The slow over-rate restriction applied from this over (0-based) */
+  overRatePenaltyFrom?: number;
+  /** Reviews left at the end of the innings (batting side, fielding side) */
+  drsLeft?: { batting: number; fielding: number };
+  /** IPL strategic timeouts taken: by which side, after which over */
+  timeouts?: { side: "batting" | "bowling"; over: number }[];
+  /** Overs the innings was scheduled for when it ended (rain), and the target it was chasing (DLS) */
+  scheduledOvers?: number;
+  dlsTarget?: number;
+  /** Bowlers removed from the attack for two beamers */
+  suspendedBowlers?: string[];
 }
 
 export interface MatchInjuryEvent {
@@ -273,9 +317,24 @@ export interface MatchResult {
   motm: string;      // man of the match player id
   injuries: MatchInjuryEvent[];  // players injured during this match
   detailed?: DetailedMatchResult; // full scorecard data
+  /** Rain: the match was shortened (DLS) or abandoned (no result) */
+  rain?: {
+    kind: "reduced" | "no_result";
+    when: "preMatch" | "firstInnings" | "secondInnings";
+    /** Overs per side after the cut (no result: overs bowled when it was abandoned) */
+    overs: number;
+    /** DLS target for the side batting second (reduced matches) */
+    target?: number;
+    /** Resources (percent) of the two sides */
+    r1?: number;
+    r2?: number;
+    narrative: string;
+  };
 }
 
 export interface MatchOptions {
+  /** Rain interruptions, DLS and no results (default true; off makes every match a full one) */
+  rain?: boolean;
   neutralVenue?: boolean;
   countTowardStandings?: boolean;
   venueName?: string;
@@ -359,6 +418,10 @@ interface BallRules {
   bench?: readonly Player[];
   /** A super over: wickets come faster (SUPER_OVER_CAL) */
   superOver?: boolean;
+  /** Reviews left this innings (mutated when one is lost); absent = no DRS */
+  drs?: { batting: number; fielding: number };
+  /** The slow over-rate restriction is on */
+  overRatePenalty?: boolean;
 }
 
 /** Simulate a single ball */
@@ -379,6 +442,10 @@ function simulateBall(
   nonStriker?: Player,
 ): BallEvent {
   let probs = baseOutcomeProbabilities(batter, bowler);
+  // Women's cricket has its own wide / no-ball / bye rates
+  applyGenderExtras(probs, rules.gender);
+  const nbf = ruleOverrides().noBallRateFactor;
+  if (nbf !== undefined) probs.noball *= nbf;
 
   // Phase adjustment
   const phase = getMatchPhase(over);
@@ -453,6 +520,9 @@ function simulateBall(
 
   if (rules.superOver) { probs.wicket *= SUPER_OVER_CAL.wicket; probs["4"] *= SUPER_OVER_CAL.boundary; probs["6"] *= SUPER_OVER_CAL.boundary; }
 
+  // Slow over rate: one fewer fielder outside the circle, so more boundaries
+  if (rules.overRatePenalty) applyOverRatePenalty(probs);
+
   // A free hit: boundaries come easier and only the run-out family can dismiss
   if (rules.freeHit) applyFreeHitToProbs(probs);
 
@@ -461,7 +531,7 @@ function simulateBall(
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
-  let outcome = weightedRandom(entries, rng);
+  let outcome = ruleOverrides().forceCoarseOutcome ?? weightedRandom(entries, rng);
 
   // A wicket draw is a dismissal chance: decide its kind and who was involved, and whether it was taken
   let resolution: ReturnType<typeof resolveWicketChance> | undefined;
@@ -472,12 +542,65 @@ function simulateBall(
     if (resolution.outcome !== "wicket") outcome = resolution.outcome;
   }
 
+  // DRS (lbw, caught behind): reviews around the dismissal, wrong decisions on a dot ball
+  const review = applyDrs(rules, fieldingUnit, resolution, outcome, rng);
+  outcome = review.outcome;
+  resolution = review.resolution;
+
   // The complete delivery: wides, no-ball cost, byes, overthrows, who is out, how far they ran
   const detail = expandDelivery(outcome, resolution, {
     rng, fmt: rules.fmt, gender: rules.gender, freeHit: rules.freeHit,
     bowlerId: bowler.id, bowlerStyle: bowler.bowlingStyle, unit: fieldingUnit, bench: rules.bench,
   });
-  return buildBallEvent(detail, resolution, batter, nonStriker, bowler, over, rules.freeHit, rng);
+  // Rare plays: short runs, misfields, sixes saved on the rope, boundary catches, no-ball and penalty reasons, lodged balls
+  applySpecialPlays(detail, { rng, unit: fieldingUnit, bowlerId: bowler.id, resolution, labelsOnly: !!resolution?.note && !detail.dismissal });
+  const ev = buildBallEvent(detail, resolution, batter, nonStriker, bowler, over, rules.freeHit, rng, fieldingUnit);
+  if (review.review) {
+    ev.review = review.review;
+    ev.commentary += " " + drsText(review.review, review.review.by === "batting" ? "the batting side" : "the fielding side", rng);
+  }
+  if (rules.overRatePenalty) ev.overRatePenalty = true;
+  return ev;
+}
+
+/**
+ * DRS around a delivery (drs.ts). Mutates the review counts in `rules.drs`. Returns the outcome / resolution to build:
+ * a fielding-side overturn needs a review (none left: the batter survives, a dot); a wrong out on a dot ball stands
+ * when the batting side has none left.
+ */
+function applyDrs(
+  rules: BallRules,
+  unit: FieldingUnit | undefined,
+  resolution: ReturnType<typeof resolveWicketChance> | undefined,
+  outcome: BallOutcome,
+  rng: RNG,
+): { outcome: BallOutcome; resolution: ReturnType<typeof resolveWicketChance> | undefined; review?: DrsReview } {
+  const drs = rules.drs;
+  if (!drs) return { outcome, resolution };
+  if (outcome === "wicket" && resolution) {
+    const k = drsKindOf(resolution.kind, !!unit?.keeper && resolution.fielder?.id === unit.keeper.id);
+    if (!k) return { outcome, resolution };
+    const r = drsAtDismissal(k, rng, drs);
+    if (r.cancel) return { outcome: "dot", resolution: undefined };
+    if (r.review) {
+      if (reviewLost(r.review)) drs[r.review.by]--;
+      return { outcome, resolution, review: r.review };
+    }
+    return { outcome, resolution };
+  }
+  if (outcome === "dot" && !resolution && !rules.freeHit) {
+    const r = drsAtDot(rng, drs, !!unit?.keeper);
+    if (r.wicket) {
+      // given out wrongly and no review left: it stands
+      const kind = r.wicket === "lbw" ? "lbw" : "caught";
+      return { outcome: "wicket", resolution: { outcome: "wicket", kind, fielder: kind === "caught" ? unit?.keeper : undefined } };
+    }
+    if (r.review) {
+      if (reviewLost(r.review)) drs[r.review.by]--;
+      return { outcome, resolution, review: r.review };
+    }
+  }
+  return { outcome, resolution };
 }
 
 /** Wrap a finished delivery into a ball-log event with its commentary */
@@ -490,6 +613,7 @@ function buildBallEvent(
   over: number,
   freeHit: boolean,
   rng: RNG,
+  unit?: FieldingUnit,
 ): BallEvent {
   const dis = detail.dismissal;
   const outcome = dis ? (detail.outcome === "wide" || detail.outcome === "noball" ? detail.outcome : "wicket") : detail.outcome;
@@ -506,7 +630,15 @@ function buildBallEvent(
   const fieldingLine = !dis && resolution?.note
     ? fieldingCommentary(resolution, { batter: batter.name, bowler: bowler.name, runs: detail.batRuns }, rng)
     : undefined;
-  const commentary = special ?? fieldingLine ?? generateCommentary(outcome === "wicket" ? "wicket" : outcome, batter.name, bowler.name, over, detail.batRuns, rng);
+  const nameIn = (id?: string) => (id ? unit?.fielders.find(p => p.id === id)?.name : undefined);
+  const playNames = {
+    bowler: bowler.name, batter: batter.name,
+    fielder: nameIn(detail.sixSaved?.fielderId ?? detail.misfield?.fielderId) ?? fielderPlayer(dis?.fielderId) ?? nameIn(dis?.fielderId),
+    fielder2: nameIn(detail.relayFielderId),
+  };
+  const playLine = special === undefined && !fieldingLine ? specialPlayText(detail, playNames, rng) : undefined;
+  const commentary = (special ?? fieldingLine ?? playLine ?? generateCommentary(outcome === "wicket" ? "wicket" : outcome, batter.name, bowler.name, over, detail.batRuns, rng))
+    + specialPlayTail(detail, playNames, rng);
 
   const event: BallEvent = {
     over,
@@ -542,6 +674,18 @@ function buildBallEvent(
     event.fieldingNote = resolution.note;
   }
   if (dis && resolution?.note) event.fieldingNote = resolution.note;
+  if (!dis && resolution?.deep) event.deepChance = true;
+  if (detail.noBallKind) event.noBallKind = detail.noBallKind;
+  if (detail.beamer) event.beamer = true;
+  if (detail.penaltyReason) event.penaltyReason = detail.penaltyReason;
+  if (detail.shortRun) event.shortRun = true;
+  if (detail.lodged) event.lodged = true;
+  if (detail.misfield) { event.fieldingNote = "misfield"; if (detail.misfield.fielderId) event.fielderId = detail.misfield.fielderId; }
+  if (detail.sixSaved) { event.fieldingNote = "six_saved"; if (detail.sixSaved.fielderId) event.fielderId = detail.sixSaved.fielderId; }
+  if (dis && detail.boundaryCatch) {
+    event.boundaryCatch = true;
+    if (detail.relayFielderId) event.fielder2Id = detail.relayFielderId;
+  }
   return event;
 }
 
@@ -789,6 +933,12 @@ function evaluateBowlingImpact(
 interface InningsExtra {
   /** Super over: the nominated batters and bowler; the whole XI still fields; two wickets end the innings */
   superOver?: { batters: Player[]; bowler: Player; fieldXI: Player[] };
+  /** Rain during the innings: at the start of over `atOver` the innings is cut to `newOvers`; `target` gives the revised target from the score then */
+  revise?: { atOver: number; newOvers: number; target?: (wickets: number, runs: number) => number };
+  /** IPL strategic timeouts (one per side per innings) */
+  timeouts?: boolean;
+  /** DRS reviews per side (default DRS_REVIEWS_PER_INNINGS; 0 = no DRS) */
+  reviews?: number;
 }
 
 function simulateInnings(
@@ -817,6 +967,14 @@ function simulateInnings(
   const gender = venue.gender ?? "male";
   const maxWickets = so ? 2 : 10;
   const rp = retireParams();
+  // DRS: reviews per side this innings (one each in a super over); slow over rate restriction drawn for the innings
+  const nReviews = extra.reviews ?? (so ? 1 : DRS_REVIEWS_PER_INNINGS);
+  const drs = nReviews > 0 ? { batting: nReviews, fielding: nReviews } : undefined;
+  const overRateFrom = so ? -1 : drawOverRatePenalty(rng, maxOvers);
+  if (overRateFrom >= 0) innings.overRatePenaltyFrom = overRateFrom;
+  const beamers = new Map<string, number>();
+  let pendingNote: string | undefined; // a line about something between balls, added to the next ball
+  if (extra.timeouts && !so) innings.timeouts = [];
   const bench: Player[] = bowlingTeam.roster.filter(p => !fieldXI.includes(p) && !p.injured);
   if (so) {
     innings.superOver = { batters: battingOrder.map(p => p.id), bowler: bowlers[0]?.id ?? "" };
@@ -885,6 +1043,19 @@ function simulateInnings(
   };
 
   for (let over = 0; over < maxOvers && !inningsOver; over++) {
+    // ── Rain: the innings is cut short from here (and a chase gets its DLS target) ──
+    if (extra.revise && over === extra.revise.atOver) {
+      maxOvers = Math.max(over, extra.revise.newOvers);
+      innings.scheduledOvers = maxOvers;
+      if (extra.revise.target) {
+        target = extra.revise.target(innings.wickets, innings.runs);
+        innings.dlsTarget = target;
+        if (isSecondInnings && innings.runs >= target) { inningsOver = true; break; }
+      }
+      if (over >= maxOvers) break;
+    }
+    // ── IPL strategic timeouts: the bowling side's after over 6-9 (CPU: 7), the batting side's after over 13-16 (CPU: 14) ──
+    if (innings.timeouts && (over === 7 || over === 14) && over < maxOvers) innings.timeouts.push({ side: over === 7 ? "bowling" : "batting", over });
     // ── Impact Player evaluation (between overs) ──
     if (maxOvers > 1) { // not in super over
       // Batting team impact sub
@@ -966,6 +1137,22 @@ function simulateInnings(
     consecutiveOvers = bowler.id === lastBowlerId ? consecutiveOvers + 1 : 1;
 
     let legalBalls = 0;
+    /** The bowler cannot go on (injury, or removed from the attack): the best available bowler finishes the over */
+    const replaceBowler = (): boolean => {
+      const replPool = [...ableBowlers, ...fieldXI.filter(p => !ableBowlers.includes(p))];
+      const repl = replPool
+        .filter(b => b.id !== bowler.id && !unavailable.has(b.id) && (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler
+          // the bowler who finishes an over may not then be bowling too many overs in a row (not the previous over's bowler in a T20)
+          && (b.id !== lastBowlerId || streakBefore + 1 <= fmt.maxConsecutiveOvers))
+        .sort((a, b) => b.effectiveBowlingOvr - a.effectiveBowlingOvr)[0];
+      if (!repl) return false;
+      if (!bowlers.includes(repl)) { bowlers.push(repl); bowlerOvers.set(repl.id, 0); }
+      unavailable.add(bowler.id);
+      bowlerOvers.set(bowler.id, (bowlerOvers.get(bowler.id) ?? 0) + 1);
+      consecutiveOvers = repl.id === lastBowlerId ? streakBefore + 1 : 1;
+      bowler = repl;
+      return true;
+    };
 
     while (legalBalls < ballsPerOver) {
       const striker = battingOrder[strikerIdx];
@@ -974,19 +1161,8 @@ function simulateInnings(
 
       // ── An over left incomplete: the bowler goes off hurt and another bowler finishes it ──
       if (!so && legalBalls > 0 && rng() < rp.bowlerLeavesPerOver / ballsPerOver) {
-        const replPool = [...ableBowlers, ...fieldXI.filter(p => !ableBowlers.includes(p))];
-        const repl = replPool
-          .filter(b => b.id !== bowler.id && !unavailable.has(b.id) && (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler
-            // the bowler who finishes an over may not then be bowling too many overs in a row (Law 17.?: not the previous over's bowler in a T20)
-            && (b.id !== lastBowlerId || streakBefore + 1 <= fmt.maxConsecutiveOvers))
-          .sort((a, b) => b.effectiveBowlingOvr - a.effectiveBowlingOvr)[0];
-        if (repl) {
-          if (!bowlers.includes(repl)) { bowlers.push(repl); bowlerOvers.set(repl.id, 0); }
-          unavailable.add(bowler.id);
-          bowlerOvers.set(bowler.id, (bowlerOvers.get(bowler.id) ?? 0) + 1);
-          consecutiveOvers = repl.id === lastBowlerId ? streakBefore + 1 : 1;
-          bowler = repl;
-        }
+        const gone = bowler;
+        if (replaceBowler()) pendingNote = bowlerInjuryLine(gone.name, bowler.name);
       }
 
       // ── Mankad: the bowler runs out the non-striker before delivering; no ball is bowled ──
@@ -1021,11 +1197,15 @@ function simulateInnings(
         rng,
         fieldingUnit,
         fmt.totalBalls,
-        { freeHit, fmt, gender, bench, superOver: !!so },
+        { freeHit, fmt, gender, bench, superOver: !!so, drs, overRatePenalty: overRateFrom >= 0 && over >= overRateFrom },
         nonStriker,
       );
       event.over = over;
       event.ball = legalBalls + 1;
+      if (overRateFrom >= 0 && over === overRateFrom && legalBalls === 0 && !innings.ballLog.some(b => b.overRatePenalty)) {
+        event.commentary = `${overRateLine(bowlingTeam.name)} ${event.commentary}`;
+      }
+      if (pendingNote) { event.commentary = `${pendingNote} ${event.commentary}`; pendingNote = undefined; }
       const isLegal = event.outcome !== "wide" && event.outcome !== "noball";
       innings.ballLog.push(event);
 
@@ -1059,6 +1239,21 @@ function simulateInnings(
       }
       innings.bowlerStats.set(bowler.id, bs);
       freeHit = event.outcome === "noball" || (freeHit && event.outcome === "wide");
+
+      // Two beamers in an innings: the bowler is removed from the attack (Law 41.7) and someone else finishes the over
+      if (event.beamer && !so) {
+        const n = (beamers.get(bowler.id) ?? 0) + 1;
+        beamers.set(bowler.id, n);
+        if (n >= 2) {
+          const gone = bowler;
+          if (replaceBowler()) {
+            (innings.suspendedBowlers ??= []).push(gone.id);
+            event.commentary += " " + beamerSuspensionLine(gone.name, bowler.name);
+          }
+        } else {
+          event.commentary += " The umpire gives the bowler a first and final warning.";
+        }
+      }
 
       if (event.isWicket) {
         // Who is out, and who stays
@@ -1106,8 +1301,8 @@ function simulateInnings(
     innings.balls = 0;
     if (inningsOver) break;
 
-    // Swap strike at end of over
-    [strikerIdx, nonStrikerIdx] = [nonStrikerIdx, strikerIdx];
+    // Ends change at the end of an over; in The Hundred every ten balls (two sets), not every set
+    if (fmt.id !== "hundred" || (over + 1) % 2 === 0) [strikerIdx, nonStrikerIdx] = [nonStrikerIdx, strikerIdx];
 
     // ── Retired out (a tactical retirement in the death overs; not a wicket, cannot return) ──
     if (!so && over >= 13 && over < maxOvers - 1 && nextIdx < battingOrder.length && rng() < rp.retiredOutPerInning / 6) {
@@ -1121,6 +1316,8 @@ function simulateInnings(
     }
   }
 
+  if (drs) innings.drsLeft = { ...drs };
+  if (maxOvers !== fmt.overs && !so && innings.scheduledOvers === undefined) innings.scheduledOvers = maxOvers;
   return innings;
 }
 
@@ -1544,9 +1741,11 @@ function buildDetailedResult(
 
   const motmPlayer = playerMap.get(motm.playerId);
   const winnerTeam = winnerId ? (winnerId === homeTeam.id ? homeTeam : awayTeam) : null;
-  const resultText = winnerTeam
-    ? `${winnerTeam.name} won by ${margin}`
-    : `Match tied`;
+  const resultText = margin === "No result"
+    ? (winnerTeam ? `No result (rain): ${winnerTeam.name} go through as the higher-placed side` : "No result (rain)")
+    : winnerTeam
+      ? `${winnerTeam.name} won by ${margin}`
+      : `Match tied`;
 
   const inn1Scorecard = buildInningsScorecard(innings1, battingFirst, bowlingFirst, firstXI, firstBowlXI, rng);
   const inn2Scorecard = buildInningsScorecard(innings2, bowlingFirst, battingFirst, secondXI, secondBowlXI, rng);
@@ -1579,6 +1778,53 @@ function buildDetailedResult(
 let matchCounter = 0;
 
 /** Simulate a full T20 match between two teams */
+/** Rain for one match, drawn from the league's fitted rates (match-rules-extra-data.ts `rain`, RULES-MATCH.md 13.3) */
+interface RainPlan {
+  kind: "reduced" | "no_result";
+  when: "preMatch" | "firstInnings" | "secondInnings";
+  /** Overs (sets) per side after the cut */
+  overs: number;
+  /** The over (set) at which play stopped */
+  stopAt: number;
+}
+
+function planRain(rules: RuleSet, rng: RNG, fmt: MatchFormatSpec): RainPlan | null {
+  const R = MATCH_RULES_EXTRA.rain;
+  const o = ruleOverrides();
+  const lg = R.byLeague[rules.league] ?? R.default;
+  const pNR = o.rainNoResult ?? lg.pNoResult;
+  const pRed = o.rainReduced ?? lg.pReduced;
+  const u = rng();
+  if (u >= pNR + pRed) return null;
+  const full = fmt.overs;
+  const minOvers = Math.ceil((5 * 6) / fmt.ballsPerOver); // five overs (30 balls; The Hundred 25 balls = 5 sets) for a result
+  if (u < pNR) {
+    // Abandoned: in the first innings, or in the chase before it reached the five overs a result needs
+    const inFirst = rng() < 0.5;
+    const stopAt = inFirst ? 1 + Math.floor(rng() * (full - 1)) : Math.floor(rng() * minOvers);
+    return { kind: "no_result", when: inFirst ? "firstInnings" : "secondInnings", overs: stopAt, stopAt };
+  }
+  const w = R.when;
+  const x = rng() * (w.preMatch + w.firstInnings + w.secondInnings);
+  const when: RainPlan["when"] = x < w.preMatch ? "preMatch" : x < w.preMatch + w.firstInnings ? "firstInnings" : "secondInnings";
+  // overs per side after the cut (data in T20 overs; The Hundred scales them to sets)
+  let y = rng(); let t20 = 10;
+  const tab = R.oversPerSide as Record<string, number>;
+  const tot = Object.values(tab).reduce((a, b) => a + b, 0);
+  y *= tot;
+  for (const [k, v] of Object.entries(tab)) { y -= v; if (y <= 0) { t20 = Number(k); break; } }
+  const overs = Math.max(minOvers, Math.min(full - 1, Math.round((t20 * full) / 20)));
+  const stopAt = when === "preMatch" ? 0 : Math.max(1, Math.floor(rng() * overs));
+  return { kind: "reduced", when, overs, stopAt };
+}
+
+/** Wickets down at the start of over `over` */
+function wicketsAt(inn: InningsScore, over: number): number {
+  return inn.ballLog.filter(b => b.isWicket && b.over < over).length + (inn.offBall ?? []).filter(o => o.kind === "timed_out" && o.over < over).length;
+}
+
+const round1 = (x: number) => Math.round(x * 10) / 10;
+
 export function simulateMatch(
   homeTeam: Team,
   awayTeam: Team,
@@ -1616,41 +1862,110 @@ export function simulateMatch(
   const firstBatSubs = battingFirst === homeTeam ? homeSubs : awaySubs;
   const firstBowlSubs = battingFirst === homeTeam ? awaySubs : homeSubs;
 
+  // Rain (fitted per league): a full match, a shortened one with a DLS target, or no result
+  const plan = (options?.rain ?? true) ? planRain(rules, rng, fmt) : null;
+  const ipl = rules.league === "ipl";
+  const G = DLS_G_T20 * (rules.scoringMultiplier ?? 1) * (fmt.totalBalls / 120);
+  const fullOvers = fmt.overs;
+  const oversFull = fmt.totalBalls / 6; // the DLS table counts 6-ball overs (The Hundred: 100 balls = 16.7 overs)
+  const toDls = (sets: number) => (sets * fmt.ballsPerOver) / 6;
+  let rainInfo: MatchResult["rain"] | undefined;
+
   // First innings
+  let inn1Overs = fullOvers;
+  let inn1Extra: InningsExtra = { timeouts: ipl };
+  if (plan && plan.when === "preMatch") inn1Overs = plan.overs;
+  if (plan && plan.kind === "no_result" && plan.when === "firstInnings") inn1Overs = plan.stopAt;
+  if (plan && plan.when === "firstInnings") inn1Extra = { ...inn1Extra, revise: { atOver: plan.stopAt, newOvers: plan.overs } };
   const innings1 = simulateInnings(
     battingFirst, bowlingFirst,
     firstXI, firstBowlXI,
-    false, 0, venue, fmt.overs,
+    false, 0, venue, inn1Overs,
     firstBatSubs, firstBowlSubs,
-    rng, fmt,
+    rng, fmt, inn1Extra,
   );
 
-  // Second innings
-  const target = innings1.runs + 1;
+  // Second innings: the target, revised by DLS when the first innings was cut short
+  let target = innings1.runs + 1;
+  let inn2Overs = fullOvers;
+  let inn2Extra: InningsExtra = { timeouts: ipl };
+  let r1 = 100;
+  if (plan && plan.kind === "reduced") {
+    if (plan.when === "preMatch") {
+      inn2Overs = plan.overs;
+      r1 = resourcesPct(toDls(plan.overs), 0, oversFull);
+    } else if (plan.when === "firstInnings") {
+      const atStop = wicketsAt(innings1, plan.stopAt);
+      const stoppedEarly = innings1.wickets >= 10 || innings1.overs < plan.stopAt;
+      if (!stoppedEarly) {
+        r1 = inningsResources(oversFull, [{ oversLeft: toDls(fullOvers - plan.stopAt), wickets: atStop, oversLost: toDls(fullOvers - plan.overs) }], oversFull);
+        const r2 = resourcesPct(toDls(plan.overs), 0, oversFull);
+        target = dlsTarget(innings1.runs, r1, r2, G);
+        inn2Overs = plan.overs;
+        rainInfo = { kind: "reduced", when: "firstInnings", overs: plan.overs, target, r1: round1(r1), r2: round1(r2), narrative: `Rain cut the first innings to ${plan.overs} overs at ${plan.stopAt}; DLS target ${target} in ${plan.overs} overs.` };
+      }
+    } else {
+      const S = innings1.runs;
+      inn2Extra = {
+        ...inn2Extra,
+        revise: {
+          atOver: plan.stopAt, newOvers: plan.overs,
+          target: (wickets: number) => {
+            const r2 = inningsResources(oversFull, [{ oversLeft: toDls(fullOvers - plan.stopAt), wickets, oversLost: toDls(fullOvers - plan.overs) }], oversFull);
+            const t = dlsTarget(S, 100, r2, G);
+            rainInfo = { kind: "reduced", when: "secondInnings", overs: plan.overs, target: t, r1: 100, r2: round1(r2), narrative: `Rain at ${plan.stopAt} overs cut the chase to ${plan.overs} overs; DLS target ${t}.` };
+            return t;
+          },
+        },
+      };
+    }
+    if (plan.when === "preMatch") {
+      rainInfo = { kind: "reduced", when: "preMatch", overs: plan.overs, target, r1: round1(r1), r2: round1(r1), narrative: `A late start: ${plan.overs} overs a side.` };
+    }
+  }
+  if (plan && plan.kind === "no_result") {
+    // Abandoned: no second innings once the rain sets in (or the chase never reaches the five overs a result needs)
+    if (plan.when === "secondInnings") { inn2Overs = Math.min(plan.stopAt, fullOvers); }
+  }
   const secondXI = bowlingFirst === homeTeam ? homeXI : awayXI;
   const secondBowlXI = bowlingFirst === homeTeam ? awayXI : homeXI;
   const secondBatSubs = bowlingFirst === homeTeam ? homeSubs : awaySubs;
   const secondBowlSubs = bowlingFirst === homeTeam ? awaySubs : homeSubs;
 
-  const innings2 = simulateInnings(
-    bowlingFirst, battingFirst,
-    secondXI, secondBowlXI,
-    true, target, venue, fmt.overs,
-    secondBatSubs, secondBowlSubs,
-    rng, fmt,
-  );
+  const noResult = plan?.kind === "no_result";
+  const innings2 = noResult && plan!.when !== "secondInnings"
+    ? emptyInnings(bowlingFirst.id, fmt.ballsPerOver)
+    : simulateInnings(
+      bowlingFirst, battingFirst,
+      secondXI, secondBowlXI,
+      true, target, venue, inn2Overs,
+      secondBatSubs, secondBowlSubs,
+      rng, fmt, inn2Extra,
+    );
+  if (innings2.dlsTarget !== undefined) target = innings2.dlsTarget;
+  if (noResult) {
+    const bowled = plan!.when === "secondInnings" ? innings2.overs : innings1.overs;
+    rainInfo = { kind: "no_result", when: plan!.when, overs: bowled, narrative: `Rain: the match was abandoned${plan!.when === "secondInnings" ? ` with the chase ${innings2.runs}/${innings2.wickets} after ${innings2.overs} overs` : ` after ${innings1.overs} overs of the first innings`}. No result.` };
+  }
+  const par = target - 1; // what the side batting first is deemed to have made (equals its score without DLS)
 
   // Determine winner
   let winnerId: string | null = null;
   let margin: string;
   let superOverRounds: [InningsScore, InningsScore][] | undefined;
+  const dlsTag = rainInfo?.kind === "reduced" && rainInfo.when !== "preMatch" ? " (DLS method)" : "";
 
-  if (innings2.runs >= target) {
+  if (noResult) {
+    // No result: a point each in the league. A knockout cannot end that way: the higher-placed side (the home side
+    // in this game's playoff fixtures) goes through, as in the IPL playing conditions.
+    winnerId = (options?.countTowardStandings ?? true) ? null : homeTeam.id;
+    margin = "No result";
+  } else if (innings2.runs >= target) {
     winnerId = bowlingFirst.id;
-    margin = `${10 - innings2.wickets} wickets`;
-  } else if (innings2.runs < innings1.runs) {
+    margin = `${10 - innings2.wickets} wickets${dlsTag}`;
+  } else if (innings2.runs < par) {
     winnerId = battingFirst.id;
-    margin = `${innings1.runs - innings2.runs} runs`;
+    margin = `${par - innings2.runs} runs${dlsTag}`;
   } else {
     // Tie -> Super Over(s): one over each, two wickets end it, three nominated batters and one bowler, the side that
     // batted second in the match bats first. Further super overs follow while it stays tied (repeated-super-over), and
@@ -1707,31 +2022,44 @@ export function simulateMatch(
     margin = "Super Over";
   }
 
-  if (options?.countTowardStandings ?? true) {
+  if ((options?.countTowardStandings ?? true) && noResult) {
+    // No result: a point each, and the match is left out of the net run rate
+    homeTeam.ties++;
+    awayTeam.ties++;
+  } else if (options?.countTowardStandings ?? true) {
     const winner = winnerId === homeTeam.id ? homeTeam : awayTeam;
     const loser = winner === homeTeam ? awayTeam : homeTeam;
 
     winner.wins++;
     loser.losses++;
 
-    // Group-stage standings use official NRR treatment: a bowled-out side is charged the full quota.
-    const homeBatting = battingFirst === homeTeam ? innings1 : innings2;
-    const homeBowling = battingFirst === homeTeam ? innings2 : innings1;
-    const awayBatting = battingFirst === awayTeam ? innings1 : innings2;
-    const awayBowling = battingFirst === awayTeam ? innings2 : innings1;
+    // Group-stage standings use official NRR treatment: a bowled-out side is charged the full quota. In a match
+    // shortened by rain each side is charged the overs it had; when DLS revised the target, the side batting first is
+    // credited with the target minus one off the overs the chase was given (ICC playing conditions, Appendix on NRR).
+    const balls1 = (innings1.scheduledOvers ?? inn1Overs) * fmt.ballsPerOver;
+    const balls2 = (innings2.scheduledOvers ?? inn2Overs) * fmt.ballsPerOver;
+    const revised = rainInfo?.kind === "reduced" && rainInfo.when !== "preMatch";
+    const first = { runs: revised ? par : innings1.runs, balls: revised ? balls2 : getNRRBallDenominator(innings1, balls1) };
+    const second = { runs: innings2.runs, balls: getNRRBallDenominator(innings2, balls2) };
+    const homeBatting = battingFirst === homeTeam ? first : second;
+    const homeBowling = battingFirst === homeTeam ? second : first;
+    const awayBatting = battingFirst === awayTeam ? first : second;
+    const awayBowling = battingFirst === awayTeam ? second : first;
+    const homeBowlInn = battingFirst === homeTeam ? innings2 : innings1;
+    const awayBowlInn = battingFirst === awayTeam ? innings2 : innings1;
 
     homeTeam.runsFor += homeBatting.runs;
-    homeTeam.ballsFacedFor += getNRRBallDenominator(homeBatting, fmt.totalBalls);
+    homeTeam.ballsFacedFor += homeBatting.balls;
     homeTeam.runsAgainst += homeBowling.runs;
-    homeTeam.ballsFacedAgainst += homeBowling.totalBalls;
-    homeTeam.wicketsTaken += homeBowling.wickets;
+    homeTeam.ballsFacedAgainst += homeBowling.balls;
+    homeTeam.wicketsTaken += homeBowlInn.wickets;
     homeTeam.updateNRR();
 
     awayTeam.runsFor += awayBatting.runs;
-    awayTeam.ballsFacedFor += getNRRBallDenominator(awayBatting, fmt.totalBalls);
+    awayTeam.ballsFacedFor += awayBatting.balls;
     awayTeam.runsAgainst += awayBowling.runs;
-    awayTeam.ballsFacedAgainst += awayBowling.totalBalls;
-    awayTeam.wicketsTaken += awayBowling.wickets;
+    awayTeam.ballsFacedAgainst += awayBowling.balls;
+    awayTeam.wicketsTaken += awayBowlInn.wickets;
     awayTeam.updateNRR();
   }
 
@@ -1785,6 +2113,7 @@ export function simulateMatch(
     tossDecision,
     innings: [innings1, innings2],
     ...(superOverRounds ? { superOver: superOverRounds[superOverRounds.length - 1], superOverRounds } : {}),
+    ...(rainInfo ? { rain: rainInfo } : {}),
     winnerId,
     margin,
     motm: motm.playerId,

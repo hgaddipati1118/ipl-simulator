@@ -1,0 +1,514 @@
+{
+ "generatedBy": "packages/ratings/src/analysis/match-rules-extra.py",
+ "extrasRate": {
+  "filter": "match_type T20/IT20, super_over=0, year >= 2019, event in the 13 engine leagues (franchise). T20Is are reported under bySource but not used: their women's wide rate is ~2x the leagues' because of associate-nation matches",
+  "perDelivery": "wides>0 / noballs>0 / (byes>0 or legbyes>0) over all delivery rows",
+  "male": {
+   "wide": 0.03515,
+   "noBall": 0.00418,
+   "byeLegBye": 0.01747,
+   "deliveries": 581247,
+   "matches": 2517
+  },
+  "female": {
+   "wide": 0.03142,
+   "noBall": 0.00407,
+   "byeLegBye": 0.01604,
+   "deliveries": 145917,
+   "matches": 666
+  },
+  "bySource": [
+   {
+    "gender": "female",
+    "src": "franchise",
+    "n": 145917,
+    "wide": 0.03142,
+    "noball": 0.00407,
+    "byelb": 0.01604
+   },
+   {
+    "gender": "female",
+    "src": "international",
+    "n": 436164,
+    "wide": 0.0632,
+    "noball": 0.0101,
+    "byelb": 0.01383
+   },
+   {
+    "gender": "male",
+    "src": "franchise",
+    "n": 581247,
+    "wide": 0.03515,
+    "noball": 0.00418,
+    "byelb": 0.01747
+   },
+   {
+    "gender": "male",
+    "src": "international",
+    "n": 679585,
+    "wide": 0.04061,
+    "noball": 0.00458,
+    "byelb": 0.01805
+   }
+  ]
+ },
+ "rain": {
+  "source": "Cricsheet matches/deliveries; pNoResult = result 'no result'; pReduced = reduced with a result: outcome_method set (D/L) or the chase's inn_target_overs < scheduled overs",
+  "caveat": "Cricsheet omits matches abandoned without a ball, so pNoResult is a LOWER bound for 'no result once started' only in the sense of fully washed-out fixtures; matches with at least one ball are included.",
+  "shrink": "(k + 20 * pooled) / (n + 20) toward the pooled 13-league rate",
+  "byLeague": {
+   "ipl": {
+    "matches": 1243,
+    "pNoResult": 0.00736,
+    "pReduced": 0.02678,
+    "noResults": 9,
+    "reducedWithResult": 33,
+    "rawPNoResult": 0.00724,
+    "rawPReduced": 0.02655
+   },
+   "wpl": {
+    "matches": 88,
+    "pNoResult": 0.00268,
+    "pReduced": 0.00761,
+    "noResults": 0,
+    "reducedWithResult": 0,
+    "rawPNoResult": 0.0,
+    "rawPReduced": 0.0
+   },
+   "bbl": {
+    "matches": 662,
+    "pNoResult": 0.01655,
+    "pReduced": 0.05986,
+    "noResults": 11,
+    "reducedWithResult": 40,
+    "rawPNoResult": 0.01662,
+    "rawPReduced": 0.06042
+   },
+   "wbbl": {
+    "matches": 527,
+    "pNoResult": 0.03161,
+    "pReduced": 0.0728,
+    "noResults": 17,
+    "reducedWithResult": 39,
+    "rawPNoResult": 0.03226,
+    "rawPReduced": 0.074
+   },
+   "psl": {
+    "matches": 357,
+    "pNoResult": 0.00873,
+    "pReduced": 0.03136,
+    "noResults": 3,
+    "reducedWithResult": 11,
+    "rawPNoResult": 0.0084,
+    "rawPReduced": 0.03081
+   },
+   "sa20": {
+    "matches": 130,
+    "pNoResult": 0.0486,
+    "pReduced": 0.03881,
+    "noResults": 7,
+    "reducedWithResult": 5,
+    "rawPNoResult": 0.05385,
+    "rawPReduced": 0.03846
+   },
+   "hundred-m": {
+    "matches": 201,
+    "pNoResult": 0.03298,
+    "pReduced": 0.02634,
+    "noResults": 7,
+    "reducedWithResult": 5,
+    "rawPNoResult": 0.03483,
+    "rawPReduced": 0.02488
+   },
+   "hundred-w": {
+    "matches": 188,
+    "pNoResult": 0.01101,
+    "pReduced": 0.02799,
+    "noResults": 2,
+    "reducedWithResult": 5,
+    "rawPNoResult": 0.01064,
+    "rawPReduced": 0.0266
+   },
+   "cpl": {
+    "matches": 445,
+    "pNoResult": 0.01568,
+    "pReduced": 0.07704,
+    "noResults": 7,
+    "reducedWithResult": 35,
+    "rawPNoResult": 0.01573,
+    "rawPReduced": 0.07865
+   },
+   "ilt20": {
+    "matches": 134,
+    "pNoResult": 0.00837,
+    "pReduced": 0.01183,
+    "noResults": 1,
+    "reducedWithResult": 1,
+    "rawPNoResult": 0.00746,
+    "rawPReduced": 0.00746
+   },
+   "mlc": {
+    "matches": 109,
+    "pNoResult": 0.01,
+    "pReduced": 0.05288,
+    "noResults": 1,
+    "reducedWithResult": 6,
+    "rawPNoResult": 0.00917,
+    "rawPReduced": 0.05505
+   },
+   "bpl": {
+    "matches": 469,
+    "pNoResult": 0.00059,
+    "pReduced": 0.00782,
+    "noResults": 0,
+    "reducedWithResult": 3,
+    "rawPNoResult": 0.0,
+    "rawPReduced": 0.0064
+   },
+   "lpl": {
+    "matches": 143,
+    "pNoResult": 0.02018,
+    "pReduced": 0.06639,
+    "noResults": 3,
+    "reducedWithResult": 10,
+    "rawPNoResult": 0.02098,
+    "rawPReduced": 0.06993
+   }
+  },
+  "default": {
+   "matches": 4696,
+   "pNoResult": 0.01448,
+   "pReduced": 0.0411,
+   "noResults": 68,
+   "reducedWithResult": 193
+  },
+  "whenCounts": {
+   "preMatch": 450,
+   "firstInnings": 99,
+   "secondInnings": 282
+  },
+  "whenCountsEngineLeaguesOnly": {
+   "preMatch": 93,
+   "firstInnings": 31,
+   "secondInnings": 69
+  },
+  "whenN": 831,
+  "whenRule": "preMatch: first-innings legal balls == chase length (or all out within it); secondInnings: innings 1 ran full length or was all out, chase then cut; firstInnings: innings 1 stopped short of its length, not all out",
+  "oversPerSideN": 821,
+  "oversPerSideSource": "all T20/IT20 reduced matches with a result and 6-ball overs, chase length rounded to whole overs"
+ },
+ "drs": {
+  "reviewsPerInnings": 1.10087,
+  "battingReviewShare": 0.38703,
+  "batting": {
+   "lbw": {
+    "overturned": 0.34508,
+    "umpiresCall": 0.17811
+   },
+   "caught": {
+    "overturned": 0.34508,
+    "umpiresCall": 0.0
+   }
+  },
+  "fielding": {
+   "lbw": {
+    "overturned": 0.20386,
+    "umpiresCall": 0.21327
+   },
+   "caught": {
+    "overturned": 0.25912,
+    "umpiresCall": 0
+   }
+  },
+  "fieldingKindShare": {
+   "lbw": 0.5983,
+   "caught": 0.4017
+  },
+  "battingKindShare": {
+   "lbw": 0.91543,
+   "caught": 0.08457
+  },
+  "caughtBehindShare": 0.94953,
+  "n": 6679,
+  "nInnings": 6067,
+  "nMatchesWithReviews": 3042,
+  "source": "Cricsheet JSON review objects (T20/IT20): decision is from the reviewer's side (batting: upheld = out overturned, struck down = out stood; fielding: upheld = not-out overturned to out). Overturned batting reviews and struck-down fielding reviews carry no kind, so they are split by the stood / upheld lbw:caught mix (umpire's call is lbw only).",
+  "counts": {
+   "total": 6679,
+   "bat": 2585,
+   "bat_stood_lbw": 1548,
+   "bat_stood_uc_lbw": 421,
+   "field": 4094,
+   "field_struck": 3160,
+   "field_struck_uc": 521,
+   "field_up_caught": 425,
+   "field_up_lbw": 498,
+   "bat_over": 891,
+   "bat_stood_caught": 143,
+   "bat_stood_uc_caught": 0,
+   "bat_stood_other": 3,
+   "bat_stood_uc_other": 0,
+   "field_up_other": 1
+  },
+  "caughtBehind": {
+   "keeper": 508,
+   "notKeeper": 27,
+   "unknownKeeper": 33
+  },
+  "matchesScanned": 10545,
+  "matchesWithReviews": 3042,
+  "shareOfMatchesWithReviewsByLeague": {
+   "other": {
+    "matches": 5849,
+    "withReviews": 844,
+    "share": 0.1443
+   },
+   "ipl": {
+    "matches": 1243,
+    "withReviews": 491,
+    "share": 0.39501
+   },
+   "bbl": {
+    "matches": 662,
+    "withReviews": 135,
+    "share": 0.20393
+   },
+   "wbbl": {
+    "matches": 527,
+    "withReviews": 92,
+    "share": 0.17457
+   },
+   "bpl": {
+    "matches": 469,
+    "withReviews": 255,
+    "share": 0.54371
+   },
+   "cpl": {
+    "matches": 445,
+    "withReviews": 150,
+    "share": 0.33708
+   },
+   "psl": {
+    "matches": 357,
+    "withReviews": 259,
+    "share": 0.72549
+   },
+   "hundred-m": {
+    "matches": 201,
+    "withReviews": 140,
+    "share": 0.69652
+   },
+   "hundred-w": {
+    "matches": 188,
+    "withReviews": 142,
+    "share": 0.75532
+   },
+   "lpl": {
+    "matches": 143,
+    "withReviews": 126,
+    "share": 0.88112
+   },
+   "ilt20": {
+    "matches": 134,
+    "withReviews": 128,
+    "share": 0.95522
+   },
+   "sa20": {
+    "matches": 130,
+    "withReviews": 110,
+    "share": 0.84615
+   },
+   "mlc": {
+    "matches": 109,
+    "withReviews": 92,
+    "share": 0.84404
+   },
+   "wpl": {
+    "matches": 88,
+    "withReviews": 78,
+    "share": 0.88636
+   }
+  },
+  "reviewsPerInningsRule": "reviews (wicket-type, upheld / struck down, both sides) / regular innings, over matches with >= 1 review recorded; a match where DRS was available but unused counts as a non-DRS match, so this is slightly high",
+  "keeperRule": "caught review where the (non-substitute) fielder is the innings' wicketkeeper (fielding_player_innings.keeper_id); caught-and-bowled counts as not keeper"
+ },
+ "commentary": {
+  "rawFiles": [
+   "1449924-indian-premier-league-2025.jsonl.gz",
+   "1510719-indian-premier-league-2026.jsonl.gz"
+  ],
+  "matches": 76,
+  "balls": 17587,
+  "duplicateBallsDropped": 655,
+  "ballsJsonlMatches": 37,
+  "ballsJsonlMatchesNotInRaw": 0,
+  "competitions": "ESPNcricinfo commentary on disk is IPL only (2025 and 2026 seasons); all commentary rates are IPL-only"
+ },
+ "noBallKind": {
+  "counts": {
+   "unclassified": 10,
+   "height": 24,
+   "frontFoot": 33,
+   "fielding": 1
+  },
+  "unclassifiedAssignedTo": "frontFoot",
+  "smoothing": "Jeffreys (k + 0.5) / (n + 1.5)",
+  "regex": {
+   "fielding": "(?:only|just) (?:three|3|two|2) fielders|too many fielders|fielding restriction|not enough fielders|(?:keeper|wicketkeeper) (?:standing|creeping|moved|was) (?:up |in front|ahead)|fielders? (?:was|were|is|are) (?:outside|out of) the (?:circle|ring)",
+   "height": "\\bheight\\b|\\bwaist\\b|above the shoulder|shoulder[- ]?height|head[- ]?height|over (?:the |his |her )?(?:batter's |batsman's )?head|\\bbeamer\\b|high full[- ]?toss|\\bbouncers?\\b|chest[- ]high|full[- ]?toss[^|]{0,60}(?:above|over)|third bouncer|second bouncer|short ball[^.|]{0,25}(?:over|above)",
+   "frontFoot": "overstep|front[- ]?foot|cut the return crease|return crease|foot (?:on|over|outside|just)|outside the (?:crease|wide line)"
+  }
+ },
+ "beamer": {
+  "count": 18,
+  "deliveries": 17587,
+  "rate": 0.001052,
+  "rule": "no-ball with height keywords AND (pitchLength FULL_TOSS or 'beamer|full toss|waist' in text) AND no 'bouncer'; Jeffreys mean"
+ },
+ "shortRun": {
+  "signalled": 0,
+  "checkedNotGiven": 4,
+  "deliveries": 17587,
+  "rate": 2.8e-05,
+  "note": "rate is the Jeffreys mean 0.5/(N+1) when none are signalled; Cricsheet does not record short runs",
+  "regexSignalled": "\\b(?:one short|short[- ]run)\\b[^.|]{0,25}\\b(?:signalled|signaled|called|given|signals?)\\b|\\b(?:signals?|signalled|signaled|calls?|called|gives?|given)\\b[^.|]{0,25}\\b(?:one short|short[- ]run)\\b|\\bonly (?:one|\\d) run (?:will )?(?:count|counts)\\b|\\b(?:run|runs) (?:is|are|has been|have been) (?:cut|taken off|deducted)\\b",
+  "regexChecked": "\\bone short\\b|short[- ]?run|check for (?:a )?short|checking for (?:a )?short",
+  "signalledSamples": [],
+  "checkedSamples": [
+   {
+    "match": 1529280,
+    "over": 8.5,
+    "runs": 1,
+    "text": "Stolen two. Deep midwicket charges in and picks it up just past the ring but Sudharsan - who called early - makes it back in time. There is an ongoing check for a short run though... and Sudharsan did not get past the crease at the non-striker's. Stopped just inside despite reaching out with his body and bat. Was a length ball that was flicked softly"
+   },
+   {
+    "match": 1529306,
+    "over": 3.5,
+    "runs": 0,
+    "text": "Patel gives himself room outside off stump by backing away. Malinga anticipates well and bangs one short on middle. A good bouncer which Urvil can't do much about"
+   },
+   {
+    "match": 1535464,
+    "over": 6.5,
+    "runs": 1,
+    "text": "138ks full ball around off, driven with a big back-lift to long-off's right. Archer doesn't have to run much but the batters get two. Followed by a check for one short. Sudharsan the runner, was a few inches short as he slid late, makes it to the crease but doesn't cross it. Penalised"
+   },
+   {
+    "match": 1529302,
+    "over": 17.3,
+    "runs": 2,
+    "text": "shortish again, just outside off. Dube cloths it to the edge of the ring in the mid on region, and Dube huffs and puffs to complete the second. There is a check for a short run but nothing doing on that count"
+   }
+  ]
+ },
+ "lodgedDeadBall": {
+  "count": 1,
+  "deliveries": 17587,
+  "rate": 8.5e-05,
+  "regex": "(?:lodged|stuck|trapped|wedged|nestl\\w+|tangled|caught up)[^.|]{0,40}\\b(?:helmet|pads?|clothing|shirt|trousers?|jersey|pocket|gear|thigh|between (?:his|the|her) legs)\\b",
+  "deadBallMentions": 6
+ },
+ "fielding": {
+  "catchDropShare": 0.2088,
+  "stumpingMissShare": 0.1667,
+  "runOutMissShare": 0.6019,
+  "misfieldPerDelivery": 0.00756,
+  "misfieldBoundaryShare": 0.3233,
+  "boundaryCatchShare": 0.4751,
+  "relayCatchShare": 0.0046,
+  "sixSavedShare": 0.0041,
+  "n": 17587,
+  "source": "ESPNcricinfo commentary, IPL 2025-26, 76 matches / 17587 balls. Drops, run-out chances and stumping chances use the feed's structured events (DROPPED_CATCH, RUN_OUT_CHANCE, STUMPING_CHANCE) against taken catches / run outs / stumpings (dismissalType 1 / 4 / 5); the rest are text regexes. Stumping and relay shares are thin (Jeffreys). Cross-check: CricViz T20 catch efficiency ~75-80% (drop share 0.20-0.25).",
+  "counts": {
+   "droppedCatchEvents": 180,
+   "caughtDismissals": 682,
+   "runOutChanceEvents": 62,
+   "runOutDismissals": 41,
+   "stumpingChanceEvents": 2,
+   "stumpingDismissals": 12,
+   "misfieldsGivingRuns": 133,
+   "misfieldBoundaries": 43,
+   "boundaryCatches": 324,
+   "ropeMentionCatches": 55,
+   "relayCatches": 1,
+   "savedSixes": 6,
+   "sixes": 1442
+  },
+  "denominators": {
+   "catchDropShare": 862,
+   "stumpingMissShare": 14,
+   "runOutMissShare": 103,
+   "boundaryCatchShare": 682,
+   "relayCatchShare": 324,
+   "sixSavedShare": 1448,
+   "misfieldPerDelivery": 17587
+  },
+  "dropTextCrossCheck": {
+   "textHits": 202,
+   "textHitsAlsoEvents": 110,
+   "events": 180,
+   "regex": "\\b(?:dropped|drops|spilled|spills|shelled|shells|grassed|grasses|put down|puts down|muffs?|fluffs?|spurned)\\b(?! (?:short|into|towards|down|the pace|it (?:short|into|towards|down)|his wrists|a hand))|\\bdropped (?:by|a|an|the|another|that|this)\\b|\\bdropped[,!]?$|can't (?:hold|cling) on|cannot (?:hold|make it stick)|fails? to hold"
+  },
+  "regexes": {
+   "misfield": "\\b(?:mis-?fields?|mis-?fielded|mis-?fielding|fumbles?|fumbled|fumbling|bobbles?|bobbled|(?:lets?|let) (?:it|the ball) (?:go )?(?:through|slip|past)|through (?:his|the|her) (?:legs|hands|fingers|gloves|feet)|between (?:his|the) (?:legs|feet)|makes? a mess|slips? (?:through|past|under) (?:his|the|her)|sloppy)\\b",
+   "bcatch": "\\b(?:deep[- ](?:mid[- ]?wicket|square(?: leg)?|cover(?: point)?|point|backward(?: square| point)?|extra(?: cover)?|fine(?: leg)?|third|mid[- ]?on|mid[- ]?off|midwicket)|long[- ]?on|long[- ]?off|long[- ]?leg|cow corner|third[- ]?man|sweeper|(?:on|at|near|inside|along|towards) the (?:rope|ropes|boundary|fence|cushion|line)|boundary rider|boundary (?:rope|fielder|line)|ropes?|fence|in the deep|of the (?:boundary|rope|ropes|fence))\\b",
+   "ropeOnly": "\\b(?:ropes?|fence|cushion|boundary (?:rope|fielder|line)|boundary rider|(?:on|at|near|inside|along) the boundary)\\b",
+   "relay": "\\brelay\\b|(?:throws?|tosses|tossed|lobs?|lobbed|flicks?|flicked|passes|passed|palms?|palmed|pats?|patted|chucks?)\\s+(?:it|the ball)\\s+(?:up\\s+|back\\s+|in\\s+)*to\\s+[A-Z]\\w+",
+   "relaySelfExclusion": "by himself|all by himself|himself|on his own|all by (?:him|her)self",
+   "savedSix": "\\b(?:sav(?:es|ed|ing)|stop(?:s|ped)|prevent(?:s|ed)?|deni(?:es|ed)|rescu(?:es|ed))\\s+(?:a\\s+|the\\s+|at least\\s+)?(?:certain\\s+|sure\\s+)?six(?:es)?\\b|\\b(?:pats?|patted|palms?|palmed|flicks?|flicked|parries|parried|tips?|tipped|pushe?s?|pushed)\\s+(?:the ball\\s+|it\\s+)(?:back\\s+)?(?:in|into play)\\b",
+   "savedSixContext": "\\b(?:six|rope|ropes|boundary|fence|cushion|beyond|over the (?:rope|boundary|fence))\\b"
+  }
+ },
+ "noBallKindN": 68,
+ "handCheck": {
+  "note": "precision judged by reading the seeded 'samples' of each item; re-judge if the regexes or the commentary corpus change",
+  "droppedCatchEvents": {
+   "n": 40,
+   "clearDrops": 29,
+   "plausibleIncludingDivingMisses": 33,
+   "precisionStrict": 0.725,
+   "precisionLoose": 0.82
+  },
+  "misfield": {
+   "n": 40,
+   "correct": 36,
+   "precision": 0.9
+  },
+  "boundaryCatch": {
+   "n": 40,
+   "correctOfJudgeable": "31/34",
+   "precision": 0.91,
+   "recallInSampleOfNonHits": "3 of 40 non-hits were deep catches",
+   "recall": 0.9
+  },
+  "runOutChanceEvents": {
+   "n": 40,
+   "realMissedChances": 34,
+   "precision": 0.85
+  },
+  "beamers": {
+   "n": 17,
+   "correct": 15,
+   "precision": 0.88
+  },
+  "savedSix": {
+   "n": 6,
+   "correct": 3,
+   "precision": 0.5,
+   "note": "low recall and mixed precision; treat as an order-of-magnitude figure"
+  },
+  "lodgedDeadBall": {
+   "n": 1,
+   "note": "ball lodged between the batter's legs; the text does not say dead ball was called"
+  },
+  "shortRun": {
+   "signalled": 0,
+   "note": "four 'check for a short run' mentions, none signalled"
+  },
+  "noBallKind": {
+   "unclassifiedOf68": 10,
+   "note": "unclassified assigned to front-foot (the default reason); the 1 fielding hit is a genuine only-three-fielders call"
+  }
+ },
+ "tsFile": "packages/engine/src/match-rules-extra-data.ts"
+}

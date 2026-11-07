@@ -223,7 +223,7 @@ describe("The Hundred: 100-ball innings", () => {
       }
       // first innings runs the full 100 balls unless bowled out
       const first = result.innings[0];
-      if (first.wickets < 10) { expect(first.totalBalls).toBe(100); fullInnings++; }
+      if (first.wickets < 10 && !result.rain) { expect(first.totalBalls).toBe(100); fullInnings++; }
     }
     expect(fullInnings).toBeGreaterThan(40);
   });
@@ -248,7 +248,7 @@ describe("The Hundred: 100-ball innings", () => {
     for (let i = 0; i < 10; i++) {
       const r = simulateMatch(teams[i % 8], teams[(i + 1) % 8], bbl.rules);
       expect(r.innings[0].totalBalls).toBeLessThanOrEqual(120);
-      if (r.innings[0].wickets < 10) expect(r.innings[0].totalBalls).toBe(120);
+      if (r.innings[0].wickets < 10 && !r.rain) expect(r.innings[0].totalBalls).toBe(120);
       expect(r.innings[0].ballsPerOver).toBeUndefined();
     }
   });

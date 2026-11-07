@@ -1,66 +1,82 @@
 /**
- * Duckworth-Lewis-Stern (DLS) method for rain-interrupted T20 matches.
+ * Duckworth-Lewis-Stern (DLS) for rain-interrupted T20 / Hundred matches (RULES-MATCH.md section 13.3).
  *
- * Uses the actual DLS Standard Edition formula:
- *   Z(u, w) = Z0(w) × [1 - exp(-b(w) × u)]
+ * Resources come from the Duckworth-Lewis model that generates the published Standard Edition table:
  *
- * Where:
- *   u = overs remaining
- *   w = wickets lost
- *   Z0(w) = asymptotic total resources for w wickets lost
- *   b(w) = exponential decay constant for w wickets lost
+ *   Z(u, w) = Z0 F(w) [1 - exp(-b u / F(w))]        u = overs left, w = wickets lost
  *
- * The resource percentage at any point is Z(u, w) / Z(50, 0) × 100
- * (normalized to 50 overs; for T20, we just use the formula values directly).
+ * as a percentage of a full 50-over innings, R50(u, w) = 100 Z(u, w) / Z(50, 0) (Z0 cancels). The decay b and the
+ * wicket factors F(w) below are fitted to the published Standard Edition values (the 50, 40, 30, 25, 20, 10 and 5
+ * overs-left rows at 0 / 2 / 5 / 7 / 9 wickets, and the 50-overs row at every wicket count: 100, 93.4, 85.1, 74.9,
+ * 62.7, 49.0, 34.9, 22.0, 11.9, 4.7); the model reproduces all 40 published cells to 0.1 (rms 0.03 points), e.g.
+ * 20 overs left: 56.6 / 52.4 / 38.6 / 21.2 / 4.7. A T20 innings is the bottom of that table, rescaled so a full 20 overs
+ * is 100% (ICC uses the same table, truncated, for T20s): R(u, w) = R50(u, w) / R50(20, 0). The Hundred counts in balls
+ * (u = balls left / 6, a full innings 100/6 overs).
  *
- * Parameters below are fitted to match published DLS Standard Edition tables.
- *
- * In real IPL: minimum 5 overs per side for a valid result.
+ * Revised target (Standard Edition): with team 1's score S and the resources R1 and R2 the two sides had,
+ *   R2 < R1:  par = S R2 / R1
+ *   R2 >= R1: par = S + G (R2 - R1) / 100, G = the average first-innings score (the "G50" of the 50-over game)
+ * and the target is floor(par) + 1. A side needs at least 5 overs (T20; 25 balls in The Hundred) for a result.
  */
 
 import type { RNG } from "./rng.js";
 
-/**
- * DLS Standard Edition parameters.
- * Z0(w) = asymptotic average score remaining with w wickets lost.
- * b(w)  = exponential decay rate (how quickly resources deplete per over).
- *
- * These are fitted to reproduce the ICC's published resource tables.
- */
-const Z0 = [245, 225, 200, 170, 140, 110, 82, 55, 31, 13, 0];
-const B  = [0.0367, 0.0400, 0.0440, 0.0498, 0.0575, 0.0680, 0.0830, 0.1070, 0.1520, 0.2500, 1.0];
+/** Decay constant, per over */
+export const DLS_B = 0.0274093;
+/** F(w) for 0..9 wickets lost (F(0) = 1) */
+export const DLS_F = [1.0, 0.88475, 0.7599, 0.63049, 0.50001, 0.3753, 0.26175, 0.16402, 0.08878, 0.03506] as const;
 
-/** Compute remaining resources Z(u, w) using the DLS formula */
-function dlsResources(oversRemaining: number, wicketsLost: number): number {
-  const w = Math.min(Math.max(wicketsLost, 0), 10);
-  const u = Math.min(Math.max(oversRemaining, 0), 20); // T20: at most 20 overs remain
-  if (w >= 10) return 0;
-  return Z0[w] * (1 - Math.exp(-B[w] * u));
+/** Standard Edition resources for u overs left and w wickets lost, as a % of a full 50-over innings */
+export function resources50(oversLeft: number, wicketsLost: number): number {
+  const w = Math.max(0, Math.floor(wicketsLost));
+  if (w >= 10 || oversLeft <= 0) return 0;
+  const u = Math.min(50, oversLeft);
+  const F = DLS_F[w];
+  return (100 * F * (1 - Math.exp(-DLS_B * u / F))) / (1 - Math.exp(-DLS_B * 50));
 }
 
-/** Full-innings resources (reference point) — T20 is 20 overs, 0 wickets */
-const FULL_T20_RESOURCES = dlsResources(20, 0);
+/** Resources left with `oversLeft` overs to go and `wicketsLost` down, as a % of a full innings of `fullOvers` (20 for a T20) */
+export function resourcesPct(oversLeft: number, wicketsLost: number, fullOvers = 20): number {
+  const u = Math.min(Math.max(oversLeft, 0), fullOvers);
+  return (100 * resources50(u, wicketsLost)) / resources50(fullOvers, 0);
+}
 
-/** Get DLS resource percentage for given overs remaining and wickets lost.
- *  Returns 0-100 scale normalized to a full T20 innings. */
+/** DLS resource percentage for a T20 (0-100, a full 20 overs with no wicket down = 100) */
 export function getDLSResource(oversRemaining: number, wicketsLost: number): number {
-  return (dlsResources(oversRemaining, wicketsLost) / FULL_T20_RESOURCES) * 100;
+  if (oversRemaining <= 0 || wicketsLost >= 10) return 0;
+  return resourcesPct(oversRemaining, Math.max(0, wicketsLost), 20);
 }
 
-/** Calculate revised DLS target for a rain-interrupted match.
- *
- * Uses the standard DLS approach:
- * - If Team 2 has FEWER resources → par score is reduced proportionally
- * - If Team 2 has MORE resources (Team 1 interrupted) → target is increased
- *
- * G50 (average score in T20) is used for the Professional Edition adjustment
- * when Team 2 has more resources than Team 1.
- *
- * @param firstInningsScore - Team 1's total
- * @param team2OversAvailable - Overs available to Team 2 (reduced due to rain)
- * @param team2WicketsLost - Wickets already lost by Team 2 when rain hit (usually 0)
- * @param team1OversCompleted - Overs Team 1 actually batted (may be less than 20 if interrupted)
- * @returns Revised target for Team 2
+/**
+ * Resources a side had in an innings that started with `startOvers` and lost overs to interruptions: each stop is
+ * (overs left when play stopped, wickets down then, overs lost). Percent of a full innings of `fullOvers`.
+ */
+export function inningsResources(startOvers: number, stops: readonly { oversLeft: number; wickets: number; oversLost: number }[], fullOvers = 20): number {
+  let r = resourcesPct(startOvers, 0, fullOvers);
+  for (const s of stops) {
+    r -= resourcesPct(s.oversLeft, s.wickets, fullOvers) - resourcesPct(Math.max(0, s.oversLeft - s.oversLost), s.wickets, fullOvers);
+  }
+  return Math.max(0, r);
+}
+
+/** Standard Edition target from team 1's score and the two sides' resources (percent). `g` = average first-innings score */
+export function dlsTarget(team1Score: number, r1: number, r2: number, g: number): number {
+  if (r1 <= 0) return team1Score + 1;
+  const par = r2 < r1 ? (team1Score * r2) / r1 : team1Score + (g * (r2 - r1)) / 100;
+  return Math.floor(par + 1e-9) + 1;
+}
+
+/** Par score (what team 2 must have reached to be ahead) at a point of its innings: floor(S R2used / R1) */
+export function dlsPar(team1Score: number, r1: number, r2Used: number, g: number): number {
+  return dlsTarget(team1Score, r1, r2Used, g) - 1;
+}
+
+/** Average first-innings score used as G for a T20 (men's IPL-era; RULES-MATCH.md 13.3) */
+export const DLS_G_T20 = 160;
+
+/**
+ * Legacy helper (live engine before section 13): target for team 2 with `team2OversAvailable` overs, `team2WicketsLost`
+ * down at the point the overs were set, after team 1 batted `team1OversCompleted` overs.
  */
 export function calculateDLSTarget(
   firstInningsScore: number,
@@ -68,53 +84,24 @@ export function calculateDLSTarget(
   team2WicketsLost: number = 0,
   team1OversCompleted: number = 20,
 ): number {
-  // Resources used by Team 1 (what fraction of a full innings they consumed)
-  const team1Resources = getDLSResource(team1OversCompleted, 0) - getDLSResource(team1OversCompleted - team1OversCompleted, 0);
-  // Simplifies to: getDLSResource(team1OversCompleted, 0)
   const R1 = getDLSResource(team1OversCompleted, 0);
-
-  // Resources available to Team 2
   const R2 = getDLSResource(team2OversAvailable, team2WicketsLost);
-
-  // G50 equivalent for T20 — average par score in a full T20 innings (~160)
-  const G = 160;
-
-  let revisedTarget: number;
-  if (R2 < R1) {
-    // Team 2 has fewer resources — scale down Team 1's score
-    revisedTarget = Math.round(firstInningsScore * (R2 / R1));
-  } else {
-    // Team 2 has more resources (Team 1 was interrupted) — add runs
-    revisedTarget = Math.round(firstInningsScore + G * (R2 - R1) / 100);
-  }
-
-  // Target = par score + 1 (to win, you must exceed par)
-  revisedTarget += 1;
-
-  // Minimum target is at least 1 run per over
-  return Math.max(revisedTarget, team2OversAvailable + 1);
+  const t = dlsTarget(firstInningsScore, R1, R2, DLS_G_T20);
+  return Math.max(t, Math.floor(team2OversAvailable) + 1);
 }
 
-/** Check if a rain interruption should occur (random weather event).
- *  Returns the number of overs lost, or 0 if no rain. */
+/** Check if a rain interruption should occur (random weather event). Returns the number of overs lost, or 0 if no rain. */
 export function checkRainInterruption(
   over: number,
   rng: RNG = Math.random,
 ): number {
-  // Rain is rare: ~5% chance per match, more likely in middle overs
   const baseChance = 0.003; // per over
   const midInningsBoost = (over >= 8 && over <= 14) ? 1.5 : 1.0;
-
-  if (rng() < baseChance * midInningsBoost) {
-    // Rain delay: lose 1-5 overs
-    const oversLost = Math.ceil(rng() * 5);
-    return oversLost;
-  }
+  if (rng() < baseChance * midInningsBoost) return Math.ceil(rng() * 5);
   return 0;
 }
 
-/** Determine if the match can still produce a result after rain.
- *  IPL requires minimum 5 overs per side. */
+/** Determine if the match can still produce a result after rain: a minimum of 5 overs per side. */
 export function canProduceResult(
   oversAvailable: number,
   _isFirstInnings: boolean,
@@ -122,9 +109,7 @@ export function canProduceResult(
   return oversAvailable >= 5;
 }
 
-/**
- * Generate rain delay narrative text.
- */
+/** Generate rain delay narrative text. */
 export function getRainDelayNarrative(oversLost: number, oversRemaining: number): string {
   if (oversLost >= 5) return `Heavy rain! ${oversLost} overs lost. Only ${oversRemaining} overs remain.`;
   if (oversLost >= 3) return `Rain delay — ${oversLost} overs lost. Match reduced to ${oversRemaining}-over affair.`;

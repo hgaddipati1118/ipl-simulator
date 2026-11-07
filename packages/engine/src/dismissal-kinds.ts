@@ -81,6 +81,25 @@ export interface RuleOverrides {
   overthrowBoundaryAfterDot?: number;
   /** Probability that a wicket draw is on a substitute fielder */
   substituteShare?: number;
+  // section 13 plays (special-plays.ts, drs.ts)
+  shortRunPerDelivery?: number;
+  lodgedPerDelivery?: number;
+  misfieldPerDelivery?: number;
+  sixSavedShare?: number;
+  boundaryCatchShare?: number;
+  relayCatchShare?: number;
+  /** Every height no-ball is a beamer */
+  forceBeamer?: boolean;
+  /** Share of no-balls (multiplies the base no-ball probability) */
+  noBallRateFactor?: number;
+  overRatePenaltyPerInnings?: number;
+  /** Rain: p(no result) and p(reduced) per match, overriding the league's fitted rates */
+  rainNoResult?: number;
+  rainReduced?: number;
+  /** DRS: multiply every review rate */
+  drsRateFactor?: number;
+  /** Every delivery's coarse outcome (tests: forcing a tie, a no-ball ...) */
+  forceCoarseOutcome?: "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
 }
 
 let overrides: RuleOverrides = {};

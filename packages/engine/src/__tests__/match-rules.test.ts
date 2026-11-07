@@ -69,7 +69,7 @@ function play(n: number, opts: { seed?: number; rules?: RuleSet; pool?: Team[] }
   for (let i = 0; i < n; i++) {
     const a = pool[i % pool.length];
     const b = pool[(i * 7 + 3) % pool.length === i % pool.length ? (i + 1) % pool.length : (i * 7 + 3) % pool.length];
-    out.push(simulateMatch(a, b, opts.rules ?? rules, (opts.seed ?? 1) * 100000 + i, { countTowardStandings: false }));
+    out.push(simulateMatch(a, b, opts.rules ?? rules, (opts.seed ?? 1) * 100000 + i, { countTowardStandings: false, rain: false }));
   }
   return out;
 }

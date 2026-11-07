@@ -146,6 +146,25 @@ export interface DeliveryDetail {
   dismissal?: DismissalDetail;
   /** This ball makes the next one a free hit */
   freeHitNext: boolean;
+  // ── Rare plays (special-plays.ts, RULES-MATCH.md section 13) ──
+  /** Why the no-ball was called */
+  noBallKind?: "front_foot" | "height" | "fielding";
+  /** A height no-ball that was a beamer (full toss above the waist): two in an innings remove the bowler */
+  beamer?: boolean;
+  /** Why the 5 penalty runs were given */
+  penaltyReason?: "helmet" | "fielding" | "other";
+  /** One short: a run not counted (already taken off the runs) */
+  shortRun?: boolean;
+  /** Dead ball: lodged in the batter's helmet / pads */
+  lodged?: boolean;
+  /** A fumble gave away a run (or the four) */
+  misfield?: { fielderId?: string; boundary: boolean };
+  /** A six saved on the rope, the batters ran `runs` */
+  sixSaved?: { fielderId?: string; runs: number };
+  /** The catch was taken on the boundary */
+  boundaryCatch?: boolean;
+  /** Relay catch: the fielder who parried it to the catcher */
+  relayFielderId?: string;
 }
 
 function physical(total: number): number {

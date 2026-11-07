@@ -201,7 +201,9 @@ describe("runSeason", () => {
     const result = runSeason(teams);
     for (const match of result.schedule) {
       expect(match.result).toBeDefined();
-      expect(match.result!.winnerId).toBeTruthy();
+      // a group match can be washed out (a point each); every other match has a winner
+      if (match.result!.margin === "No result") expect(match.isPlayoff).toBeFalsy();
+      else expect(match.result!.winnerId).toBeTruthy();
     }
   });
 
