@@ -10,7 +10,8 @@ import {
   DEFAULT_RULES,
   generateAITradeOffers, processTradeOffer, executeTrade,
   generateSchedule, simulateNextMatch, getStandings,
-  addPlayoffMatches, addQualifier2, addFinal, applyLiveResult,
+  progressPlayoffs, applyLiveResult,
+  EXTRA_LEAGUES, isOverseasIn, isWomenLeague, type LeagueDef,
   serializeMatchResult, healInjuries, simulateMatch, calculateMVPPoints,
   initAuction as engineInitAuction,
   userBid as engineUserBid,
@@ -65,6 +66,7 @@ import { seasonDraftConfig, draftRoundPrice } from "./draft-pools";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
+import { getLeaguePlayers, getPoolPlayersForLeague } from "@ipl-sim/ratings/dist/league-players.js";
 import { buildNarrativeEventsForEngineResult, prependNarrativeEvents, type FeedMatchResult } from "./news-feed";
 import {
   boostPlayerScouting,
@@ -385,8 +387,95 @@ function refreshUserContractState(state: GameState): GameState {
   };
 }
 
+/**
+ * Generated players (new talent, youth academy) come out of generators written for the IPL: "overseas" means non-Indian
+ * and youth prospects are Indian. In an extra league "overseas" is relative to the league's home country, and the
+ * academy produces home-grown players.
+ */
+function localizeForLeague(rules: RuleSet, players: Player[], homeGrown = false): void {
+  const league = EXTRA_LEAGUES.find(l => l.id === rules.league);
+  if (!league) return;
+  for (const p of players) {
+    if (homeGrown) p.country = league.homeCountry;
+    p.isInternational = isOverseasIn(league.id, p.country);
+  }
+}
+
+/** Fresh state for a set of teams and a free-agent pool. */
+function initialGameState(rules: RuleSet, teams: Team[], playerPool: Player[]): GameState {
+  return {
+    phase: "setup",
+    rules,
+    teams,
+    userTeamId: null,
+    playerPool,
+    auctionResult: null,
+    seasonResult: null,
+    seasonNumber: 1,
+    history: [],
+    tradeOffers: [],
+    completedTrades: [],
+    schedule: [],
+    currentMatchIndex: 0,
+    matchResults: [],
+    playoffsStarted: false,
+    needsLineup: false,
+    recentInjuries: [],
+    narrativeEvents: [],
+    trainingReport: [],
+    scouting: createScoutingState(teams, playerPool, null, 1),
+    scoutingAssignments: [],
+    scoutingInbox: [],
+    recruitment: createRecruitmentState(),
+    youthProspects: [],
+    fantasyLeaderboard: [],
+    contractsResolved: true,
+  };
+}
+
+/**
+ * One of the extra leagues (BBL, PSL, The Hundred, ...): its teams with their real squads (ratings from the pool where
+ * the player is in it, a generated fallback otherwise), the rest of the men's / women's pool as free agents.
+ * "Overseas" is relative to the league's home country, not India.
+ */
+function createExtraLeagueGameState(rules: RuleSet, league: LeagueDef): GameState {
+  const teams = league.teams.map(config => new Team(config, rules.salaryCap));
+  const maxBid = isWomenLeague(rules) ? 3 : 15;
+  const makePlayer = (data: Parameters<typeof createPlayerFromData>[0]): Player => {
+    const player = createPlayerFromData(data);
+    player.isInternational = isOverseasIn(league.id, data.country);
+    return player;
+  };
+  const rosteredIds = new Set<string>();
+  for (const data of getLeaguePlayers(league.id)) {
+    const team = teams.find(t => t.id === data.teamId);
+    if (!team) continue;
+    rosteredIds.add(data.id);
+    const player = makePlayer(data);
+    team.addPlayer(player, Math.min(player.marketValue, maxBid));
+  }
+  const pool = getPoolPlayersForLeague(league.id, rosteredIds).map(d => makePlayer(d));
+  // Squads that are short of the league's minimum (players who never made an XI are invisible in the data) are
+  // topped up from the free agents: home-country players first, best first, within the overseas limit.
+  const minSquad = rules.minSquadSize ?? 11;
+  for (const team of teams) {
+    while (team.roster.length < minSquad) {
+      const candidates = pool
+        .filter(p => !p.teamId && p.age <= 36 && (!p.isInternational || team.internationalCount < rules.maxOverseasInSquad))
+        .sort((a, b) => Number(a.isInternational) - Number(b.isInternational) || b.overall - a.overall);
+      const pick = candidates[0];
+      if (!pick) break;
+      pool.splice(pool.indexOf(pick), 1);
+      team.addPlayer(pick, Math.min(pick.marketValue, maxBid, 0.5));
+    }
+  }
+  return initialGameState(rules, teams, pool);
+}
+
 /** Initialize fresh game state */
 export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
+  const extraLeague = EXTRA_LEAGUES.find(l => l.id === rules.league);
+  if (extraLeague) return createExtraLeagueGameState(rules, extraLeague);
   const isWPL = rules.league === "wpl";
   const isCustom = rules.league === "custom";
   const allTeamConfigs = [...IPL_TEAMS, ...WPL_TEAMS];
@@ -572,7 +661,7 @@ export function initSeason(state: GameState): GameState {
     }
   }
 
-  const schedule = generateSchedule(state.teams, state.rules.matchesPerTeam);
+  const schedule = generateSchedule(state.teams, state.rules.matchesPerTeam, state.rules);
 
   const firstMatch = schedule[0];
   const userPlays = firstMatch &&
@@ -660,30 +749,14 @@ export function playNextMatch(state: GameState): {
     }),
   );
 
-  let newSchedule = [...schedule];
+  const newSchedule = [...schedule];
   let newPlayoffsStarted = state.playoffsStarted;
   const newInjuries = rawResult.injuries || [];
   const matchInvolvesUser = !!state.userTeamId &&
     (matchEntry?.homeTeamId === state.userTeamId || matchEntry?.awayTeamId === state.userTeamId);
 
-  const groupCount = schedule.filter(m => m.type === "group").length;
-  if (!state.playoffsStarted && newIndex === groupCount) {
-    addPlayoffMatches(newSchedule, teams);
-    newPlayoffsStarted = true;
-  }
-
-  const q1 = newSchedule.find(m => m.playoffType === "qualifier1");
-  const elim = newSchedule.find(m => m.playoffType === "eliminator");
-  const q2Exists = newSchedule.some(m => m.playoffType === "qualifier2");
-  if (q1?.result && elim?.result && !q2Exists) {
-    addQualifier2(newSchedule);
-  }
-
-  const q2 = newSchedule.find(m => m.playoffType === "qualifier2");
-  const finalExists = newSchedule.some(m => m.playoffType === "final");
-  if (q1?.result && q2?.result && !finalExists) {
-    addFinal(newSchedule);
-  }
+  // Playoff bracket follows rules.playoffFormat (IPL / WPL keep the original top-4 flow)
+  newPlayoffsStarted = progressPlayoffs(newSchedule, teams, state.rules, newIndex, state.playoffsStarted);
 
   let needsLineup = false;
   if (newIndex < newSchedule.length) {
@@ -807,30 +880,14 @@ export function applyLiveMatchToState(
     }),
   );
 
-  let newSchedule = [...schedule];
+  const newSchedule = [...schedule];
   let newPlayoffsStarted = state.playoffsStarted;
   const newInjuries = rawResult.injuries || [];
   const matchInvolvesUser = !!state.userTeamId &&
     (matchEntry?.homeTeamId === state.userTeamId || matchEntry?.awayTeamId === state.userTeamId);
 
-  const groupCount = schedule.filter(m => m.type === "group").length;
-  if (!state.playoffsStarted && newIndex === groupCount) {
-    addPlayoffMatches(newSchedule, teams);
-    newPlayoffsStarted = true;
-  }
-
-  const q1 = newSchedule.find(m => m.playoffType === "qualifier1");
-  const elim = newSchedule.find(m => m.playoffType === "eliminator");
-  const q2Exists = newSchedule.some(m => m.playoffType === "qualifier2");
-  if (q1?.result && elim?.result && !q2Exists) {
-    addQualifier2(newSchedule);
-  }
-
-  const q2 = newSchedule.find(m => m.playoffType === "qualifier2");
-  const finalExists = newSchedule.some(m => m.playoffType === "final");
-  if (q1?.result && q2?.result && !finalExists) {
-    addFinal(newSchedule);
-  }
+  // Playoff bracket follows rules.playoffFormat (IPL / WPL keep the original top-4 flow)
+  newPlayoffsStarted = progressPlayoffs(newSchedule, teams, state.rules, newIndex, state.playoffsStarted);
 
   let needsLineup = false;
   if (newIndex < newSchedule.length) {
@@ -1151,6 +1208,7 @@ export function nextSeason(state: GameState): GameState {
 
   // Add new young players to pool (replaces retired players + fresh talent)
   const newPlayers = generatePlayerPool(30 + retiredFromTeams.length);
+  localizeForLeague(state.rules, newPlayers);
 
   // Generate youth academy prospects — they enter the auction pool (IPL: all signings via auction)
   const youthProspects: YouthProspect[] = generateYouthProspects(
@@ -1159,6 +1217,7 @@ export function nextSeason(state: GameState): GameState {
   );
   // Add youth prospect players to the pool so they're available at next auction
   const youthPoolPlayers = youthProspects.map(y => y.player);
+  localizeForLeague(state.rules, youthPoolPlayers, true);
 
   // Tick contracts (all 1-year contracts expire)
   for (const team of state.teams) {
@@ -1647,8 +1706,8 @@ export function signFreeAgent(state: GameState, playerId: string, bidAmount: num
   const player = state.playerPool[playerIdx];
 
   // Validation: roster size, overseas limit, budget
-  if (userTeam.roster.length >= 25) return state;
-  if (player.isInternational && userTeam.internationalCount >= 8) return state;
+  if (userTeam.roster.length >= state.rules.maxSquadSize) return state;
+  if (player.isInternational && userTeam.internationalCount >= state.rules.maxOverseasInSquad) return state;
   if (userTeam.remainingBudget < bidAmount) return state;
 
   // Sign the player

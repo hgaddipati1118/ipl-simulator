@@ -109,7 +109,7 @@ export function MatchDetailPage({ state }: Props) {
               {innings.runs}/{innings.wickets}
             </span>
             <span className="text-th-secondary text-sm ml-2">
-              ({innings.overs} ov)
+              ({innings.ballsPerOver && innings.ballsPerOver !== 6 ? `${innings.totalBalls} balls` : `${innings.overs} ov`})
             </span>
           </div>
         </div>
@@ -172,9 +172,11 @@ export function MatchDetailPage({ state }: Props) {
             <tbody>
               {bowlingCard.map(([playerId, stat]) => {
                 const player = allPlayers.get(playerId);
-                const totalOvers = stat.overs + stat.balls / 10;
-                const oversDisplay = stat.balls > 0 ? `${stat.overs}.${stat.balls}` : `${stat.overs}`;
-                const econ = totalOvers > 0 ? stat.runs / (stat.overs + stat.balls / 6) : 0;
+                const bpo = innings.ballsPerOver ?? 6;
+                const ballsBowled = stat.overs * bpo + stat.balls;
+                // The Hundred has no overs: show balls bowled; economy is runs per 6 balls everywhere
+                const oversDisplay = bpo !== 6 ? `${ballsBowled}` : stat.balls > 0 ? `${stat.overs}.${stat.balls}` : `${stat.overs}`;
+                const econ = ballsBowled > 0 ? (stat.runs / ballsBowled) * 6 : 0;
                 return (
                   <tr key={playerId} className="border-t border-th">
                     <td className="px-4 py-1.5"><PlayerLink playerId={playerId} className="text-th-primary">{player?.name ?? playerId}</PlayerLink></td>

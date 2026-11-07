@@ -105,7 +105,8 @@ interface SaveMeta {
 export interface SaveSlotInfo {
   id: string;
   name: string;
-  league: "ipl" | "wpl";
+  /** "ipl", "wpl" or an extra league id ("bbl", "psl", "hundred-m", ...) */
+  league: string;
   season: number;
   teamName: string;
   updatedAt: string;
@@ -237,7 +238,7 @@ export function createSaveSlot(name: string, state: GameState): string {
   const info: SaveSlotInfo = {
     id,
     name,
-    league: state.rules.league === "wpl" ? "wpl" : "ipl",
+    league: state.rules.league === "custom" ? "ipl" : state.rules.league,
     season: state.seasonNumber,
     teamName: userTeam?.name ?? "Unknown",
     updatedAt: new Date().toISOString(),
@@ -868,7 +869,7 @@ export async function detectImportType(file: File): Promise<"full-save" | "playe
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function leaguePrefix(state: GameState): string {
-  return state.rules.league === "wpl" ? "wpl" : "ipl";
+  return state.rules.league === "custom" ? "ipl" : state.rules.league;
 }
 
 function downloadJSON(data: any, filename: string): void {

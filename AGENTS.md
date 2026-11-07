@@ -11,6 +11,9 @@ packages/
   app/       - React 19 + Vite frontend (team selection, auction, season sim, results)
 ```
 
+Besides the IPL and WPL the game plays BBL, WBBL, PSL, SA20, The Hundred (men and women), CPL, ILT20, MLC, BPL and LPL
+with real teams, squads, home grounds and rules; see `docs/LEAGUES.md` (registry: `packages/engine/src/leagues.ts`).
+
 ## Quick Start
 
 ```bash

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Team, RULE_PRESETS, IPL_TEAMS, WPL_TEAMS, ALL_TEAM_IDS,
+  Team, RULE_PRESETS, IPL_TEAMS, WPL_TEAMS, ALL_TEAM_IDS, EXTRA_LEAGUES, isExtraLeague,
   type RuleSet, type PlayoffFormat, type GenderOption, type PlayerSource,
 } from "@ipl-sim/engine";
 import { TeamBadge } from "../components/TeamBadge";
@@ -257,9 +257,10 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
   const navigate = useNavigate();
   const isWPL = rules.league === "wpl";
   const isCustom = rules.league === "custom";
+  const isExtra = isExtraLeague(rules);
   const isModern = rules.name === "IPL Modern (2023+)" || (rules.impactPlayer && rules.matchesPerTeam === 14 && rules.league === "ipl");
   const is2026 = rules.name === "IPL 2026" || (rules.impactPlayer && rules.matchesPerTeam === 14 && rules.salaryCap === 125 && rules.league === "ipl");
-  const isClassic = !isModern && !is2026 && !isWPL && !isCustom;
+  const isClassic = !isModern && !is2026 && !isWPL && !isCustom && !isExtra;
   const [showCustom, setShowCustom] = useState(isCustom);
 
   const leagueLabel = rules.leagueName ?? (isWPL ? "WPL" : isCustom ? (rules.leagueName || "Custom") : "IPL");
@@ -273,6 +274,8 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
           style={{
             background: isWPL
               ? "radial-gradient(ellipse at center, #7c3aed40, transparent 70%)"
+              : isExtra
+                ? "radial-gradient(ellipse at center, #06b6d440, transparent 70%)"
               : isCustom
                 ? "radial-gradient(ellipse at center, #10b98140, transparent 70%)"
                 : "radial-gradient(ellipse at center, #FF822A20, transparent 70%)",
@@ -291,7 +294,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
         <button
           onClick={() => { setShowCustom(false); onRulesChange(RULE_PRESETS.modern2026); }}
           className={`w-full rounded-lg border px-4 py-2.5 text-sm font-display font-semibold transition-all duration-200 ${
-            !isWPL && !isCustom && !showCustom
+            !isWPL && !isCustom && !showCustom && !isExtra
               ? "bg-blue-600/90 border-blue-500/50 text-white shadow-lg shadow-blue-500/20"
               : "bg-th-surface border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
           }`}
@@ -333,13 +336,33 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
         </button>
       </fieldset>
 
+      {/* More leagues: BBL, WBBL, PSL, SA20, The Hundred, CPL, ILT20, MLC, BPL, LPL */}
+      <fieldset data-testid="league-picker" className="mb-6 flex flex-wrap justify-center gap-2 border-0 p-0">
+        <legend className="sr-only">More leagues</legend>
+        {EXTRA_LEAGUES.map(l => (
+          <button
+            key={l.id}
+            data-testid={`league-${l.id}`}
+            title={l.name}
+            onClick={() => { setShowCustom(false); onRulesChange(l.rules); }}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-display font-semibold transition-all duration-200 ${
+              rules.league === l.id && !showCustom
+                ? "bg-cyan-600/90 border-cyan-500/50 text-white shadow-lg shadow-cyan-500/20"
+                : "bg-th-surface border-th text-th-muted hover:text-th-primary hover:bg-th-hover"
+            }`}
+          >
+            {l.short}
+          </button>
+        ))}
+      </fieldset>
+
       {/* Custom League Panel */}
       {showCustom && (
         <CustomLeaguePanel rules={rules} onRulesChange={(r) => { onRulesChange(r); }} />
       )}
 
       {/* Era Toggle (IPL only) */}
-      {!isWPL && !isCustom && !showCustom && (
+      {!isWPL && !isCustom && !showCustom && !isExtra && (
         <div className="mb-6 flex justify-center">
           <div className="grid w-full max-w-sm grid-cols-1 overflow-hidden rounded-lg border border-th sm:inline-flex sm:w-auto">
             <button
@@ -379,6 +402,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
       {/* Rule summary */}
       <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-th-muted mb-6 font-mono">
         <span>{teams.length} teams</span>
+        {rules.matchFormat === "hundred" && (<><span className="text-th-faint">|</span><span>100-ball innings</span></>)}
         <span className="text-th-faint">|</span>
         <span>Impact: <span className={rules.impactPlayer ? "text-emerald-400" : "text-th-muted"}>{rules.impactPlayer ? "ON" : "OFF"}</span></span>
         <span className="text-th-faint">|</span>
@@ -444,6 +468,11 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
             </button>
           ))}
         </div>
+        {isExtra && (
+          <div className="text-[11px] text-th-faint font-display" data-testid="real-squad-building">
+            The real {leagueLabel} builds squads by {EXTRA_LEAGUES.find(l => l.id === rules.league)?.realSquadBuilding}; the game starts from the real squads.
+          </div>
+        )}
         {rules.squadBuilding === "draft" && (
           <div className="flex flex-wrap justify-center gap-3 text-xs font-display text-th-muted">
             <label className="flex items-center gap-2">
@@ -516,7 +545,7 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
               >
                 <div className="text-th-primary text-sm font-medium truncate">{slot.name}</div>
                 <div className="flex items-center gap-2 mt-1 text-xs text-th-muted">
-                  <span className={`uppercase font-medium ${slot.league === "wpl" ? "text-purple-400" : "text-blue-400"}`}>
+                  <span className={`uppercase font-medium ${slot.league === "wpl" ? "text-purple-400" : slot.league === "ipl" ? "text-blue-400" : "text-cyan-400"}`}>
                     {slot.league}
                   </span>
                   <span>Season {slot.season}</span>
@@ -528,11 +557,13 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
       )}
 
       <div className="mt-14 text-center text-th-faint text-sm font-display">
-        <p>Ball-by-ball T20 simulation with real {isWPL ? "WPL" : "IPL"} players</p>
+        <p>Ball-by-ball {rules.matchFormat === "hundred" ? "100-ball" : "T20"} simulation with real {leagueLabel} players</p>
         <p className="mt-1 text-th-faint">
           {isCustom
             ? `Custom league \u2022 ${teams.length} teams \u2022 ${rules.matchesPerTeam} matches/team`
-            : isWPL
+            : isExtra
+              ? `Auction \u2022 ${rules.teamIds.length * rules.matchesPerTeam / 2}-match season \u2022 Top ${rules.playoffTeams} Playoffs \u2022 Multi-season`
+              : isWPL
               ? "Auction \u2022 8-match season \u2022 Top 3 Playoffs \u2022 Multi-season"
               : `Auction \u2022 ${rules.teamIds.length * rules.matchesPerTeam / 2}-match season \u2022 Playoffs \u2022 Multi-season progression`}
         </p>

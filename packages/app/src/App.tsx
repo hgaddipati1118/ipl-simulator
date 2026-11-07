@@ -353,7 +353,7 @@ export default function App() {
       return;
     }
     // If teams already have full rosters (real players loaded), skip auction
-    const minSquad = state.rules.maxSquadSize >= 18 ? 18 : 11;
+    const minSquad = state.rules.minSquadSize ?? (state.rules.maxSquadSize >= 18 ? 18 : 11);
     const allTeamsStaffed = state.teams.every(t => t.roster.length >= minSquad);
     if (allTeamsStaffed) {
       // Skip straight to season — no auction needed
@@ -391,8 +391,20 @@ export default function App() {
     }
   };
 
+  /**
+   * The ball-by-ball live viewer is built around 6-ball overs, so The Hundred (5-ball sets, 100 balls) is played
+   * through the quick simulator instead, which models the format in full (see docs/LEAGUES.md).
+   */
+  const playMatchQuickly = (st: GameState) => {
+    const { state: next, detailed, matchIndex } = playNextMatch(st);
+    update(next);
+    if (detailed) saveMatchDetail(getActiveSlotId(), st.seasonNumber, matchIndex, detailed);
+    navigate(next.needsLineup ? "/lineup" : "/season");
+  };
+
   const handlePlayNextMatch = () => {
     if (state.currentMatchIndex >= state.schedule.length) return;
+    if (state.rules.matchFormat === "hundred") { playMatchQuickly(state); return; }
     const matchIdx = state.currentMatchIndex;
     const match = state.schedule[matchIdx];
     const homeTeam = state.teams.find(t => t.id === match.homeTeamId);
@@ -446,6 +458,7 @@ export default function App() {
   const handleConfirmLineup = (xiIds: string[], battingOrder: string[], bowlingOrder: string[], bowlingPlan?: import("@ipl-sim/engine").BowlingPlan) => {
     const afterLineup = setUserLineup(state, xiIds, battingOrder, bowlingOrder, bowlingPlan);
     update(afterLineup);
+    if (afterLineup.rules.matchFormat === "hundred") { playMatchQuickly(afterLineup); return; }
 
     // Navigate to live match for user's team match
     const matchIdx = afterLineup.currentMatchIndex;
