@@ -88,7 +88,7 @@ export type BattingHand = "right" | "left";
 export type BattingPosition = "opener" | "top-order" | "middle-order" | "finisher" | "lower-order";
 
 export type InjurySeverity = "minor" | "moderate" | "severe";
-export type TrainingFocus = "balanced" | "batting" | "power" | "bowling" | "control" | "fitness" | "clutch";
+export type TrainingFocus = "balanced" | "batting" | "power" | "bowling" | "control" | "fitness" | "clutch" | "fielding";
 export type TrainingIntensity = "light" | "balanced" | "hard";
 
 /** Ratings during a season, recorded when the player progresses to the next one */
@@ -182,16 +182,22 @@ const TRAINING_CAMP_FOCUS_MOD: Record<TrainingFocus, number> = {
   control: 1,
   fitness: -4,
   clutch: 0,
+  fielding: 1,
 };
 
 const TRAINING_FOCUS_BIAS: Record<TrainingFocus, Partial<Record<keyof PlayerRatings, number>>> = {
-  balanced: {},
+  // Fielding and keeping points are added on top of the age curve at the season rollover (not in the mid-season tick).
+  // 1 overall point is ~7 fielding points (FIELDING_OVR_PER_POINT 0.145), so +3.5 fielding is worth about what the
+  // batting focus gives (~0.5 overall). Balanced gives a small share. Keeping applies to designated keepers only.
+  balanced: { fielding: 0.1, keeping: 0.1 },
   batting: { battingIQ: 0.7, timing: 0.8, running: 0.1 },
   power: { power: 1.0, timing: 0.2, battingIQ: -0.1, running: -0.1 },
   bowling: { wicketTaking: 0.85, economy: 0.2, accuracy: 0.4 },
   control: { economy: 0.8, accuracy: 0.9, wicketTaking: 0.15 },
   fitness: { running: 0.8, clutch: 0.25 },
   clutch: { clutch: 1.0, battingIQ: 0.2, accuracy: 0.15 },
+  // Time in the nets goes elsewhere: a little less batting and bowling growth
+  fielding: { fielding: 3.5, keeping: 2.0, battingIQ: -0.1, timing: -0.1, wicketTaking: -0.1, economy: -0.1 },
 };
 
 /** Infer batting position from player role, ratings, and age */
@@ -556,6 +562,8 @@ export class Player implements PlayerData {
     const bias = TRAINING_FOCUS_BIAS[focus];
     const changes: { attr: string; from: number; to: number }[] = [];
     for (const [attr, weight] of Object.entries(bias) as [CoreRatingKey, number][]) {
+      // fielding and keeping training lands at the season rollover only
+      if ((attr as string) === "fielding" || (attr as string) === "keeping") continue;
       if (weight > 0) {
         const from = this.ratings[attr];
         const gain = Math.round(randomNormal(weight * 0.4, 0.3));
@@ -698,7 +706,9 @@ export class Player implements PlayerData {
     for (const kind of ["fielding", "keeping"] as const) {
       const current = this.ratings[kind];
       if (typeof current !== "number") continue;
-      const next = clamp(Math.round(current + sampleFieldingChange(kind, current, this.age, gender, rng, volatility)), 1, 99);
+      // focus boost: keeping only for a designated keeper
+      const boost = kind === "keeping" && !this.isWicketKeeper ? 0 : (focusBias[kind] ?? 0) * gainMultiplier;
+      const next = clamp(Math.round(current + sampleFieldingChange(kind, current, this.age, gender, rng, volatility) + boost), 1, 99);
       ratingChanges[kind] = next - current;
       this.ratings[kind] = next;
     }

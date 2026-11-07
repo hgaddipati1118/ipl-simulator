@@ -161,6 +161,8 @@ describe("20-season career sim stays balanced", () => {
       };
       const all = (ps: Player[]) => ps.reduce((a, p) => a + p.overall, 0) / ps.length;
       const sd = (ps: Player[]) => { const m = all(ps); return Math.sqrt(ps.reduce((a, p) => a + (p.overall - m) ** 2, 0) / ps.length); };
+      const fld = (ps: Player[]) => { const v = ps.filter(p => typeof p.ratings.fielding === "number"); return v.reduce((a, p) => a + p.ratings.fielding!, 0) / v.length; };
+      const startFielding = fld(pool);
       const start = { all: all(pool), top: top(pool), sd: sd(pool), age: pool.reduce((a, p) => a + p.age, 0) / pool.length };
       for (let season = 1; season <= 20; season++) {
         const next: Player[] = [];
@@ -181,6 +183,8 @@ describe("20-season career sim stays balanced", () => {
       // the spread narrows a little (about 15%): the youngest entrants are rated from little data and sit closer together
       expect(end.sd / start.sd).toBeGreaterThan(0.78);
       expect(end.sd / start.sd).toBeLessThan(1.2);
+      // fielding: the youth prior and the decline from 28 balance against retirement and the regens' draws
+      expect(Math.abs(fld(pool) - startFielding)).toBeLessThan(2);
       expect(Math.abs(end.age - start.age)).toBeLessThan(3.5); // the fitted hazards settle a young starting pool (women: mean age 26) near 28
     });
   }

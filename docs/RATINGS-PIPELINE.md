@@ -780,6 +780,20 @@ at ages 22, 25, 28, 31 and 34 over 1, 3 and 5 seasons and the mean change compar
 60 cells agree within two standard errors plus 1.5 points; men's fielding five-season changes are within 1.6 points of the real ones on average (real / simulated:
 28 -> 33: -7.4 / -6.0, 31 -> 36: -6.5 / -6.2, 34 -> 39: -4.3 / -6.2). The 20-season league-balance test is unchanged.
 
+**Youth prior (judgement, added later).** The fit found no youth gain, but single-season catching is too noisy to rule one out and the game wants young fielders to
+improve. `fielding-progression.py` therefore exports `max(fitted, prior)` below age 28 with prior = **+1.0 fielding points a season up to age 25** (+0.5 for
+keeping), tapering linearly to 0 at 28; from 28 the fitted decline is unchanged. Women keep their fitted +0.70 to 27 where it is larger (no stacking): their curve
+is +1.0 to 25, then +0.70 at 26-27. The exported nodes are every integer age 20-30 plus 45. Effect on the validation: from the peak age on (starting ages 28, 31, 34) the
+five-season error is 2.0 points on average (the unsmoothed bins are noisy; the gate is 2.5); the starting ages 22 and 25 now sit deliberately above the raw bins
+(tested to be within 1 point below and above them), and the 60-cell two-s.e.-plus-1.5 check still passes. **League balance:** the 20-season test now also tracks the mean
+fielding rating of the pool: men 46.7 -> 48.1, women 50.3 -> 51.2 (before the prior and the training share it fell 46.7 -> 43.6 for men); regens and youth draws (50-centred
+distributions) and the decline after 28 balance the prior, and the test fails if the mean moves 2 points. Reversion was left at the stationarity value.
+
+**Training focus.** `TrainingFocus` has a `fielding` option: +3.5 fielding a season on top of the age curve (+2.0 keeping for designated keepers only), scaled by the
+intensity's gain multiplier, with -0.1 on battingIQ, timing, wicketTaking and economy (the other focuses' trade-off pattern). 3.5 fielding points are worth
+3.5 x 0.145 = 0.51 overall (`FIELDING_OVR_PER_POINT`), about what the batting focus gives (tested within a factor 0.6-1.6). `balanced` gives +0.1 to both. The boost lands
+at the season rollover only (the mid-season tick ignores fielding and keeping) and only on players who have the rating: absent stays absent.
+
 ### Fielding and keeping for generated players
 
 `fielding-generation.py` takes the game's rated players (`game_players.json`, joined to `fielding_ratings.csv` by the Cricinfo id inside `espn_<id>`; 20+ fielding

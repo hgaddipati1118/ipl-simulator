@@ -914,6 +914,7 @@ function trainingFocusLabel(focus: string): string {
     case "control": return "Control";
     case "fitness": return "Fitness";
     case "clutch": return "Clutch";
+    case "fielding": return "Fielding";
     default: return "Balanced";
   }
 }
@@ -926,7 +927,8 @@ function trainingFocusSummary(focus: string): string {
     case "control": return "Economy and accuracy are the focus.";
     case "fitness": return "Running and freshness are being protected.";
     case "clutch": return "Pressure handling gets extra work.";
-    default: return "An even plan with no strong attribute bias.";
+    case "fielding": return "Fielding reps (and keeping drills for a keeper): about +3 to +4 fielding a season on top of ageing, a little less batting and bowling growth.";
+    default: return "An even plan with no strong attribute bias, plus a small share of fielding work.";
   }
 }
 

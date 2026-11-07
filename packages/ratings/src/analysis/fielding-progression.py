@@ -27,6 +27,9 @@ Method (per gender; the shape of progression.py, adapted to count data):
  4. Spread.  A season's persistent change has the sd of the random-walk part of the pair variances: variance of the
     t -> t+2 changes minus that of t -> t+1 changes, Poisson noise removed.  Transient luck does not accumulate; real
     change does.  It is noisy, so it is blended with an upper bound (the whole lag-1 variance, halved) and clamped.
+ 6. Youth prior (judgement, not fitted).  Below age 28 the exported curve is max(fitted, prior), prior = +1.0 a season for
+    fielding (+0.5 keeping) up to age 25, tapering linearly to 0 at 28.  Single-season catching is too noisy for the
+    fit to see a youth gain, and the data cannot rule one out; from 28 the fitted decline applies unchanged.
  5. Level reversion.  Chosen from stationarity, not fitted: innovations of sd s and a true spread of V = 14^2 rating
     points are only compatible if a fraction s^2 / (2 V) of the distance to 50 is given back each season.
 
@@ -258,6 +261,22 @@ def level_hinge(ages, y, w):
         if best is None or sse < best[0]:
             best = (sse, P, beta)
     return best
+
+
+# Youth prior (a documented judgement, see main()): points a season gained by a young player, flat to YOUTH_FLAT_TO,
+# tapering linearly to 0 at PEAK_AGE_EXPORT; the exported curve is max(fitted, prior) below that age.
+YOUTH_PRIOR = {"fielding": 1.0, "keeping": 0.5}
+YOUTH_FLAT_TO = 25
+PEAK_AGE_EXPORT = 28
+YOUTH_NODE_FROM, YOUTH_NODE_TO = 20, 30
+
+
+def youth_prior(name, age):
+    if age <= YOUTH_FLAT_TO:
+        return YOUTH_PRIOR[name]
+    if age >= PEAK_AGE_EXPORT:
+        return 0.0
+    return YOUTH_PRIOR[name] * (PEAK_AGE_EXPORT - age) / (PEAK_AGE_EXPORT - YOUTH_FLAT_TO)
 
 
 def solve(A, b):
@@ -512,7 +531,16 @@ def main():
             report[name][g] = dict(curve=c, raw=r["curve"], se_pre=r["se_pre"], se_post=r["se_post"], v0=tot, c1=r["c1"], c2=r["c2"],
                                    innovation_sd=innov, sd=sd_use, phi=phi,
                                    bins=[dict(age=r["ages"][b], n=r["counts"][b], level=r["base"][b], se=r["se"][b]) for b in range(len(AGE_BINS))])
-            model[name][g] = dict(ageNodes=node_ages, ageEffect=nodes, sd=round(sd_use, 2), reversion=round(phi, 4))
+            # Judgement prior (not fitted): young players improve at fielding.  Single-season catching is too noisy for the
+            # fixed-effects fit to see a youth gain, but it cannot rule one out and the game wants one.  Exported curve =
+            # fitted curve, with max(fitted, youth prior) below the peak age; the decline from the peak age on is the fit.
+            exp_ages = list(range(YOUTH_NODE_FROM, YOUTH_NODE_TO + 1)) + [45]
+            exp_eff = []
+            for a_ in exp_ages:
+                fit_ = curve_effect(c, a_)
+                exp_eff.append(round(max(fit_, youth_prior(name, a_)) if a_ < PEAK_AGE_EXPORT else fit_, 3))
+            report[name][g]["youth_prior"] = dict(peak=YOUTH_PRIOR[name], flat_to=YOUTH_FLAT_TO, zero_at=PEAK_AGE_EXPORT)
+            model[name][g] = dict(ageNodes=exp_ages, ageEffect=exp_eff, sd=round(sd_use, 2), reversion=round(phi, 4))
             # validation targets: the raw bin profile (no curve), expected change from start-age groups over 1, 3, 5 seasons
             pts = [(a_, v_) for a_, v_ in zip(r["ages"], r["base"]) if a_ is not None]
             def at(a_, pts=pts):

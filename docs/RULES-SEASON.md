@@ -208,6 +208,7 @@ change = mean(age, level, last season's change, seasons of evidence, kind) + sd(
   to 2.5% of regulars in a season, collapses of -8 to 0.7%.
 - **Potential** (youth, regens): a drawn talent (sd 3.5 points) realised evenly up to age 27 on top of the typical path.
 - Training focus and intensity still add their bias and volatility; women's leagues use the women's fit.
+  The **Fielding** focus adds about +3.5 fielding (+2.0 keeping for a designated keeper) a season at a small cost in batting and bowling growth; Balanced gives a +0.1 share. Players without the ratings are unaffected.
 - The change is spread over the discipline's attributes so the discipline overall moves by the drawn amount, with a little
   individual noise per attribute. Each player's `ratingHistory` keeps one entry per season (overall, batting, bowling, age;
   25 seasons) for the "ratings over time" chart.
@@ -215,7 +216,7 @@ change = mean(age, level, last season's change, seasons of evidence, kind) + sd(
 - **Fielding and keeping** (when a player has the ratings; absent stays absent) age on their own fitted curves (`fielding-progression.ts`,
   parameters in the generated `fielding-progression-model.ts`; method and numbers in `docs/RATINGS-PIPELINE.md`, "Fielding and keeping
   progression"): `change = ageEffect(age) - reversion * (rating - 50) + sd * z`, z standard normal, two draws per rating, taken after the
-  eight core draws. Fielding is flat to about 28 and then falls 1.2 points a season (men; women the same after shrinkage), so a 33-year-old
+  eight core draws. Fielding rises about 1.0 a season to 25 (judgement prior, tapering to 0 at 28; keeping +0.5), is flat at 28 and then falls 1.2 points a season (men; women the same after shrinkage), so a 33-year-old
   loses about 6 points over five seasons; the sd of a season's change is about 1.6 (2.3 women); keeping is too noisy to read off its own data
   and falls at half the fielding rate (0.6 a season after 28), sd 1.5. Training intensity scales the sd.
 

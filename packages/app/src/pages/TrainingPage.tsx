@@ -18,6 +18,7 @@ const FOCUS_OPTIONS: { value: TrainingFocus; label: string; summary: string }[] 
   { value: "control", label: "Control", summary: "Economy and accuracy are the focus." },
   { value: "fitness", label: "Fitness", summary: "Running and freshness are protected." },
   { value: "clutch", label: "Clutch", summary: "Pressure handling gets extra reps." },
+  { value: "fielding", label: "Fielding", summary: "Catching and throwing (and keeping, for keepers) improve about +3 to +4 a season; a little less batting and bowling growth." },
 ];
 
 const INTENSITY_OPTIONS: { value: TrainingIntensity; label: string; detail: string }[] = [
