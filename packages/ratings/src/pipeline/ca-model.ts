@@ -16,6 +16,9 @@ const DIR = new URL("../../data/analysis/", import.meta.url).pathname;
 const CA_FILE = `${DIR}ca_ratings_by_year.parquet`;
 const CELLS_FILE = `${DIR}ca_cells.parquet`;
 const MAP_FILE = `${DIR}ca_espn_map.csv`;
+/** Lower-level ratings (src/analysis/ca-lower-ratings.py): second XIs, university, club, youth, veterans */
+const LOWER_FILE = `${DIR}ca_lower_ratings.parquet`;
+const LOWER_CELLS_FILE = `${DIR}ca_lower_cells.parquet`;
 const VALIDATION_FILE = `${DIR}ca_validation.json`;
 
 type Format = "T20" | "ListA" | "FC";
@@ -57,6 +60,10 @@ interface Row {
   bat_balls: number | null; bat_inns: number | null; bowl_balls: number | null; bowl_inns: number | null;
 }
 
+export function lowerAvailable(): boolean {
+  return existsSync(LOWER_FILE) && existsSync(LOWER_CELLS_FILE);
+}
+
 export function caAvailable(): boolean {
   return existsSync(CA_FILE) && existsSync(CELLS_FILE) && existsSync(MAP_FILE);
 }
@@ -90,6 +97,25 @@ function query(gender: "male" | "female"): Row[] {
   return JSON.parse(execFileSync("duckdb", ["-json", "-c", sql], { encoding: "utf-8", maxBuffer: 512 * 1024 * 1024 }) || "[]") as Row[];
 }
 
+/**
+ * Lower-level rows (ca_lower_ratings.parquet): ratings on the senior scale from the player's lower-level cells and
+ * any senior cells together. Career balls / innings count both, like the senior rows.
+ */
+function queryLower(gender: "male" | "female"): Row[] {
+  const sql = `
+    WITH car AS (
+      SELECT player_id, format, side, sum(balls) AS balls, sum(inns) AS inns FROM (
+        SELECT player_id, format, side, balls, inns FROM '${CELLS_FILE}' WHERE gender = '${gender}'
+        UNION ALL SELECT player_id, format, side, balls, inns FROM '${LOWER_CELLS_FILE}' WHERE gender = '${gender}') GROUP BY ALL)
+    SELECT l.player_id, l.format, l.bat_rating, l.bat_sd, l.bowl_rating, l.bowl_sd,
+           b.balls AS bat_balls, b.inns AS bat_inns, w.balls AS bowl_balls, w.inns AS bowl_inns
+    FROM '${LOWER_FILE}' l
+    LEFT JOIN car b ON b.player_id = l.player_id AND b.format = l.format AND b.side = 'bat'
+    LEFT JOIN car w ON w.player_id = l.player_id AND w.format = l.format AND w.side = 'bowl'
+    WHERE l.gender = '${gender}'`;
+  return JSON.parse(execFileSync("duckdb", ["-json", "-c", sql], { encoding: "utf-8", maxBuffer: 1024 * 1024 * 1024 }) || "[]") as Row[];
+}
+
 interface Translation { a: number; b: number; residVar: number; n: number }
 
 /** Weighted least squares of T20 score on the other format's score, over players rated in both */
@@ -106,10 +132,16 @@ function fitTranslation(pairs: { x: number; y: number; w: number }[]): Translati
   return { a, b, residVar, n: pairs.length };
 }
 
-export interface CaLoadReport { players: number; translations: Record<string, Translation> }
+export interface CaLoadReport { players: number; translations: Record<string, Translation>; unmapped?: number }
 
-/** CA scores for one gender, keyed by ESPN (Cricinfo) id */
-export function loadCa(gender: "male" | "female"): { byEspn: Map<number, CaPlayer>; report: CaLoadReport } {
+/**
+ * CA scores for one gender, keyed by ESPN (Cricinfo) id.
+ * `byCa` holds the CA players with no ESPN match (the extended pool), scored the same way; with `lower` it merges in
+ * the lower-level ratings (per side, a lower-level rating replaces the senior one: it already includes the senior
+ * cells). Translations between formats are always fitted on the senior ratings of the players the map covers or not,
+ * so adding the extended pool never moves a mapped player.
+ */
+export function loadCa(gender: "male" | "female", opts: { lower?: boolean } = {}): { byEspn: Map<number, CaPlayer>; byCa: Map<number, CaPlayer>; report: CaLoadReport } {
   const espnByCa = new Map<number, number[]>();
   for (const line of readFileSync(MAP_FILE, "utf-8").split("\n").slice(1)) {
     const [espn, ca] = line.split(",");
@@ -126,6 +158,22 @@ export function loadCa(gender: "male" | "female"): { byEspn: Map<number, CaPlaye
     byPlayer.set(id, entry);
   }
 
+  // Lower-level rows join after the translations are fitted (they use senior players only)
+  const seniorOnly = new Map(byPlayer);
+  if (opts.lower && lowerAvailable()) {
+    for (const r of queryLower(gender)) {
+      const id = Number(r.player_id);
+      if (espnByCa.has(id)) continue; // players already in the ESPN pool keep their senior-only scores
+      const entry = { ...(byPlayer.get(id) ?? {}) };
+      const base = entry[r.format];
+      const merged: Row = { ...(base ?? { player_id: id, format: r.format, bat_rating: null, bat_sd: null, bowl_rating: null, bowl_sd: null, bat_balls: null, bat_inns: null, bowl_balls: null, bowl_inns: null }) };
+      if (r.bat_rating !== null) { merged.bat_rating = r.bat_rating; merged.bat_sd = r.bat_sd; merged.bat_balls = r.bat_balls; merged.bat_inns = r.bat_inns; }
+      if (r.bowl_rating !== null) { merged.bowl_rating = r.bowl_rating; merged.bowl_sd = r.bowl_sd; merged.bowl_balls = r.bowl_balls; merged.bowl_inns = r.bowl_inns; }
+      entry[r.format] = merged;
+      byPlayer.set(id, entry);
+    }
+  }
+
   const usable = (r: Row | undefined, side: "bat" | "bowl", fmt: Format): boolean => {
     if (!r) return false;
     const rating = side === "bat" ? r.bat_rating : r.bowl_rating;
@@ -139,7 +187,7 @@ export function loadCa(gender: "male" | "female"): { byEspn: Map<number, CaPlaye
   for (const side of ["bat", "bowl"] as const) {
     for (const fmt of FALLBACKS) {
       const pairs: { x: number; y: number; w: number }[] = [];
-      for (const formats of byPlayer.values()) {
+      for (const formats of seniorOnly.values()) {
         const t = formats.T20, o = formats[fmt];
         if (!t || !o) continue;
         const tb = (side === "bat" ? t.bat_balls : t.bowl_balls) ?? 0;
@@ -155,9 +203,9 @@ export function loadCa(gender: "male" | "female"): { byEspn: Map<number, CaPlaye
   }
 
   const byEspn = new Map<number, CaPlayer>();
+  const byCa = new Map<number, CaPlayer>();
   for (const [caId, formats] of byPlayer) {
     const espnIds = espnByCa.get(caId);
-    if (!espnIds) continue;
     const player: CaPlayer = {
       caId,
       t20BatBalls: formats.T20?.bat_balls ?? 0,
@@ -179,7 +227,8 @@ export function loadCa(gender: "male" | "female"): { byEspn: Map<number, CaPlaye
       if (chosen) player[side] = chosen;
     }
     if (!player.bat && !player.bowl) continue;
-    for (const espnId of espnIds) byEspn.set(espnId, player);
+    if (espnIds) for (const espnId of espnIds) byEspn.set(espnId, player);
+    else byCa.set(caId, player);
   }
-  return { byEspn, report: { players: byEspn.size, translations } };
+  return { byEspn, byCa, report: { players: byEspn.size, translations, unmapped: byCa.size } };
 }

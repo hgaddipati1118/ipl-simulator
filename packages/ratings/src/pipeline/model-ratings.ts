@@ -131,6 +131,14 @@ export function shiftTo(r: GameRatings, keys: (keyof GameRatings)[], overall: (r
   }
 }
 
+/**
+ * Key of a player in the model / CA maps: the Cricinfo id for `espn_<id>`, and -<CricketArchive id> for the extended
+ * pool's `ca_<id>` players (they have no Cricinfo id and are never in the Cricsheet model).
+ */
+export function playerKey(p: { id: string }): number {
+  return p.id.startsWith("ca_") ? -Number(p.id.slice(3)) : Number(p.id.replace(/^espn_/, ""));
+}
+
 export interface ApplyReport {
   batting: number;
   bowling: number;
@@ -168,7 +176,7 @@ function fitMapping(pairs: { x: number; y: number; w: number }[]): Mapping {
  * Re-rank `players` in place. Each needs an `espn_<cricinfo id>` id to be matched to the model.
  */
 export function applyModelRatings(players: RateablePlayer[], model: Map<number, ModelRow>, ca?: Map<number, CaPlayer>): ApplyReport {
-  const espnId = (p: RateablePlayer) => Number(p.id.replace(/^espn_/, ""));
+  const espnId = playerKey;
   const matched = players.flatMap(player => {
     const row = model.get(espnId(player));
     return row ? [{ player, row }] : [];

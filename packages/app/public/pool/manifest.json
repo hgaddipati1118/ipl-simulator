@@ -1,0 +1,106 @@
+{
+ "version": 1,
+ "generated": "2026-11-07T01:15:05.743Z",
+ "shards": [
+  {
+   "file": "ca-men-senior.json.gz",
+   "gender": "men",
+   "tier": "senior",
+   "level": "senior",
+   "count": 18573,
+   "bytes": 622255,
+   "topOverall": 89,
+   "minOverall": 15
+  },
+  {
+   "file": "ca-men-tier0-1.json.gz",
+   "gender": "men",
+   "tier": "tier0",
+   "level": "senior",
+   "count": 40000,
+   "bytes": 1042029,
+   "topOverall": 77,
+   "minOverall": 30
+  },
+  {
+   "file": "ca-men-tier0-2.json.gz",
+   "gender": "men",
+   "tier": "tier0",
+   "level": "senior",
+   "count": 40000,
+   "bytes": 755599,
+   "topOverall": 30,
+   "minOverall": 27
+  },
+  {
+   "file": "ca-men-tier0-3.json.gz",
+   "gender": "men",
+   "tier": "tier0",
+   "level": "senior",
+   "count": 40000,
+   "bytes": 603296,
+   "topOverall": 27,
+   "minOverall": 26
+  },
+  {
+   "file": "ca-men-tier0-4.json.gz",
+   "gender": "men",
+   "tier": "tier0",
+   "level": "senior",
+   "count": 9313,
+   "bytes": 172357,
+   "topOverall": 26,
+   "minOverall": 16
+  },
+  {
+   "file": "ca-men-tier2.json.gz",
+   "gender": "men",
+   "tier": "tier2",
+   "level": "club",
+   "count": 506,
+   "bytes": 8532,
+   "topOverall": 69,
+   "minOverall": 21
+  },
+  {
+   "file": "ca-men-tier3.json.gz",
+   "gender": "men",
+   "tier": "tier3",
+   "level": "youth",
+   "count": 55,
+   "bytes": 1332,
+   "topOverall": 61,
+   "minOverall": 26
+  },
+  {
+   "file": "ca-men-tier4.json.gz",
+   "gender": "men",
+   "tier": "tier4",
+   "level": "veterans",
+   "count": 22,
+   "bytes": 627,
+   "topOverall": 33,
+   "minOverall": 26
+  },
+  {
+   "file": "ca-women-senior.json.gz",
+   "gender": "women",
+   "tier": "senior",
+   "level": "senior",
+   "count": 12406,
+   "bytes": 381516,
+   "topOverall": 81,
+   "minOverall": 18
+  },
+  {
+   "file": "ca-women-tier0.json.gz",
+   "gender": "women",
+   "tier": "tier0",
+   "level": "senior",
+   "count": 4560,
+   "bytes": 89532,
+   "topOverall": 71,
+   "minOverall": 26
+  }
+ ]
+}

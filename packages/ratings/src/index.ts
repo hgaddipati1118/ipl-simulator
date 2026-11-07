@@ -24,3 +24,6 @@ export type { WPLPlayerData } from "./wpl-players.js";
 
 export { WPL_2025_ROSTERS } from "./wpl-rosters.js";
 export type { WPLRosterPlayer, WPLRoster } from "./wpl-rosters.js";
+
+export { POOL_VERSION, encodeShard, decodeShard, searchPlayers, overallsOf, toRealPlayerData, topActive } from "./extended-pool.js";
+export type { PoolRow, PoolShard, PoolManifest, PoolShardInfo, PoolGender, ExtendedPlayer } from "./extended-pool.js";

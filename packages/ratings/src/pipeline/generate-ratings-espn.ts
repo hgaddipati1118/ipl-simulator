@@ -117,7 +117,7 @@ interface EspnPlayer {
 
 // ── Rated player output type ──────────────────────────────────────────
 
-interface RatedPlayer {
+export interface RatedPlayer {
   id: string;
   name: string;
   fullName: string;
@@ -2227,12 +2227,14 @@ const CAP_RELIABILITY = 0.7;
 const CAP_PERCENTILE = 0.95;
 const T20_RECORD_BALLS = 240;
 
-function applySmallSampleCaps(
+export function applySmallSampleCaps(
   rated: RatedPlayer[],
   evidence: Map<string, { bat: number; bowl: number }>,
   gender: "male" | "female",
   t20Unproven?: { bat: Set<string>; bowl: Set<string> },
   generated?: Map<string, { bat: number; bowl: number }>,
+  /** Players that define "established" and "regular" (default: all of `rated`); lets the extended pool be capped by the ESPN pool's percentiles */
+  reference: RatedPlayer[] = rated,
 ): Record<"bat" | "bowl", { threshold: number; cap: number; capped: number; unprovenCap: number; unprovenCapped: number }> {
   const K = caTunedK(gender);
   const out = {} as Record<"bat" | "bowl", { threshold: number; cap: number; capped: number; unprovenCap: number; unprovenCapped: number }>;
@@ -2242,11 +2244,11 @@ function applySmallSampleCaps(
     const keys = side === "bat"
       ? (["battingIQ", "timing", "power", "running"] as const)
       : (["wicketTaking", "economy"] as const);
-    const established = rated.filter(p => (evidence.get(p.id)?.[side] ?? 0) >= threshold).map(p => ovr(p.ratings)).sort((a, b) => a - b);
+    const established = reference.filter(p => (evidence.get(p.id)?.[side] ?? 0) >= threshold).map(p => ovr(p.ratings)).sort((a, b) => a - b);
     if (established.length < 20) { out[side] = { threshold, cap: 99, capped: 0, unprovenCap: 99, unprovenCapped: 0 }; continue; }
     const cap = established[Math.floor(CAP_PERCENTILE * (established.length - 1))];
     // Median of players with a real T20 record in this discipline (>= 240 balls, the CA model’s minimum)
-    const regulars = rated.filter(p => (evidence.get(p.id)?.[side] ?? 0) >= T20_RECORD_BALLS).map(p => ovr(p.ratings)).sort((x, y) => x - y);
+    const regulars = reference.filter(p => (evidence.get(p.id)?.[side] ?? 0) >= T20_RECORD_BALLS).map(p => ovr(p.ratings)).sort((x, y) => x - y);
     const unprovenCap = regulars[Math.floor(0.5 * (regulars.length - 1))] ?? 99;
     let capped = 0;
     let unprovenCapped = 0;
