@@ -446,3 +446,73 @@ format x scope (all, T20I, ODI, Test) x gender), `venue_ball_factors.csv` (phase
 `player_region_splits.parquet`, `venue_validation.csv`, `venue-conditions-report.md` (snapshot in
 `docs/VENUE-CONDITIONS-REPORT.md`). `data-export/venue-conditions.json` is a compact table the engine could load later; it is
 not wired in (see section 11 of the report for where it would plug in).
+
+
+## Fielding and wicketkeeping ratings
+
+Two further ratings, `fielding` and `keeping` (0-99, 50 = average), built from Cricsheet ball-by-ball and used by the
+match engine (RULES-MATCH.md section 11). From `packages/ratings`:
+
+    duckdb < src/analysis/fielding-stats.sql         # ball-by-ball -> per fielding-innings counts, keepers identified (~15 s)
+    python3 -I src/analysis/fielding-ratings.py      # shrinkage, ratings, split-half validation (~10 s)
+    python3 -I src/analysis/fielding-report.py       # report + sanity checks (exit 1 on failure)
+    npx tsx src/pipeline/patch-fielding.ts           # write the two fields into src/all-players.ts and src/wpl-players.ts
+
+Outputs in `data/analysis/` (new files, nothing existing is touched): `fielding_player_innings.parquet`, `keeping_innings.parquet`,
+`keeper_match_map.parquet`, `fielding_match_link.csv`, `fielding_ratings.csv` (one row per Cricsheet player: counts, ratios, ratings, keyed by
+Cricinfo id), `fielding_validation.json`, `fielding_ca_keepers.csv` (CricketArchive keeper-flag counts per player and format),
+`fielding-report.md` (snapshot in `docs/FIELDING-REPORT.md`: top fielders and keepers, validation, caveats).
+
+### Data
+
+- **Cricsheet** T20 and IT20 matches (2005 on, men and women; 14,745 matches) give every dismissal with its fielders (`fielder_ids`: caught,
+  run out, stumped), byes per ball and who bowled it. Cricsheet has no lineups or keeper flag, so a player is "on the field" if he batted, bowled
+  or took a fielding credit for that side in the match (11 players on 90% of sides).
+- **CricketArchive** scorecards (`data/cricket.db`, `batting.keeper`) give the keeper of each side. Each Cricsheet match is linked to its CA
+  match (same date +-1 day, men / women, at least 8 player surname+initial keys in common: 95.5% of matches), and the keeper's name key picks
+  the Cricsheet player on that side. A keeper is identified for 87% of team-matches; a further 2% from a stumping credit (not used for rates:
+  those innings are selected on the outcome); 11% unknown (the innings is left out of the keeper-dependent statistics and out of the catch
+  baseline, where the keeper is needed to separate keeper catches).
+- The ESPN pool links through Cricsheet's register (`people.csv` Cricinfo id), which is the id the game's `espn_<id>` players carry; the CA
+  <-> ESPN map isn't needed. 5,231 of 5,541 men and 2,152 of 2,379 women have a fielding rating; players Cricsheet doesn't know keep the engine default.
+
+### Fielding (catching and run-outs)
+
+- **Catches** (caught and bowled excluded) are shared among the ten non-keeper fielders of the innings. A fielder's expected catches are his
+  teammates' mean in that innings, `E = (team catches - catches off his own bowling - his catches) / 9`. A team that creates many chances, a flat
+  pitch, a format or an era with more catches raise every E equally, so chances created, era, format and gender drop out and only the share of the
+  side's chances he took is informative. (He can't catch off his own bowling, so those are removed from his pool.) `ratio = sum(O) / sum(E)`.
+- **Role**: bowlers are posted at fine leg / third man and take far fewer catches (0.94 of the mean against 1.28-1.29 for batters and part-timers
+  among men); position isn't observed. Each fielder is compared with his bowling-load class (balls bowled per fielding innings: 15+, 3-15, <3)
+  and half of the class gap is kept in his rating, so a front-line bowler is rated below a batter of equal skill but not buried.
+- **Run-outs**: run-outs in which the player was credited (direct hit or assist) against the same leave-one-out expectation, separately for
+  keepers (who are involved far more).
+- **Shrinkage**: each ratio gets a Gamma(k, k) prior, `k` fitted per gender by maximum marginal likelihood (negative binomial) over all players
+  (men: catching k = 8.5, true-skill SD ~34%; women 6.5, ~39%). Posterior mean `(O + k) / (E + k)`: a fielder with 30 innings stays near 50, one with
+  300 mostly shows his own record.
+- **Rating** = `50 + 14 x (log catch ratio + role offset + 0.4 x log run-out ratio) / SD of true skill`. 14 points per SD of true skill, so
+  regulars (100+ innings) have SD ~13 and the whole pool SD ~8 (thin records shrink to 50).
+- Validation: catch ratio of a player's odd-numbered vs even-numbered matches correlates 0.72 (men, 518 players with 40+ innings per half) and 0.59 (women, 127):
+  catching skill (including where a player is usually posted) is a persistent trait, not noise.
+
+### Keeping
+
+On innings with a known keeper (CA flag), per keeper-innings:
+
+- **Stumpings, catches taken by the keeper, bye events** (deliveries with byes; fewer is better), each against an expectation built from *who
+  bowled*: a bowler's own stumping / keeper-catch / bye rate per legal ball (shrunk to the gender mean with a 1,500-ball prior), so a keeper behind
+  spinners isn't credited for stumpings the bowlers create. Expectations are then scaled by the event-season factor (observed / expected over the
+  tournament-season, shrunk): byes in particular are recorded very differently across leagues.
+- Same Gamma-Poisson shrinkage per component. Rating = `50 + 14 x (0.40 log stumpings + 0.25 log catches - 0.35 log byes) / SD`.
+- Honest limits: stumpings and keeper catches are mostly the bowlers' (split-half correlation of a keeper's ratio: -0.08 stumpings, 0.19 catches
+  for men); byes are the reliable part (0.22 men, 0.38 women). Ratings therefore spread little (keepers with 100+ innings: SD 7 men, 12 women).
+  Players who never kept get no keeping rating; the engine gives them 25 (or 50 for a designated keeper with no record).
+
+### In the game
+
+`PlayerRatings.fielding?` and `.keeping?` are optional (absent = fielding 50, keeping 50 for a keeper / 25 otherwise), so saves, mods and
+generated players are unaffected. `src/pipeline/fielding-model.ts` maps the CSV onto ESPN players (keeper-tagged players with no record get 50);
+`generate-ratings-espn.ts` applies it after the ratings model (`applyFielding`) and writes the fields into `all-players.ts` / `wpl-players.ts`
+(`RATINGS_OUT_DIR=<dir>` redirects the generator's JSON outputs away from `data/scraped` when experimenting). A full regeneration re-reads every
+source on disk and moves unrelated ratings, so the committed files were produced by `patch-fielding.ts`, which adds only the two fields.
+`getRealPlayers()` now also marks a player a keeper when the ESPN data does (it used to rely only on its short curated list).
