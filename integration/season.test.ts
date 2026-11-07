@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   Player, Team, IPL_TEAMS,
-  generatePlayerPool, createPlayerFromData,
+  generatePlayerPool, createPlayerFromData, createRNG,
   runAuction, runSeason, getStandings, simulateMatch,
   retainPlayers,
   type SeasonResult,
@@ -423,9 +423,10 @@ describe("multi-season progression", () => {
   });
 
   it("old players decline, young players improve on average", () => {
-    // This is statistical, so we test over many players
-    const teams = auctionAndFill();
-    const players = allPlayers(teams);
+    // Statistical, so it runs over every real player with a seeded RNG (the auctioned subset was too small and
+    // unseeded: the progression model's regression to the mean made it fail now and then)
+    const players = getRealPlayers().map(d => createPlayerFromData(d));
+    const rng = createRNG(20261106);
 
     const youngPlayers = players.filter(p => p.age <= 22);
     const oldPlayers = players.filter(p => p.age >= 35);
@@ -436,7 +437,7 @@ describe("multi-season progression", () => {
 
     // Progress 5 seasons
     for (let i = 0; i < 5; i++) {
-      for (const p of players) p.progress();
+      for (const p of players) p.progress({ rng });
     }
 
     // Calculate average change
