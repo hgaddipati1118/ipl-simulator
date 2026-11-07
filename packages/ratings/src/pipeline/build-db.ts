@@ -20,9 +20,13 @@ import { createGunzip } from 'zlib';
 import { DatabaseSync } from 'node:sqlite';
 import type { ArchiveProfile } from './archive-profile-parse.js';
 import { inferGender, inningsTeam, type Scorecard } from './scorecard-parse.js';
+import { eventTier } from './event-tiers.js';
 
 const DATA = new URL('../../data', import.meta.url).pathname;
-export const DB_FILE = `${DATA}/cricket.db`;
+// --events-only builds a separate DB from the minor-cricket cards alone (the scrape keeps growing, so it is
+// cheap to rebuild on its own and never touches cricket.db, which other analyses read).
+const EVENTS_ONLY = process.argv.includes('--events-only');
+export const DB_FILE = EVENTS_ONLY ? `${DATA}/cricket-events.db` : `${DATA}/cricket.db`;
 const PROFILES_FILE = `${DATA}/archive/profiles.jsonl`;
 const SCORECARDS_FILE = `${DATA}/scorecards/scorecards.jsonl`;
 const EVENT_SCORECARDS_FILE = `${DATA}/scorecards/scorecards-events.jsonl.gz`;
@@ -50,20 +54,25 @@ export function parseCricketDate(textValue: string | undefined): string | null {
 async function* jsonl<T>(path: string): AsyncGenerator<T> {
   if (!existsSync(path)) return;
   const raw = createReadStream(path);
-  for await (const line of createInterface({ input: path.endsWith('.gz') ? raw.pipe(createGunzip()) : raw })) {
-    if (!line.trim()) continue;
-    try {
-      yield JSON.parse(line) as T;
-    } catch {
-      // A scraper killed mid-append leaves a partial last line; resume re-fetches that id
+  try {
+    for await (const line of createInterface({ input: path.endsWith('.gz') ? raw.pipe(createGunzip()) : raw })) {
+      if (!line.trim()) continue;
+      try {
+        yield JSON.parse(line) as T;
+      } catch {
+        // A scraper killed mid-append leaves a partial last line; resume re-fetches that id
+      }
     }
+  } catch (err) {
+    // A gzip member being appended right now reads as "unexpected end of file": keep what was read
+    if (!path.endsWith('.gz')) throw err;
   }
 }
 
 async function* allScorecards(): AsyncGenerator<Scorecard> {
   // Two scrapers running at once can append the same card twice; keep the first
   const seen = new Set<number>();
-  for (const file of [SCORECARDS_FILE, EVENT_SCORECARDS_FILE]) {
+  for (const file of EVENTS_ONLY ? [EVENT_SCORECARDS_FILE] : [SCORECARDS_FILE, EVENT_SCORECARDS_FILE]) {
     for await (const c of jsonl<Scorecard>(file)) {
       if (seen.has(c.id)) continue;
       seen.add(c.id);
@@ -100,7 +109,9 @@ async function main() {
     CREATE TABLE matches (
       id INTEGER PRIMARY KEY, title TEXT, date TEXT, date_text TEXT, season TEXT, country TEXT,
       lists TEXT, levels TEXT, gender TEXT, event TEXT, venue TEXT, toss TEXT, result TEXT,
-      team1 TEXT, team1_id INTEGER, team2 TEXT, team2_id INTEGER
+      team1 TEXT, team1_id INTEGER, team2 TEXT, team2_id INTEGER,
+      -- Lower-level tier from the event name (event-tiers.ts): 0 senior, 1 university, 2 club/league, 3 youth, 4 veterans/disability
+      tier INTEGER
     );
     CREATE TABLE batting (
       match_id INTEGER, innings INTEGER, team TEXT, team_id INTEGER, position INTEGER,
@@ -131,7 +142,7 @@ async function main() {
   const insCareer = db.prepare('INSERT INTO player_careers VALUES (?,?,?,?,?,?)');
   let profiles = 0;
   db.exec('BEGIN');
-  for await (const p of jsonl<ArchiveProfile>(PROFILES_FILE)) {
+  for await (const p of jsonl<ArchiveProfile>(EVENTS_ONLY ? '/nonexistent' : PROFILES_FILE)) {
     insPlayer.run(p.id, p.name, p.fullName ?? null, p.born ?? null, parseCricketDate(p.born), p.died ?? null,
       p.battingHand ?? null, p.bowlingStyle ?? null, p.gender, JSON.stringify(p.levels));
     for (const t of p.teams) insTeam.run(p.id, t.team, t.teamId ?? null, t.level, t.years);
@@ -151,7 +162,7 @@ async function main() {
   // ── Scorecards ──
   const matchIndex: Record<string, { season: string; country: string; lists: string[] }> =
     existsSync(MATCH_INDEX_FILE) ? JSON.parse(readFileSync(MATCH_INDEX_FILE, 'utf-8')) : {};
-  const insMatch = db.prepare('INSERT OR REPLACE INTO matches VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+  const insMatch = db.prepare('INSERT OR REPLACE INTO matches VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
   const insBat = db.prepare('INSERT INTO batting VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
   const insWicket = db.prepare('INSERT INTO wickets VALUES (?,?,?,?,?,?,?,?)');
   const insBowl = db.prepare('INSERT INTO bowling VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
@@ -165,7 +176,7 @@ async function main() {
     const dateText = c.info.Venue?.split(' on ')[1] ?? c.date ?? null;
     insMatch.run(c.id, c.title, parseCricketDate(dateText ?? undefined), dateText, idx?.season ?? null, idx?.country ?? null,
       JSON.stringify(idx?.lists ?? []), JSON.stringify(c.levels), inferGender(c.levels, c.matchCodes ?? [], c.title ?? ''), c.event?.name ?? null, c.venue?.name ?? null,
-      c.info.Toss ?? null, c.info.Result ?? null, t1?.name ?? null, t1?.id ?? null, t2?.name ?? null, t2?.id ?? null);
+      c.info.Toss ?? null, c.info.Result ?? null, t1?.name ?? null, t1?.id ?? null, t2?.name ?? null, t2?.id ?? null, eventTier(c.event?.name));
 
     c.innings.forEach((inn, i) => {
       const bowlingSide = c.teams.find(t => t.name !== inn.team && t.id !== inn.teamId);

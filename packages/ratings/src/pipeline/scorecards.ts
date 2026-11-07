@@ -40,6 +40,7 @@ import { createInterface } from 'readline';
 import { BASE_URL } from './config.js';
 import { closeFetcher, fetchPage, forEachConcurrent } from './fetcher.js';
 import { parseScorecard } from './scorecard-parse.js';
+import { eventTier } from './event-tiers.js';
 
 const OUT_DIR = new URL('../../data/scorecards', import.meta.url).pathname;
 const MATCH_INDEX_FILE = join(OUT_DIR, 'match-index.json');
@@ -60,20 +61,6 @@ interface MatchIndexEntry {
   lists: string[];
   /** Event it was found under by discover-events */
   event?: string;
-}
-
-/** Scrape order for event-only cards, by event name; anything unmatched is tier 0 (senior) */
-const EVENT_TIERS: RegExp[] = [
-  /Universit|Cuppers|\bBUCS\b/i,
-  /League|Division|\bClub\b|Village|Sunday|Saturday|Evening|Midweek|Inter-District/i,
-  /Under-\d+|\bU\d{2}s?\b|School|Grammar|College|Academy|Youth|Junior|Colts|Boys|Girls/i,
-  /Over-\d+|Veteran|Legends|Masters|Deaf|Disability|Blind|Visually|Physical|Learning/i,
-];
-
-function eventTier(event = ''): number {
-  // Check the most specific tiers first: "Under-15 League" is youth, not club
-  for (let t = EVENT_TIERS.length - 1; t >= 0; t--) if (EVENT_TIERS[t].test(event)) return t + 1;
-  return 0;
 }
 
 function ensureOutDir(): void {
