@@ -18,7 +18,8 @@ Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ba
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).
 
 Besides the IPL and WPL the game plays BBL, WBBL, PSL, SA20, The Hundred (men and women), CPL, ILT20, MLC, BPL and LPL
-with real teams, squads, home grounds and rules; see `docs/LEAGUES.md` (registry: `packages/engine/src/leagues.ts`).
+with real teams, squads, home grounds and rules; see `docs/LEAGUES.md` (registry: `packages/engine/src/leagues.ts`). Multiplayer rooms
+(auction, season draft, Draft Match pools) offer every league (`packages/app/src/multiplayer/leagues.ts`).
 
 ## Quick Start
 
