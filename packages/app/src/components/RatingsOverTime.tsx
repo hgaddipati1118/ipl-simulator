@@ -83,7 +83,9 @@ export function ChartSvg({ model, label }: { model: ChartModel; label: string })
         </>
       )}
       {model.real.length > 0 && (
-        <path d={pathOf([...model.real, ...model.career.slice(0, 1)].map(p => pt(p.age, p.value)))} fill="none" stroke="#6C8CFF" strokeWidth={2} data-testid="real-history" />
+        // Fielding / keeping seasons are on a single-season, more-shrunk scale than the career rating, so the real line
+        // stops at its last season instead of jumping to today's rating
+        <path d={pathOf([...model.real, ...(isNoisySeries(model.series) ? [] : model.career.slice(0, 1))].map(p => pt(p.age, p.value)))} fill="none" stroke="#6C8CFF" strokeWidth={2} data-testid="real-history" />
       )}
       {model.real.map(p => <circle key={`r${p.age}`} cx={x(p.age)} cy={y(p.value)} r={2.5} fill="#6C8CFF" />)}
       {model.career.length > 1 && (
