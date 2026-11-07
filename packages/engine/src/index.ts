@@ -6,7 +6,7 @@
  */
 
 export { Player } from "./player.js";
-export { createRNG, randomSeed, randInt, randPick, randWeighted } from "./rng.js";
+export { createRNG, randomSeed, deriveSeed, randInt, randPick, randWeighted } from "./rng.js";
 export { shuffle as rngShuffle } from "./rng.js";
 export type { RNG } from "./rng.js";
 export {
@@ -211,3 +211,20 @@ export type {
   DraftType, DraftAiPersonality, DraftPlayer, DraftSeat, DraftConfig, DraftPick,
   DraftStatus, DraftState, DraftAction, DraftActionResult, SquadNeeds,
 } from "./draft.js";
+
+export {
+  sampleChange, expectedChange, changeSd, sampleResidual, meanPathOvr, retirementProbability, retirementRole,
+  estimateExperience, interp, PERIPHERAL_MEAN,
+} from "./progression.js";
+export type {
+  ProgressionState, ProgressionGender, DisciplineState, Discipline, BatKind, BowlKind, RetirementRole,
+} from "./progression.js";
+export { projectPlayer, simulateCareer, playerRetirementProbability, bandOf, quantileOf } from "./progression-sim.js";
+export type { ProjectionPoint, ProjectionOptions, CareerSeason, Band } from "./progression-sim.js";
+export { validateCohort, formatValidation, cohortPlayerData, simulatedPaths, realPath } from "./progression-validation.js";
+export type { Cohort, CohortPlayer, ValidationReport, HorizonMetrics } from "./progression-validation.js";
+export { RATING_HISTORY_MAX } from "./player.js";
+export type { RatingHistoryEntry } from "./player.js";
+export { generatePlayer, generatePlayers, assignPotential, roleClassOfPlayer, roleOfClass, regionOf, sampleRatings, ROLE_CLASSES, TALENT_SD } from "./player-generator.js";
+export type { GeneratePlayerOptions, GenerationKind, RoleClass, Region } from "./player-generator.js";
+export { generateName, isRealName, nameGroupOf, normaliseName } from "./names.js";

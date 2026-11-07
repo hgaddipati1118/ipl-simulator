@@ -166,12 +166,12 @@ describe("Youth Academy", () => {
   });
 
   it("higher potential = better scout rating", () => {
-    // Run many times to verify correlation
+    // Run many times to verify correlation (potential is on the rating scale: the best prospects reach the high 70s)
     let highPotentialHighRating = 0;
     for (let i = 0; i < 50; i++) {
       const prospects = generateYouthProspects("mi", 3);
       for (const p of prospects) {
-        if (p.potential >= 85 && (p.scoutRating === "Diamond" || p.scoutRating === "Gold")) {
+        if (p.potential >= 75 && (p.scoutRating === "Diamond" || p.scoutRating === "Gold")) {
           highPotentialHighRating++;
         }
       }
