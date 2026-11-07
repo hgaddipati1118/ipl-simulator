@@ -7,7 +7,7 @@ import {
   type Player, Team, type RuleSet,
   getBasePrice, getBidIncrement,
   generatePlayerPool, createPlayerFromData,
-  runSeason, isOverseasIn, isWomenLeague,
+  runSeason, isOverseasIn, isWomenLeague, getLeague,
 } from "@ipl-sim/engine";
 import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
@@ -162,6 +162,13 @@ export class HostGameLogic {
     this.broadcastAuctionState();
   }
 
+  /** A team may buy a player while it has a squad place and, for an overseas player, an overseas place */
+  private canBuy(team: Team, player: Player | undefined): boolean {
+    if (team.roster.length >= this.rules.maxSquadSize) return false;
+    const maxOverseas = this.rules.maxOverseasInSquad;
+    return !player?.isInternational || maxOverseas === undefined || team.internationalCount < maxOverseas;
+  }
+
   /** Generated players for this room: women for a women's league (the women's generation model) */
   private generatedGender(): "male" | "female" {
     return isWomenLeague(this.rules) ? "female" : "male";
@@ -185,15 +192,27 @@ export class HostGameLogic {
     } catch {
       pool = [];
     }
-    // Enough for every squad plus spares, best first; generated players top up a thin pool
-    const needed = this.teams.length * this.rules.maxSquadSize;
-    const poolSize = Math.min(320, Math.max(this.teams.length <= 5 ? 80 : 200, Math.ceil(needed * 1.4)));
-    pool = [...pool].sort((a, b) => b.marketValue - a.marketValue).slice(0, poolSize);
-    if (pool.length < poolSize) {
-      const generated = generatePlayerPool(poolSize - pool.length, Math.random, this.generatedGender());
-      for (const p of generated) p.isInternational = isOverseasIn(league, p.country);
-      pool = [...pool, ...generated];
+    // Enough for every squad plus spares, best first, with the squads' domestic/overseas mix: a pool cut on
+    // market value alone is mostly overseas free agents, and squads that can only buy overseas players can't
+    // field an XI under the overseas cap. Generated home players top up a thin domestic pool.
+    const teams = this.teams.length;
+    const maxSquad = this.rules.maxSquadSize;
+    const maxOverseas = Math.min(maxSquad, this.rules.maxOverseasInSquad ?? maxSquad);
+    const byValue = (a: Player, b: Player) => b.marketValue - a.marketValue;
+    const domesticWanted = Math.ceil(teams * (maxSquad - maxOverseas) * 1.4);
+    const overseasWanted = Math.ceil(teams * maxOverseas * 1.4);
+    const domestic = pool.filter(p => !p.isInternational).sort(byValue).slice(0, domesticWanted);
+    const overseas = pool.filter(p => p.isInternational).sort(byValue).slice(0, overseasWanted);
+    if (domestic.length < domesticWanted) {
+      const home = getLeague(league)?.homeCountry;
+      const generated = generatePlayerPool(domesticWanted - domestic.length, Math.random, this.generatedGender());
+      for (const p of generated) {
+        if (home) p.country = home;
+        p.isInternational = isOverseasIn(league, p.country);
+      }
+      domestic.push(...generated);
     }
+    pool = [...domestic, ...overseas];
     this.auctionPool = pool.sort((a, b) => b.marketValue - a.marketValue);
     this.phase = "auction";
     this.currentPlayerIdx = 0;
@@ -285,7 +304,7 @@ export class HostGameLogic {
     const newBid = Math.round((this.currentBid + increment) * 100) / 100;
 
     if (team.remainingBudget < newBid) return;
-    if (team.roster.length >= this.rules.maxSquadSize) return;
+    if (!this.canBuy(team, this.auctionPool[this.currentPlayerIdx])) return;
 
     this.currentBid = newBid;
     this.currentBidderTeamId = teamId;
@@ -317,7 +336,7 @@ export class HostGameLogic {
       if (team.id === this.currentBidderTeamId) continue;
       const increment = getBidIncrement(this.currentBid);
       if (team.remainingBudget < this.currentBid + increment) continue;
-      if (team.roster.length >= this.rules.maxSquadSize) continue;
+      if (!this.canBuy(team, player)) continue;
 
       const value = player.marketValue;
       const valueRatio = this.currentBid / (value * 10 + 0.1);
@@ -429,7 +448,7 @@ export class HostGameLogic {
         for (const team of this.teams) {
           if (team === winner) continue;
           if (team.remainingBudget < bid + getBidIncrement(bid)) continue;
-          if (team.roster.length >= this.rules.maxSquadSize) continue;
+          if (!this.canBuy(team, player)) continue;
           if (Math.random() < 0.3) {
             bid += getBidIncrement(bid);
             bid = Math.round(bid * 100) / 100;

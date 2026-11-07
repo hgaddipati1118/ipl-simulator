@@ -3622,21 +3622,23 @@ export function simulateRemaining(state: MatchState): { state: MatchState; balls
     current = startSecondInnings(current);
   }
 
-  while (current.status === "in_progress" || current.status === "waiting_for_decision") {
-    // Auto-resolve any pending decisions when simulating remaining
+  while (current.status === "in_progress" || current.status === "waiting_for_decision" || current.status === "innings_break") {
+    // Auto-resolve any pending decisions when simulating remaining. A decision can itself end the
+    // innings (e.g. a review of the last wicket), so the break is handled at the top of the loop too.
     if (current.status === "waiting_for_decision") {
       current = autoResolveDecision(current);
+      continue;
+    }
+    if (current.status === "innings_break") {
+      const started = startSecondInnings(current);
+      if (started.status === "innings_break") break; // nothing left to start
+      current = started;
       continue;
     }
 
     const { state: next, ball } = stepBall(current);
     allBalls.push(ball);
     current = next;
-
-    // Auto-start second innings if we hit the break
-    if (current.status === "innings_break") {
-      current = startSecondInnings(current);
-    }
   }
 
   return { state: current, balls: allBalls };

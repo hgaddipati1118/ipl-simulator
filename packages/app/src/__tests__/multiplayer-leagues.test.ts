@@ -81,6 +81,9 @@ describe("auction room", () => {
       vi.advanceTimersByTime(3500);
       expect(host.messages.some(m => m.type === "season-results")).toBe(true);
       expect(state!.teams.every(t => t.rosterCount >= 11)).toBe(true);
+      // no squad holds more overseas players than the cap, so each can field an XI with its domestic players
+      const cap = getLeague("psl")!.rules.maxOverseasInSquad;
+      expect((logic as unknown as { teams: { internationalCount: number }[] }).teams.every(t => t.internationalCount <= cap)).toBe(true);
     } finally {
       vi.useRealTimers();
     }
