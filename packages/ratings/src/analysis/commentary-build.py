@@ -119,8 +119,9 @@ def full_names(p: dict):
 
 
 class Lexicon:
-    def __init__(self, names, teams, lower_counts, total_counts):
+    def __init__(self, names, teams, lower_counts, total_counts, cap_mid_counts=None):
         self.lower = lower_counts  # token.lower() -> count of lowercase occurrences in corpus text
+        self.cap_mid = cap_mid_counts or Counter()  # Token -> count of capitalised mid-sentence occurrences
         self.names = {t for t in names}
         self.teams = {t for t in teams}
         self.common = {t for t in (self.names | self.teams) if lower_counts.get(t.lower(), 0) >= 40}
@@ -130,6 +131,11 @@ class Lexicon:
 
     def is_common_word(self, tok):
         return self.lower.get(tok.lower(), 0) >= 40
+
+    def name_like(self, tok):
+        """a player name that is also an ordinary word ("Head", "Wood", "Short") but is used as a name often enough that
+        a capitalised sentence-initial use is more likely the player ("Head tries to pull") than the word"""
+        return tok in self.names and self.cap_mid.get(tok, 0) >= 0.15 * max(1, self.lower.get(tok.lower(), 0))
 
 
 def slot_text(text: str, row: dict, lex: Lexicon, reasons: Counter):
@@ -187,6 +193,10 @@ def slot_text(text: str, row: dict, lex: Lexicon, reasons: Counter):
             return None
         pre = stripped[: m.start()].rstrip()
         sentence_start = (pre == "") or pre.endswith((".", "!", "?", ":", "—", "-")) or pre.endswith('"')
+        if sentence_start and lex.name_like(base):
+            reasons["name_leak_sentence_start"] += 1
+            LEAK_TOKENS["name_leak"][base] += 1
+            return None
         if base in lex.leak or base.lower() in lex.leak_lower:
             if not (sentence_start and lex.is_common_word(base)):
                 reasons["name_leak"] += 1
@@ -287,6 +297,12 @@ def make_templates(row, lex, max_len, reasons):
     if not text or len(text) < 14:
         reasons["too_short"] += 1
         return []
+    # "boundary.Waits on" -> "boundary. Waits on" (missing space after a full stop in the source text)
+    text = re.sub(r"(?<=[a-z])([.!?])(?=[A-Z][a-z])", r"\1 ", text)
+    text = text.lstrip(" .,;:!?-—")
+    if not text:
+        reasons["too_short"] += 1
+        return []
     if text[0].islower():
         text = text[0].upper() + text[1:]
     sents = [x.strip() for x in SENT_SPLIT.split(text) if x.strip()]
@@ -316,7 +332,7 @@ def make_templates(row, lex, max_len, reasons):
         for _ in range(2):
             if re.match(r"^\s*(four|six|out|wide|no[- ]ball|dot ball|no run|leg[- ]?byes?|byes?|free[- ]hit|wicket)\b", t, re.I):
                 t = ECHO_LEAD.sub("", t, count=1)
-        t = t.strip(" -—:")
+        t = t.strip(" -—:").lstrip(".,;!? ")
         if t and t[0].islower():
             t = t[0].upper() + t[1:]
         if LEADING_CONJ.match(t):
@@ -466,7 +482,11 @@ def main():
     for r in rows:
         for w in re.findall(r"\b[a-z][a-z'’\-]+\b", r["text"]):
             lower_counts[w] += 1
-    lex = Lexicon(nm["names"].keys(), nm["teams"].keys(), lower_counts, None)
+    cap_mid = Counter()
+    for r in rows:
+        for w in re.findall(r"(?<=[a-z,;] )([A-Z][a-z'’\-]+)\b", r["text"]):
+            cap_mid[w] += 1
+    lex = Lexicon(nm["names"].keys(), nm["teams"].keys(), lower_counts, None, cap_mid)
     global RARE_BELOW
     RARE_BELOW = 3 if len(rows) > 100_000 else 2
 

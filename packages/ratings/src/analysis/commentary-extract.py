@@ -208,6 +208,9 @@ def emit_match(rec, out, stats, name_tokens, team_tokens, per_comp, per_comp_tex
     per_comp[comp] += 1
     match_gender = None
     for n_str, balls in rec["commentary"].items():
+        if not str(n_str).isdigit():
+            stats["innings_without_number"] += len(balls)   # balls the scraper could not file under an innings
+            continue
         n = int(n_str)
         # chase target: first innings total + 1 (for innings 2 of a normal match)
         target = runs_by_inn.get(1, 0) + 1 if n == 2 else None
