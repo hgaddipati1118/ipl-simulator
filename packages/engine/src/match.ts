@@ -37,6 +37,16 @@ import {
   type VenueProfile,
 } from "./venues.js";
 import { LEGACY_STADIUM_BOWLING_RATINGS } from "./team.js";
+import {
+  applyFieldingToProbs,
+  buildFieldingUnit,
+  fieldingCommentary,
+  pickKeeper,
+  resolveWicketChance,
+  type FieldingNote,
+  type FieldingUnit,
+  type WicketKind,
+} from "./fielding.js";
 
 export type BallOutcome = "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
 
@@ -50,6 +60,12 @@ export interface BallEvent {
   extras: number;     // extra runs (wides, noballs)
   isWicket: boolean;
   commentary: string;
+  /** How the batter was dismissed (set on wicket balls; decided at the ball, see fielding.ts) */
+  wicketType?: WicketKind;
+  /** Fielder who took the catch / made the stumping / threw at the stumps (id) */
+  fielderId?: string;
+  /** A put-down catch, great catch, missed stumping, ... on this ball (the ball itself did not end in a wicket for misses) */
+  fieldingNote?: FieldingNote;
 }
 
 export interface ImpactSubEvent {
@@ -268,6 +284,7 @@ function simulateBall(
   wicketsDown: number,
   venue: VenueContext,
   rng: RNG = Math.random,
+  fieldingUnit?: FieldingUnit,
 ): BallEvent {
   let probs = baseOutcomeProbabilities(batter, bowler);
 
@@ -342,9 +359,19 @@ function simulateBall(
   probs.wicket *= bowlerMoraleMod;
   probs.dot *= bowlerMoraleMod;
 
+  // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down)
+  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle);
+
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
-  const outcome = weightedRandom(entries, rng);
+  let outcome = weightedRandom(entries, rng);
+
+  // A wicket draw is a dismissal chance: decide its kind and who was involved, and whether it was taken
+  let resolution: ReturnType<typeof resolveWicketChance> | undefined;
+  if (outcome === "wicket") {
+    resolution = resolveWicketChance(fieldingUnit, bowler.id, bowler.bowlingStyle, probs, rng);
+    if (resolution.outcome !== "wicket") outcome = resolution.outcome;
+  }
 
   // Determine runs
   let runs = 0;
@@ -364,9 +391,12 @@ function simulateBall(
     case "legbye": extras = 1; break;
   }
 
-  const commentary = generateCommentary(outcome, batter.name, bowler.name, over, runs, rng);
+  const fieldingLine = resolution?.note
+    ? fieldingCommentary(resolution, { batter: batter.name, bowler: bowler.name, runs }, rng)
+    : undefined;
+  const commentary = fieldingLine ?? generateCommentary(outcome, batter.name, bowler.name, over, runs, rng);
 
-  return {
+  const event: BallEvent = {
     over,
     ball: 0, // filled in by innings simulation
     bowler: bowler.id,
@@ -377,6 +407,12 @@ function simulateBall(
     isWicket,
     commentary,
   };
+  if (resolution) {
+    if (isWicket) event.wicketType = resolution.kind;
+    if (resolution.fielder && (isWicket || resolution.note)) event.fielderId = resolution.fielder.id;
+    if (resolution.note) event.fieldingNote = resolution.note;
+  }
+  return event;
 }
 
 /** Determine wicket type with realistic distribution */
@@ -631,6 +667,9 @@ function simulateInnings(
   const innings = emptyInnings(battingTeam.id);
   const battingOrder = battingTeam.getBattingOrder(xi);
   const bowlers = bowlingTeam.getBowlingOrder(bowlingXI);
+  // The side in the field (an impact sub replaces the player he came on for)
+  const fieldXI = [...bowlingXI];
+  let fieldingUnit = buildFieldingUnit(fieldXI);
 
   // Safety: need at least 2 batters and 1 bowler
   if (battingOrder.length < 2 || bowlers.length < 1) {
@@ -687,6 +726,8 @@ function simulateInnings(
           if (outIdx >= 0) {
             bowlers[outIdx] = decision.subIn;
             bowlerOvers.set(decision.subIn.id, 0);
+            const fi = fieldXI.indexOf(decision.subOut);
+            if (fi >= 0) { fieldXI[fi] = decision.subIn; fieldingUnit = buildFieldingUnit(fieldXI); }
             if (!innings.impactSub) {
               innings.impactSub = { subIn: decision.subIn.id, subOut: decision.subOut.id, overUsed: over, side: "bowling" };
             }
@@ -743,6 +784,7 @@ function simulateInnings(
         innings.wickets,
         venue,
         rng,
+        fieldingUnit,
       );
 
       event.ball = legalBalls + 1;
@@ -838,6 +880,11 @@ function updatePlayerStats(
         if (batStat.runs >= 100) player.stats.hundreds++;
         else if (batStat.runs >= 50) player.stats.fifties++;
       }
+    }
+
+    // Catches taken in the field (the opposing innings is the one this side bowled in)
+    for (const ev of bowlingInnings.ballLog) {
+      if (ev.isWicket && ev.wicketType === "caught" && ev.fielderId === player.id) player.stats.catches++;
     }
 
     if (bowlStat && (bowlStat.overs > 0 || bowlStat.balls > 0)) {
@@ -997,14 +1044,18 @@ function buildInningsScorecard(
       if (dismissalBall) {
         const bowlerPlayer = playerMap.get(dismissalBall.bowler);
         const bowlerName = bowlerPlayer?.name ?? "unknown";
-        const wicketType = randomWicketType(rng);
+        const wicketType = dismissalBall.wicketType ?? randomWicketType(rng);
+        const involved = dismissalBall.fielderId ? playerMap.get(dismissalBall.fielderId) : undefined;
         switch (wicketType) {
           case "bowled":
             howOut = `b ${bowlerName}`;
             break;
           case "caught": {
-            const fielders = bowlingXI.filter(p => p.id !== dismissalBall.bowler);
-            const fielder = fielders[Math.floor(rng() * fielders.length)];
+            let fielder = involved;
+            if (!fielder) {
+              const fielders = bowlingXI.filter(p => p.id !== dismissalBall.bowler);
+              fielder = fielders[Math.floor(rng() * fielders.length)];
+            }
             howOut = `c ${fielder?.name ?? randomFielderPosition(rng)} b ${bowlerName}`;
             break;
           }
@@ -1012,10 +1063,10 @@ function buildInningsScorecard(
             howOut = `lbw b ${bowlerName}`;
             break;
           case "run_out":
-            howOut = `run out`;
+            howOut = involved ? `run out (${involved.name})` : `run out`;
             break;
           case "stumped": {
-            const keeper = bowlingXI.find(p => p.isWicketKeeper);
+            const keeper = involved ?? pickKeeper(bowlingXI);
             howOut = `st ${keeper?.name ?? "keeper"} b ${bowlerName}`;
             break;
           }
@@ -1153,10 +1204,10 @@ function buildDetailedBallLog(
     let wicketType: DetailedBallEvent["wicketType"];
     let fielderName: string | undefined;
     if (ball.isWicket) {
-      wicketType = randomWicketType(rng);
-      if (wicketType === "caught") {
-        fielderName = randomFielderPosition(rng);
-      }
+      wicketType = ball.wicketType ?? randomWicketType(rng);
+      const involved = ball.fielderId ? playerMap.get(ball.fielderId) : undefined;
+      if (involved) fielderName = involved.name;
+      else if (wicketType === "caught") fielderName = randomFielderPosition(rng);
     }
 
     return {

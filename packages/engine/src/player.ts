@@ -15,7 +15,20 @@ export interface PlayerRatings {
   economy: number;      // 0-99: ability to restrict runs
   accuracy: number;     // 0-99: line and length consistency
   clutch: number;       // 0-99: performance under pressure
+  /**
+   * 0-99, 50 = average: catching, ground fielding and run-out threat (src/fielding.ts).
+   * Optional so older saves, mods and hand-built players keep working: absent means 50 (neutral).
+   */
+  fielding?: number;
+  /**
+   * 0-99, 50 = average wicketkeeper: taking the ball cleanly, byes, stumpings and catches behind. Optional;
+   * absent means 50 for a designated keeper and 25 for anyone else (src/fielding.ts).
+   */
+  keeping?: number;
 }
+
+/** The eight batting / bowling attributes (everything in PlayerRatings except the optional fielding pair) */
+export type CoreRatingKey = Exclude<keyof PlayerRatings, "fielding" | "keeping">;
 
 export interface PlayerStats {
   matches: number;
@@ -475,7 +488,7 @@ export class Player implements PlayerData {
     const focus = this.trainingFocus ?? "balanced";
     const bias = TRAINING_FOCUS_BIAS[focus];
     const changes: { attr: string; from: number; to: number }[] = [];
-    for (const [attr, weight] of Object.entries(bias) as [keyof PlayerRatings, number][]) {
+    for (const [attr, weight] of Object.entries(bias) as [CoreRatingKey, number][]) {
       if (weight > 0) {
         const from = this.ratings[attr];
         const gain = Math.round(randomNormal(weight * 0.4, 0.3));
@@ -559,12 +572,12 @@ export class Player implements PlayerData {
       }
     }
 
-    const attrs: (keyof PlayerRatings)[] = [
+    const attrs: CoreRatingKey[] = [
       "battingIQ", "timing", "power", "running",
       "wicketTaking", "economy", "accuracy", "clutch",
     ];
 
-    const batAttrs = new Set<keyof PlayerRatings>(["battingIQ", "timing", "power", "running"]);
+    const batAttrs = new Set<CoreRatingKey>(["battingIQ", "timing", "power", "running"]);
     for (const attr of attrs) {
       const focusBoost = (focusBias[attr] ?? 0) * gainMultiplier;
       const ageBias = batAttrs.has(attr) ? batBias : bowlBias;

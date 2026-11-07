@@ -4,6 +4,7 @@
  */
 
 import { Player, type TrainingIntensity } from "./player.js";
+import { keepingRating, pickKeeper } from "./fielding.js";
 import {
   getVenueProfileForTeam,
   deriveStadiumBowlingRating,
@@ -305,6 +306,26 @@ export class Team {
             xi[i] = bestWK;
             break;
           }
+        }
+      }
+    }
+
+    // No designated keeper in the squad at all (or none fit): the XI still needs someone who can keep. Bring in the
+    // squad's best keeping rating if he is clearly better than anyone already in the XI; the match engine
+    // (fielding.ts pickKeeper) then has him keep.
+    if (!xi.some(p => p.isWicketKeeper) && xi.length === 11) {
+      const inXI = pickKeeper(xi);
+      const standIn = available
+        .filter(p => !xi.includes(p) && !p.isWicketKeeper)
+        .sort((a, b) => keepingRating(b) - keepingRating(a))[0];
+      if (standIn && inXI && keepingRating(standIn) >= keepingRating(inXI) + 10) {
+        // Swap for the lowest-rated batter-only player in the XI that keeps the overseas limit and the bowling core
+        const swapOut = [...xi]
+          .filter(p => p !== inXI && !isExtraBowlingDepthCandidate(p))
+          .sort((a, b) => a.selectionScore - b.selectionScore)[0];
+        if (swapOut) {
+          const newIntl = xi.filter(p => p.isInternational).length - (swapOut.isInternational ? 1 : 0) + (standIn.isInternational ? 1 : 0);
+          if (newIntl <= maxOverseas) xi[xi.indexOf(swapOut)] = standIn;
         }
       }
     }

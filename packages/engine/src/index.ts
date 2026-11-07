@@ -19,6 +19,7 @@ export {
 export type {
   PlayerData,
   PlayerRatings,
+  CoreRatingKey,
   PlayerRole,
   PlayerStats,
   MatchPerformance,
@@ -54,6 +55,12 @@ export {
   processDRSReview,
 } from "./ball-outcomes.js";
 export type { DismissalType, WideType, NoBallType, MatchInjuryType, InjuryResponse, DRSResult } from "./ball-outcomes.js";
+
+export {
+  fieldingRating, keepingRating, pickKeeper, buildFieldingUnit, resolveWicketChance, applyFieldingToProbs,
+  chanceInflation, fieldingCommentary, NEUTRAL_FIELDING, DEFAULT_KEEPER_KEEPING, DEFAULT_NONKEEPER_KEEPING, CONV as FIELDING_CONVERSION,
+} from "./fielding.js";
+export type { FielderLike, FieldingUnit, FieldingNote, FieldingResolution, WicketKind } from "./fielding.js";
 
 export { simulateMatch, calculateMVPPoints } from "./match.js";
 export type {
