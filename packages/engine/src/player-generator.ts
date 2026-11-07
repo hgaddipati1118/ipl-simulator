@@ -12,12 +12,13 @@
  */
 
 import { GENERATION_MODEL, type StratumModel } from "./generation-model.js";
+import { FIELDING_GENERATION } from "./fielding-generation-model.js";
 import { generateName } from "./names.js";
 import { createPlayerFromData, nextPlayerId } from "./create-player.js";
 import { Player, type BattingHand, type BowlingStyle, type PlayerRatings, type PlayerRole } from "./player.js";
 import { meanPathOvr, estimateExperience, type ProgressionGender } from "./progression.js";
 import { clamp } from "./math.js";
-import { type RNG } from "./rng.js";
+import { createRNG, type RNG } from "./rng.js";
 
 export type RoleClass = "batter" | "keeper" | "allround" | "pace" | "spin";
 export type GenerationKind = "pool" | "youth" | "regen" | "fill";
@@ -153,6 +154,30 @@ export function sampleRatings(stratum: StratumModel, region: Region, age: number
   return out as PlayerRatings;
 }
 
+/** Quantile of a stratum's rating at a probability, tails extended a little beyond the last node as for the other ratings */
+function ratingAtProb(q: number[], u: number): number {
+  return quantileMap(q, FIELDING_GENERATION.quantileProbs, u);
+}
+
+/**
+ * Fielding for every generated player, keeping for keepers: drawn from the real distribution of the role class
+ * (fielding-generation-model.ts). Fielding follows batting and bowling quality a little (good players field better, r = 0.3);
+ * keeping is a separate draw. Non-keepers get no keeping rating (the engine treats them as 25), as in the real data.
+ * Three RNG draws for a keeper, two otherwise.
+ */
+export function sampleFieldingRatings(
+  rc: RoleClass, gender: ProgressionGender, battingOvr: number, bowlingOvr: number, rng: RNG,
+): { fielding: number; keeping?: number } {
+  const F = FIELDING_GENERATION;
+  const stratum = F.strata[`${gender}/${rc}`] ?? F.strata[`male/${rc}`] ?? F.strata["male/batter"];
+  const z = (F.coefBat * (battingOvr - stratum.meanBat) / 20 + F.coefBowl * (bowlingOvr - stratum.meanBowl) / 20 + F.residSd * gaussian(rng)) / F.totalSd;
+  const fielding = clamp(Math.round(ratingAtProb(stratum.fielding, Math.min(0.99999, Math.max(0.00001, phi(z))))), 5, 99);
+  if (rc !== "keeper") return { fielding };
+  const keeperQ = stratum.keeping ?? F.strata["male/keeper"].keeping!;
+  const keeping = clamp(Math.round(ratingAtProb(keeperQ, Math.min(0.99999, Math.max(0.00001, phi(gaussian(rng)))))), 5, 99);
+  return { fielding, keeping };
+}
+
 function sampleStyle(rng: RNG, gender: ProgressionGender, rc: RoleClass): { style: BowlingStyle; hand: BattingHand } {
   const s = GENERATION_MODEL.styles[`${gender}/${rc}`];
   return {
@@ -165,6 +190,14 @@ function sampleStyle(rng: RNG, gender: ProgressionGender, rc: RoleClass): { styl
 export const TALENT_SD = 3.5;
 
 // ---------------------------------------------------------------------------------------------------- the generator
+
+/** A 32-bit seed from what makes this generated player who he is */
+function playerSeed(p: Player): number {
+  let h = 2166136261;
+  const text = `${p.name}|${p.age}|${Object.values(p.ratings).join(",")}`;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
 
 /** Generate one player. Deterministic for a given rng state. */
 export function generatePlayer(rng: RNG, opts: GeneratePlayerOptions = {}): Player {
@@ -204,6 +237,9 @@ export function generatePlayer(rng: RNG, opts: GeneratePlayerOptions = {}): Play
   if (!player) throw new Error("player generation failed");
   player.id = opts.id ?? nextPlayerId();
   player.experience = kind === "fill" || kind === "pool" ? estimateExperience(age, 0) : 1;
+  // Fielding / keeping come from a stream of their own, seeded from the player just drawn, so that adding them left every
+  // other draw of a seeded generation exactly as it was (same players, same later draws)
+  Object.assign(player.ratings, sampleFieldingRatings(rc, gender, player.battingOvr, player.bowlingOvr, createRNG(playerSeed(player))));
 
   if (kind === "youth" || kind === "regen" || (kind === "pool" && age <= 23)) assignPotential(player, gender, rng);
   return player;

@@ -29,7 +29,7 @@ let tradeIdCounter = 0;
 
 /** Calculate a player's trade value (similar to market value but accounting for age/contract) */
 function tradeValue(player: Player): number {
-  const ovr = player.overall;
+  const ovr = player.valueOverall; // overall plus what fielding / keeping are worth, as in marketValue
   const ageFactor = Math.max(0.5, 1 - (player.age - 25) * 0.03);
   return ovr * ageFactor;
 }

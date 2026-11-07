@@ -36,6 +36,8 @@ export interface DraftPlayer {
   imageUrl?: string;
   /** Market value in crores, for display ("value") */
   value?: number;
+  /** Points of overall that fielding / keeping are worth (Player.fieldingBonus); the draft AI adds it to the overall */
+  fieldingBonus?: number;
 }
 
 export interface DraftSeat {
@@ -153,6 +155,7 @@ export function toDraftPlayer(p: Player): DraftPlayer {
     potential: p.potential,
     imageUrl: p.imageUrl,
     value: Math.round(p.marketValue * 100) / 100,
+    fieldingBonus: Math.round(p.fieldingBonus * 100) / 100,
   };
 }
 
@@ -401,7 +404,7 @@ function relaxedPick(state: DraftState, seatId: string): string | null {
   const needs = needsFor(squad, state.config);
   const avail = getAvailablePlayers(state);
   const score = (p: DraftPlayer) =>
-    p.overall + (needs.wicketKeepers > 0 && p.isWicketKeeper ? 30 : 0) + (needs.bowlingOptions > 0 && isDraftBowlingOption(p) ? 20 : 0);
+    p.overall + (p.fieldingBonus ?? 0) + (needs.wicketKeepers > 0 && p.isWicketKeeper ? 30 : 0) + (needs.bowlingOptions > 0 && isDraftBowlingOption(p) ? 20 : 0);
   const withinOs = avail.filter(p => !p.isInternational || needs.overseasLeft > 0);
   const list = (withinOs.length ? withinOs : avail).sort((a, b) => score(b) - score(a));
   return list[0]?.id ?? null;
@@ -454,7 +457,7 @@ export function squadStrength(squad: DraftPlayer[], xiSize = 11): number {
 function aiScore(state: DraftState, seat: DraftSeat, player: DraftPlayer, squad: DraftPlayer[]): number {
   const cfg = state.config;
   const needs = needsFor(squad, cfg);
-  let score = player.overall;
+  let score = player.overall + (player.fieldingBonus ?? 0);
 
   // Age / potential (career mode cares about the long term)
   if (cfg.careerMode) {

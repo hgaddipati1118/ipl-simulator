@@ -39,6 +39,36 @@ export function getBidIncrement(currentBid: number): number {
   return 0.25;                         // 25 lakh
 }
 
+// ── Keeper need ─────────────────────────────────────────────────────────
+
+/** Bid-probability multiplier for a team with no wicketkeeper bidding on one (a keeper is not optional) */
+const KEEPER_NEED_BID_BOOST = 1.7;
+/** Such a team also values a keeper this much above his market value */
+const KEEPER_NEED_VALUE_BOOST = 1.2;
+
+export function keeperCount(team: Team): number {
+  let n = 0;
+  for (const p of team.roster) if (p.isWicketKeeper) n++;
+  return n;
+}
+
+export function countKeepers(players: readonly Player[], from = 0): number {
+  let n = 0;
+  for (let i = from; i < players.length; i++) if (players[i].isWicketKeeper) n++;
+  return n;
+}
+
+/**
+ * Teams that still have no wicketkeeper and room for one. When the keepers left in the pool are about to run out
+ * (`keepersLeft` at most the number of such teams) the others sit out the bidding for a keeper, so every team can
+ * still get one.
+ */
+export function keeperNeed(teams: readonly Team[], keepersLeft: number, maxRosterSize: number): { needy: Set<string>; reserved: boolean } {
+  const needy = new Set<string>();
+  for (const t of teams) if (t.roster.length < maxRosterSize && keeperCount(t) === 0) needy.add(t.id);
+  return { needy, reserved: needy.size > 0 && keepersLeft <= needy.size };
+}
+
 // ── Types ───────────────────────────────────────────────────────────────
 
 export interface AuctionConfig {
@@ -189,9 +219,12 @@ export function runAuction(
 
   // Sort players by market value (highest first)
   const sortedPlayers = [...players].sort((a, b) => b.marketValue - a.marketValue);
+  let keepersLeft = countKeepers(sortedPlayers);
 
   for (const player of sortedPlayers) {
-    const result = auctionPlayer(player, teams, cfg, bids.length, rng);
+    const need = keeperNeed(teams, keepersLeft, cfg.maxRosterSize);
+    if (player.isWicketKeeper) keepersLeft--;
+    const result = auctionPlayer(player, teams, cfg, bids.length, rng, need);
     if (result) {
       bids.push(result);
     } else {
@@ -199,8 +232,8 @@ export function runAuction(
     }
   }
 
-  // Ensure every team has at least 2 WKs (injury backup) before filling remaining spots
-  for (const team of teams) {
+  // Ensure every team has at least 2 WKs (injury backup) before filling remaining spots. Teams with none go first.
+  for (const team of [...teams].sort((a, b) => keeperCount(a) - keeperCount(b))) {
     let wkCount = team.roster.filter(p => p.isWicketKeeper).length;
     while (wkCount < 2 && team.roster.length < cfg.maxRosterSize) {
       const wkIdx = unsold.findIndex(p =>
@@ -213,6 +246,55 @@ export function runAuction(
       assignAuctionContract(wk);
       bids.push({ playerId: wk.id, playerName: wk.name, teamId: team.id, amount: getBasePrice(wk), round: 0 });
       wkCount++;
+    }
+  }
+
+  // A team that still has no keeper (the pool ran dry, or the keepers left are overseas and its overseas places are full)
+  // takes one from a team with a spare, or from the unsold, making room by releasing its cheapest non-keeper if it must
+  for (const team of teams) {
+    if (keeperCount(team) > 0) continue;
+    type Source = { player: Player; from?: Team; price: number };
+    const sources: Source[] = [
+      ...unsold.filter(p => p.isWicketKeeper).map(p => ({ player: p, price: getBasePrice(p) })),
+      ...teams.filter(t => t !== team && keeperCount(t) >= 2)
+        .flatMap(t => t.roster.filter(p => p.isWicketKeeper).map(p => ({ player: p, from: t, price: p.bid }))),
+    ].sort((a, b) => (a.player.isInternational ? 1 : 0) - (b.player.isInternational ? 1 : 0) || a.price - b.price);
+    for (const src of sources) {
+      let budget = team.remainingBudget;
+      let intl = team.internationalCount;
+      let size = team.roster.length;
+      // players to release so that the keeper fits: the lowest-valued non-keepers, overseas ones first when the overseas places are full
+      const release: Player[] = [];
+      const candidates = [...team.roster].filter(p => !p.isWicketKeeper).sort((a, b) => a.marketValue - b.marketValue);
+      const fits = () => size < cfg.maxRosterSize && budget >= src.price && (!src.player.isInternational || intl < cfg.maxInternational);
+      while (!fits() && candidates.length > 0) {
+        const needIntl = src.player.isInternational && intl >= cfg.maxInternational;
+        const idx = candidates.findIndex(p => !needIntl || p.isInternational);
+        if (idx === -1) break;
+        const [out] = candidates.splice(idx, 1);
+        release.push(out); budget += out.bid; size--; if (out.isInternational) intl--;
+      }
+      if (!fits()) continue;
+      for (const out of release) {
+        team.removePlayer(out.id);
+        out.teamId = undefined; out.bid = 0;
+        const bi = bids.findIndex(b => b.playerId === out.id);
+        if (bi !== -1) bids.splice(bi, 1);
+        unsold.push(out);
+      }
+      if (src.from) {
+        const moved = src.from.removePlayer(src.player.id);
+        if (!moved) continue;
+        team.addPlayer(moved, moved.bid);
+        const bid = bids.find(b => b.playerId === moved.id);
+        if (bid) bid.teamId = team.id;
+      } else {
+        unsold.splice(unsold.indexOf(src.player), 1);
+        team.addPlayer(src.player, src.price);
+        assignAuctionContract(src.player);
+        bids.push({ playerId: src.player.id, playerName: src.player.name, teamId: team.id, amount: src.price, round: 0 });
+      }
+      break;
     }
   }
 
@@ -271,12 +353,13 @@ function auctionPlayer(
   config: AuctionConfig,
   playerIndex: number,
   rng: RNG = Math.random,
+  need?: { needy: Set<string>; reserved: boolean },
 ): AuctionBid | null {
   const basePrice = getBasePrice(player);
   const value = Math.max(player.marketValue, basePrice);
 
   // Filter eligible teams
-  const eligible = teams.filter(t => {
+  let eligible = teams.filter(t => {
     if (t.roster.length >= config.maxRosterSize) return false;
     if (player.isInternational && t.internationalCount >= config.maxInternational) return false;
     if (t.remainingBudget < basePrice) return false;
@@ -286,6 +369,11 @@ function auctionPlayer(
     if (wkCount < 2 && slotsLeft <= (2 - wkCount) && !player.isWicketKeeper) return false;
     return true;
   });
+  // The last keepers in the pool are kept for the teams that have none
+  if (need?.reserved && player.isWicketKeeper) {
+    const needyOnly = eligible.filter(t => need.needy.has(t.id));
+    if (needyOnly.length > 0) eligible = needyOnly;
+  }
 
   if (eligible.length === 0) return null;
 
@@ -304,8 +392,12 @@ function auctionPlayer(
       if (team.remainingBudget < currentBid + increment) continue;
       if (team.roster.length >= config.maxRosterSize) continue;
 
+      // Squad need: a team with no wicketkeeper wants one and will pay over the odds
+      const wantsKeeper = player.isWicketKeeper && need?.needy.has(team.id) === true;
+      const teamValue = wantsKeeper ? value * KEEPER_NEED_VALUE_BOOST : value;
+
       // CPU bidding probability
-      const valueRatio = currentBid / (value + 0.1);
+      const valueRatio = currentBid / (teamValue + 0.1);
       const positionFactor = 1 - 0.1 * (playerIndex / 100);
       let bidProb = Math.max(0, 1 - valueRatio) * positionFactor;
 
@@ -319,9 +411,11 @@ function auctionPlayer(
       // Team need: if team has few players, more aggressive
       if (team.roster.length < 12) bidProb *= 1.3;
 
+      if (wantsKeeper) bidProb *= KEEPER_NEED_BID_BOOST;
+
       // Don't overbid dramatically
-      if (currentBid > value * 1.25) bidProb *= 0.55;
-      if (currentBid > value * 1.5) bidProb *= 0.25;
+      if (currentBid > teamValue * 1.25) bidProb *= 0.55;
+      if (currentBid > teamValue * 1.5) bidProb *= 0.25;
 
       // Budget discipline: save money for remaining squad slots
       const slotsNeeded = Math.max(0, config.minSquadSize - team.roster.length);
@@ -374,6 +468,8 @@ export interface AuctionState {
   rtmEligible?: boolean;      // whether RTM is available for this player
   /** Map of playerId → former teamId for RTM tracking */
   rtmMap?: Record<string, string>;
+  /** Wicketkeepers among the remaining players, the current one included (drives the keeper-need logic) */
+  keepersLeft?: number;
 }
 
 /** Initialize a step-by-step auction */
@@ -401,6 +497,7 @@ export function initAuction(
     completedBids: [],
     unsold: [],
     phase: sorted.length > 0 ? "bidding" : "complete",
+    keepersLeft: countKeepers(sorted),
   };
 }
 
@@ -458,6 +555,11 @@ export function cpuBidRound(
   const round = state.round + 1;
 
   const activeBidders = [...state.biddingTeams];
+  const need = player.isWicketKeeper
+    ? keeperNeed(teams, state.keepersLeft ?? countKeepers(state.players, state.currentPlayerIndex), cfg.maxRosterSize)
+    : undefined;
+  // The last keepers in the pool are kept for the teams that have none
+  const reservedTo = need?.reserved && activeBidders.some(id => need.needy.has(id)) ? need.needy : undefined;
 
   for (const teamId of activeBidders) {
     if (teamId === currentBidderId) continue; // skip current highest bidder
@@ -467,9 +569,14 @@ export function cpuBidRound(
     if (team.remainingBudget < currentBid + increment) continue;
     if (team.roster.length >= cfg.maxRosterSize) continue;
     if (player.isInternational && team.internationalCount >= cfg.maxInternational) continue;
+    if (reservedTo && !reservedTo.has(teamId)) continue;
+
+    // Squad need: a team with no wicketkeeper wants one and will pay over the odds
+    const wantsKeeper = need?.needy.has(teamId) === true;
+    const teamValue = wantsKeeper ? value * KEEPER_NEED_VALUE_BOOST : value;
 
     // CPU bidding probability (same logic as full auction)
-    const valueRatio = currentBid / (value + 0.1);
+    const valueRatio = currentBid / (teamValue + 0.1);
     const positionFactor = 1 - 0.1 * (state.currentPlayerIndex / 100);
     let bidProb = Math.max(0, 1 - valueRatio) * positionFactor;
 
@@ -477,8 +584,9 @@ export function cpuBidRound(
     if (player.age > 34) bidProb *= 0.7;
     if (!player.isInternational) bidProb *= 1.15;
     if (team.roster.length < 12) bidProb *= 1.3;
-    if (currentBid > value * 1.25) bidProb *= 0.55;
-    if (currentBid > value * 1.5) bidProb *= 0.25;
+    if (wantsKeeper) bidProb *= KEEPER_NEED_BID_BOOST;
+    if (currentBid > teamValue * 1.25) bidProb *= 0.55;
+    if (currentBid > teamValue * 1.5) bidProb *= 0.25;
 
     // Budget discipline: save money for remaining squad slots
     const slotsNeeded = Math.max(0, (cfg.minSquadSize || 18) - team.roster.length);
@@ -578,6 +686,7 @@ export function nextPlayer(
     .filter(t => t.roster.length < cfg.maxRosterSize && t.remainingBudget >= basePrice)
     .map(t => t.id);
 
+  const wasKeeper = state.players[state.currentPlayerIndex]?.isWicketKeeper ? 1 : 0;
   return {
     ...state,
     currentPlayerIndex: nextIndex,
@@ -586,6 +695,7 @@ export function nextPlayer(
     biddingTeams: eligible,
     round: 0,
     phase: "bidding",
+    keepersLeft: Math.max(0, (state.keepersLeft ?? countKeepers(state.players, state.currentPlayerIndex)) - wasKeeper),
   };
 }
 
@@ -697,7 +807,7 @@ export function retainPlayers(
   retentionBudget: number = RETENTION_BUDGET,
   maxRetentions: number = MAX_RETENTIONS,
 ): { retained: Player[]; released: Player[]; retentionCosts: { player: Player; cost: number }[] } {
-  const sorted = [...team.roster].sort((a, b) => b.overall - a.overall);
+  const sorted = [...team.roster].sort((a, b) => b.valueOverall - a.valueOverall);
   const retained: Player[] = [];
   const released: Player[] = [];
 

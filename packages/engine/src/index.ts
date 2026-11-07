@@ -57,7 +57,7 @@ export {
 export type { DismissalType, WideType, NoBallType, MatchInjuryType, InjuryResponse, DRSResult } from "./ball-outcomes.js";
 
 export {
-  fieldingRating, keepingRating, pickKeeper, buildFieldingUnit, resolveWicketChance, applyFieldingToProbs,
+  fieldingRating, keepingRating, pickKeeper, fieldingValueBonus, buildFieldingUnit, resolveWicketChance, applyFieldingToProbs,
   chanceInflation, fieldingCommentary, NEUTRAL_FIELDING, DEFAULT_KEEPER_KEEPING, DEFAULT_NONKEEPER_KEEPING, CONV as FIELDING_CONVERSION,
 } from "./fielding.js";
 export type { FielderLike, FieldingUnit, FieldingNote, FieldingResolution, WicketKind } from "./fielding.js";
@@ -241,6 +241,11 @@ export { validateCohort, formatValidation, cohortPlayerData, simulatedPaths, rea
 export type { Cohort, CohortPlayer, ValidationReport, HorizonMetrics } from "./progression-validation.js";
 export { RATING_HISTORY_MAX } from "./player.js";
 export type { RatingHistoryEntry } from "./player.js";
+export { sampleFieldingRatings } from "./player-generator.js";
+export { validateFieldingProgression, simulateFieldingChange, formatFieldingValidation } from "./fielding-progression-validation.js";
+export type { FieldingTarget, FieldingCohortFixture, FieldingValidationRow } from "./fielding-progression-validation.js";
+export { expectedFieldingChange, sampleFieldingChange, fieldingFit } from "./fielding-progression.js";
+export { FIELDING_PROGRESSION } from "./fielding-progression-model.js";
 export { generatePlayer, generatePlayers, assignPotential, roleClassOfPlayer, roleOfClass, regionOf, sampleRatings, ROLE_CLASSES, TALENT_SD } from "./player-generator.js";
 export type { GeneratePlayerOptions, GenerationKind, RoleClass, Region } from "./player-generator.js";
 export { generateName, isRealName, nameGroupOf, normaliseName } from "./names.js";

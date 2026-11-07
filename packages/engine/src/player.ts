@@ -4,6 +4,8 @@
  */
 
 import { clamp, randomNormal, displayOversToReal } from "./math.js";
+import { fieldingValueBonus } from "./fielding.js";
+import { sampleFieldingChange } from "./fielding-progression.js";
 import type { RNG } from "./rng.js";
 import {
   sampleChange, estimateExperience, meanPathOvr, type ProgressionState, type ProgressionGender,
@@ -264,8 +266,12 @@ export function calculateMarketValue(input: {
   isWicketKeeper: boolean;
   battingOvr: number;
   bowlingOvr: number;
+  /** Fielding / keeping ratings, when the player has them: their worth in overall points is added (fieldingValueBonus) */
+  fielding?: number;
+  keeping?: number;
 }): number {
-  const ovr = calculateOverallRating(input.battingOvr, input.bowlingOvr);
+  const ovr = calculateOverallRating(input.battingOvr, input.bowlingOvr)
+    + fieldingValueBonus({ fielding: input.fielding, keeping: input.keeping, isWicketKeeper: input.isWicketKeeper });
   if (ovr <= 50) return 0.2;
 
   const normalized = Math.max(0, (ovr - 50) / 40);
@@ -436,7 +442,22 @@ export class Player implements PlayerData {
       isWicketKeeper: this.isWicketKeeper,
       battingOvr: this.battingOvr,
       bowlingOvr: this.bowlingOvr,
+      fielding: this.ratings.fielding,
+      keeping: this.ratings.keeping,
     });
+  }
+
+  /** Points of overall that fielding (and keeping, for a keeper) are worth in the match engine (fielding.ts) */
+  get fieldingBonus(): number {
+    return fieldingValueBonus({ fielding: this.ratings.fielding, keeping: this.ratings.keeping, isWicketKeeper: this.isWicketKeeper });
+  }
+
+  /**
+   * Overall as valued by the market, the auction AI, trades and the draft AI: batting / bowling overall plus what
+   * fielding and keeping are worth. Not shown as the player's overall and not used to pick the XI.
+   */
+  get valueOverall(): number {
+    return this.overall + this.fieldingBonus;
   }
 
   /** Batting average */
@@ -671,6 +692,16 @@ export class Player implements PlayerData {
     };
     apply(["battingIQ", "timing", "power", "running"], [0.30, 0.30, 0.35, 0.05], dBat);
     apply(["wicketTaking", "economy", "accuracy", "clutch"], [0.55, 0.20, 0.10, 0.15], dBowl, dClutch);
+
+    // Fielding and keeping (when the player has them) age on their own fitted curves, after the core draws so that
+    // players without the fields draw exactly what they always did (fielding-progression.ts)
+    for (const kind of ["fielding", "keeping"] as const) {
+      const current = this.ratings[kind];
+      if (typeof current !== "number") continue;
+      const next = clamp(Math.round(current + sampleFieldingChange(kind, current, this.age, gender, rng, volatility)), 1, 99);
+      ratingChanges[kind] = next - current;
+      this.ratings[kind] = next;
+    }
 
     this.trainingFocus = focus;
     this.stats = this.emptyStats();

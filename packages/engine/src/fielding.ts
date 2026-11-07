@@ -97,6 +97,45 @@ export function buildFieldingUnit(xi: readonly FielderLike[]): FieldingUnit {
   };
 }
 
+// ── Value of fielding and keeping ───────────────────────────────────────
+
+/**
+ * What a fielding / keeping rating is worth in the same currency as batting and bowling: points of overall.
+ *
+ * Measured with the match engine (src/__tests__/benchmark-fielding-value.ts, 30-40k simulated IPL matches per
+ * condition, RULES-AUCTION.md section 9): moving the whole XI's fielding by 30 points changes the runs the opposition
+ * scores by about 7.4 per innings, i.e. 0.0224 runs per match for one fielder and one rating point; moving the
+ * keeper's keeping by 30 changes it by 0.86, 0.0287 runs per point. The same test on batting and bowling (all four
+ * attributes of every player +-10) gives about 1.07 runs per innings per team-wide batting overall point and 0.77 per
+ * bowling point; a regular top-six batter faces ~15% of the balls and a front-line bowler delivers 20% of the overs,
+ * so one overall point of a regular is worth about 0.155 runs per match in either discipline. A fielding point is
+ * therefore worth 0.0224 / 0.155 = 0.145 overall points and a keeping point 0.0287 / 0.155 = 0.185.
+ */
+export const FIELDING_OVR_PER_POINT = 0.145;
+export const KEEPING_OVR_PER_POINT = 0.185;
+/** The fielding rating worth zero: the mean of the rated pool, a little under 50 (bowlers rate lower), see TEAM_FIELDING_PIVOT */
+export const FIELDING_VALUE_PIVOT = 48;
+/** Keeping is measured against an average keeper, 50: the engine's neutral point, and the mean of the keepers in the player pool (most have no record and sit at 50; the rostered keepers average 55) */
+export const KEEPING_VALUE_PIVOT = 50;
+/** Cap on the bonus either way (overall points) so a few extreme ratings can't dominate a price */
+export const VALUE_BONUS_MAX = 9;
+export const VALUE_BONUS_MIN = -6;
+
+/**
+ * Points of overall that a player's fielding (and, for a designated keeper, keeping) is worth: added to his overall
+ * before it is turned into a market value, a trade value or a draft score. Absent ratings count as the pivot (zero).
+ * Only a designated keeper is paid for keeping: for anyone else it is a rating that no match ever uses.
+ */
+export function fieldingValueBonus(p: { fielding?: number; keeping?: number; isWicketKeeper?: boolean }): number {
+  const f = typeof p.fielding === "number" && Number.isFinite(p.fielding) ? Math.max(0, Math.min(99, p.fielding)) : FIELDING_VALUE_PIVOT;
+  let bonus = FIELDING_OVR_PER_POINT * (f - FIELDING_VALUE_PIVOT);
+  if (p.isWicketKeeper) {
+    const k = typeof p.keeping === "number" && Number.isFinite(p.keeping) ? Math.max(0, Math.min(99, p.keeping)) : KEEPING_VALUE_PIVOT;
+    bonus += KEEPING_OVR_PER_POINT * (k - KEEPING_VALUE_PIVOT);
+  }
+  return clampN(bonus, VALUE_BONUS_MIN, VALUE_BONUS_MAX);
+}
+
 // ── Calibration ─────────────────────────────────────────────────────────
 
 /**
