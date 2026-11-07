@@ -27,6 +27,15 @@ import {
   type PitchType,
 } from "./matchups.js";
 import { generateBallCommentary } from "./commentary.js";
+import {
+  applyFieldingToProbs,
+  buildFieldingUnit,
+  fieldingCommentary,
+  resolveWicketChance,
+  type FieldingNote,
+  type FieldingUnit,
+  type FielderLike,
+} from "./fielding.js";
 import { checkRainInterruption, calculateDLSTarget, canProduceResult, getRainDelayNarrative } from "./dls.js";
 import type {
   BallOutcome,
@@ -552,7 +561,8 @@ function runOneBall(
   isDayNight: boolean = true,
   venueProfile: VenueProfile | null = null,
   chaseAdvantage: number | undefined = undefined,
-): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped" } {
+  fieldingUnit?: FieldingUnit,
+): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped"; fielderId?: string; fieldingNote?: FieldingNote } {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
   // Phase adjustment
@@ -668,9 +678,19 @@ function runOneBall(
   probs.dot *= 0.92;
   probs.wicket *= 0.95;
 
+  // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down)
+  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle);
+
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
-  const outcome = weightedRandom(entries, rng);
+  let outcome = weightedRandom(entries, rng);
+
+  // A wicket draw is a dismissal chance: its kind, who was involved, and whether it was taken
+  let resolution: ReturnType<typeof resolveWicketChance> | undefined;
+  if (outcome === "wicket") {
+    resolution = resolveWicketChance(fieldingUnit, bowler.id, bowler.bowlingStyle, probs, rng);
+    if (resolution.outcome !== "wicket") outcome = resolution.outcome;
+  }
 
   let runs = 0;
   let extras = 0;
@@ -689,8 +709,8 @@ function runOneBall(
     case "legbye": extras = 1; break;
   }
 
-  // Determine wicket type upfront (used for DRS logic)
-  const wicketType = isWicket ? randomWicketType(rng) : undefined;
+  // Wicket type is decided with the dismissal chance (used for DRS logic)
+  const wicketType = isWicket ? (resolution?.kind ?? randomWicketType(rng)) : undefined;
 
   // Generate rich contextual commentary
   const commentary = generateBallCommentary({
@@ -712,7 +732,17 @@ function runOneBall(
     rng,
   });
 
-  return { outcome, runs, extras, isWicket, commentary, wicketType };
+  const fieldingLine = resolution?.note
+    ? fieldingCommentary(resolution, { batter: batter.name, bowler: bowler.name, runs }, rng)
+    : undefined;
+
+  return {
+    outcome, runs, extras, isWicket,
+    commentary: fieldingLine ?? commentary,
+    wicketType,
+    fielderId: resolution?.fielder && (isWicket || resolution.note) ? resolution.fielder.id : undefined,
+    fieldingNote: resolution?.note,
+  };
 }
 
 /* ─────────────────── Serialization helpers ─────────────────── */
@@ -1057,6 +1087,13 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
 
   const rng = int.rng;
 
+  // The side in the field, for catches, stumpings, run-outs, runs saved and byes (fielding.ts)
+  const fieldingUnit = buildFieldingUnit(
+    (state.bowlingTeamId === state.homeTeam.id ? int.homeXIIds : int.awayXIIds)
+      .map(id => pm[id])
+      .filter((p): p is SerializedPlayer => !!p) as FielderLike[],
+  );
+
   // Apply strategic timeout bonuses (temporary rating boosts)
   let effectiveStriker = striker;
   let effectiveBowler = bowler;
@@ -1095,6 +1132,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     true, // isDayNight (all IPL matches are day-night)
     int.venueProfile ?? null,
     int.chaseAdvantage,
+    fieldingUnit,
   );
 
   // Clone state for mutation
@@ -1127,7 +1165,10 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   const canOfferNonLbwReview = int.currentOverLegalBalls < 5;
 
   if (result.isWicket) {
-    if (wicketType === "caught") {
+    if (result.fielderId && pm[result.fielderId]) {
+      // The fielder who took the catch / made the stumping / threw at the stumps (decided with the chance)
+      fielderName = pm[result.fielderId].name;
+    } else if (wicketType === "caught") {
       // Pick a random bowler-side player name
       const bowlingTeamIds = isSecondInnings
         ? (ni.battingFirstId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds)
@@ -1491,7 +1532,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         if (wicketType === "bowled") liveBatter.howOut = `b ${bowlerName}`;
         else if (wicketType === "caught") liveBatter.howOut = `c ${fielderName} b ${bowlerName}`;
         else if (wicketType === "lbw") liveBatter.howOut = `lbw b ${bowlerName}`;
-        else if (wicketType === "run_out") liveBatter.howOut = `run out`;
+        else if (wicketType === "run_out") liveBatter.howOut = fielderName ? `run out (${fielderName})` : `run out`;
         else if (wicketType === "stumped") liveBatter.howOut = `st ${fielderName ?? "keeper"} b ${bowlerName}`;
       }
 

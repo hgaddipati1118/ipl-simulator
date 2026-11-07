@@ -325,6 +325,9 @@ export function createPlayerFromData(data: {
   economy: number;
   accuracy: number;
   clutch: number;
+  /** Optional 0-99 fielding / keeping ratings (fielding.ts); absent = engine defaults */
+  fielding?: number;
+  keeping?: number;
   teamId?: string;
   bid?: number;
 }): Player {
@@ -340,6 +343,8 @@ export function createPlayerFromData(data: {
     economy: data.economy,
     accuracy: data.accuracy,
     clutch: data.clutch,
+    ...(typeof data.fielding === "number" ? { fielding: data.fielding } : {}),
+    ...(typeof data.keeping === "number" ? { keeping: data.keeping } : {}),
   };
   const role = inferRuntimeRole(rawRatings, data.role, isWicketKeeper);
   let ratings = normalizeSecondaryDiscipline(rawRatings, role);

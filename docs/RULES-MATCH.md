@@ -250,3 +250,74 @@ Currently the engine tracks `ballsFacedFor` and `ballsFacedAgainst`. Need to ens
 - Young players: slightly lower injury risk
 - Players returning from injury: higher re-injury risk for first 2 matches
 - Injury replacement: team can call up squad member (not playing XI replacement mid-match)
+
+---
+
+## 11. Fielding and wicketkeeping
+
+Implemented in `packages/engine/src/fielding.ts`, shared by the season engine (`match.ts`) and the live engine (`live-match.ts`). Ratings:
+`PlayerRatings.fielding` (catching, ground fielding, run-out threat) and `.keeping` (taking the ball cleanly, stumpings, catches behind), both 0-99 with
+50 average and **optional**: absent fielding means 50; absent keeping means 50 for a designated keeper and 25 for anyone else. Where the numbers come
+from: RATINGS-PIPELINE.md, "Fielding and wicketkeeping ratings".
+
+### Dismissal chances
+
+The base model's wicket probability `p` is the probability of a dismissal that stands. Catches, stumpings and run-outs are really *chances*
+that are sometimes put down, so the engine models them that way:
+
+1. Before the ball is sampled, the wicket weight is multiplied by `W` (`chanceInflation`, about 1.15), and the scoring outcomes give up exactly the
+   mass of chances an average side puts down, so the total is unchanged. `W` comes from the dismissal mix: caught 55%, bowled 20%, lbw 15%,
+   run out 7%, stumped 3% (stumped 6% when the bowler is a spinner, 1.4% for pace; the rest scaled), with caught chances inflated by 1/0.82, run-out
+   chances by 1/0.75 and stumping chances by 1/0.90 (the conversion of an average fielder).
+2. A "wicket" draw is a chance. Its kind is drawn from those weights. For a catch the fielder is picked at random from the XI minus the bowler
+   (the keeper counts 1.7x: keepers take ~15% of catches); a stumping falls to the keeper; a run-out to a random fielder.
+3. The chance is converted with probability `conv(skill)`: catches `0.82 + 0.004 (rating - 50)` (clamped 0.55-0.97; the keeper uses `keeping`),
+   stumpings `0.90 + 0.003 (keeping - 50)`, run-outs `0.75 + 0.005 (fielding - 50)`. A converted chance is the dismissal (and is recorded: the
+   `BallEvent` has `wicketType`, `fielderId`, and the scorecard reads "c Pooran b Bumrah", "st Pant b Chahal", "run out (Jadeja)"). A miss is a
+   *dropped catch* / *missed stumping* / *run-out missed*: the batter survives and the ball becomes dot, 1, 2, 3, 4 or 6 in proportion to the
+   ball's probabilities, with its own commentary line. A great catch (a taken catch by a 72+ fielder) and a direct hit get a commentary line too.
+4. For a side of average fielders, `p * W * (average conversion) = p`, so wickets, runs and boundaries are exactly the base model's, with
+   the difference that about one catch chance in six is visibly put down. Better fielders convert more (more wickets, fewer runs), worse fewer.
+
+### Runs saved and byes
+
+- The XI's mean fielding rating, against `TEAM_FIELDING_PIVOT` = 48 (a typical XI sits a little under 50 because of its four or five bowlers:
+  IPL 2026 XIs average 46.3, WPL XIs 50.1), gives `q = (mean - 48) / 50`. Fours are scaled by `1 - 0.10 q`, twos and threes by `1 - 0.15 q`, dots by
+  `1 + 0.04 q`. With the catch/run-out conversion above, a side whose every fielder is 20 points below the pivot concedes about 7-8 runs more an
+  innings and takes ~0.3 fewer wickets than an average one; 20 points above, about 6 runs fewer and ~0.25 more wickets. Real sides differ by a few
+  points (IPL XI means 39.9-52.5), so the usual swing between two sides is a run or two.
+- The keeper's `keeping` scales the leg-bye / bye probability by `1 - 0.9 (keeping - 50) / 50` (clamped 0.4-1.8): a 20 keeper concedes ~1.8x the leg byes/byes
+  of a 50 (about +0.9 runs an innings), an 85 keeper ~0.4x. With his stumping and catch conversion, an 85 keeper against a 20 is worth ~2 runs and
+  ~0.25 wickets an innings.
+
+### Keeper selection
+
+`pickKeeper(xi)` returns the designated keeper with the best `keeping`; if the XI has none, the player with the best `keeping` rating (an emergency
+keeper, 25 unless rated). `Team.autoSelectPlayingXI()` already placed a designated keeper in every XI when the squad has one; it now also covers a
+squad with none (or an injured keeper): the squad's best-keeping player is brought into the XI when he is clearly better (10+ points) than anyone already
+in it, subject to the overseas limit. A user-chosen XI still has to contain a designated keeper to be used as is. Impact-player substitutions update
+the fielding unit (the substitute fields, the player replaced does not).
+
+### Balance
+
+60,000 simulated matches (120,000 innings) between the ten IPL 2026 squads built the way the game builds them (`getRealPlayers()` ->
+`createPlayerFromData`), random pairings, injuries off, per innings. "Before" is the engine at the commit this work branched from.
+`packages/engine/src/__tests__/benchmark-fielding.ts` reproduces it (`NO_FK=1` strips the ratings; `ENGINE=` points at another build).
+
+| per innings | before | after, ratings stripped (all defaults) | after, with ratings |
+|---|---|---|---|
+| runs | 165.70 | 165.05 (-0.4%) | 166.09 (+0.2%) |
+| wickets | 6.895 | 6.924 (+0.4%) | 6.884 (-0.2%) |
+| fours | 16.47 | 16.38 (-0.5%) | 16.55 (+0.5%) |
+| sixes | 7.634 | 7.610 (-0.3%) | 7.646 (+0.2%) |
+| extras | 4.361 | 4.354 (-0.2%) | 4.242 (-2.7%, keepers concede fewer byes than the 50 default) |
+| legal balls | 110.02 | 109.89 | 110.08 |
+| chasing side wins | 55.4% | 55.8% | 55.5% |
+
+Sampling noise on these means is ~0.1% (runs +-0.15, wickets +-0.01). After the change a typical innings also contains 3.76 caught, 0.47 run-out and
+0.26 stumped dismissals, ~0.84 put-down catches and a great catch every 40 innings. The engine test `fielding.test.ts` re-checks neutrality with 1,500-match
+samples and the direction of the effects (elite vs poor fielding sides).
+
+The wicket draw now also decides how the batter got out, so the scorecard's dismissals name the fielder who took the catch / made the stumping /
+threw at the stumps instead of a random fielder; the random draws that used to assign the kind after the match no longer happen, so a given seed plays out
+differently from before the change.

@@ -39,6 +39,8 @@ export interface RealPlayerData {
   economy: number;
   accuracy: number;
   clutch: number;
+  fielding?: number; // 0-99, 50 = average (absent = engine default)
+  keeping?: number;  // 0-99, 50 = average keeper (absent = engine default)
   teamId?: string;
   bid?: number;  // auction/retention price in crores
   imageUrl?: string; // ESPN player photo path
@@ -55,7 +57,8 @@ function mapPlayer(p: typeof ALL_PLAYERS[number]): RealPlayerData {
     age: p.age,
     country: p.country,
     role: p.role,
-    isWicketKeeper: KNOWN_WICKET_KEEPERS.has(p.name),
+    // The curated list, plus anyone the ESPN data tags as a keeper (so squads and drafts see the real keepers)
+    isWicketKeeper: KNOWN_WICKET_KEEPERS.has(p.name) || p.isWicketKeeper === true,
     bowlingStyle: p.bowlingStyle,
     battingHand: p.battingHand,
     battingIQ: p.ratings.battingIQ,
@@ -66,6 +69,8 @@ function mapPlayer(p: typeof ALL_PLAYERS[number]): RealPlayerData {
     economy: p.ratings.economy,
     accuracy: p.ratings.accuracy,
     clutch: p.ratings.clutch,
+    ...(p.ratings.fielding !== undefined ? { fielding: p.ratings.fielding } : {}),
+    ...(p.ratings.keeping !== undefined ? { keeping: p.ratings.keeping } : {}),
     teamId: p.teamId,
     bid: p.bid,
     imageUrl: p.imageUrl,
