@@ -113,23 +113,29 @@ export function calculateFantasyPoints(matchResult: MatchResult): FantasyPoints[
       fp.bowlingPoints += bowling;
     }
 
-    // Fielding points: estimate from ball log
-    // +8 per catch, +12 per stumping, +12 per direct-hit runout
-    // We can count wickets by type from the ball log
+    // Fielding and dismissal points from the ball log (Dream11): +8 per catch (also a caught-and-bowled for the
+    // bowler), +12 per stumping, +12 for a run out by one fielder or +6 each for a relay; +8 to the bowler for a
+    // bowled or lbw dismissal. Run outs, obstructing, handled, hit twice, timed out and retirements earn the
+    // bowler nothing (his wicket points above come from `bowlerStats`, which only counts his own wickets).
     for (const ball of innings.ballLog) {
-      if (!ball.isWicket) continue;
-      const commentary = ball.commentary.toLowerCase();
-
-      // Catches: "c PlayerName b BowlerName"
-      if (commentary.includes("caught") || commentary.includes(" c ")) {
-        // The bowler already gets wicket points; the fielder gets catch points
-        // We approximate: give catch points to a non-bowler on the bowling team
-        // Since we don't have the catcher ID in MatchResult, distribute to the bowler as a proxy
-        // In a real system, we'd need the fielder ID
+      if (!ball.isWicket || ball.deadBall && ball.wicketType !== "run_out") continue;
+      const kind = ball.wicketType;
+      if ((kind === "bowled" || kind === "lbw") && ball.bowler) {
+        getOrCreate(ball.bowler, bowlingTeamId).bowlingPoints += 8;
       }
-
-      // Stumpings get +12 to keeper (approximated)
-      // Run outs get +12 (approximated)
+      if (!ball.fielderId || ball.substitute) continue; // a substitute fielder is not in anyone's XI
+      if (kind === "caught" || kind === "caught_and_bowled") {
+        getOrCreate(ball.fielderId, bowlingTeamId).fieldingPoints += 8;
+      } else if (kind === "stumped") {
+        getOrCreate(ball.fielderId, bowlingTeamId).fieldingPoints += 12;
+      } else if (kind === "run_out") {
+        if (ball.fielder2Id) {
+          getOrCreate(ball.fielderId, bowlingTeamId).fieldingPoints += 6;
+          getOrCreate(ball.fielder2Id, bowlingTeamId).fieldingPoints += 6;
+        } else {
+          getOrCreate(ball.fielderId, bowlingTeamId).fieldingPoints += 12;
+        }
+      }
     }
   }
 

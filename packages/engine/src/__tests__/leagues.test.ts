@@ -200,7 +200,7 @@ describe("The Hundred: 100-ball innings", () => {
       for (const inn of result.innings) {
         expect(inn.totalBalls).toBeLessThanOrEqual(100);
         expect(inn.ballsPerOver).toBe(5);
-        const legal = inn.ballLog.filter(b => b.outcome !== "wide" && b.outcome !== "noball");
+        const legal = inn.ballLog.filter(b => b.outcome !== "wide" && b.outcome !== "noball" && !b.deadBall);
         expect(legal.length).toBe(inn.totalBalls);
         // balls come in sets of 5
         const bySet = new Map<number, number>();

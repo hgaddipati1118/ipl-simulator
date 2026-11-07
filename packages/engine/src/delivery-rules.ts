@@ -180,7 +180,11 @@ export function pickRunOutFielders(ctx: Pick<DeliveryContext, "rng" | "bowlerId"
 }
 
 function newBatterFaces(kind: DismissalKind, out: "striker" | "nonStriker", runsRun: number, rng: RNG): boolean {
-  if (kind !== "run_out") return rng() < D.strike.otherKinds;
+  void D.strike.otherKinds;
+  // Law 18.11 (2022): after a catch the new batter takes strike whether or not the batters crossed; after bowled, lbw,
+  // stumped, hit wicket and the batter's own acts he takes the end of the one who is out, which is the striker's.
+  // Cricsheet since October 2022 agrees in 99.97% of cases (D.strike.otherKinds). Only a run out depends on the end.
+  if (kind !== "run_out") return true;
   const key = `run_out_${out === "nonStriker" ? "ns" : "s"}_${runsRun % 2}` as keyof typeof D.strike;
   return rng() < (D.strike[key] as number);
 }

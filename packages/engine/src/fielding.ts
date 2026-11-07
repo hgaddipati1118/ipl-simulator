@@ -166,6 +166,11 @@ function conv(kind: keyof typeof CONV, skill: number, pivot: number): number {
  * those ratios scale the data's overall stumped share, the rest of the mix is rescaled to fill the remainder.
  */
 const STUMPED_RATIO = { spin: 6 / 2.8, pace: 1.4 / 2.8, other: 1 } as const;
+/**
+ * Game XIs carry about half spin overs against roughly a third in the data (the benchmark's stumped share came out at
+ * 3.4% of dismissals against 2.4% in men's T20 since 2019), so the by-type ratios are scaled to hold the overall share.
+ */
+const STUMPED_ENGINE_SCALE = 0.72;
 /** Catches taken by the keeper are weighted more than an outfielder's (real: 1.7x each, ~17% of all catches) */
 const KEEPER_CATCH_WEIGHT = 1.7;
 
@@ -182,7 +187,7 @@ const NO_CONVERSION: readonly WicketKind[] = ["bowled", "lbw", "hit_wicket", "ob
 function kindShares(style: BowlingStyle | undefined, gender: Gender): Record<WicketKind, number> {
   const mix = D.dismissalMix[gender] as Record<string, number>;
   const ratio = isSpinStyle(style) ? STUMPED_RATIO.spin : isPaceStyle(style) ? STUMPED_RATIO.pace : STUMPED_RATIO.other;
-  const stumped = Math.min(0.5, mix.stumped * ratio);
+  const stumped = Math.min(0.5, mix.stumped * ratio * STUMPED_ENGINE_SCALE);
   const rest = (1 - stumped) / (1 - mix.stumped);
   const out = {} as Record<WicketKind, number>;
   for (const k of Object.keys(mix) as WicketKind[]) out[k] = k === "stumped" ? stumped : mix[k] * rest;

@@ -63,6 +63,15 @@ export {
 export type { FielderLike, FieldingUnit, FieldingNote, FieldingResolution, WicketKind } from "./fielding.js";
 
 export { simulateMatch, calculateMVPPoints } from "./match.js";
+export {
+  DISMISSAL_KINDS, DELIVERY_DISMISSALS, canDismiss, legalDismissals, isBowlerWicket, countsAsWicket, dismissalText,
+  setRuleOverrides, expandDelivery, genderOf, EXTRAS_RATE_CAL, RETIRED_HURT_TEXT,
+} from "./delivery-rules.js";
+export type { DismissalKind, DeliveryClass, DeliveryDetail, DismissalDetail, RuleOverrides, Gender } from "./delivery-rules.js";
+export { MATCH_RULES_DATA } from "./match-rules-data.js";
+export type {
+  OffBallDismissal,
+} from "./match.js";
 export type {
   BallOutcome, BallEvent, InningsScore, MatchResult, MatchInjuryEvent,
   DetailedMatchResult, DetailedBallEvent, BatterInnings,
@@ -170,6 +179,7 @@ export type {
   PendingDecision,
   PendingDecisionOption,
   FieldSetting,
+  LiveSuperOver,
 } from "./live-match.js";
 
 export { generateBallCommentary, generateBallCommentaryDetailed } from "./commentary.js";

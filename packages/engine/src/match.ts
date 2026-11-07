@@ -85,6 +85,8 @@ export interface BallEvent {
   /** A put-down catch, great catch, missed stumping, ... on this ball (the ball itself did not end in a wicket for misses) */
   fieldingNote?: FieldingNote;
   // ── Match rules detail (RULES-MATCH.md section 12). All optional: old logs lack them and read as before ──
+  /** The batter at the other end when the ball was bowled */
+  nonStriker?: string;
   /** For a wicket: the dismissed batter (absent = the striker, which is who every older log dismisses) */
   playerOutId?: string;
   /** Second fielder of a relay run out */
@@ -511,6 +513,7 @@ function buildBallEvent(
     commentary: (freeHit && !special ? "FREE HIT! " : "") + commentary,
     runsRun: detail.runsRun,
   };
+  if (nonStriker) event.nonStriker = nonStriker.id;
   if (detail.wides) event.wides = detail.wides;
   if (detail.noBalls) event.noBalls = detail.noBalls;
   if (detail.byes) event.byes = detail.byes;
@@ -950,6 +953,7 @@ function simulateInnings(
       Math.floor(rng() * Math.min(3, eligibleBowlers.length))
     ];
 
+    const streakBefore = consecutiveOvers; // how many overs in a row the last over's bowler had bowled
     consecutiveOvers = bowler.id === lastBowlerId ? consecutiveOvers + 1 : 1;
 
     let legalBalls = 0;
@@ -963,21 +967,23 @@ function simulateInnings(
       if (!so && legalBalls > 0 && rng() < rp.bowlerLeavesPerOver / ballsPerOver) {
         const replPool = [...ableBowlers, ...fieldXI.filter(p => !ableBowlers.includes(p))];
         const repl = replPool
-          .filter(b => b.id !== bowler.id && !unavailable.has(b.id) && (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler)
+          .filter(b => b.id !== bowler.id && !unavailable.has(b.id) && (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler
+            // the bowler who finishes an over may not then be bowling too many overs in a row (Law 17.?: not the previous over's bowler in a T20)
+            && (b.id !== lastBowlerId || streakBefore + 1 <= fmt.maxConsecutiveOvers))
           .sort((a, b) => b.effectiveBowlingOvr - a.effectiveBowlingOvr)[0];
         if (repl) {
           if (!bowlers.includes(repl)) { bowlers.push(repl); bowlerOvers.set(repl.id, 0); }
           unavailable.add(bowler.id);
           bowlerOvers.set(bowler.id, (bowlerOvers.get(bowler.id) ?? 0) + 1);
+          consecutiveOvers = repl.id === lastBowlerId ? streakBefore + 1 : 1;
           bowler = repl;
-          consecutiveOvers = 1;
         }
       }
 
       // ── Mankad: the bowler runs out the non-striker before delivering; no ball is bowled ──
       if (!so && rng() < rp.mankadPerDelivery) {
         const ev: BallEvent = {
-          over, ball: legalBalls, bowler: bowler.id, batter: striker.id, outcome: "wicket", runs: 0, extras: 0, isWicket: true,
+          over, ball: legalBalls, bowler: bowler.id, batter: striker.id, nonStriker: nonStriker.id, outcome: "wicket", runs: 0, extras: 0, isWicket: true,
           wicketType: "run_out", playerOutId: nonStriker.id, fielderId: bowler.id, deadBall: true, newBatterFaces: false,
           commentary: describeDelivery({
             detail: { outcome: "wicket", batRuns: 0, wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0, overthrow: 0, dismissal: { kind: "run_out", out: "nonStriker", bowlerCredit: false, newBatterFaces: false } },
@@ -1256,6 +1262,10 @@ function buildInningsScorecard(
   }
 
   const battingOrder = battingTeam.getBattingOrder(battingXI);
+  // an impact player who came on is not in the XI the match started with
+  for (const id of inningsScore.batterStats.keys()) {
+    if (!battingOrder.some(p => p.id === id) && playerMap.get(id)) battingOrder.push(playerMap.get(id)!);
+  }
   const batters: BatterInnings[] = [];
   const fallOfWickets: string[] = [];
 
@@ -1295,7 +1305,7 @@ function buildInningsScorecard(
   for (const batter of battingOrder) {
     const stat = inningsScore.batterStats.get(batter.id);
     if (!stat) continue;
-    if (stat.balls === 0 && !stat.isOut) continue;
+    if (stat.balls === 0 && !stat.isOut && !stat.retiredHurt) continue;
 
     let howOut = "not out";
     const off = (inningsScore.offBall ?? []).find(o => o.playerId === batter.id && o.kind !== "retired_hurt");
@@ -1343,6 +1353,9 @@ function buildInningsScorecard(
 
   const bowlers: BowlerFigures[] = [];
   const bowlingOrder = bowlingTeam.getBowlingOrder(bowlingXI);
+  for (const id of inningsScore.bowlerStats.keys()) {
+    if (!bowlingOrder.some(p => p.id === id) && playerMap.get(id)) bowlingOrder.push(playerMap.get(id)!);
+  }
 
   for (const bowler of bowlingOrder) {
     const stat = inningsScore.bowlerStats.get(bowler.id);

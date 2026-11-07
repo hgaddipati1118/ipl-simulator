@@ -1209,7 +1209,8 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     const bowlingXIIds = state.bowlingTeamId === state.homeTeam.id ? int.homeXIIds : int.awayXIIds;
     const gone = new Set(int.unavailableBowlers ?? []);
     const pool = bowlingXIIds
-      .filter(id => id !== bowlerId && !gone.has(id) && (int.bowlerOvers[id] ?? 0) < int.maxOversPerBowler && pm[id])
+      // (not the bowler of the previous over: he cannot bowl two overs running)
+      .filter(id => id !== bowlerId && id !== int.lastBowlerId && !gone.has(id) && (int.bowlerOvers[id] ?? 0) < int.maxOversPerBowler && pm[id])
       .sort((a, b) => (pm[b].bowlingOvr ?? 0) - (pm[a].bowlingOvr ?? 0));
     if (pool.length > 0) {
       (int.unavailableBowlers ??= []).push(bowlerId);
@@ -1637,6 +1638,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     isWicket: result.isWicket,
     commentary: result.commentary,
     runsRun: detail.runsRun,
+    nonStriker: nonStrikerId,
   };
   if (detail.wides) rawBall.wides = detail.wides;
   if (detail.noBalls) rawBall.noBalls = detail.noBalls;
@@ -2292,7 +2294,7 @@ function stepMankad(state: MatchState, bowlerId: string): { state: MatchState; b
     bowler: bowlerName, batter: pm[strikerId].name, nonStriker: pm[nsId].name, deadBall: true, rng: ni.rng,
   })!;
   raw.ballLog.push({
-    over: newState.overs, ball: ni.currentOverLegalBalls, bowler: bowlerId, batter: strikerId, outcome: "wicket", runs: 0, extras: 0,
+    over: newState.overs, ball: ni.currentOverLegalBalls, bowler: bowlerId, batter: strikerId, outcome: "wicket", runs: 0, extras: 0, nonStriker: nsId,
     isWicket: true, commentary, wicketType: "run_out", playerOutId: nsId, fielderId: bowlerId, deadBall: true, newBatterFaces: false,
   });
   newState.wickets++;
