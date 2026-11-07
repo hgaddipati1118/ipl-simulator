@@ -131,6 +131,8 @@ function normalizeClutch(ratings: PlayerRatings, role: PlayerRole, isWicketKeepe
 
 /** Create a player from raw rating data (for importing real players) */
 export function createPlayerFromData(data: {
+  /** The source record's id (`espn_<id>` / `ca_<id>`); kept as the player's sourceId */
+  id?: string;
   name: string;
   age: number;
   country: string;
@@ -176,6 +178,7 @@ export function createPlayerFromData(data: {
 
   return new Player({
     id: nextPlayerId(),
+    sourceId: data.id,
     name: data.name,
     age: data.age,
     country: data.country,

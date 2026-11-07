@@ -3052,6 +3052,7 @@ ${entries}
 export const WPL_PLAYER_COUNT = ${players.length};
 
 export interface WPLPlayerData {
+  id: string;
   name: string;
   age: number;
   country: string;
@@ -3076,6 +3077,7 @@ export function getWPLPlayers(): WPLPlayerData[] {
   return WPL_PLAYERS
     .filter((p): p is typeof p & { teamId: string } => !!p.teamId)
     .map(p => ({
+      id: p.id,
       name: p.name,
       age: p.age,
       country: p.country,

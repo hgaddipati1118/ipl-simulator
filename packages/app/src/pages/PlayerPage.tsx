@@ -169,7 +169,7 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
   const leagueGender = (state.rules.league === "wpl" || state.rules.gender === "women") ? "female" : "male";
   const projectionPoints = useMemo(() => {
     if (!player) return null;
-    const gender = (isWomanInHistory(historyData, player.id) ?? leagueGender === "female") ? "female" : "male";
+    const gender = (isWomanInHistory(historyData, player.sourceId ?? player.id) ?? leagueGender === "female") ? "female" : "male";
     return projectionFor(player, state.seasonNumber, gender);
   }, [player, historyData, leagueGender, state.seasonNumber]);
 

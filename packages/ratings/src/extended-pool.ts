@@ -128,7 +128,7 @@ export function overallsOf(p: { ratings: ExtendedPlayer["ratings"] }): { batting
 /** The flat shape the app's createPlayerFromData takes (same as real-players.ts RealPlayerData) */
 export function toRealPlayerData(p: ExtendedPlayer) {
   return {
-    name: p.name, age: p.age, country: p.country, role: p.role, isWicketKeeper: p.isWicketKeeper,
+    id: p.id, name: p.name, age: p.age, country: p.country, role: p.role, isWicketKeeper: p.isWicketKeeper,
     bowlingStyle: p.bowlingStyle, battingHand: p.battingHand, careerStats: p.careerStats,
     battingIQ: p.ratings.battingIQ, timing: p.ratings.timing, power: p.ratings.power, running: p.ratings.running,
     wicketTaking: p.ratings.wicketTaking, economy: p.ratings.economy, accuracy: p.ratings.accuracy, clutch: p.ratings.clutch,

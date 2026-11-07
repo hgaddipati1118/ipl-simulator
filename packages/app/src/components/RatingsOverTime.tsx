@@ -106,7 +106,7 @@ export function RatingsOverTime({ player, seasonNumber, leagueGender, projection
   const main: RatingSeries = player.battingOvr >= player.bowlingOvr ? "batting" : "bowling";
   const [series, setSeries] = useState<RatingSeries>(main);
 
-  const woman = isWomanInHistory(data, player.id);
+  const woman = isWomanInHistory(data, player.sourceId ?? player.id);
   const gender = (woman ?? leagueGender === "female") ? "female" : "male";
   // Deterministic per player and state, so the chart does not jitter between renders
   const projection = useMemo(
@@ -114,7 +114,7 @@ export function RatingsOverTime({ player, seasonNumber, leagueGender, projection
     // keyed by the ratings that drive the projection
     [given, player.id, player.age, player.battingOvr, player.bowlingOvr, player.potential, seasonNumber, seasons, runs, gender],
   );
-  const real = useMemo(() => realSeasonsFor(data, player.id), [data, player.id]);
+  const real = useMemo(() => realSeasonsFor(data, player.sourceId ?? player.id), [data, player.id, player.sourceId]);
 
   const model = useMemo(() => buildChartModel({
     series, age: player.age, seasonNumber, ratingHistory: player.ratingHistory,

@@ -110,6 +110,8 @@ export interface PlayerProgressReport {
 
 export interface PlayerData {
   id: string;
+  /** The real player this one was created from (`espn_<id>` / `ca_<id>`), for looking up real data such as rating history */
+  sourceId?: string;
   name: string;
   age: number;
   country: string;
@@ -310,6 +312,7 @@ function bowlingKind(style: BowlingStyle): BowlKind {
 
 export class Player implements PlayerData {
   id: string;
+  sourceId?: string;
   name: string;
   age: number;
   country: string;
@@ -343,6 +346,7 @@ export class Player implements PlayerData {
 
   constructor(data: PlayerData) {
     this.id = data.id;
+    this.sourceId = data.sourceId;
     this.name = data.name;
     this.age = data.age;
     this.country = data.country;
@@ -691,6 +695,7 @@ export class Player implements PlayerData {
   toJSON(): PlayerData & { stats: PlayerStats } {
     return {
       id: this.id,
+      sourceId: this.sourceId,
       name: this.name,
       age: this.age,
       country: this.country,

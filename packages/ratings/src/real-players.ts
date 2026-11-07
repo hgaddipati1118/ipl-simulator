@@ -24,6 +24,8 @@ const KNOWN_WICKET_KEEPERS = new Set([
 ]);
 
 export interface RealPlayerData {
+  /** The pool id (`espn_<id>`), kept as the game player's sourceId */
+  id: string;
   name: string;
   age: number;
   country: string;
@@ -53,6 +55,7 @@ export interface RealPlayerData {
  */
 function mapPlayer(p: typeof ALL_PLAYERS[number]): RealPlayerData {
   return {
+    id: p.id,
     name: p.name,
     age: p.age,
     country: p.country,
