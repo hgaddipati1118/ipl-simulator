@@ -535,7 +535,8 @@ function simulateBall(
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
-  let outcome = ruleOverrides().forceCoarseOutcome ?? weightedRandom(entries, rng);
+  const forced = ruleOverrides().forceOutcomeSparesSuperOver && rules.superOver ? undefined : ruleOverrides().forceCoarseOutcome;
+  let outcome = forced ?? weightedRandom(entries, rng);
 
   // A wicket draw is a dismissal chance: decide its kind and who was involved, and whether it was taken
   let resolution: ReturnType<typeof resolveWicketChance> | undefined;

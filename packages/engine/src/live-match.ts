@@ -824,7 +824,8 @@ function runOneBall(
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
-  let outcome = ruleOverrides().forceCoarseOutcome ?? weightedRandom(entries, rng);
+  const forced = ruleOverrides().forceOutcomeSparesSuperOver && rulesCtx.superOver ? undefined : ruleOverrides().forceCoarseOutcome;
+  let outcome = forced ?? weightedRandom(entries, rng);
 
   // A wicket draw is a dismissal chance: its kind, who was involved, and whether it was taken
   let resolution: ReturnType<typeof resolveWicketChance> | undefined;
@@ -1218,6 +1219,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   // Safety: if current bowler has hit max overs or is bowling consecutive overs, auto-swap
   const bowlerOversSoFar = int.bowlerOvers[bowlerId] ?? 0;
   if (bowlerOversSoFar >= int.maxOversPerBowler || (int.currentOverLegalBalls === 0 && bowlerId === int.lastBowlerId)) {
+    ensureFreshBowlerOption(state, int);
     const nextIdx = pickNextBowler(int.bowlingOrderIds, int.bowlerOvers, int.maxOversPerBowler, int.lastBowlerId, pm, undefined, state.overs);
     assignNextBowler(state, int, pm, nextIdx);
     bowlerId = int.bowlingOrderIds[state.currentBowlerIdx];
@@ -2045,7 +2047,9 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
 
       // Build eligible bowler list
-      const eligibleBowlerIds = getEligibleBowlerIds(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId);
+      ensureFreshBowlerOption(newState, ni);
+      ensureFreshBowlerOption(newState, ni);
+    const eligibleBowlerIds = getEligibleBowlerIds(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId);
 
       if (isUserBowling && eligibleBowlerIds.length > 1) {
         // User can pick ANY XI player (not just bowling order) — like real cricket
@@ -2543,6 +2547,23 @@ function assignNextBowler(
 }
 
 /* ─────────────────── Helper: get eligible bowler IDs ─────────────────── */
+
+/**
+ * No consecutive overs while anyone else in the XI can bowl: when everyone in the bowling order with overs left bowled
+ * the previous over, the rest of the XI (a keeper last) joins the bowling order. Only when nobody else has overs to spare
+ * does getEligibleBowlerIds relax the consecutive-overs rule.
+ */
+function ensureFreshBowlerOption(state: MatchState, ni: MatchStateInternal): void {
+  const ok = (id: string) => (ni.bowlerOvers[id] ?? 0) < ni.maxOversPerBowler && id !== ni.lastBowlerId && !(ni.unavailableBowlers ?? []).includes(id);
+  if (ni.bowlingOrderIds.some(ok)) return;
+  const xi = state.bowlingTeamId === state.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
+  const others = xi.filter(id => ok(id) && ni.playerDataMap[id]);
+  const fielders = others.filter(id => !ni.playerDataMap[id].isWicketKeeper);
+  for (const id of fielders.length > 0 ? fielders : others) {
+    if (!ni.bowlingOrderIds.includes(id)) ni.bowlingOrderIds.push(id);
+    if (ni.bowlerOvers[id] === undefined) ni.bowlerOvers[id] = 0;
+  }
+}
 
 function getEligibleBowlerIds(
   bowlingOrderIds: string[],
@@ -3198,6 +3219,7 @@ export function applyDecision(
   if ((pending.type === 'retire_out' || pending.type === 'strategic_timeout' || pending.type === 'drs_review') &&
       ni.currentOverLegalBalls === 0 && newState.overs < 20 && newState.wickets < 10) {
     const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
+    ensureFreshBowlerOption(newState, ni);
     const eligibleBowlerIds = getEligibleBowlerIds(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId);
 
     if (isUserBowling && eligibleBowlerIds.length > 1) {

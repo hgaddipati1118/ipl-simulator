@@ -100,6 +100,8 @@ export interface RuleOverrides {
   drsRateFactor?: number;
   /** Every delivery's coarse outcome (tests: forcing a tie, a no-ball ...) */
   forceCoarseOutcome?: "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
+  /** forceCoarseOutcome leaves super overs alone (a forced tie, then real super overs) */
+  forceOutcomeSparesSuperOver?: boolean;
 }
 
 let overrides: RuleOverrides = {};

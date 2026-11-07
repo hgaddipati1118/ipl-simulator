@@ -513,6 +513,17 @@ describe("live engine: the section 13 plays and the user's decisions", () => {
     });
   });
 
+  it("a forced tie goes to real super overs in the live engine", () => {
+    withOverrides({ forceCoarseOutcome: "dot", forceOutcomeSparesSuperOver: true, hurtPerBatterBall: 0, mankadPerDelivery: 0, penaltyPerDelivery: 0, overthrowBoundaryAfterDot: 0, lodgedPerDelivery: 0 }, () => {
+      const [a, b] = livePair(2);
+      const st = simulateRemaining(createMatchState(a, b, rules, null, 4)).state;
+      expect(st.score).toBe(0);
+      expect(st.superOvers!.length).toBeGreaterThanOrEqual(2);
+      expect(st.superOvers!.some(so => so.runs > 0)).toBe(true);
+      expect(st.result).toMatch(/won by Super Over/);
+    });
+  });
+
   it("a tied live match goes to super overs, and the result names the winner", () => {
     // every delivery a dot: both innings end 0/0 and the super overs too, until the 25-round stand-in decides it
     withOverrides({ forceCoarseOutcome: "dot", hurtPerBatterBall: 0, mankadPerDelivery: 0, penaltyPerDelivery: 0, overthrowBoundaryAfterDot: 0, lodgedPerDelivery: 0 }, () => {
