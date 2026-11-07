@@ -50,6 +50,13 @@ export interface BallCommentaryCue {
   /** no ball bowled (Mankad) */
   dead?: 1;
   note?: FieldingNote;
+  /** section 13 plays: no-ball reason, beamer, penalty reason, catch on the rope, short run, lodged dead ball */
+  nbk?: "front_foot" | "height" | "fielding";
+  bm?: 1;
+  pr?: "helmet" | "fielding" | "other";
+  bc?: 1;
+  sr?: 1;
+  lg?: 1;
 }
 
 export interface CommentaryCues {
@@ -85,6 +92,12 @@ function cueFor(ev: BallEvent, name: (id?: string) => string | undefined): BallC
   if (ev.substitute) c.sub = 1;
   if (ev.deadBall) c.dead = 1;
   if (ev.fieldingNote) c.note = ev.fieldingNote;
+  if (ev.noBallKind) c.nbk = ev.noBallKind;
+  if (ev.beamer) c.bm = 1;
+  if (ev.penaltyReason) c.pr = ev.penaltyReason;
+  if (ev.boundaryCatch) c.bc = 1;
+  if (ev.shortRun) c.sr = 1;
+  if (ev.lodged) c.lg = 1;
   return c;
 }
 
@@ -137,6 +150,11 @@ function rebuildDelivery(ball: DetailedBallEvent, c: BallCommentaryCue): Deliver
     freeHitNext: false,
   };
   if (c.wk) detail.wideKind = c.wk;
+  if (c.nbk) detail.noBallKind = c.nbk;
+  if (c.bm) detail.beamer = true;
+  if (c.pr) detail.penaltyReason = c.pr;
+  if (c.bc && ball.wicketType) detail.boundaryCatch = true;
+  if (c.bc && c.f2 && ball.wicketType === "caught") detail.relayFielderId = c.f2; // a relay catch (any truthy id: the line uses the name)
   if (ball.wicketType) {
     const kind = ball.wicketType as DismissalKind;
     detail.dismissal = {
@@ -171,7 +189,10 @@ export function withModelCommentary(detailed: DetailedMatchResult): DetailedMatc
     if (detail.legal) legalInOver.set(oKey, legalBefore + 1);
 
     // keep: a missed chance (its fielding line says what happened), the Mankad, anything carrying a review
-    if ((c.note && !ball.wicketType) || c.dead || /\bDRS\b/i.test(ball.commentary)) return ball;
+    // ... and the section 13 plays whose line the rebuilt delivery cannot say (short run, lodged ball) or that carry a note
+    // about the over (over-rate restriction, a bowler leaving, a beamer warning)
+    if ((c.note && !ball.wicketType) || c.dead || c.sr || c.lg || /\bDRS\b/i.test(ball.commentary)
+      || /behind the over rate|pulls up mid-over|removed from the attack|final warning/.test(ball.commentary)) return ball;
 
     const scoreBefore = ball.scoreSoFar - ball.runs - ball.extras;
     const wicketsBefore = ball.wicketsSoFar - (ball.wicketType ? 1 : 0);

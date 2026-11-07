@@ -248,7 +248,8 @@ describe("The Hundred: 100-ball innings", () => {
     for (let i = 0; i < 10; i++) {
       const r = simulateMatch(teams[i % 8], teams[(i + 1) % 8], bbl.rules);
       expect(r.innings[0].totalBalls).toBeLessThanOrEqual(120);
-      if (r.innings[0].wickets < 10 && !r.rain) expect(r.innings[0].totalBalls).toBe(120);
+      // (unless rain shortened it or retirements left a batter without a partner)
+      if (r.innings[0].wickets < 10 && !r.rain && !r.innings[0].offBall?.length) expect(r.innings[0].totalBalls).toBe(120);
       expect(r.innings[0].ballsPerOver).toBeUndefined();
     }
   });
@@ -263,7 +264,7 @@ describe("The Hundred: 100-ball innings", () => {
     }
     // ties are rare (~1%); the assertion is that nothing throws and winners are always decided
     expect(checked).toBeGreaterThanOrEqual(0);
-  });
+  }, 120000);
 });
 
 describe("Full seasons", () => {

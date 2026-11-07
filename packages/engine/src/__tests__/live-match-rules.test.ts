@@ -69,7 +69,7 @@ const isLegal = (e: BallEvent) => e.outcome !== "wide" && e.outcome !== "noball"
 describe("live: free hit", () => {
   it("state.freeHit is set after a no-ball, carries through a wide / no-ball on it, and a legal ball ends it", () => {
     let nbs = 0, fhBalls = 0;
-    for (let seed = 1; seed <= 6; seed++) {
+    for (let seed = 1; seed <= 9; seed++) {
       const [a, b] = pair(seed);
       let state = createMatchState(a, b, rules, null, seed);
       let expected = false;
