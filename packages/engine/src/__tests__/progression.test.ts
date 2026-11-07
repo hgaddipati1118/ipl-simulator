@@ -163,6 +163,9 @@ describe("20-season career sim stays balanced", () => {
       const sd = (ps: Player[]) => { const m = all(ps); return Math.sqrt(ps.reduce((a, p) => a + (p.overall - m) ** 2, 0) / ps.length); };
       const fld = (ps: Player[]) => { const v = ps.filter(p => typeof p.ratings.fielding === "number"); return v.reduce((a, p) => a + p.ratings.fielding!, 0) / v.length; };
       const startFielding = fld(pool);
+      const ATTRS = ["battingIQ", "timing", "power", "running", "wicketTaking", "economy", "accuracy", "clutch"] as const;
+      const attrMeans = (ps: Player[]) => Object.fromEntries(ATTRS.map(a => [a, ps.reduce((acc, p) => acc + p.ratings[a], 0) / ps.length]));
+      const startAttrs = attrMeans(pool);
       const start = { all: all(pool), top: top(pool), sd: sd(pool), age: pool.reduce((a, p) => a + p.age, 0) / pool.length };
       for (let season = 1; season <= 20; season++) {
         const next: Player[] = [];
@@ -185,6 +188,12 @@ describe("20-season career sim stays balanced", () => {
       expect(end.sd / start.sd).toBeLessThan(1.2);
       // fielding: the youth prior and the decline from 28 balance against retirement and the regens' draws
       expect(Math.abs(fld(pool) - startFielding)).toBeLessThan(2);
+      // each attribute's league average holds too. The per-attribute tilts must not add drift: before population
+      // centring they did (clutch +3 to +4, women's accuracy -10). What's left (running up to about +5 for men,
+      // women's accuracy about -4.4) predates the tilts: the age mix of regens vs the veterans they replace.
+      const endAttrs = attrMeans(pool);
+      if (process.env.PRINT_ATTR_DRIFT) console.log(gender, Object.fromEntries(ATTRS.map(a => [a, +(endAttrs[a] - startAttrs[a]).toFixed(2)])));
+      for (const a of ATTRS) expect(Math.abs(endAttrs[a] - startAttrs[a]), a).toBeLessThan(6);
       expect(Math.abs(end.age - start.age)).toBeLessThan(3.5); // the fitted hazards settle a young starting pool (women: mean age 26) near 28
     });
   }

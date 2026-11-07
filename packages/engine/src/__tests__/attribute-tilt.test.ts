@@ -81,18 +81,19 @@ describe("per-attribute age tilts", () => {
     expect(at("running", "34+")).toBeLessThan(at("battingIQ", "34+"));
   });
 
-  it("the 30-35 attribute mix shifts as in the real data (men and women, every attribute, per season)", () => {
+  it("the attribute mix shifts with age as in the real data (34+ vs 30-33, men and women, every attribute)", () => {
+    // The tilts keep only each attribute's ageing shape: a level the real data shows at every age (clutch about +1 a
+    // season relative to its discipline, from the experience-based clutch rating) is removed so league averages
+    // don't drift. So compare the change from the 30-33 band to the 34+ band, simulated vs real.
     type Row = { group: string; lo: number; hi: number; n: number; mean: number; se: number };
     for (const gender of ["male", "female"] as const) {
       const data = (fixture as unknown as Record<string, Record<string, Row[]>>)[gender];
-      for (const [group, startAge] of [["30-33", 30], ["34+", 34]] as const) {
-        const rel = simulatedRelative(startAge, 1, gender, 800);
-        for (const a of ALL) {
-          const row = data[a].find(r => r.group === group);
-          if (!row) continue;
-          // the model is the shrunk fit, so the unshrunk band mean may differ by about two standard errors plus a little
-          expect(Math.abs(rel[a] - row.mean), `${gender} ${group} ${a}: simulated ${rel[a].toFixed(2)} real ${row.mean} (se ${row.se})`).toBeLessThan(2 * row.se + 0.3);
-        }
+      const early = simulatedRelative(30, 1, gender, 800), late = simulatedRelative(34, 1, gender, 800);
+      for (const a of ALL) {
+        const r1 = data[a].find(r => r.group === "30-33"), r2 = data[a].find(r => r.group === "34+");
+        if (!r1 || !r2) continue;
+        const sim = late[a] - early[a], real = r2.mean - r1.mean, se = Math.hypot(r1.se, r2.se);
+        expect(Math.abs(sim - real), `${gender} ${a}: simulated ${sim.toFixed(2)} real ${real.toFixed(2)} (se ${se.toFixed(2)})`).toBeLessThan(2 * se + 0.3);
       }
     }
   });

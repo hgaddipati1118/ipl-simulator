@@ -23,9 +23,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        0.165,
-        0.087,
-        -0.03
+        0.099,
+        0.02,
+        -0.097
       ]
     },
     "timing": {
@@ -35,9 +35,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        0.149,
-        0.137,
-        0.118
+        0.016,
+        0.003,
+        -0.016
       ]
     },
     "power": {
@@ -47,9 +47,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        -0.289,
-        -0.18,
-        -0.018
+        -0.137,
+        -0.028,
+        0.134
       ]
     },
     "running": {
@@ -59,9 +59,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        0.134,
-        -0.078,
-        -0.397
+        0.268,
+        0.055,
+        -0.263
       ]
     },
     "wicketTaking": {
@@ -71,9 +71,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        0.086,
-        -0.079,
-        -0.327
+        0.208,
+        0.043,
+        -0.204
       ]
     },
     "economy": {
@@ -83,9 +83,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        -0.483,
-        -0.208,
-        0.205
+        -0.347,
+        -0.072,
+        0.341
       ]
     },
     "accuracy": {
@@ -95,9 +95,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        -0.613,
-        -0.373,
-        -0.013
+        -0.303,
+        -0.063,
+        0.298
       ]
     },
     "clutch": {
@@ -107,9 +107,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        0.74,
-        0.817,
-        0.934
+        -0.098,
+        -0.02,
+        0.096
       ]
     }
   },
@@ -121,9 +121,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        0.489,
-        0.291,
-        -0.005
+        0.202,
+        0.004,
+        -0.293
       ]
     },
     "timing": {
@@ -133,9 +133,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        0.489,
-        0.414,
-        0.301
+        0.077,
+        0.001,
+        -0.112
       ]
     },
     "power": {
@@ -145,9 +145,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        -0.841,
-        -0.582,
-        -0.192
+        -0.265,
+        -0.005,
+        0.384
       ]
     },
     "running": {
@@ -157,9 +157,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        0.017,
-        -0.16,
-        -0.427
+        0.181,
+        0.003,
+        -0.263
       ]
     },
     "wicketTaking": {
@@ -169,9 +169,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        -0.038,
-        -0.154,
-        -0.329
+        0.119,
+        0.002,
+        -0.172
       ]
     },
     "economy": {
@@ -181,9 +181,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        -0.049,
-        0.208,
-        0.592
+        -0.261,
+        -0.005,
+        0.38
       ]
     },
     "accuracy": {
@@ -193,9 +193,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        -0.808,
-        -0.657,
-        -0.431
+        -0.153,
+        -0.003,
+        0.223
       ]
     },
     "clutch": {
@@ -205,9 +205,9 @@ export const ATTRIBUTE_TILT: Record<"male" | "female", Record<TiltedAttribute, A
         40
       ],
       "tilt": [
-        0.743,
-        0.727,
-        0.704
+        0.016,
+        0.0,
+        -0.023
       ]
     }
   }

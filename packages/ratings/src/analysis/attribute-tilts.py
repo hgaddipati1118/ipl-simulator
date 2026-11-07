@@ -235,6 +235,18 @@ def main():
                 if a == "clutch" or True:
                     res[gen][a]["alpha_c"] = res[gen][a]["alpha"] - ca
                     res[gen][a]["beta_c"] = res[gen][a]["beta"] - cb
+    # Population centring: a tilt that is the same sign at every age (clutch about +0.8 a season, accuracy negative
+    # throughout) is a level shift, not an ageing shape; applied every season it moves the league's average attribute
+    # forever (20-season sims: clutch +3 to +4, women's accuracy -10). Anchor each line so it averages zero over the
+    # real age mix of player-seasons and keep only its slope. The anchors weight to zero within each discipline
+    # (the lines are already centred there), so discipline overalls are unchanged.
+    for gen in ("male", "female"):
+        mean_age = statistics.mean(p["age"] for p in P[gen])
+        res[gen]["_mean_age"] = mean_age
+        for a in ATTRS:
+            r = res[gen][a]
+            r["level_removed"] = r["alpha_c"] + r["beta_c"] * (mean_age - 28)
+            r["alpha_c"] = r["beta_c"] * (28 - mean_age)
     model = {}
     for gen in ("male", "female"):
         model[gen] = {}

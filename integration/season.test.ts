@@ -580,11 +580,13 @@ describe("season edge cases", () => {
     teams[0].roster[0].injured = true;
     teams[0].roster[0].injuryGamesLeft = 2;
 
+    const player = teams[0].roster[0];
     runSeason(teams);
 
-    // After a full season, short injuries should be healed
-    expect(teams[0].roster[0].injured).toBe(false);
-    expect(teams[0].roster[0].injuryGamesLeft).toBe(0);
+    // The 2-game injury healed and he played again. (He can pick up a new injury later in the season from the
+    // injury-risk model, so being fit at the very end isn't the test.)
+    expect(player.stats.matches).toBeGreaterThan(0);
+    if (player.injured) expect(player.injuryGamesLeft).toBeGreaterThan(0);
   }, 30000);
 
   it("season produces different champions across repeated runs", () => {

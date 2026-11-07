@@ -765,6 +765,8 @@ change, so a raw slope understates and a noisy one is not to be trusted. Men 7,4
 | accuracy | -0.55 / -0.37 / -0.19 / -0.07 | -0.58 (0.20) -> -0.36 | +0.069 (0.054) -> +0.025 | lower level than the rest but holds up with age, as expected |
 | clutch | +0.76 / +0.82 / +0.88 / +0.91 | **+1.09 (0.14)** -> +0.83 | +0.009 | the one clear signal: clutch rises about 0.8 points a season more than the discipline, at every age (experience), and the data leave no room for doubt |
 
+**Population centring.** The table shows the fit before this step. A tilt that has the same sign at every age (clutch about +0.8 a season, accuracy negative throughout) is a level shift, not an ageing shape. Applied every season it moves the league average forever: in 20-season sims, clutch went +3 to +4 and women's accuracy -10. So each line is anchored to average zero over the real age mix of player-seasons, keeping its slope. The anchors weight to zero within each discipline, so discipline overalls are unchanged. The game's clutch comes from experience, which only accumulates, so its level was likely an artifact anyway. The progression test checks every attribute's 20-season drift. What remains (men's running about +5, women's accuracy about -4.4) predates the tilts: it comes from the age mix of regens vs the veterans they replace.
+
 Women (smaller sample, shrunk toward the men's curve): the same directions, with a larger power gap (-0.58 at 28) and battingIQ/timing gains (+0.29, +0.41), economy up and accuracy down; clutch +0.73.
 Full bin tables, with s.e., are in `data/analysis/attribute-tilts-report.md`. The tilt is exported as a line through three nodes (20, 28, 40), clamped at +-1.5 points a season and flat outside the nodes.
 
