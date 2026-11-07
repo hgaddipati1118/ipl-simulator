@@ -27,6 +27,23 @@ import {
   type PitchType,
 } from "./matchups.js";
 import { generateBallCommentaryDetailed } from "./commentary.js";
+import {
+  EXTRAS_RATE_CAL,
+  applyFreeHitToProbs,
+  bowlerRuns,
+  batterFaced,
+  dismissalText,
+  expandDelivery,
+  genderOf,
+  isBowlerWicket,
+  retireParams,
+  RETIRED_HURT_TEXT,
+  type DeliveryDetail,
+  type DismissalKind,
+  type Gender,
+} from "./delivery-rules.js";
+import { describeDelivery } from "./delivery-text.js";
+import { T20_FORMAT } from "./format.js";
 import { commentarySeed } from "./commentary-model.js";
 import {
   applyFieldingToProbs,
@@ -94,6 +111,21 @@ export interface LiveBatterStats {
   isOut: boolean;
   howOut: string;
   fallOfWicket?: string;
+  /** Left the field hurt; not out, and may resume at a wicket */
+  retiredHurt?: boolean;
+}
+
+/** One super over (a tied match is settled by one or more) */
+export interface LiveSuperOver {
+  round: number;
+  battingTeamId: string;
+  bowlingTeamId: string;
+  runs: number;
+  wickets: number;
+  /** The three nominated batters, the bowler */
+  batters: string[];
+  bowler: string;
+  balls: DetailedBallEvent[];
 }
 
 export interface LiveBowlerStats {
@@ -253,6 +285,12 @@ export interface MatchState {
   // Retired-out count (does NOT count as wickets)
   retiredOutCount?: number;
 
+  /** The next ball is a free hit (after a no-ball; carries over a wide or no-ball bowled on a free hit) */
+  freeHit?: boolean;
+
+  /** Super overs played to settle a tie, in order (absent = no tie) */
+  superOvers?: LiveSuperOver[];
+
   // DLS rain delay info (set when rain interrupts play)
   maxOvers: number;               // current max overs for this innings (default 20, reduced by rain)
   rainDelay?: {
@@ -277,6 +315,16 @@ interface MatchStateInternal {
   // Seeded RNG for deterministic simulation
   seed: number;
   rng: RNG;
+  /** The innings is over because no batter is left to bat (all out, or short of a partner after retirements) */
+  allOut?: boolean;
+  /** A new batter is owed but a review of the dismissal is still open */
+  awaitingBatter?: { survivorIdx: number; newBatterFaces: boolean; swapAfter?: boolean };
+  /** The end-of-over change is owed once the batter owed by a review has been chosen */
+  deferredOverSwap?: boolean;
+  /** Batting-order indices of batters who retired hurt and may return at a wicket */
+  retiredHurtIdx?: number[];
+  /** Bowlers who left the field hurt this innings */
+  unavailableBowlers?: string[];
   /** Corpus commentary lines already used in this match (JSON-safe so it survives state cloning) */
   commentaryUsed?: Record<string, 1>;
 
@@ -425,9 +473,9 @@ function baseOutcomeProbabilities(
     "4":    clamp(0.155 + balance * 0.07 + (batter.ratings.timing / 100) * 0.05 + aggrMod * 0.05, 0.06, 0.26),
     "6":    clamp(0.075 + balance * 0.06 + (batter.ratings.power / 100) * 0.06 + aggrMod * 0.05, 0.02, 0.22),
     wicket: clamp(0.042 - balance * 0.03 + (bowler.ratings.wicketTaking / 100) * 0.025 + aggrMod * 0.03, 0.01, 0.10),
-    wide:   clamp(0.035 - (bowler.ratings.accuracy / 100) * 0.015, 0.01, 0.06),
-    noball:  clamp(0.006 - (bowler.ratings.accuracy / 100) * 0.003, 0.001, 0.02),
-    legbye: 0.015,
+    wide:   clamp(0.035 - (bowler.ratings.accuracy / 100) * 0.015, 0.01, 0.06) * EXTRAS_RATE_CAL.wide,
+    noball:  clamp(0.006 - (bowler.ratings.accuracy / 100) * 0.003, 0.001, 0.02) * EXTRAS_RATE_CAL.noball,
+    legbye: 0.015 * EXTRAS_RATE_CAL.legbye,
   };
 
   // Apply form modifier to boundary and wicket probabilities
@@ -540,6 +588,32 @@ export function applyLiveBallContextModifiers(
   return adjusted;
 }
 
+/** What the Laws add to a live ball: free hit, gender (fitted rates), substitute fielders */
+interface LiveRulesCtx {
+  freeHit: boolean;
+  gender: Gender;
+  bench: readonly FielderLike[];
+  nonStrikerName?: string;
+}
+
+interface LiveBallResult {
+  outcome: BallOutcome;
+  runs: number;
+  extras: number;
+  isWicket: boolean;
+  commentary: string;
+  commentaryKey?: string;
+  wicketType?: DismissalKind;
+  fielderId?: string;
+  fieldingNote?: FieldingNote;
+  /** The complete delivery (extras by type, who is out, runs run ...). DRS may replace it. */
+  detail: DeliveryDetail;
+  fielderName?: string;
+  fielder2Name?: string;
+  /** The context needed to re-expand the delivery after a review changes its outcome */
+  ctx: { gender: Gender; unit?: FieldingUnit };
+}
+
 function runOneBall(
   batter: SerializedPlayer,
   bowler: SerializedPlayer,
@@ -566,7 +640,8 @@ function runOneBall(
   chaseAdvantage: number | undefined = undefined,
   fieldingUnit?: FieldingUnit,
   commentaryCtx?: { gender?: "male" | "female"; nonStrikerName?: string; usedLines?: Readonly<Record<string, unknown>> },
-): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; commentaryKey?: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped"; fielderId?: string; fieldingNote?: FieldingNote } {
+  rulesCtx: LiveRulesCtx = { freeHit: false, gender: "male", bench: [], nonStrikerName: undefined },
+): LiveBallResult {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
   // Phase adjustment
@@ -682,8 +757,11 @@ function runOneBall(
   probs.dot *= 0.92;
   probs.wicket *= 0.95;
 
+  // A free hit: boundaries come easier and only the run-out family can dismiss
+  if (rulesCtx.freeHit) applyFreeHitToProbs(probs);
+
   // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down)
-  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle);
+  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle, rulesCtx.gender);
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
@@ -692,71 +770,109 @@ function runOneBall(
   // A wicket draw is a dismissal chance: its kind, who was involved, and whether it was taken
   let resolution: ReturnType<typeof resolveWicketChance> | undefined;
   if (outcome === "wicket") {
-    resolution = resolveWicketChance(fieldingUnit, bowler.id, bowler.bowlingStyle, probs, rng);
+    resolution = resolveWicketChance(fieldingUnit, bowler.id, bowler.bowlingStyle, probs, rng, {
+      gender: rulesCtx.gender, freeHit: rulesCtx.freeHit, bench: rulesCtx.bench,
+    });
     if (resolution.outcome !== "wicket") outcome = resolution.outcome;
   }
 
-  let runs = 0;
-  let extras = 0;
-  let isWicket = false;
+  // The complete delivery: wides, no-ball cost, byes, overthrows, who is out, how far they ran
+  const detail = expandDelivery(outcome, resolution, {
+    rng, fmt: T20_FORMAT, gender: rulesCtx.gender, freeHit: rulesCtx.freeHit,
+    bowlerId: bowler.id, bowlerStyle: bowler.bowlingStyle, unit: fieldingUnit, bench: rulesCtx.bench,
+  });
+  const dis = detail.dismissal;
+  const runs = detail.batRuns;
+  const isWicket = !!dis;
+  const wicketType = dis?.kind;
 
-  switch (outcome) {
-    case "dot": runs = 0; break;
-    case "1": runs = 1; break;
-    case "2": runs = 2; break;
-    case "3": runs = 3; break;
-    case "4": runs = 4; break;
-    case "6": runs = 6; break;
-    case "wicket": isWicket = true; runs = 0; break;
-    case "wide": extras = 1; break;
-    case "noball": extras = 1; break;
-    case "legbye": extras = 1; break;
-  }
-
-  // Wicket type is decided with the dismissal chance (used for DRS logic)
-  const wicketType = isWicket ? (resolution?.kind ?? randomWicketType(rng)) : undefined;
+  const nameOf = (id?: string) => {
+    if (!id) return undefined;
+    if (resolution?.fielder?.id === id) return resolution.fielder.name;
+    if (resolution?.fielder2?.id === id) return resolution.fielder2.name;
+    return undefined;
+  };
+  const fielderName = nameOf(dis?.fielderId);
+  const fielder2Name = nameOf(dis?.fielder2Id);
 
   // Generate rich contextual commentary. It runs on its own seeded stream (derived from the ball's context), so
   // wording never changes how the match plays out, whether or not the corpus model is loaded.
   const commentaryRng = createRNG(commentarySeed(batter.id, bowler.id, over, legalBallInOver, currentScore, wicketsDown, batterRuns, batterBalls, outcome));
-  const fielderForLine = resolution?.fielder && (outcome === "wicket") ? resolution.fielder : undefined;
-  const generated = generateBallCommentaryDetailed({
-    bowlerName: bowler.name,
-    batterName: batter.name,
-    outcome,
-    runs,
-    over,
-    ball: legalBallInOver + 1,
-    score: currentScore,
-    wickets: wicketsDown,
-    isSecondInnings,
-    target: isSecondInnings ? target : undefined,
-    bowlingStyle: bowler.bowlingStyle,
-    batterRuns,
-    batterBalls,
-    wicketType,
-    fielderName: fielderForLine?.name,
-    boundaryShot: (outcome === "4" || outcome === "6") ? randomBoundaryShot(runs || (outcome === "4" ? 4 : 6), commentaryRng) : undefined,
-    rng: commentaryRng,
-    battingHand: batter.battingHand,
-    gender: commentaryCtx?.gender,
-    nonStrikerName: commentaryCtx?.nonStrikerName,
-    usedLines: commentaryCtx?.usedLines,
-  });
-  const commentary = generated.text;
+  const plain = isPlainDelivery(detail);
+  let commentary: string;
+  let commentaryKey: string | undefined;
+  if (plain) {
+    const fielderForLine = resolution?.fielder && isWicket ? resolution.fielder : undefined;
+    const generated = generateBallCommentaryDetailed({
+      bowlerName: bowler.name,
+      batterName: batter.name,
+      outcome: isWicket ? "wicket" : outcome,
+      runs,
+      over,
+      ball: legalBallInOver + 1,
+      score: currentScore,
+      wickets: wicketsDown,
+      isSecondInnings,
+      target: isSecondInnings ? target : undefined,
+      bowlingStyle: bowler.bowlingStyle,
+      batterRuns,
+      batterBalls,
+      wicketType: isWicket ? toLegacyKind(wicketType) : undefined,
+      fielderName: fielderForLine?.name,
+      boundaryShot: (outcome === "4" || outcome === "6") ? randomBoundaryShot(runs || (outcome === "4" ? 4 : 6), commentaryRng) : undefined,
+      rng: commentaryRng,
+      battingHand: batter.battingHand,
+      gender: commentaryCtx?.gender,
+      nonStrikerName: commentaryCtx?.nonStrikerName,
+      usedLines: commentaryCtx?.usedLines,
+    });
+    commentary = generated.text;
+    commentaryKey = generated.key;
+  } else {
+    commentary = describeDelivery({
+      detail, bowler: bowler.name, batter: batter.name, nonStriker: rulesCtx.nonStrikerName,
+      fielder: fielderName, fielder2: fielder2Name, substitute: dis?.substitute, freeHit: rulesCtx.freeHit, rng: commentaryRng,
+    }) ?? "";
+  }
 
-  const fieldingLine = resolution?.note
+  const fieldingLine = !isWicket && resolution?.note
     ? fieldingCommentary(resolution, { batter: batter.name, bowler: bowler.name, runs }, rng)
-    : undefined;
+    : (isWicket && resolution?.note ? fieldingCommentary(resolution, { batter: batter.name, bowler: bowler.name, runs }, rng) : undefined);
+  if (rulesCtx.freeHit && plain && !commentary.startsWith("FREE HIT")) commentary = "FREE HIT! " + commentary;
 
   return {
-    outcome, runs, extras, isWicket,
+    outcome: isWicket && outcome !== "wide" && outcome !== "noball" ? "wicket" : outcome,
+    runs, extras: detail.extras, isWicket,
     commentary: fieldingLine ?? commentary,
-    commentaryKey: fieldingLine ? undefined : generated.key,
+    commentaryKey: fieldingLine ? undefined : commentaryKey,
     wicketType,
-    fielderId: resolution?.fielder && (isWicket || resolution.note) ? resolution.fielder.id : undefined,
+    fielderId: dis?.fielderId ?? (resolution?.fielder && resolution.note ? resolution.fielder.id : undefined),
     fieldingNote: resolution?.note,
+    detail,
+    fielderName,
+    fielder2Name,
+    ctx: { gender: rulesCtx.gender, unit: fieldingUnit },
   };
+}
+
+/** A delivery the corpus / built-in outcome lines describe fully: no extras beyond a single wide or leg bye, no unusual dismissal */
+function isPlainDelivery(d: DeliveryDetail): boolean {
+  if (d.overthrow || d.penalty) return false;
+  if (d.dismissal) {
+    const k = d.dismissal.kind;
+    return d.outcome === "wicket" && d.dismissal.out === "striker" && (k === "bowled" || k === "caught" || k === "lbw" || k === "stumped" || k === "run_out");
+  }
+  switch (d.outcome) {
+    case "wide": return d.wides === 1;
+    case "noball": return false;
+    case "legbye": return d.byes === 0 && d.legByes === 1;
+    default: return true;
+  }
+}
+
+/** The corpus commentary knows five dismissal kinds; the rest use their own wording */
+function toLegacyKind(k: DismissalKind | undefined): "bowled" | "caught" | "lbw" | "run_out" | "stumped" | undefined {
+  return k === "bowled" || k === "caught" || k === "lbw" || k === "run_out" || k === "stumped" ? k : undefined;
 }
 
 /* ─────────────────── Serialization helpers ─────────────────── */
@@ -1083,6 +1199,34 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     bowlerId = int.bowlingOrderIds[state.currentBowlerIdx];
   }
 
+  const rp = retireParams();
+  const rulesGender: Gender = genderOf(int.rules);
+
+  // An over left incomplete: the bowler goes off hurt and another bowler finishes the over. He cannot bowl
+  // again in the innings; the replacement cannot bowl the next over (the consecutive-overs rule sees him as the
+  // over's bowler), and the part-bowled over counts towards both bowlers' four.
+  if (int.currentOverLegalBalls > 0 && int.rng() < rp.bowlerLeavesPerOver / 6) {
+    const bowlingXIIds = state.bowlingTeamId === state.homeTeam.id ? int.homeXIIds : int.awayXIIds;
+    const gone = new Set(int.unavailableBowlers ?? []);
+    const pool = bowlingXIIds
+      .filter(id => id !== bowlerId && !gone.has(id) && (int.bowlerOvers[id] ?? 0) < int.maxOversPerBowler && pm[id])
+      .sort((a, b) => (pm[b].bowlingOvr ?? 0) - (pm[a].bowlingOvr ?? 0));
+    if (pool.length > 0) {
+      (int.unavailableBowlers ??= []).push(bowlerId);
+      int.bowlerOvers[bowlerId] = (int.bowlerOvers[bowlerId] ?? 0) + 1;
+      let idx = int.bowlingOrderIds.indexOf(pool[0]);
+      if (idx < 0) { int.bowlingOrderIds.push(pool[0]); idx = int.bowlingOrderIds.length - 1; }
+      int.bowlerOvers[pool[0]] = int.bowlerOvers[pool[0]] ?? 0;
+      assignNextBowler(state, int, pm, idx);
+      bowlerId = pool[0];
+    }
+  }
+
+  // Mankad: the bowler runs out the non-striker before delivering. No ball is bowled.
+  if (int.rng() < rp.mankadPerDelivery && state.wickets < 9) {
+    return stepMankad(state, bowlerId);
+  }
+
   const striker = pm[strikerId];
   const bowler = pm[bowlerId];
 
@@ -1102,11 +1246,16 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   const rng = int.rng;
 
   // The side in the field, for catches, stumpings, run-outs, runs saved and byes (fielding.ts)
+  const bowlingXIIdsNow = state.bowlingTeamId === state.homeTeam.id ? int.homeXIIds : int.awayXIIds;
   const fieldingUnit = buildFieldingUnit(
-    (state.bowlingTeamId === state.homeTeam.id ? int.homeXIIds : int.awayXIIds)
+    bowlingXIIdsNow
       .map(id => pm[id])
       .filter((p): p is SerializedPlayer => !!p) as FielderLike[],
   );
+  // Substitute fielders: squad players who are not in the XI
+  const benchPool = (state.bowlingTeamId === state.homeTeam.id ? int.homeBenchIds : int.awayBenchIds)
+    .map(id => pm[id]).filter((p): p is SerializedPlayer => !!p) as FielderLike[];
+  const freeHitNow = !!state.freeHit;
 
   // Apply strategic timeout bonuses (temporary rating boosts)
   let effectiveStriker = striker;
@@ -1152,6 +1301,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name,
       usedLines: int.commentaryUsed,
     },
+    { freeHit: freeHitNow, gender: rulesGender, bench: benchPool, nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name },
   );
 
   // Clone state for mutation
@@ -1184,6 +1334,22 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   let _drsOverturns: boolean | undefined;
   let _drsMarginal: boolean | undefined;
   const canOfferNonLbwReview = int.currentOverLegalBalls < 5;
+  /** A review changes the call, so the delivery is built again for the new outcome */
+  const redo = (outcome: BallOutcome, res?: { outcome: "wicket"; kind: DismissalKind }) => {
+    const d = expandDelivery(outcome as DeliveryDetail["outcome"], res as any, {
+      rng, fmt: T20_FORMAT, gender: rulesGender, freeHit: freeHitNow, bowlerId: bowler.id,
+      bowlerStyle: bowler.bowlingStyle, unit: fieldingUnit, bench: benchPool,
+    });
+    result.detail = d;
+    result.outcome = d.dismissal && d.outcome !== "wide" && d.outcome !== "noball" ? "wicket" : d.outcome;
+    result.runs = d.batRuns;
+    result.extras = d.extras;
+    result.isWicket = !!d.dismissal;
+    result.wicketType = d.dismissal?.kind;
+  };
+  /** Only a plain wide or no-ball (one extra, nothing off the bat) can be reviewed with the old amend-the-counters flow */
+  const simpleExtra = (d: DeliveryDetail) =>
+    !d.dismissal && !d.penalty && !d.overthrow && ((d.outcome === "wide" && d.wides === 1) || (d.outcome === "noball" && d.noBalls === 1 && d.batRuns === 0 && d.byes === 0 && d.legByes === 0));
 
   if (result.isWicket) {
     if (result.fielderId && pm[result.fielderId]) {
@@ -1210,9 +1376,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         if (drsAvailable > 0) {
           // DRS overturns the incorrect LBW — not out
           drsOverturned = true;
-          result.isWicket = false;
-          result.outcome = "dot";
-          result.runs = 0;
+          redo("dot");
           result.commentary = `${bowler.name} to ${striker.name}, given OUT lbw! DRS review... OVERTURNED! Not out — ball missing the stumps.`;
           eventType = "dot";
           wicketType = undefined;
@@ -1240,7 +1404,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         if (drsAvailable > 0 && isUserBatting) {
           // Offer run out review to user
           _drsOverturns = wasActuallyIn;
-          result.commentary = `${bowler.name} to ${striker.name}, RUN OUT says the on-field umpire! Direct hit at the striker's end.`;
+          result.commentary = `${bowler.name} to ${striker.name}, RUN OUT says the on-field umpire! ${result.detail.dismissal?.out === "nonStriker" ? "Direct hit at the non-striker's end." : "Direct hit at the striker's end."}`;
           newState.pendingDecision = {
             type: "drs_review",
             options: ["review", "accept"],
@@ -1261,11 +1425,9 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
           // CPU reviews close run outs 50% of the time
           if (wasActuallyIn) {
             drsOverturned = true;
-            result.isWicket = false;
-            result.outcome = "1"; // batter made the run
-            result.runs = 1;
+            redo(String(Math.min(3, result.detail.batRuns + 1)) as BallOutcome); // batter made the run
             result.commentary = `${bowler.name} to ${striker.name}, run out given! DRS review... OVERTURNED! Batter was IN. The run counts.`;
-            eventType = "single";
+            eventType = result.runs === 1 ? "single" : result.runs === 2 ? "double" : "triple";
             wicketType = undefined;
           } else {
             if (battingTeamIsHome) newState.drsRemaining.home--;
@@ -1276,7 +1438,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         }
       }
     }
-  } else if ((result.outcome === "wide" || result.outcome === "noball") && canOfferNonLbwReview) {
+  } else if ((result.outcome === "wide" || result.outcome === "noball") && canOfferNonLbwReview && simpleExtra(result.detail)) {
     const reviewKind = result.outcome;
     const reviewWindowOpens = rng() < (reviewKind === "wide" ? 0.10 : 0.06);
 
@@ -1318,8 +1480,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         newState.status = "waiting_for_decision";
       } else if (drsAvailable > 0 && !isUserBowling && rng() < 0.35) {
         if (shouldOverturn) {
-          result.outcome = "dot";
-          result.extras = 0;
+          redo("dot");
           result.commentary = `${bowler.name} to ${striker.name}, ${callText}. DRS review... OVERTURNED! Fair delivery. Call withdrawn.`;
           eventType = "dot";
         } else {
@@ -1329,7 +1490,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         }
       }
     }
-  } else if (result.outcome === "dot") {
+  } else if (result.outcome === "dot" && !result.detail.overthrow && !result.detail.penalty) {
     const battingTeamIsHome = newState.battingTeamId === newState.homeTeam.id;
     const isUserBatting = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
     const battingDrsAvailable = battingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
@@ -1371,8 +1532,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         newState.status = "waiting_for_decision";
       } else if (rng() < 0.30) {
         if (shouldOverturn) {
-          result.outcome = reviewKind;
-          result.extras = 1;
+          redo(reviewKind);
           result.commentary = `${bowler.name} to ${striker.name}, ${callText}. DRS review... OVERTURNED! That's ${reviewKind === "wide" ? "WIDE" : "NO BALL"}. Add one and rebowl it.`;
           eventType = reviewKind;
         } else {
@@ -1383,7 +1543,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       }
     } else {
       // DRS review opportunity: ~8% of dots could be close LBW appeals (not given out)
-      const isCloseLbwAppeal = rng() < 0.08;
+      const isCloseLbwAppeal = !freeHitNow && rng() < 0.08;
       if (isCloseLbwAppeal) {
         // Variable overturn rate based on bowler type and context
         const bowlerStyle = bowler.bowlingStyle ?? "unknown";
@@ -1436,9 +1596,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
           const cpuReviewChance = 0.15 + overturnChance * 0.6; // 21-36% based on context
           if (rng() < cpuReviewChance) {
             if (wasActuallyOut) {
-              result.isWicket = true;
-              result.outcome = "wicket";
-              result.runs = 0;
+              redo("wicket", { outcome: "wicket", kind: "lbw" });
               result.commentary = `${bowler.name} to ${striker.name}, not out says the umpire. DRS review... OVERTURNED! That's OUT! LBW!`;
               eventType = "wicket";
               wicketType = "lbw";
@@ -1458,8 +1616,14 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     }
   }
 
-  // Determine if the ball is an extra (after DRS may have changed outcome)
-  const isExtra = result.outcome === "wide" || result.outcome === "noball";
+  // ── Apply the delivery (after any review has settled the call) ──
+  const detail = result.detail;
+  const dis = detail.dismissal;
+  const isExtra = !detail.legal;
+  const nonStrikerId = int.battingOrderIds[state.nonStrikerIdx];
+  const outIsNonStriker = dis?.out === "nonStriker";
+  const outId = outIsNonStriker ? nonStrikerId : strikerId;
+  const survivorIdx = outIsNonStriker ? state.strikerIdx : state.nonStrikerIdx;
 
   // Build the ball event for the raw log (after DRS adjustments)
   const rawBall: BallEvent = {
@@ -1472,170 +1636,116 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     extras: result.extras,
     isWicket: result.isWicket,
     commentary: result.commentary,
+    runsRun: detail.runsRun,
   };
+  if (detail.wides) rawBall.wides = detail.wides;
+  if (detail.noBalls) rawBall.noBalls = detail.noBalls;
+  if (detail.byes) rawBall.byes = detail.byes;
+  if (detail.legByes) rawBall.legByes = detail.legByes;
+  if (detail.penalty) rawBall.penaltyRuns = detail.penalty;
+  if (detail.batBoundary) rawBall.boundary = detail.batBoundary;
+  if (detail.overthrow) rawBall.overthrow = detail.overthrow;
+  if (detail.wideKind) rawBall.wideKind = detail.wideKind;
+  if (freeHitNow) rawBall.freeHit = true;
+  if (dis) {
+    rawBall.wicketType = dis.kind;
+    rawBall.newBatterFaces = dis.newBatterFaces;
+    if (outIsNonStriker) rawBall.playerOutId = nonStrikerId;
+    if (dis.fielderId) rawBall.fielderId = dis.fielderId;
+    if (dis.fielder2Id) rawBall.fielder2Id = dis.fielder2Id;
+    if (dis.substitute) rawBall.substitute = true;
+  }
   if (_drsOverturns !== undefined) (rawBall as any)._drsOverturns = _drsOverturns;
   if (_drsMarginal !== undefined) (rawBall as any)._drsMarginal = _drsMarginal;
   rawInnings.ballLog.push(rawBall);
 
-  if (isExtra) {
-    // Extra: no legal delivery count, just add runs
-    newState.score += result.extras;
-    newState.extras += result.extras;
-    rawInnings.runs += result.extras;
-    rawInnings.extras += result.extras;
+  // Score and extras
+  newState.score += result.runs + result.extras;
+  newState.extras += result.extras;
+  rawInnings.runs += result.runs + result.extras;
+  rawInnings.extras += result.extras;
 
-    // Update bowler stats
-    const bs = rawInnings.bowlerStats[bowlerId] ?? { overs: 0, balls: 0, runs: 0, wickets: 0, wides: 0, noballs: 0 };
-    bs.runs += result.extras;
-    if (result.outcome === "wide") bs.wides++;
-    else bs.noballs++;
-    rawInnings.bowlerStats[bowlerId] = bs;
+  // The bowler is charged the bat's runs, wides and no-balls, not byes, leg byes or penalty runs
+  const charged = bowlerRuns(detail);
+  const rawBowl = rawInnings.bowlerStats[bowlerId] ?? { overs: 0, balls: 0, runs: 0, wickets: 0, wides: 0, noballs: 0 };
+  rawBowl.runs += charged;
+  if (detail.wides) rawBowl.wides++;
+  if (detail.noBalls) rawBowl.noballs++;
+  const liveBowler = newState.bowlerStats.find(b => b.playerId === bowlerId)!;
+  liveBowler.runs += charged;
+  if (detail.wides) liveBowler.wides++;
+  if (detail.noBalls) liveBowler.noBalls++;
 
-    // Update live bowler stats
-    const liveBowler = newState.bowlerStats.find(b => b.playerId === bowlerId)!;
-    liveBowler.runs += result.extras;
-    if (result.outcome === "wide") liveBowler.wides++;
-    else liveBowler.noBalls++;
-  } else {
-    // Legal delivery
+  // The striker faces every legal ball and every no-ball (not a wide)
+  const rawBat = rawInnings.batterStats[strikerId];
+  const liveBatter = newState.batterStats.find(b => b.playerId === strikerId);
+  if (batterFaced(detail)) {
+    if (rawBat) rawBat.balls++;
+    if (liveBatter) liveBatter.balls++;
+  }
+  if (rawBat) rawBat.runs += result.runs;
+  if (liveBatter) liveBatter.runs += result.runs;
+  if (detail.batBoundary === 4) { if (rawBat) rawBat.fours++; rawInnings.fours++; newState.fours++; if (liveBatter) liveBatter.fours++; }
+  if (detail.batBoundary === 6) { if (rawBat) rawBat.sixes++; rawInnings.sixes++; newState.sixes++; if (liveBatter) liveBatter.sixes++; }
+
+  if (detail.legal) {
     ni.currentOverLegalBalls++;
     rawInnings.totalBalls++;
-    rawInnings.runs += result.runs + result.extras;
-    rawInnings.extras += result.extras;
-    newState.score += result.runs + result.extras;
-    newState.extras += result.extras;
-
-    // Update raw batter stats
-    const rawBat = rawInnings.batterStats[strikerId];
-    if (rawBat) {
-      rawBat.balls++;
-      rawBat.runs += result.runs;
-      if (result.outcome === "4") { rawBat.fours++; rawInnings.fours++; newState.fours++; }
-      if (result.outcome === "6") { rawBat.sixes++; rawInnings.sixes++; newState.sixes++; }
-    }
-
-    // Update live batter stats
-    let liveBatter = newState.batterStats.find(b => b.playerId === strikerId);
-    if (liveBatter) {
-      liveBatter.balls++;
-      liveBatter.runs += result.runs;
-      if (result.outcome === "4") liveBatter.fours++;
-      if (result.outcome === "6") liveBatter.sixes++;
-    }
-
-    // Update raw bowler stats
-    const rawBowl = rawInnings.bowlerStats[bowlerId] ?? { overs: 0, balls: 0, runs: 0, wickets: 0, wides: 0, noballs: 0 };
     rawBowl.balls++;
-    rawBowl.runs += result.runs + result.extras;
-    if (ni.currentOverLegalBalls === 6) {
-      rawBowl.overs++;
-      rawBowl.balls = 0;
+    liveBowler.balls++;
+    if (charged === 0) liveBowler.dots++;
+    if (rawBowl.balls === 6) { rawBowl.overs++; rawBowl.balls = 0; }
+    if (liveBowler.balls === 6) { liveBowler.overs++; liveBowler.balls = 0; }
+  }
+  rawInnings.bowlerStats[bowlerId] = rawBowl;
+
+  // A no-ball (or a wide / no-ball on a free hit) makes the next ball a free hit
+  newState.freeHit = detail.freeHitNext ? true : undefined;
+
+  let batterNeeded = false;
+  if (result.isWicket && dis) {
+    newState.wickets++;
+    rawInnings.wickets++;
+    const outRaw = rawInnings.batterStats[outId];
+    if (outRaw) outRaw.isOut = true;
+    const outLive = newState.batterStats.find(b => b.playerId === outId);
+    if (outLive) {
+      outLive.isOut = true;
+      const fieldName = (id?: string) => (id && pm[id] ? pm[id].name : undefined);
+      outLive.howOut = dismissalText({
+        kind: dis.kind,
+        bowler: pm[bowlerId]?.name ?? "unknown",
+        fielder: dis.kind === "caught" && !dis.fielderId ? "fielder" : fieldName(dis.fielderId),
+        fielder2: fieldName(dis.fielder2Id),
+        substitute: dis.substitute,
+      });
     }
-    rawInnings.bowlerStats[bowlerId] = rawBowl;
-
-    // Update live bowler stats
-    const liveBowler = newState.bowlerStats.find(b => b.playerId === bowlerId)!;
-    liveBowler.runs += result.runs + result.extras;
-    if (result.runs === 0 && !result.isWicket && result.outcome !== "legbye") {
-      liveBowler.dots++;
-    }
-
-    if (result.isWicket) {
-      newState.wickets++;
-      rawInnings.wickets++;
-      if (rawBat) rawBat.isOut = true;
-
-      // Update live batter
-      if (liveBatter) {
-        liveBatter.isOut = true;
-        // Build howOut
-        const bowlerName = pm[bowlerId]?.name ?? "unknown";
-        if (wicketType === "bowled") liveBatter.howOut = `b ${bowlerName}`;
-        else if (wicketType === "caught") liveBatter.howOut = `c ${fielderName} b ${bowlerName}`;
-        else if (wicketType === "lbw") liveBatter.howOut = `lbw b ${bowlerName}`;
-        else if (wicketType === "run_out") liveBatter.howOut = fielderName ? `run out (${fielderName})` : `run out`;
-        else if (wicketType === "stumped") liveBatter.howOut = `st ${fielderName ?? "keeper"} b ${bowlerName}`;
-      }
-
-      // Fall of wicket
-      const overBall = `${newState.overs}.${ni.currentOverLegalBalls}`;
-      const fow = `${newState.score}/${newState.wickets} (${overBall} ov)`;
-      newState.fallOfWickets.push(fow);
-      if (liveBatter) liveBatter.fallOfWicket = fow;
-
+    const overBall = `${newState.overs}.${ni.currentOverLegalBalls}`;
+    const fow = `${newState.score}/${newState.wickets} (${overBall} ov)`;
+    newState.fallOfWickets.push(fow);
+    if (outLive) outLive.fallOfWicket = fow;
+    if (dis.bowlerCredit) {
+      rawBowl.wickets++;
       liveBowler.wickets++;
-
-      // Bring in next batter (only if not all out — 10 wickets = innings over)
-      if (newState.wickets < 10 && newState.nextBatterIdx < ni.battingOrderIds.length) {
-        const isUserBatting = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
-        const remainingBatterCount = ni.battingOrderIds.length - newState.nextBatterIdx;
-
-        if (isUserBatting && remainingBatterCount > 1) {
-          // User gets to choose who comes in next
-          const options = ni.battingOrderIds.slice(newState.nextBatterIdx);
-          const optionDetails: PendingDecisionOption[] = options.map(id => {
-            const p = pm[id];
-            return {
-              playerId: id,
-              playerName: p.name,
-              role: p.role,
-              battingOvr: p.battingOvr,
-              bowlingOvr: p.bowlingOvr,
-              overall: p.overall,
-              battingHand: p.battingHand,
-              battingIQRating: p.ratings.battingIQ,
-              timingRating: p.ratings.timing,
-              powerRating: p.ratings.power,
-            };
-          });
-
-          // Include bench players (impact sub) if not yet used
-          const isHome = newState.battingTeamId === state.homeTeam.id;
-          const subUsed = isHome ? newState.impactSubUsed.home : newState.impactSubUsed.away;
-          if (!subUsed && ni.rules.impactPlayer) {
-            const benchIds = isHome ? ni.homeBenchIds : ni.awayBenchIds;
-            for (const benchId of benchIds) {
-              const bp = pm[benchId];
-              if (bp) {
-                options.push(benchId);
-                optionDetails.push({
-                  playerId: benchId,
-                  playerName: bp.name,
-                  role: bp.role,
-                  battingOvr: bp.battingOvr,
-                  bowlingOvr: bp.bowlingOvr,
-                  overall: bp.overall,
-                  battingHand: bp.battingHand,
-                  battingIQRating: bp.ratings.battingIQ,
-                  timingRating: bp.ratings.timing,
-                  powerRating: bp.ratings.power,
-                  isBench: true,
-                });
-              }
-            }
-          }
-
-          newState.pendingDecision = {
-            type: 'choose_batter',
-            options,
-            teamId: newState.battingTeamId,
-            optionDetails,
-          };
-          newState.status = "waiting_for_decision";
-        } else {
-          // Auto-select (CPU or only one option)
-          bringInNextBatter(newState, ni, pm, rawInnings);
-        }
-      }
-    } else if (result.runs % 2 === 1) {
-      // Odd runs = swap strike
-      const temp = newState.strikerIdx;
-      newState.strikerIdx = newState.nonStrikerIdx;
-      newState.nonStrikerIdx = temp;
-      const tempName = newState.strikerName;
-      newState.strikerName = newState.nonStrikerName;
-      newState.nonStrikerName = tempName;
     }
+    // A new batter comes in, unless a review of this very dismissal is still open
+    if (newState.status === "waiting_for_decision" && newState.pendingDecision?.type === "drs_review") {
+      ni.awaitingBatter = { survivorIdx, newBatterFaces: dis.newBatterFaces, swapAfter: ni.currentOverLegalBalls >= 6 };
+    } else {
+      batterNeeded = true;
+    }
+  } else if (detail.runsRun % 2 === 1) {
+    // Odd runs run = swap strike
+    swapStrike(newState);
+  }
+  if (batterNeeded && dis) {
+    afterWicket(newState, ni, pm, rawInnings, survivorIdx, dis.newBatterFaces);
+  }
+
+  // A batter goes off hurt (not out, can come back at a wicket)
+  if (newState.status !== "waiting_for_decision" && !ni.allOut && newState.wickets < 10 && !ni.allOut &&
+      !(isSecondInnings && newState.score >= target) && rng() < 2 * rp.hurtPerBatterBall) {
+    retireHurt(newState, ni, pm, rawInnings, rng() < 0.67);
   }
 
   // Create the detailed event
@@ -1653,6 +1763,8 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     commentary: result.commentary,
     scoreSoFar: newState.score,
     wicketsSoFar: newState.wickets,
+    ...(outIsNonStriker ? { playerOutName: pm[nonStrikerId]?.name } : {}),
+    ...(freeHitNow ? { freeHit: true } : {}),
   };
 
   newState.ballLog.push(detailedBall);
@@ -1668,17 +1780,10 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     ni.bowlerOvers[bowlerId] = (ni.bowlerOvers[bowlerId] ?? 0) + 1;
     ni.lastBowlerId = bowlerId;
 
-    // Update live bowler stats
-    const liveBowler = newState.bowlerStats.find(b => b.playerId === bowlerId)!;
-    liveBowler.overs++;
-    liveBowler.balls = 0;
-
-    // Check for maiden
-    const overBalls = rawInnings.ballLog.filter(
-      b => b.over === newState.overs && b.bowler === bowlerId &&
-      b.outcome !== "wide" && b.outcome !== "noball"
-    );
-    if (overBalls.length === 6 && overBalls.every(b => b.runs === 0 && b.extras === 0 && !b.isWicket)) {
+    // Check for maiden: six legal balls by this bowler in the over and nothing charged to him
+    const overBalls = rawInnings.ballLog.filter(b => b.over === newState.overs && b.bowler === bowlerId && !b.deadBall);
+    const legalBalls = overBalls.filter(b => b.outcome !== "wide" && b.outcome !== "noball");
+    if (legalBalls.length === 6 && overBalls.every(b => rawChargedRuns(b) === 0)) {
       liveBowler.maidens++;
     }
 
@@ -1760,7 +1865,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     // ── Retire Out (between overs, death phase only) ─────────
     // Only offer in overs 16+ when explosive batters are waiting
     if (newState.status !== "waiting_for_decision" &&
-        newState.overs >= 16 && newState.overs < maxOvers && newState.wickets < 10 &&
+        newState.overs >= 16 && newState.overs < maxOvers && newState.wickets < 10 && !ni.allOut &&
         !(isSecondInnings && newState.score >= target) &&
         newState.nextBatterIdx < ni.battingOrderIds.length) {
       const isUserBatting = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
@@ -1818,44 +1923,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
               retireId = currentNonStrikerId;
             }
 
-            if (retireId) {
-              // Retire the batter
-              const liveBatter = newState.batterStats.find(b => b.playerId === retireId);
-              if (liveBatter) {
-                liveBatter.isOut = true;
-                liveBatter.howOut = "retired out";
-              }
-              const rawBat = rawInnings.batterStats[retireId];
-              if (rawBat) rawBat.isOut = true;
-
-              // Retired-out does NOT count as a wicket in cricket,
-              // but we still need to bring in the next batter
-              newState.retiredOutCount = (newState.retiredOutCount ?? 0) + 1;
-
-              // Bring in next batter
-              if (newState.nextBatterIdx < ni.battingOrderIds.length) {
-                // Replace the retired batter's position
-                if (retireId === currentStrikerId) {
-                  bringInNextBatter(newState, ni, pm, rawInnings);
-                } else {
-                  // Non-striker retiring: swap indices and bring in
-                  const tmpIdx = newState.strikerIdx;
-                  newState.strikerIdx = newState.nonStrikerIdx;
-                  newState.nonStrikerIdx = tmpIdx;
-                  const tmpName = newState.strikerName;
-                  newState.strikerName = newState.nonStrikerName;
-                  newState.nonStrikerName = tmpName;
-                  bringInNextBatter(newState, ni, pm, rawInnings);
-                  // Swap back so the new batter is at non-striker
-                  const tmpIdx2 = newState.strikerIdx;
-                  newState.strikerIdx = newState.nonStrikerIdx;
-                  newState.nonStrikerIdx = tmpIdx2;
-                  const tmpName2 = newState.strikerName;
-                  newState.strikerName = newState.nonStrikerName;
-                  newState.nonStrikerName = tmpName2;
-                }
-              }
-            }
+            if (retireId) retireOut(newState, ni, pm, rawInnings, retireId);
           }
         }
       }
@@ -1864,7 +1932,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     // ── Strategic Timeout (between overs) ───────────────────────────
     // IPL rule: bowling team calls timeout in overs 6-9, batting team in overs 13-16
     if (newState.status !== "waiting_for_decision" &&
-        newState.overs < maxOvers && newState.wickets < 10 &&
+        newState.overs < maxOvers && newState.wickets < 10 && !ni.allOut &&
         !(isSecondInnings && newState.score >= target)) {
       const completedOver = newState.overs; // overs just completed (1-indexed after increment)
       const isUserBattingTO = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
@@ -1925,7 +1993,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
 
     // Pick next bowler if innings continues (and no pending batter/retire/timeout decision)
     if (newState.status !== "waiting_for_decision" &&
-        newState.overs < maxOvers && newState.wickets < 10 &&
+        newState.overs < maxOvers && newState.wickets < 10 && !ni.allOut &&
         !(isSecondInnings && newState.score >= target)) {
       const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
 
@@ -1998,6 +2066,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   // Check for innings end conditions
   const inningsEnded =
     newState.wickets >= 10 ||
+    !!ni.allOut ||
     newState.overs >= maxOvers ||
     (isSecondInnings && newState.score >= target);
 
@@ -2020,12 +2089,11 @@ function bringInNextBatter(
   ni: MatchStateInternal,
   pm: Record<string, SerializedPlayer>,
   rawInnings: InningsScoreRaw,
+  idx: number = state.nextBatterIdx,
 ): void {
-  const nextBatterId = ni.battingOrderIds[state.nextBatterIdx];
+  const nextBatterId = ni.battingOrderIds[idx];
   const nextBatter = pm[nextBatterId];
-  state.strikerIdx = state.nextBatterIdx;
-  state.nextBatterIdx++;
-  state.strikerName = nextBatter.name;
+  if (idx === state.nextBatterIdx) state.nextBatterIdx++;
 
   // Auto-apply per-batter aggression preset
   const batterAggrPreset = ni.batterAggression?.[nextBatterId];
@@ -2034,7 +2102,8 @@ function bringInNextBatter(
     else state.aggression.away = batterAggrPreset;
   }
 
-  if (!state.batterStats.find(b => b.playerId === nextBatterId)) {
+  const existing = state.batterStats.find(b => b.playerId === nextBatterId);
+  if (!existing) {
     state.batterStats.push({
       playerId: nextBatterId,
       playerName: nextBatter.name,
@@ -2045,11 +2114,210 @@ function bringInNextBatter(
       isOut: false,
       howOut: "not out",
     });
+  } else if (existing.retiredHurt) {
+    // A retired-hurt batter resumes his innings
+    existing.retiredHurt = false;
+    existing.howOut = "not out";
   }
 
   if (!rawInnings.batterStats[nextBatterId]) {
     rawInnings.batterStats[nextBatterId] = { runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false };
   }
+  syncBatterNames(state, ni);
+}
+
+/** strikerName / nonStrikerName follow the indices into the batting order */
+function syncBatterNames(state: MatchState, ni: MatchStateInternal): void {
+  const pm = ni.playerDataMap;
+  state.strikerName = pm[ni.battingOrderIds[state.strikerIdx]]?.name ?? state.strikerName;
+  state.nonStrikerName = pm[ni.battingOrderIds[state.nonStrikerIdx]]?.name ?? state.nonStrikerName;
+}
+
+function swapStrike(state: MatchState): void {
+  const t = state.strikerIdx; state.strikerIdx = state.nonStrikerIdx; state.nonStrikerIdx = t;
+  const n = state.strikerName; state.strikerName = state.nonStrikerName; state.nonStrikerName = n;
+}
+
+/** Whose turn is it to come in: a retired-hurt batter if he is fit (index into the order), else the next in the order, else none */
+function nextBatterToCrease(state: MatchState, ni: MatchStateInternal, rng: RNG): number {
+  const hurt = ni.retiredHurtIdx ?? [];
+  if (hurt.length > 0 && rng() < retireParams().returnProb) return hurt.shift()!;
+  if (state.nextBatterIdx < ni.battingOrderIds.length) return state.nextBatterIdx;
+  return -1;
+}
+
+/**
+ * After a dismissal: the incoming batter takes the dismissed batter's end. Who faces next follows the Laws as the
+ * data has them (a catch: the new batter, whether or not they crossed; a run out: the end where it happened).
+ * The index the incoming batter will have is known now (a user's pick reorders the batting order but keeps the
+ * index), so the batters can be put at their ends at once and the end-of-over change applies on top.
+ */
+function afterWicket(
+  state: MatchState,
+  ni: MatchStateInternal,
+  pm: Record<string, SerializedPlayer>,
+  rawInnings: InningsScoreRaw,
+  survivorIdx: number,
+  newBatterFaces: boolean,
+): void {
+  const rng = ni.rng;
+  // A batter can be timed out on arrival (three minutes without being ready); the next one then comes in
+  for (;;) {
+    if (state.wickets >= 10) { ni.allOut = true; return; }
+    const idx = nextBatterToCrease(state, ni, rng);
+    if (idx < 0) { ni.allOut = true; return; }
+    if (idx === state.nextBatterIdx && rng() < retireParams().timedOutPerWicket) {
+      const id = ni.battingOrderIds[idx];
+      state.nextBatterIdx++;
+      state.wickets++;
+      rawInnings.wickets++;
+      state.batterStats.push({ playerId: id, playerName: pm[id].name, runs: 0, balls: 0, fours: 0, sixes: 0, isOut: true, howOut: dismissalText({ kind: "timed_out" }) });
+      rawInnings.batterStats[id] = { runs: 0, balls: 0, fours: 0, sixes: 0, isOut: true };
+      const fow = `${state.score}/${state.wickets} (${state.overs}.${ni.currentOverLegalBalls} ov)`;
+      state.fallOfWickets.push(fow);
+      state.batterStats[state.batterStats.length - 1].fallOfWicket = fow;
+      continue;
+    }
+    if (newBatterFaces) { state.strikerIdx = idx; state.nonStrikerIdx = survivorIdx; }
+    else { state.strikerIdx = survivorIdx; state.nonStrikerIdx = idx; }
+
+    const isUserBatting = ni.userTeamId !== null && state.battingTeamId === ni.userTeamId;
+    const returning = idx !== state.nextBatterIdx;
+    const remaining = ni.battingOrderIds.length - state.nextBatterIdx;
+    if (!returning && isUserBatting && remaining > 1) {
+      // The user chooses who comes in (and may bring on the impact player)
+      const options = ni.battingOrderIds.slice(state.nextBatterIdx);
+      const optionDetails: PendingDecisionOption[] = options.map(id => {
+        const p = pm[id];
+        return {
+          playerId: id, playerName: p.name, role: p.role, battingOvr: p.battingOvr, bowlingOvr: p.bowlingOvr, overall: p.overall,
+          battingHand: p.battingHand, battingIQRating: p.ratings.battingIQ, timingRating: p.ratings.timing, powerRating: p.ratings.power,
+        };
+      });
+      const isHome = state.battingTeamId === state.homeTeam.id;
+      const subUsed = isHome ? state.impactSubUsed.home : state.impactSubUsed.away;
+      if (!subUsed && ni.rules.impactPlayer) {
+        for (const benchId of (isHome ? ni.homeBenchIds : ni.awayBenchIds)) {
+          const bp = pm[benchId];
+          if (bp) {
+            options.push(benchId);
+            optionDetails.push({
+              playerId: benchId, playerName: bp.name, role: bp.role, battingOvr: bp.battingOvr, bowlingOvr: bp.bowlingOvr, overall: bp.overall,
+              battingHand: bp.battingHand, battingIQRating: bp.ratings.battingIQ, timingRating: bp.ratings.timing, powerRating: bp.ratings.power, isBench: true,
+            });
+          }
+        }
+      }
+      state.pendingDecision = { type: 'choose_batter', options, teamId: state.battingTeamId, optionDetails };
+      state.status = "waiting_for_decision";
+    } else {
+      bringInNextBatter(state, ni, pm, rawInnings, idx);
+    }
+    return;
+  }
+}
+
+/** A batter leaves hurt: not out, replaced at his end, free to resume at a later wicket */
+function retireHurt(
+  state: MatchState,
+  ni: MatchStateInternal,
+  pm: Record<string, SerializedPlayer>,
+  rawInnings: InningsScoreRaw,
+  strikerHurt: boolean,
+): void {
+  const idx = strikerHurt ? state.strikerIdx : state.nonStrikerIdx;
+  const id = ni.battingOrderIds[idx];
+  const live = state.batterStats.find(b => b.playerId === id);
+  if (live) { live.retiredHurt = true; live.howOut = RETIRED_HURT_TEXT; }
+  if (state.nextBatterIdx >= ni.battingOrderIds.length) {
+    // nobody to replace him: a lone batter cannot continue, the innings is over
+    ni.allOut = true;
+    return;
+  }
+  (ni.retiredHurtIdx ??= []).push(idx);
+  const newIdx = state.nextBatterIdx;
+  if (strikerHurt) state.strikerIdx = newIdx; else state.nonStrikerIdx = newIdx;
+  bringInNextBatter(state, ni, pm, rawInnings, newIdx);
+}
+
+/** A tactical retirement: out of the innings for good (it cannot be undone), but not a wicket */
+function retireOut(
+  state: MatchState,
+  ni: MatchStateInternal,
+  pm: Record<string, SerializedPlayer>,
+  rawInnings: InningsScoreRaw,
+  id: string,
+): void {
+  const live = state.batterStats.find(b => b.playerId === id);
+  if (live) { live.isOut = true; live.howOut = dismissalText({ kind: "retired_out" }); }
+  if (rawInnings.batterStats[id]) rawInnings.batterStats[id].isOut = true;
+  state.retiredOutCount = (state.retiredOutCount ?? 0) + 1;
+  if (state.nextBatterIdx >= ni.battingOrderIds.length) { ni.allOut = true; return; }
+  const newIdx = state.nextBatterIdx;
+  if (ni.battingOrderIds[state.strikerIdx] === id) state.strikerIdx = newIdx;
+  else state.nonStrikerIdx = newIdx;
+  bringInNextBatter(state, ni, pm, rawInnings, newIdx);
+}
+
+/** Extras by type from a raw ball log (old logs carry only outcome + extras) */
+function extrasFromLog(log: readonly BallEvent[]): { wides: number; noBalls: number; legByes: number; byes: number; penalty: number; total: number } {
+  let wides = 0, noBalls = 0, legByes = 0, byes = 0, penalty = 0;
+  for (const b of log) {
+    if (b.wides !== undefined || b.noBalls !== undefined || b.byes !== undefined || b.legByes !== undefined || b.penaltyRuns !== undefined) {
+      wides += b.wides ?? 0; noBalls += b.noBalls ?? 0; legByes += b.legByes ?? 0; byes += b.byes ?? 0; penalty += b.penaltyRuns ?? 0;
+    } else if (b.outcome === "wide") wides += b.extras;
+    else if (b.outcome === "noball") noBalls += b.extras;
+    else if (b.outcome === "legbye") legByes += b.extras;
+  }
+  return { wides, noBalls, legByes, byes, penalty, total: wides + noBalls + legByes + byes + penalty };
+}
+
+/** Runs charged to the bowler on a raw ball (old logs: wides and no-balls carried their extras, legal balls their bat runs) */
+function rawChargedRuns(b: BallEvent): number {
+  if (b.wides !== undefined || b.noBalls !== undefined) return b.runs + (b.wides ?? 0) + (b.noBalls ?? 0);
+  return b.runs + (b.outcome === "wide" || b.outcome === "noball" ? b.extras : 0);
+}
+
+/** A Mankad: the bowler breaks the stumps at the non-striker's end before delivering. A wicket, not a ball. */
+function stepMankad(state: MatchState, bowlerId: string): { state: MatchState; ball: DetailedBallEvent } {
+  const newState = cloneState(state);
+  const ni = newState._internal;
+  const pm = ni.playerDataMap;
+  const raw = ni.currentInningsRaw;
+  const strikerId = ni.battingOrderIds[state.strikerIdx];
+  const nsId = ni.battingOrderIds[state.nonStrikerIdx];
+  const bowlerName = pm[bowlerId].name;
+  const commentary = describeDelivery({
+    detail: { outcome: "wicket", batRuns: 0, wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0, overthrow: 0, dismissal: { kind: "run_out", out: "nonStriker", bowlerCredit: false, newBatterFaces: false } },
+    bowler: bowlerName, batter: pm[strikerId].name, nonStriker: pm[nsId].name, deadBall: true, rng: ni.rng,
+  })!;
+  raw.ballLog.push({
+    over: newState.overs, ball: ni.currentOverLegalBalls, bowler: bowlerId, batter: strikerId, outcome: "wicket", runs: 0, extras: 0,
+    isWicket: true, commentary, wicketType: "run_out", playerOutId: nsId, fielderId: bowlerId, deadBall: true, newBatterFaces: false,
+  });
+  newState.wickets++;
+  raw.wickets++;
+  if (raw.batterStats[nsId]) raw.batterStats[nsId].isOut = true;
+  const live = newState.batterStats.find(b => b.playerId === nsId);
+  if (live) {
+    live.isOut = true;
+    live.howOut = dismissalText({ kind: "run_out", fielder: bowlerName });
+    live.fallOfWicket = `${newState.score}/${newState.wickets} (${newState.overs}.${ni.currentOverLegalBalls} ov)`;
+    newState.fallOfWickets.push(live.fallOfWicket);
+  }
+  const ball: DetailedBallEvent = {
+    over: newState.overs, ball: ni.currentOverLegalBalls, innings: newState.innings, batterName: pm[strikerId].name, bowlerName,
+    runs: 0, extras: 0, eventType: "wicket", wicketType: "run_out", fielderName: bowlerName, commentary,
+    scoreSoFar: newState.score, wicketsSoFar: newState.wickets, playerOutName: pm[nsId].name,
+  };
+  newState.ballLog.push(ball);
+  (newState.innings === 1 ? newState.innings1BallLog : newState.innings2BallLog).push(ball);
+  afterWicket(newState, ni, pm, raw, state.strikerIdx, false);
+  if (newState.wickets >= 10 || ni.allOut) {
+    if (newState.innings === 1) finalizeFirstInningsBreak(newState, ni, raw);
+    else completeMatch(newState);
+  }
+  return { state: newState, ball };
 }
 
 /* ─────────────────── Helper: assign next bowler ─────────────────── */
@@ -2215,6 +2483,7 @@ export function applyDecision(
 
       // Now bring in the batter
       bringInNextBatter(newState, ni, pm, rawInnings);
+      if (ni.deferredOverSwap) { ni.deferredOverSwap = false; swapStrike(newState); }
       break;
     }
 
@@ -2367,6 +2636,8 @@ export function applyDecision(
           // Successful review: overturn to wicket
           lastBall.isWicket = true;
           lastBall.outcome = "wicket";
+          lastBall.wicketType = "lbw";
+          lastBall.newBatterFaces = true;
           lastBall.commentary += " DRS review... OVERTURNED! That's OUT! LBW!";
 
           newState.wickets++;
@@ -2380,7 +2651,7 @@ export function applyDecision(
           if (liveBatter) {
             liveBatter.isOut = true;
             const bowlerName = pm[lastBall.bowler]?.name ?? "unknown";
-            liveBatter.howOut = `lbw b ${bowlerName}`;
+            liveBatter.howOut = dismissalText({ kind: "lbw", bowler: bowlerName });
           }
 
           const overBall = `${newState.overs}.${ni.currentOverLegalBalls}`;
@@ -2393,38 +2664,10 @@ export function applyDecision(
           const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
           if (liveBowler) liveBowler.wickets++;
 
-          if (newState.wickets < 10 && newState.nextBatterIdx < ni.battingOrderIds.length) {
-            const isUserBatting = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
-            const remainingBatters = ni.battingOrderIds.slice(newState.nextBatterIdx);
-            if (isUserBatting && remainingBatters.length > 1) {
-              // Offer batter choice to user after DRS wicket
-              const options = remainingBatters;
-              const optionDetails: PendingDecisionOption[] = remainingBatters.map(id => {
-                const p = pm[id];
-                return {
-                  playerId: id,
-                  playerName: p?.name ?? "Unknown",
-                  role: p?.role ?? "unknown",
-                  battingOvr: p?.battingOvr ?? 0,
-                  bowlingOvr: p?.bowlingOvr ?? 0,
-                  overall: p?.overall ?? 0,
-                  battingHand: p?.battingHand,
-                  battingIQRating: p?.ratings?.battingIQ ?? 50,
-                  timingRating: p?.ratings?.timing ?? 50,
-                  powerRating: p?.ratings?.power ?? 50,
-                };
-              });
-              newState.pendingDecision = {
-                type: 'choose_batter',
-                options,
-                teamId: newState.battingTeamId,
-                optionDetails,
-              };
-              newState.status = "waiting_for_decision";
-            } else {
-              bringInNextBatter(newState, ni, pm, rawInnings);
-            }
-          }
+          // The new batter takes the dismissed striker's slot (which is the non-striker's if the over has since ended)
+          const outSlotIsStriker = ni.battingOrderIds[newState.strikerIdx] === strikerId;
+          const survivor = outSlotIsStriker ? newState.nonStrikerIdx : newState.strikerIdx;
+          afterWicket(newState, ni, pm, rawInnings, survivor, outSlotIsStriker);
 
           syncLatestDetailedBall(newState, {
             eventType: "wicket",
@@ -2451,20 +2694,31 @@ export function applyDecision(
         const shortName = reviewingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
         if (shouldOverturn) {
           // Batter was IN — overturn the run out, restore to not out + 1 run
+          const outId = lastBall.playerOutId ?? lastBall.batter;
+          const priorRuns = lastBall.runs;
+          const newRuns = Math.min(3, priorRuns + 1);
           lastBall.isWicket = false;
-          lastBall.outcome = "1";
-          lastBall.runs = 1;
+          lastBall.outcome = String(newRuns) as BallEvent["outcome"];
+          lastBall.runs = newRuns;
+          lastBall.runsRun = (lastBall.runsRun ?? priorRuns) + 1;
+          lastBall.wicketType = undefined;
+          lastBall.playerOutId = undefined;
+          lastBall.fielderId = undefined;
+          lastBall.fielder2Id = undefined;
+          lastBall.newBatterFaces = undefined;
           lastBall.commentary += ` DRS review... OVERTURNED! Batter was IN! The run counts.`;
 
           newState.wickets--;
           rawInnings.wickets--;
 
-          const strikerId = lastBall.batter;
-          const rawBat = rawInnings.batterStats[strikerId];
-          if (rawBat) { rawBat.isOut = false; rawBat.runs += 1; }
-
-          const liveBatter = newState.batterStats.find(b => b.playerId === strikerId);
-          if (liveBatter) { liveBatter.isOut = false; liveBatter.howOut = "not out"; liveBatter.runs += 1; liveBatter.fallOfWicket = undefined; }
+          const rawOut = rawInnings.batterStats[outId];
+          if (rawOut) rawOut.isOut = false;
+          const liveOut = newState.batterStats.find(b => b.playerId === outId);
+          if (liveOut) { liveOut.isOut = false; liveOut.howOut = "not out"; liveOut.fallOfWicket = undefined; }
+          const rawBat = rawInnings.batterStats[lastBall.batter];
+          if (rawBat) rawBat.runs += 1;
+          const liveBatter = newState.batterStats.find(b => b.playerId === lastBall.batter);
+          if (liveBatter) liveBatter.runs += 1;
 
           // Restore the run
           newState.score += 1;
@@ -2472,17 +2726,17 @@ export function applyDecision(
 
           // Remove the fall of wicket entry
           newState.fallOfWickets.pop();
-
-          const rawBowler = rawInnings.bowlerStats[lastBall.bowler];
-          if (rawBowler) rawBowler.wickets = Math.max(0, rawBowler.wickets - 1);
-          const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
-          if (liveBowler) liveBowler.wickets = Math.max(0, liveBowler.wickets - 1);
+          ni.awaitingBatter = undefined;
+          ni.allOut = false;
+          // one more run run: the ends change if the total is odd
+          if (lastBall.runsRun % 2 === 1) swapStrike(newState);
 
           syncLatestDetailedBall(newState, {
-            eventType: "single",
+            eventType: newRuns === 1 ? "single" : newRuns === 2 ? "double" : "triple",
             wicketType: undefined,
+            playerOutName: undefined,
             commentary: lastBall.commentary,
-            runs: 1,
+            runs: newRuns,
             scoreSoFar: newState.score,
             wicketsSoFar: newState.wickets,
           });
@@ -2514,6 +2768,11 @@ export function applyDecision(
             lastBall.outcome = reviewKind;
             lastBall.extras = 1;
             lastBall.runs = 0;
+            lastBall.runsRun = 0;
+            lastBall.overthrow = undefined;
+            if (reviewKind === "wide") { lastBall.wides = 1; lastBall.noBalls = undefined; }
+            else { lastBall.noBalls = 1; lastBall.wides = undefined; }
+            newState.freeHit = reviewKind === "noball" ? true : newState.freeHit;
             lastBall.commentary = `${drsContext.bowlerName} to ${drsContext.batterName}, ${reviewKind === "wide" ? "no wide says the umpire" : "not called a no ball"}. DRS review... OVERTURNED! That's ${reviewKind === "wide" ? "WIDE" : "NO BALL"}. Add one and rebowl it.`;
 
             ni.currentOverLegalBalls = Math.max(0, ni.currentOverLegalBalls - 1);
@@ -2556,6 +2815,10 @@ export function applyDecision(
             lastBall.outcome = "dot";
             lastBall.extras = 0;
             lastBall.runs = 0;
+            lastBall.runsRun = 0;
+            lastBall.wides = undefined;
+            lastBall.noBalls = undefined;
+            if (reviewKind === "noball") newState.freeHit = undefined;
             lastBall.commentary = `${drsContext.bowlerName} to ${drsContext.batterName}, ${reviewKind === "wide" ? "wide called by the umpire" : "no ball called by the umpire"}. DRS review... OVERTURNED! Fair delivery. Call withdrawn.`;
 
             ni.currentOverLegalBalls++;
@@ -2617,43 +2880,8 @@ export function applyDecision(
         break;
       }
 
-      // Retire the selected batter out (cannot return)
-      const liveBatter = newState.batterStats.find(b => b.playerId === chosenId);
-      if (liveBatter) {
-        liveBatter.isOut = true;
-        liveBatter.howOut = "retired out";
-      }
-      const rawBat = rawInnings.batterStats[chosenId];
-      if (rawBat) rawBat.isOut = true;
-
-      // Retired-out does NOT count as a wicket
-      newState.retiredOutCount = (newState.retiredOutCount ?? 0) + 1;
-
-      // Bring in next batter
-      if (newState.nextBatterIdx < ni.battingOrderIds.length) {
-        const currentStrikerId = ni.battingOrderIds[newState.strikerIdx];
-        const currentNonStrikerId = ni.battingOrderIds[newState.nonStrikerIdx];
-
-        if (chosenId === currentStrikerId) {
-          bringInNextBatter(newState, ni, pm, rawInnings);
-        } else if (chosenId === currentNonStrikerId) {
-          // Non-striker retiring: swap, bring in, swap back
-          const tmpIdx = newState.strikerIdx;
-          newState.strikerIdx = newState.nonStrikerIdx;
-          newState.nonStrikerIdx = tmpIdx;
-          const tmpName = newState.strikerName;
-          newState.strikerName = newState.nonStrikerName;
-          newState.nonStrikerName = tmpName;
-          bringInNextBatter(newState, ni, pm, rawInnings);
-          const tmpIdx2 = newState.strikerIdx;
-          newState.strikerIdx = newState.nonStrikerIdx;
-          newState.nonStrikerIdx = tmpIdx2;
-          const tmpName2 = newState.strikerName;
-          newState.strikerName = newState.nonStrikerName;
-          newState.nonStrikerName = tmpName2;
-        }
-      }
-
+      // Retire the selected batter out (cannot return); he is replaced at his end
+      retireOut(newState, ni, pm, rawInnings, chosenId);
       break;
     }
 
@@ -2695,6 +2923,18 @@ export function applyDecision(
     }
   }
 
+  // A review of a run out (or any dismissal) left the new batter owed: now the wicket stands, send him in
+  if (pending.type === "drs_review" && ni.awaitingBatter) {
+    const w = ni.awaitingBatter;
+    ni.awaitingBatter = undefined;
+    const lastB = rawInnings.ballLog[rawInnings.ballLog.length - 1];
+    if (lastB?.isWicket) {
+      afterWicket(newState, ni, pm, rawInnings, w.survivorIdx, w.newBatterFaces);
+      if (w.swapAfter && newState.status !== "waiting_for_decision") swapStrike(newState);
+      else if (w.swapAfter) ni.deferredOverSwap = true;
+    }
+  }
+
   // A case can chain a new decision (e.g. DRS wicket -> choose_batter): that sets a new
   // pendingDecision object. Otherwise the original one is resolved and must be cleared.
   const chainedDecision = newState.status === "waiting_for_decision" && !!newState.pendingDecision && newState.pendingDecision !== pending;
@@ -2709,7 +2949,7 @@ export function applyDecision(
     }
 
     const inningsEnded =
-      newState.wickets >= 10 ||
+      newState.wickets >= 10 || !!ni.allOut ||
       (newState.innings === 2 && newState.target !== undefined && newState.score >= newState.target);
 
     if (inningsEnded) {
@@ -2905,6 +3145,12 @@ export function startSecondInnings(state: MatchState): MatchState {
   newState.fours = 0;
   newState.sixes = 0;
   newState.fallOfWickets = [];
+
+  newState.freeHit = undefined;
+  ni.allOut = false;
+  ni.awaitingBatter = undefined;
+  ni.retiredHurtIdx = [];
+  ni.unavailableBowlers = [];
 
   // Reset strategic timeouts for the new innings
   newState.strategicTimeouts = {
@@ -3251,13 +3497,7 @@ export function buildDetailedResultFromState(state: MatchState): DetailedMatchRe
       };
     });
 
-  // Calculate extras for innings 2
-  let inn2Wides = 0, inn2NoBalls = 0, inn2LegByes = 0;
-  for (const ball of state.innings2BallLog) {
-    if (ball.eventType === "wide") inn2Wides += ball.extras;
-    else if (ball.eventType === "noball") inn2NoBalls += ball.extras;
-    else if (ball.eventType === "legbye") inn2LegByes += ball.extras;
-  }
+  const ex2 = extrasFromLog(state._internal.currentInningsRaw.ballLog);
 
   const innings2Scorecard: InningsScorecard = {
     battingTeamId: state._internal.bowlingFirstId,
@@ -3270,10 +3510,12 @@ export function buildDetailedResultFromState(state: MatchState): DetailedMatchRe
     batters: inn2Batters,
     bowlers: inn2Bowlers,
     extras: {
-      wides: inn2Wides,
-      noBalls: inn2NoBalls,
-      legByes: inn2LegByes,
-      total: inn2Wides + inn2NoBalls + inn2LegByes,
+      wides: ex2.wides,
+      noBalls: ex2.noBalls,
+      legByes: ex2.legByes,
+      total: ex2.total,
+      ...(ex2.byes > 0 ? { byes: ex2.byes } : {}),
+      ...(ex2.penalty > 0 ? { penalty: ex2.penalty } : {}),
     },
     fallOfWickets: state.fallOfWickets,
   };
@@ -3490,13 +3732,7 @@ function buildLiveInningsScorecard(
       };
     });
 
-  // Calculate extras
-  let wides = 0, noBalls = 0, legByes = 0;
-  for (const ball of rawInnings.ballLog) {
-    if (ball.outcome === "wide") wides += ball.extras;
-    else if (ball.outcome === "noball") noBalls += ball.extras;
-    else if (ball.outcome === "legbye") legByes += ball.extras;
-  }
+  const ex = extrasFromLog(rawInnings.ballLog);
 
   return {
     battingTeamId,
@@ -3509,10 +3745,12 @@ function buildLiveInningsScorecard(
     batters,
     bowlers,
     extras: {
-      wides,
-      noBalls,
-      legByes,
-      total: wides + noBalls + legByes,
+      wides: ex.wides,
+      noBalls: ex.noBalls,
+      legByes: ex.legByes,
+      total: ex.total,
+      ...(ex.byes > 0 ? { byes: ex.byes } : {}),
+      ...(ex.penalty > 0 ? { penalty: ex.penalty } : {}),
     },
     fallOfWickets,
   };
@@ -3552,30 +3790,135 @@ function completeMatch(state: MatchState): void {
     state.winnerId = int.battingFirstId;
     state.result = `${battingFirstName} won by ${inn1Score - inn2Score} runs`;
   } else {
-    // Tie — award to team with more boundaries (fours + sixes)
-    const team1Boundaries = (state.innings1Scorecard?.batters ?? []).reduce(
-      (sum, b) => sum + (b.fours ?? 0) + (b.sixes ?? 0), 0
-    );
-    // batterStats at this point holds innings 2 batters (bowlingFirstId team)
-    const team2Boundaries = state.batterStats
-      .reduce((sum, b) => sum + (b.fours ?? 0) + (b.sixes ?? 0), 0);
-
-    if (team1Boundaries > team2Boundaries) {
-      state.winnerId = int.battingFirstId;
-      state.result = `${battingFirstName} won by boundary count (${team1Boundaries}-${team2Boundaries})`;
-    } else if (team2Boundaries > team1Boundaries) {
-      state.winnerId = int.bowlingFirstId;
-      state.result = `${bowlingFirstName} won by boundary count (${team2Boundaries}-${team1Boundaries})`;
-    } else {
-      // True tie — coin flip
-      state.result = "Match tied";
-      state.winnerId = int.battingFirstId;
-    }
+    // A tie goes to a super over (repeated while it stays tied), or to a boundary count-back under the old rule
+    playLiveSuperOvers(state);
   }
 
   // Calculate man of the match
   state.manOfTheMatch = calculateLiveMOTM(state);
   state.status = "completed";
+}
+
+
+/* ─────────────────── Super over ─────────────────── */
+
+/**
+ * Settle a tied match: one over each, two wickets end an innings, three nominated batters and one bowler per side.
+ * The side that batted second in the match bats first. A bowler of the previous super over cannot bowl again and a
+ * batter dismissed in it cannot bat again. Under "repeated-super-over" the super overs go on until one side wins; under
+ * the old boundary rule the side with more boundaries (the match and the super over together) wins after one.
+ */
+function playLiveSuperOvers(state: MatchState): void {
+  const ni = state._internal;
+  const pm = ni.playerDataMap;
+  const rng = ni.rng;
+  const homeId = state.homeTeam.id;
+  const xiOf = (teamId: string) => (teamId === homeId ? ni.homeXIIds : ni.awayXIIds);
+  const nameOf = (teamId: string) => (teamId === homeId ? state.homeTeam.name : state.awayTeam.name);
+  const gender = genderOf(ni.rules);
+
+  // Boundaries in the match, per team, for the old count-back
+  const boundaries: Record<string, number> = {
+    [ni.battingFirstId]: (state.innings1Scorecard?.batters ?? []).reduce((n, b) => n + (b.fours ?? 0) + (b.sixes ?? 0), 0),
+    [ni.bowlingFirstId]: state.batterStats.reduce((n, b) => n + (b.fours ?? 0) + (b.sixes ?? 0), 0),
+  };
+
+  const rounds: LiveSuperOver[] = [];
+  let first = ni.bowlingFirstId;
+  let prevBowler: Record<string, string> = {};
+  let prevOut: Record<string, Set<string>> = {};
+  let winnerId: string | undefined;
+  let resultText = "";
+
+  const runInnings = (round: number, batId: string, bowlId: string, target: number | undefined): LiveSuperOver & { out: Set<string> } => {
+    const outs = prevOut[batId] ?? new Set<string>();
+    let batPool = xiOf(batId).filter(id => !outs.has(id) && pm[id]);
+    if (batPool.length < 3) batPool = xiOf(batId).filter(id => pm[id]);
+    const batters = [...batPool].sort((a, b) => pm[b].battingOvr - pm[a].battingOvr).slice(0, 3);
+    let bowlPool = xiOf(bowlId).filter(id => id !== prevBowler[bowlId] && pm[id] && pm[id].bowlingOvr > 0);
+    if (bowlPool.length === 0) bowlPool = xiOf(bowlId).filter(id => pm[id]);
+    const bowlerId = [...bowlPool].sort((a, b) => pm[b].bowlingOvr - pm[a].bowlingOvr)[0];
+    const unit = buildFieldingUnit(xiOf(bowlId).map(id => pm[id]).filter(Boolean) as FielderLike[]);
+
+    let runs = 0, wickets = 0, legal = 0, striker = 0, non = 1, next = 2, freeHit = false;
+    const out = new Set<string>();
+    const balls: DetailedBallEvent[] = [];
+    while (legal < 6 && wickets < 2 && !(target !== undefined && runs >= target)) {
+      const bat = pm[batters[striker]];
+      const res = runOneBall(
+        bat, pm[bowlerId], 19, target !== undefined, target ?? 0, runs, 6 - legal, wickets, ni.stadiumRating, 50, "standard",
+        ni.pitchType, ni.boundarySize, ni.dewFactor, 0, 0, legal, 0, rng, batId === homeId, true,
+        ni.venueProfile ?? null, ni.chaseAdvantage, unit, { gender: gender === "female" ? "female" : "male", nonStrikerName: pm[batters[non]]?.name },
+        { freeHit, gender, bench: [], nonStrikerName: pm[batters[non]]?.name },
+      );
+      const d = res.detail;
+      runs += res.runs + res.extras;
+      if (d.legal) legal++;
+      let playerOutName: string | undefined;
+      if (d.dismissal) {
+        wickets++;
+        const outIsNon = d.dismissal.out === "nonStriker";
+        const outBatter = outIsNon ? batters[non] : batters[striker];
+        out.add(outBatter);
+        playerOutName = outIsNon ? pm[batters[non]]?.name : undefined;
+        const survivor = outIsNon ? striker : non;
+        if (next >= batters.length) { striker = survivor; non = survivor; wickets = Math.max(wickets, 2); }
+        else if (d.dismissal.newBatterFaces) { striker = next; non = survivor; next++; }
+        else { striker = survivor; non = next; next++; }
+      } else if (d.runsRun % 2 === 1) {
+        [striker, non] = [non, striker];
+      }
+      freeHit = d.freeHitNext;
+      const ev: DetailedBallEvent["eventType"] = d.dismissal ? "wicket" : res.outcome === "wicket" ? "wicket" :
+        res.outcome === "1" ? "single" : res.outcome === "2" ? "double" : res.outcome === "3" ? "triple" :
+        res.outcome === "4" ? "four" : res.outcome === "6" ? "six" : res.outcome as DetailedBallEvent["eventType"];
+      balls.push({
+        over: 0, ball: legal, innings: 2, batterName: bat.name, bowlerName: pm[bowlerId].name, runs: res.runs, extras: res.extras,
+        eventType: ev, wicketType: d.dismissal?.kind, fielderName: res.fielderName, commentary: res.commentary,
+        scoreSoFar: runs, wicketsSoFar: wickets, ...(playerOutName ? { playerOutName } : {}), ...(freeHit ? { freeHit: true } : {}),
+      });
+    }
+    return {
+      round, battingTeamId: batId, bowlingTeamId: bowlId, runs, wickets: Math.min(wickets, 2), batters, bowler: bowlerId, balls, out,
+    };
+  };
+
+  for (let round = 1; round <= 25; round++) {
+    const second = first === ni.battingFirstId ? ni.bowlingFirstId : ni.battingFirstId;
+    const a = runInnings(round, first, second, undefined);
+    const b = runInnings(round, second, first, a.runs + 1);
+    const { out: oa, ...ra } = a;
+    const { out: ob, ...rb } = b;
+    rounds.push(ra, rb);
+    const sb = (x: LiveSuperOver) => x.balls.filter(e => e.eventType === "four" || e.eventType === "six").length;
+    boundaries[first] += sb(ra);
+    boundaries[second] += sb(rb);
+    const score = `${ra.runs}/${ra.wickets} v ${rb.runs}/${rb.wickets}`;
+    const suffix = round > 1 ? ` after ${round} Super Overs` : "";
+    if (ra.runs !== rb.runs) {
+      winnerId = rb.runs > ra.runs ? second : first;
+      resultText = `${nameOf(winnerId)} won by Super Over (${winnerId === first ? score : `${rb.runs}/${rb.wickets} v ${ra.runs}/${ra.wickets}`})${suffix}`;
+      break;
+    }
+    if (ni.rules.superOverTieBreaker !== "repeated-super-over") {
+      const bf = boundaries[ni.battingFirstId], bs = boundaries[ni.bowlingFirstId];
+      winnerId = bf > bs ? ni.battingFirstId : bs > bf ? ni.bowlingFirstId : ni.battingFirstId;
+      resultText = bf === bs
+        ? `${nameOf(winnerId)} won by Super Over (boundaries level)`
+        : `${nameOf(winnerId)} won by boundary count (${Math.max(bf, bs)}-${Math.min(bf, bs)})`;
+      break;
+    }
+    prevBowler = { [second]: a.bowler, [first]: b.bowler };
+    prevOut = { [first]: oa, [second]: ob };
+    first = second; // the side that batted second goes first next time
+  }
+  if (!winnerId) {
+    winnerId = ni.battingFirstId;
+    resultText = `${nameOf(winnerId)} won by Super Over (25 tied Super Overs)`;
+  }
+  state.superOvers = rounds;
+  state.winnerId = winnerId;
+  state.result = resultText;
 }
 
 function calculateLiveMOTM(state: MatchState): { playerId: string; playerName: string; reason: string } {

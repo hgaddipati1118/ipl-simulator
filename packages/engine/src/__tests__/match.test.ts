@@ -298,9 +298,10 @@ describe("simulateMatch", () => {
     );
 
     for (const inn of result.innings) {
-      const legalBalls = inn.ballLog.filter(ball => ball.outcome !== "wide" && ball.outcome !== "noball").length;
-      const fours = inn.ballLog.filter(ball => ball.outcome === "4").length;
-      const sixes = inn.ballLog.filter(ball => ball.outcome === "6").length;
+      const legalBalls = inn.ballLog.filter(ball => ball.outcome !== "wide" && ball.outcome !== "noball" && !ball.deadBall).length;
+      // a four / six is the bat's boundary (also off a no-ball); overthrow boundaries are not counted
+      const fours = inn.ballLog.filter(ball => ball.boundary === 4).length;
+      const sixes = inn.ballLog.filter(ball => ball.boundary === 6).length;
       const extras = inn.ballLog.reduce((sum, ball) => sum + ball.extras, 0);
 
       expect(legalBalls).toBe(inn.totalBalls);

@@ -26,14 +26,16 @@ export interface MatchFormatSpec {
   powerplayOvers: number;
   /** Balls in an innings */
   totalBalls: number;
+  /** Extras for a no-ball (1 in T20; The Hundred charges 2: 85% of Cricsheet Hundred no-balls cost 2) */
+  noBallPenalty: number;
 }
 
 export const T20_FORMAT: MatchFormatSpec = {
-  id: "t20", overs: 20, ballsPerOver: 6, maxOversPerBowler: 4, maxConsecutiveOvers: 1, powerplayOvers: 6, totalBalls: 120,
+  id: "t20", overs: 20, ballsPerOver: 6, maxOversPerBowler: 4, maxConsecutiveOvers: 1, powerplayOvers: 6, totalBalls: 120, noBallPenalty: 1,
 };
 
 export const HUNDRED_FORMAT: MatchFormatSpec = {
-  id: "hundred", overs: 20, ballsPerOver: 5, maxOversPerBowler: 4, maxConsecutiveOvers: 2, powerplayOvers: 5, totalBalls: 100,
+  id: "hundred", overs: 20, ballsPerOver: 5, maxOversPerBowler: 4, maxConsecutiveOvers: 2, powerplayOvers: 5, totalBalls: 100, noBallPenalty: 2,
 };
 
 export function matchFormatFor(rules: Pick<RuleSet, "matchFormat"> | undefined): MatchFormatSpec {

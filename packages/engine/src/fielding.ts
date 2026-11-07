@@ -27,6 +27,9 @@
 
 import type { BowlingStyle } from "./player.js";
 import type { RNG } from "./rng.js";
+import { MATCH_RULES_DATA as D } from "./match-rules-data.js";
+import { canDismiss, ruleOverrides, type DismissalKind, type Gender } from "./dismissal-kinds.js";
+import { pickRunOutBatter, pickRunOutFielders, pickRunOutRuns } from "./delivery-rules.js";
 
 /** Rating used for a player with no `fielding` value */
 export const NEUTRAL_FIELDING = 50;
@@ -34,7 +37,8 @@ export const NEUTRAL_FIELDING = 50;
 export const DEFAULT_KEEPER_KEEPING = 50;
 export const DEFAULT_NONKEEPER_KEEPING = 25;
 
-export type WicketKind = "bowled" | "caught" | "lbw" | "run_out" | "stumped";
+/** The dismissal kinds a "wicket" draw can produce (timed out and retired out happen between balls) */
+export type WicketKind = Exclude<DismissalKind, "timed_out" | "retired_out">;
 
 /** What happened to a chance, for commentary and the ball log */
 export type FieldingNote = "dropped_catch" | "great_catch" | "missed_stumping" | "run_out_missed" | "direct_hit";
@@ -157,13 +161,12 @@ function conv(kind: keyof typeof CONV, skill: number, pivot: number): number {
 }
 
 /**
- * Share of dismissals by kind (the engine's long-standing mix) and the stumping share by bowler type.
- * Spin takes most stumpings (real T20: ~6% of spin wickets vs ~1.4% of pace wickets, 2.8% overall for men).
+ * Share of dismissals by kind comes from Cricsheet (match-rules-data.ts, per gender), and the stumping share by bowler
+ * type. Spin takes most stumpings (real T20: ~6% of spin wickets vs ~1.4% of pace wickets against 2.8% overall for men):
+ * those ratios scale the data's overall stumped share, the rest of the mix is rescaled to fill the remainder.
  */
-const KIND_SHARE = { caught: 0.55, bowled: 0.20, lbw: 0.15, run_out: 0.07 } as const;
-const KIND_SHARE_TOTAL = 0.97;
-const STUMPED_SHARE = { spin: 0.06, pace: 0.014, other: 0.03 } as const;
-/** Catches taken by the keeper are weighted more than an outfielder's (real: 1.7x each, 15% of all catches) */
+const STUMPED_RATIO = { spin: 6 / 2.8, pace: 1.4 / 2.8, other: 1 } as const;
+/** Catches taken by the keeper are weighted more than an outfielder's (real: 1.7x each, ~17% of all catches) */
 const KEEPER_CATCH_WEIGHT = 1.7;
 
 function isSpinStyle(style: BowlingStyle | undefined): boolean {
@@ -173,23 +176,35 @@ function isPaceStyle(style: BowlingStyle | undefined): boolean {
   return !!style && style !== "unknown" && !isSpinStyle(style);
 }
 
+const NO_CONVERSION: readonly WicketKind[] = ["bowled", "lbw", "hit_wicket", "obstructing_the_field", "handled_the_ball", "hit_the_ball_twice"];
+
+/** Shares of dismissals (sum 1) by kind for a bowler type, before any conversion */
+function kindShares(style: BowlingStyle | undefined, gender: Gender): Record<WicketKind, number> {
+  const mix = D.dismissalMix[gender] as Record<string, number>;
+  const ratio = isSpinStyle(style) ? STUMPED_RATIO.spin : isPaceStyle(style) ? STUMPED_RATIO.pace : STUMPED_RATIO.other;
+  const stumped = Math.min(0.5, mix.stumped * ratio);
+  const rest = (1 - stumped) / (1 - mix.stumped);
+  const out = {} as Record<WicketKind, number>;
+  for (const k of Object.keys(mix) as WicketKind[]) out[k] = k === "stumped" ? stumped : mix[k] * rest;
+  return out;
+}
+
 /** Relative weight of each dismissal kind given the bowler, with chances inflated by 1/conversion */
-function kindWeights(style: BowlingStyle | undefined): Record<WicketKind, number> {
-  const s = isSpinStyle(style) ? STUMPED_SHARE.spin : isPaceStyle(style) ? STUMPED_SHARE.pace : STUMPED_SHARE.other;
-  const rest = (1 - s) / KIND_SHARE_TOTAL;
-  return {
-    caught: KIND_SHARE.caught * rest / CONV.catch.base,
-    bowled: KIND_SHARE.bowled * rest,
-    lbw: KIND_SHARE.lbw * rest,
-    run_out: KIND_SHARE.run_out * rest / CONV.runOut.base,
-    stumped: s / CONV.stump.base,
-  };
+function kindWeights(style: BowlingStyle | undefined, gender: Gender): Record<WicketKind, number> {
+  const sh = kindShares(style, gender);
+  const out = {} as Record<WicketKind, number>;
+  for (const k of Object.keys(sh) as WicketKind[]) {
+    const c = k === "caught" || k === "caught_and_bowled" ? CONV.catch.base : k === "stumped" ? CONV.stump.base : k === "run_out" ? CONV.runOut.base : 1;
+    out[k] = sh[k] / c;
+  }
+  return out;
 }
 
 /** Factor on the base wicket probability so that chances, after average conversion, give the base rate */
-export function chanceInflation(style: BowlingStyle | undefined): number {
-  const w = kindWeights(style);
-  return w.caught + w.bowled + w.lbw + w.run_out + w.stumped;
+export function chanceInflation(style: BowlingStyle | undefined, gender: Gender = "male"): number {
+  let t = 0;
+  for (const v of Object.values(kindWeights(style, gender))) t += v;
+  return t;
 }
 
 // ── Per-ball probability adjustments ────────────────────────────────────
@@ -199,6 +214,7 @@ export function applyFieldingToProbs(
   probs: Record<string, number>,
   unit: FieldingUnit | undefined,
   bowlerStyle: BowlingStyle | undefined,
+  gender: Gender = "male",
 ): void {
   if (unit) {
     const q = unit.quality;
@@ -217,7 +233,7 @@ export function applyFieldingToProbs(
     // mass p*(W-1) of chances put down at average conversion comes back as scoring outcomes (resolveWicketChance
     // resamples them in proportion to the scoring weights), so the scoring weights give up exactly that much.
     // The total weight is unchanged, so nothing else needs rescaling.
-    const W = chanceInflation(bowlerStyle);
+    const W = chanceInflation(bowlerStyle, gender);
     let total = 0;
     for (const v of Object.values(probs)) total += v;
     let scoring = 0;
@@ -242,15 +258,30 @@ export interface FieldingResolution {
   /** The dismissal kind of the chance (even when it was missed: the kind it would have been) */
   kind: WicketKind;
   fielder?: FielderLike;
+  /** Second fielder of a relay run out */
+  fielder2?: FielderLike;
+  /** The fielder is a substitute (a bench player) */
+  substitute?: boolean;
+  /** Run out: which batter and how many runs they had completed */
+  batterOut?: "striker" | "nonStriker";
+  runsCompleted?: number;
   note?: FieldingNote;
 }
 
 const RESAMPLE: ("dot" | "1" | "2" | "3" | "4" | "6")[] = ["dot", "1", "2", "3", "4", "6"];
 
+export interface ResolveOptions {
+  gender?: Gender;
+  /** The ball is a free hit: only run out, obstructing the field, handled the ball and hit the ball twice */
+  freeHit?: boolean;
+  /** Players off the field who can field as substitutes */
+  bench?: readonly FielderLike[];
+}
+
 /**
  * A "wicket" outcome was drawn: decide its kind, who was involved, and whether the chance was taken.
  * `probs` are the (adjusted, unnormalised) ball probabilities, used to resample the outcome of a miss.
- * Draws: kind (1), fielder (1, caught / run-out), conversion (1, caught / stumped / run-out), outcome of a miss (1).
+ * Draws: kind (1), fielder(s) (1-3, caught / run-out), conversion (1, caught / stumped / run-out), outcome of a miss (1).
  */
 export function resolveWicketChance(
   unit: FieldingUnit | undefined,
@@ -258,24 +289,43 @@ export function resolveWicketChance(
   bowlerStyle: BowlingStyle | undefined,
   probs: Record<string, number>,
   rng: RNG,
+  opts: ResolveOptions = {},
 ): FieldingResolution {
-  const w = kindWeights(bowlerStyle);
-  const total = w.caught + w.bowled + w.lbw + w.run_out + w.stumped;
-  let r = rng() * total;
-  let kind: WicketKind = "stumped";
-  for (const k of ["caught", "bowled", "lbw", "run_out", "stumped"] as const) {
-    r -= w[k];
-    if (r <= 0) { kind = k; break; }
+  const gender = opts.gender ?? "male";
+  const freeHit = !!opts.freeHit;
+  const o = ruleOverrides();
+  let w: Record<string, number> = kindWeights(bowlerStyle, gender);
+  if (freeHit) w = { ...D.freeHit.kinds };
+  const kinds = Object.keys(w).filter(k => canDismiss(k as WicketKind, "legal", freeHit)) as WicketKind[];
+  let kind: WicketKind;
+  if (o.forceKind && canDismiss(o.forceKind, "legal", freeHit) && o.forceKind !== "timed_out" && o.forceKind !== "retired_out") {
+    kind = o.forceKind;
+  } else {
+    const total = kinds.reduce((a, k) => a + w[k], 0);
+    let r = rng() * total;
+    kind = kinds[kinds.length - 1];
+    for (const k of kinds) { r -= w[k]; if (r <= 0) { kind = k; break; } }
   }
-  if (kind === "bowled" || kind === "lbw") return { outcome: "wicket", kind };
+  if ((NO_CONVERSION as readonly string[]).includes(kind)) {
+    // Obstructing, handled and hit twice are a batter's own act; hit wicket the batter's. No fielder involved.
+    return { outcome: "wicket", kind };
+  }
 
   let fielder: FielderLike | undefined;
+  let fielder2: FielderLike | undefined;
+  let substitute = false;
   let skill = TEAM_FIELDING_PIVOT;
   let pivot = TEAM_FIELDING_PIVOT;
   let convKind: keyof typeof CONV = "catch";
+  let batterOut: "striker" | "nonStriker" | undefined;
+  let runsCompleted: number | undefined;
   if (kind === "caught") {
     const pool = (unit?.fielders ?? []).filter(p => p.id !== bowlerId);
-    if (pool.length > 0) {
+    const sub = opts.bench && opts.bench.length > 0 && rng() < (o.substituteShare ?? D.catchFielders.substituteShare)
+      ? opts.bench[Math.min(opts.bench.length - 1, Math.floor(rng() * opts.bench.length))] : undefined;
+    if (sub) {
+      fielder = sub; substitute = true; skill = fieldingRating(sub);
+    } else if (pool.length > 0) {
       const ws = pool.map(p => (unit!.keeper && p.id === unit!.keeper.id ? KEEPER_CATCH_WEIGHT : 1));
       let x = rng() * ws.reduce((a, b) => a + b, 0);
       fielder = pool[pool.length - 1];
@@ -283,6 +333,9 @@ export function resolveWicketChance(
       if (unit!.keeper && fielder.id === unit!.keeper.id) { skill = keepingRating(fielder); pivot = NEUTRAL_FIELDING; }
       else skill = fieldingRating(fielder);
     }
+  } else if (kind === "caught_and_bowled") {
+    fielder = unit?.fielders.find(p => p.id === bowlerId);
+    if (fielder) skill = fieldingRating(fielder);
   } else if (kind === "stumped") {
     convKind = "stump";
     fielder = unit?.keeper;
@@ -290,29 +343,33 @@ export function resolveWicketChance(
     if (fielder) skill = keepingRating(fielder);
   } else {
     convKind = "runOut";
-    const pool = unit?.fielders ?? [];
-    if (pool.length > 0) {
-      fielder = pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))];
-      skill = fieldingRating(fielder);
-    }
+    runsCompleted = pickRunOutRuns(rng);
+    batterOut = pickRunOutBatter(runsCompleted, false, rng);
+    const f = pickRunOutFielders({ rng, bowlerId, unit });
+    fielder = f.first; fielder2 = f.second;
+    if (fielder) skill = fieldingRating(fielder);
+    if (fielder && unit?.keeper && fielder.id === unit.keeper.id) skill = Math.max(skill, fieldingRating(fielder));
+    const sub = opts.bench && opts.bench.length > 0 && rng() < (o.substituteShare ?? D.catchFielders.substituteShare)
+      ? opts.bench[Math.min(opts.bench.length - 1, Math.floor(rng() * opts.bench.length))] : undefined;
+    if (sub) { fielder = sub; substitute = true; skill = fieldingRating(sub); }
   }
 
   const c = conv(convKind, skill, pivot);
   const u = rng();
   if (u < c) {
     let note: FieldingNote | undefined;
-    if (kind === "caught" && skill >= 72 && u < c * 0.3) note = "great_catch";
+    if ((kind === "caught" || kind === "caught_and_bowled") && skill >= 72 && u < c * 0.3) note = "great_catch";
     else if (kind === "run_out" && skill >= 72 && u < c * 0.4) note = "direct_hit";
-    return { outcome: "wicket", kind, fielder, note };
+    return { outcome: "wicket", kind, fielder, fielder2, substitute: substitute || undefined, batterOut, runsCompleted, note };
   }
 
   // Missed: the batter survives; the ball becomes one of the non-wicket outcomes in proportion to the base mix
-  const entries = RESAMPLE.map(o => [o, Math.max(0, probs[o] ?? 0)] as const);
+  const entries = RESAMPLE.map(o2 => [o2, Math.max(0, probs[o2] ?? 0)] as const);
   const sum = entries.reduce((a, [, p]) => a + p, 0) || 1;
   let y = rng() * sum;
   let outcome: (typeof RESAMPLE)[number] = "dot";
-  for (const [o, p] of entries) { y -= p; if (y <= 0) { outcome = o; break; } }
-  const note: FieldingNote = kind === "caught" ? "dropped_catch" : kind === "stumped" ? "missed_stumping" : "run_out_missed";
+  for (const [oc, p] of entries) { y -= p; if (y <= 0) { outcome = oc; break; } }
+  const note: FieldingNote = kind === "stumped" ? "missed_stumping" : kind === "run_out" ? "run_out_missed" : "dropped_catch";
   return { outcome, kind, fielder, note };
 }
 
