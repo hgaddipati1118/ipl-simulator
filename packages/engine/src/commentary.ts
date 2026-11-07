@@ -6,6 +6,7 @@
  */
 
 import type { RNG } from "./rng.js";
+import { hasCommentaryModel, pickModelCommentary } from "./commentary-model.js";
 
 type BowlingStyleCategory = "pace" | "spin" | "medium" | "unknown";
 
@@ -41,9 +42,32 @@ export interface BallCommentaryParams {
   boundaryShot?: string;
   /** Seeded RNG for deterministic commentary */
   rng?: RNG;
+  /** Batter's hand ("right" | "left"); lets the corpus model pick off-side / leg-side lines that fit */
+  battingHand?: string;
+  /** Women's matches say she/her */
+  gender?: "male" | "female";
+  /** The batter at the other end, for corpus lines that mention them */
+  nonStrikerName?: string;
+  /** Corpus lines already used in this match (keys returned by generateBallCommentaryDetailed); never repeated */
+  usedLines?: Readonly<Record<string, unknown>>;
 }
 
+export interface BallCommentaryResult {
+  text: string;
+  /** Key of the corpus line used (undefined for the built-in lines); remember it in usedLines */
+  key?: string;
+}
+
+const OUTCOME_LABEL: Record<string, string> = {
+  dot: "no run.", "1": "1 run.", "2": "2 runs.", "3": "3 runs.", "4": "FOUR!", "6": "SIX!", wicket: "OUT!",
+  wide: "wide.", noball: "no ball!", legbye: "leg bye.",
+};
+
 export function generateBallCommentary(params: BallCommentaryParams): string {
+  return generateBallCommentaryDetailed(params).text;
+}
+
+export function generateBallCommentaryDetailed(params: BallCommentaryParams): BallCommentaryResult {
   const {
     bowlerName: bowler, batterName: batter, outcome, over, score, wickets,
     isSecondInnings, target, bowlingStyle, batterRuns = 0, batterBalls = 0,
@@ -79,8 +103,24 @@ export function generateBallCommentary(params: BallCommentaryParams): string {
   }
 
   let commentary: string;
+  let lineKey: string | undefined;
 
-  switch (outcome) {
+  // Corpus line (real commentary turned into templates), when a model is loaded and has a fit
+  const picked = hasCommentaryModel() && OUTCOME_LABEL[outcome]
+    ? pickModelCommentary({
+      outcome, wicketType, bowlingStyle, battingHand: params.battingHand, over, ball: params.ball, score, wickets,
+      isSecondInnings, target, gender: params.gender, batterName: batter, bowlerName: bowler, fielderName,
+      nonStrikerName: params.nonStrikerName,
+    }, rng, params.usedLines)
+    : null;
+
+  if (picked) {
+    lineKey = picked.key;
+    commentary = `${prefix}, ${OUTCOME_LABEL[outcome]} ${/[.!?…]$/.test(picked.text) ? picked.text : picked.text + "."}`;
+    if (outcome === "wicket") {
+      commentary = addWicketContext(commentary, batter, batterRuns === 0, batterRuns >= 30, batterRuns >= 40 && batterRuns < 50);
+    }
+  } else switch (outcome) {
     case "dot":
       commentary = generateDotCommentary(prefix, batter, bowler, style, phase, rng);
       break;
@@ -115,7 +155,7 @@ export function generateBallCommentary(params: BallCommentaryParams): string {
       commentary = `${prefix}, no run.`;
   }
 
-  return commentary + milestone + chaseSuffix + powerplaySuffix;
+  return { text: commentary + milestone + chaseSuffix + powerplaySuffix, key: lineKey };
 }
 
 /* ─────────────────── Outcome-specific generators ─────────────────── */
