@@ -131,7 +131,7 @@ export { RULE_PRESETS, DEFAULT_RULES, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_
 export type { RuleSet, LeagueType, ExtraLeagueId, PlayoffFormat, MatchFormatId, GenderOption, PlayerSource, AuctionType } from "./rules.js";
 export {
   ALL_LEAGUES, EXTRA_LEAGUES, LEAGUE_RULE_PRESETS, LEAGUE_SCORING_MULTIPLIER,
-  getLeague, getExtraLeagueTeams, isExtraLeague, isWomenLeague, isOverseasIn,
+  getLeague, getExtraLeagueTeams, isExtraLeague, isWomenLeague, isOverseasIn, teamGender, playerGender,
 } from "./leagues.js";
 export type { LeagueDef, LeagueDefData } from "./leagues.js";
 export { T20_FORMAT, HUNDRED_FORMAT, matchFormatFor, phaseOver } from "./format.js";

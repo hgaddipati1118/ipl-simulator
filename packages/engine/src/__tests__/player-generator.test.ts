@@ -148,3 +148,25 @@ describe("generated players: names", () => {
     expect(shared).toBeLessThan(0.15);
   });
 });
+
+describe("generated women are tagged (combined leagues need it)", () => {
+  it("isFemale on women only, survives a save round trip, and drives playerGender", async () => {
+    const { generatePlayer: gen } = await import("../player-generator.js");
+    const { Player: P } = await import("../player.js");
+    const { playerGender, teamGender } = await import("../leagues.js");
+    const { RULE_PRESETS: R } = await import("../rules.js");
+    const { createRNG: rng } = await import("../rng.js");
+    const w = gen(rng(7), { kind: "regen", gender: "female" });
+    const m = gen(rng(7), { kind: "regen", gender: "male" });
+    expect(w.isFemale).toBe(true);
+    expect(m.isFemale).toBeUndefined();
+    expect(P.fromJSON(w.toJSON()).isFemale).toBe(true);
+    expect("isFemale" in m.toJSON()).toBe(false);
+    const combined = { ...R.modern2026, league: "custom" as const, gender: "combined" as const };
+    expect(playerGender(w, combined)).toBe("female");
+    expect(playerGender({ teamId: "mi-w" }, combined)).toBe("female");
+    expect(playerGender({ teamId: "mi" }, combined)).toBe("male");
+    expect(playerGender({}, R.wpl)).toBe("female");
+    expect(teamGender("mi-w", R.modern2026)).toBe("male"); // a men's league has no women's sides
+  });
+});

@@ -26,7 +26,7 @@ export const realDraftRoomDeps: DraftRoomDeps = {
         players = [];
       }
       const needed = teams.length * Math.min(rules.maxSquadSize, rules.gender === "women" ? 15 : 18);
-      if (players.length < needed * 1.2) players = [...players, ...generatePlayerPool(Math.ceil(needed * 1.5))];
+      if (players.length < needed * 1.2) players = [...players, ...generatePlayerPool(Math.ceil(needed * 1.5), Math.random, rules.gender === "women" ? "female" : "male")];
       players = players.sort((a, b) => b.overall - a.overall).slice(0, Math.max(SEASON_POOL_CAP, Math.ceil(needed * 1.6)));
       return { teams, players, rules };
     }
@@ -41,7 +41,7 @@ export const realDraftRoomDeps: DraftRoomDeps = {
       players = [];
     }
     const needed = teams.length * (league === "wpl" ? 15 : 18);
-    if (players.length < needed * 1.2) players = [...players, ...generatePlayerPool(Math.ceil(needed * 1.5))];
+    if (players.length < needed * 1.2) players = [...players, ...generatePlayerPool(Math.ceil(needed * 1.5), Math.random, league === "wpl" ? "female" : "male")];
     players = players.sort((a, b) => b.overall - a.overall).slice(0, Math.max(SEASON_POOL_CAP, Math.ceil(needed * 1.6)));
     return { teams, players, rules };
   },

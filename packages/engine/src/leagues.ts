@@ -155,3 +155,28 @@ export function isOverseasIn(leagueId: string | undefined, country: string): boo
   if (league.homeCountry === "England") return country !== "England" && country !== "Wales";
   return country !== league.homeCountry;
 }
+
+/** Franchises that field women's sides (WPL, WBBL, The Hundred women): a combined league's women's teams */
+const WOMEN_TEAM_IDS: ReadonlySet<string> = new Set([
+  ...WPL_TEAMS.map(t => t.id),
+  ...EXTRA_LEAGUES.filter(l => l.gender === "women").flatMap(l => l.teams.map(t => t.id)),
+]);
+
+/**
+ * Men's or women's side. In a women's league every team is a women's team and in a men's league none is; in a combined
+ * league (custom rules with gender "combined", men's and women's franchises side by side) it is the franchise's own.
+ */
+export function teamGender(teamId: string | undefined, rules: Pick<RuleSet, "league" | "gender">): "male" | "female" {
+  if (isWomenLeague(rules)) return "female";
+  if (rules.gender === "combined" && teamId && WOMEN_TEAM_IDS.has(teamId)) return "female";
+  return "male";
+}
+
+/**
+ * A player's gender for generation, progression and retirement: female when `Player.isFemale` (generated women, real women
+ * loaded into a combined league), else the league's gender, and in a combined league the gender of the player's team.
+ */
+export function playerGender(p: { isFemale?: boolean; teamId?: string }, rules: Pick<RuleSet, "league" | "gender">): "male" | "female" {
+  if (p.isFemale) return "female";
+  return teamGender(p.teamId, rules);
+}

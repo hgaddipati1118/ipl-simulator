@@ -27,8 +27,8 @@ export function nextPlayerId(): string {
  * Generate a random player. The attributes, role, bowling style and name are sampled from the real joint distribution
  * of rated players (see player-generator.ts); `overrides` replace any field afterwards.
  */
-export function generateRandomPlayer(overrides?: Partial<PlayerData>, rng: RNG = Math.random): Player {
-  const player = generatePlayer(rng, { kind: "pool", age: [18, 37] });
+export function generateRandomPlayer(overrides?: Partial<PlayerData>, rng: RNG = Math.random, gender: "male" | "female" = "male"): Player {
+  const player = generatePlayer(rng, { kind: "pool", age: [18, 37], gender });
   if (overrides) {
     const { ratings, ...rest } = overrides;
     Object.assign(player, rest);
@@ -38,10 +38,10 @@ export function generateRandomPlayer(overrides?: Partial<PlayerData>, rng: RNG =
 }
 
 /** Generate a pool of random players for auction (pass a seeded `rng` for a reproducible pool) */
-export function generatePlayerPool(count: number, rng: RNG = Math.random): Player[] {
+export function generatePlayerPool(count: number, rng: RNG = Math.random, gender: "male" | "female" = "male"): Player[] {
   const players: Player[] = [];
   for (let i = 0; i < count; i++) {
-    players.push(generateRandomPlayer(undefined, rng));
+    players.push(generateRandomPlayer(undefined, rng, gender));
   }
   return players;
 }

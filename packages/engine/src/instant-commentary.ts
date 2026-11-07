@@ -55,8 +55,8 @@ export interface BallCommentaryCue {
 export interface CommentaryCues {
   v: 1;
   gender: Gender;
-  /** bowling style / batting hand by player name */
-  players: Record<string, { s?: string; h?: string }>;
+  /** bowling style / batting hand by player name; f = a woman in a match whose `gender` says men (combined leagues) */
+  players: Record<string, { s?: string; h?: string; f?: 1 }>;
   /** one per entry of detailed.ballLog, same order */
   balls: BallCommentaryCue[];
 }
@@ -103,7 +103,12 @@ export function attachCommentaryCues(result: MatchResult, players: readonly Play
   for (const ev of events) {
     for (const id of [ev.batter, ev.bowler, ev.nonStriker]) {
       const p = id ? byId.get(id) : undefined;
-      if (p && !roster[p.name]) roster[p.name] = { ...(p.bowlingStyle ? { s: p.bowlingStyle } : {}), ...(p.battingHand ? { h: p.battingHand } : {}) };
+      if (p && !roster[p.name]) {
+        roster[p.name] = {
+          ...(p.bowlingStyle ? { s: p.bowlingStyle } : {}), ...(p.battingHand ? { h: p.battingHand } : {}),
+          ...(p.isFemale && gender !== "female" ? { f: 1 as const } : {}),
+        };
+      }
     }
   }
   detailed.commentaryCues = { v: 1, gender, players: roster, balls: events.map(ev => cueFor(ev, name)) };
@@ -188,7 +193,7 @@ export function withModelCommentary(detailed: DetailedMatchResult): DetailedMatc
       target: ball.innings === 2 ? target : undefined,
       bowlingStyle: cues.players[ball.bowlerName]?.s,
       battingHand: cues.players[ball.batterName]?.h,
-      gender: cues.gender,
+      gender: cues.players[ball.batterName]?.f ? "female" : cues.gender,
       batterRuns: bs.runs,
       batterBalls: bs.balls,
       rng,

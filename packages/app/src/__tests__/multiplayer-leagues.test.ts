@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("peerjs", () => ({ default: class MockPeer { on() {} destroy() {} } }));
 
-import { ALL_LEAGUES, EXTRA_LEAGUES, getLeague, isOverseasIn } from "@ipl-sim/engine";
+import { ALL_LEAGUES, EXTRA_LEAGUES, getLeague, isOverseasIn, type ExtraLeagueId } from "@ipl-sim/engine";
 import {
   MULTIPLAYER_LEAGUES, multiplayerAuctionRules, multiplayerLeagueTeams, multiplayerSeasonRules,
 } from "../multiplayer/leagues.js";
@@ -32,9 +32,10 @@ describe("multiplayer league registry", () => {
 
   it("uses the single-player rules and franchises of each league", () => {
     for (const l of EXTRA_LEAGUES) {
-      expect(multiplayerSeasonRules(l.id)).toBe(l.rules);
-      expect(multiplayerAuctionRules(l.id).league).toBe(l.id);
-      expect(multiplayerLeagueTeams(l.id).map(t => t.id)).toEqual(l.teams.map(t => t.id));
+      const id = l.id as ExtraLeagueId;
+      expect(multiplayerSeasonRules(id)).toBe(l.rules);
+      expect(multiplayerAuctionRules(id).league).toBe(l.id);
+      expect(multiplayerLeagueTeams(id).map(t => t.id)).toEqual(l.teams.map(t => t.id));
     }
     expect(multiplayerLeagueTeams("ipl")).toHaveLength(10);
     expect(multiplayerLeagueTeams("wpl")).toHaveLength(5);
@@ -96,7 +97,7 @@ describe("season-draft room", () => {
 describe("Draft Match pools", () => {
   it("has a current-squads pool for every extra league with its overseas cap and grounds", () => {
     for (const l of EXTRA_LEAGUES) {
-      const id = `league:${l.id}` as const;
+      const id = `league:${l.id as ExtraLeagueId}` as const;
       expect(DRAFT_MATCH_POOLS.some(p => p.id === id)).toBe(true);
       const pool = buildDraftMatchPool(id);
       expect(pool.maxOverseasInXI).toBe(l.rules.maxOverseasInXI);

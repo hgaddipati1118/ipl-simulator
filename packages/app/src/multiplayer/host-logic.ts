@@ -7,7 +7,7 @@ import {
   type Player, Team, type RuleSet,
   getBasePrice, getBidIncrement,
   generatePlayerPool, createPlayerFromData,
-  runSeason, isOverseasIn,
+  runSeason, isOverseasIn, isWomenLeague,
 } from "@ipl-sim/engine";
 import { getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
@@ -154,12 +154,17 @@ export class HostGameLogic {
 
     // Generate auction pool
     const poolSize = this.teams.length <= 5 ? 80 : 200;
-    this.auctionPool = generatePlayerPool(poolSize)
+    this.auctionPool = generatePlayerPool(poolSize, Math.random, this.generatedGender())
       .sort((a, b) => b.marketValue - a.marketValue);
 
     this.currentPlayerIdx = 0;
     this.startNextPlayer();
     this.broadcastAuctionState();
+  }
+
+  /** Generated players for this room: women for a women's league (the women's generation model) */
+  private generatedGender(): "male" | "female" {
+    return isWomenLeague(this.rules) ? "female" : "male";
   }
 
   private async startLeagueAuction(): Promise<void> {
@@ -184,7 +189,7 @@ export class HostGameLogic {
     const poolSize = this.teams.length <= 5 ? 80 : 200;
     pool = [...pool].sort((a, b) => b.marketValue - a.marketValue).slice(0, poolSize);
     if (pool.length < poolSize / 2) {
-      const generated = generatePlayerPool(poolSize - pool.length);
+      const generated = generatePlayerPool(poolSize - pool.length, Math.random, this.generatedGender());
       for (const p of generated) p.isInternational = isOverseasIn(league, p.country);
       pool = [...pool, ...generated];
     }
