@@ -11,6 +11,9 @@ packages/
   app/       - React 19 + Vite frontend (team selection, auction, season sim, results)
 ```
 
+Match rules (every dismissal kind, extras, free hits, strike after a wicket, retirements, super overs) are fitted from Cricsheet and documented in
+`docs/RULES-MATCH.md` section 12 (`delivery-rules.ts`, `match-rules-data.ts`, built by `packages/ratings/src/analysis/match-rules.py`).
+
 Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ball text (scraper, templates, engine API: `docs/COMMENTARY.md`;
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).
 

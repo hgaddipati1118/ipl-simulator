@@ -82,6 +82,9 @@ vi.setConfig({ testTimeout: 180000 });
 
 const isLegal = (e: BallEvent) => e.outcome !== "wide" && e.outcome !== "noball" && !e.deadBall;
 
+/** A batter went off (hurt / timed out / retired out) around this ball, which changes who is at the crease */
+const changedPair = (inn: InningsScore, e: BallEvent) => (inn.offBall ?? []).some(o => o.over === e.over && (o.ball === e.ball || o.ball === e.ball - 1));
+
 afterEach(() => setRuleOverrides(null));
 
 function withOverrides<T>(o: RuleOverrides, fn: () => T): T {
@@ -361,7 +364,7 @@ describe("strike after a wicket and runs run", () => {
       for (let i = 0; i < inn.ballLog.length - 1; i++) {
         const e = inn.ballLog[i];
         const next = inn.ballLog[i + 1];
-        if (e.isWicket || e.deadBall || !next || next.over !== e.over || e.runsRun === undefined) continue;
+        if (e.isWicket || e.deadBall || !next || next.over !== e.over || e.runsRun === undefined || next.deadBall || changedPair(inn, e)) continue;
         if (e.runsRun % 2 === 1 && ((e.byes ?? 0) > 0 || (e.legByes ?? 0) > 0 || (e.wides ?? 0) > 1)) {
           sawOddExtra++;
           expect(next.batter).not.toBe(e.batter);
@@ -379,7 +382,7 @@ describe("strike after a wicket and runs run", () => {
     for (const inn of innings(play(100, { seed: 10 }))) {
       for (let i = 0; i < inn.ballLog.length - 1; i++) {
         const e = inn.ballLog[i], next = inn.ballLog[i + 1];
-        if (e.isWicket || next.over !== e.over) continue;
+        if (e.isWicket || next.over !== e.over || e.deadBall || next.deadBall || changedPair(inn, e)) continue;
         const swap = (e.runsRun ?? 0) % 2 === 1;
         // a replacement due to retirement changes the pair, so only compare when nobody left
         if (swap) expect(next.batter).not.toBe(e.batter);
@@ -939,5 +942,28 @@ describe("old results and saves", () => {
         expect(stripped.freeHit).toBeUndefined();
       }
     }
+  });
+});
+
+describe("the generated Cricsheet parameters (match-rules.py -> match-rules-data.ts)", () => {
+  const sum = (o: Readonly<Record<string, number>>) => Object.values(o).reduce((a, b) => a + b, 0);
+  it("are distributions and sensible rates", () => {
+    for (const g of ["male", "female"] as const) {
+      expect(sum(D.dismissalMix[g])).toBeCloseTo(1, 3);
+      expect(sum(D.wide.runs[g])).toBeCloseTo(1, 3);
+      expect(sum(D.byes[g].byeRuns)).toBeCloseTo(1, 2);
+      expect(sum(D.byes[g].legByeRuns)).toBeCloseTo(1, 2);
+      expect((D.noBall.bat[g] as readonly (readonly number[])[]).reduce((s, r) => s + r[3], 0)).toBeGreaterThan(0.99);
+      expect(D.wide.rate[g]).toBeGreaterThan(0.02);
+      expect(D.wide.rate[g]).toBeLessThan(0.08);
+    }
+    expect(sum(D.freeHit.kinds)).toBeCloseTo(1, 3);
+    expect(sum(D.wide.wicketKinds)).toBeCloseTo(1, 2);
+    expect(D.runOut.nonStrikerShare["0"]).toBeGreaterThan(0.4);
+    expect(D.runOut.nonStrikerShare["0"]).toBeLessThan(0.6);
+    // Cricsheet: after a catch the new batter always faces (2022 Laws)
+    expect(D.strike.otherKinds).toBeGreaterThan(0.99);
+    expect(D.freeHit.scoring.six).toBeGreaterThan(2);
+    expect(D.retire.returnProb).toBeLessThan(0.01);
   });
 });

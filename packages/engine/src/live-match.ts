@@ -37,14 +37,13 @@ import {
   dismissalText,
   expandDelivery,
   genderOf,
-  isBowlerWicket,
   retireParams,
   RETIRED_HURT_TEXT,
   type DeliveryDetail,
   type DismissalKind,
   type Gender,
 } from "./delivery-rules.js";
-import { describeDelivery } from "./delivery-text.js";
+import { describeDelivery, retiredHurtLine, retiredOutLine, superOverLine, timedOutLine } from "./delivery-text.js";
 import { T20_FORMAT } from "./format.js";
 import { commentarySeed } from "./commentary-model.js";
 import {
@@ -323,6 +322,8 @@ interface MatchStateInternal {
   allOut?: boolean;
   /** A new batter is owed but a review of the dismissal is still open */
   awaitingBatter?: { survivorIdx: number; newBatterFaces: boolean; swapAfter?: boolean };
+  /** A line about a batter leaving (retired hurt / out, timed out) waiting to be added to the last ball's commentary */
+  pendingNote?: string;
   /** The end-of-over change is owed once the batter owed by a review has been chosen */
   deferredOverSwap?: boolean;
   /** Batting-order indices of batters who retired hurt and may return at a wicket */
@@ -2050,6 +2051,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     }
   }
 
+  flushNote(newState);
   return { state: newState, ball: detailedBall };
 }
 
@@ -2147,6 +2149,7 @@ function afterWicket(
       const fow = `${state.score}/${state.wickets} (${state.overs}.${ni.currentOverLegalBalls} ov)`;
       state.fallOfWickets.push(fow);
       state.batterStats[state.batterStats.length - 1].fallOfWicket = fow;
+      queueNote(ni, timedOutLine(pm[id].name, createRNG(state.score * 31 + state.wickets)));
       continue;
     }
     if (newBatterFaces) { state.strikerIdx = idx; state.nonStrikerIdx = survivorIdx; }
@@ -2200,6 +2203,7 @@ function retireHurt(
   const id = ni.battingOrderIds[idx];
   const live = state.batterStats.find(b => b.playerId === id);
   if (live) { live.retiredHurt = true; live.howOut = RETIRED_HURT_TEXT; }
+  queueNote(ni, retiredHurtLine(pm[id].name, createRNG(state.score * 17 + state.overs)));
   if (state.nextBatterIdx >= ni.battingOrderIds.length) {
     // nobody to replace him: a lone batter cannot continue, the innings is over
     ni.allOut = true;
@@ -2209,6 +2213,20 @@ function retireHurt(
   const newIdx = state.nextBatterIdx;
   if (strikerHurt) state.strikerIdx = newIdx; else state.nonStrikerIdx = newIdx;
   bringInNextBatter(state, ni, pm, rawInnings, newIdx);
+}
+
+/** Queue a line for the commentary of the ball being played (or the one just played) */
+function queueNote(ni: MatchStateInternal, text: string): void {
+  ni.pendingNote = ni.pendingNote ? `${ni.pendingNote} ${text}` : text;
+}
+
+/** Add any queued line to the latest ball's commentary */
+function flushNote(state: MatchState): void {
+  const ni = state._internal;
+  if (!ni.pendingNote) return;
+  const last = getLatestDetailedBall(state);
+  if (last) syncLatestDetailedBall(state, { commentary: `${last.commentary} ${ni.pendingNote}` });
+  ni.pendingNote = undefined;
 }
 
 /** A tactical retirement: out of the innings for good (it cannot be undone), but not a wicket */
@@ -2223,6 +2241,7 @@ function retireOut(
   if (live) { live.isOut = true; live.howOut = dismissalText({ kind: "retired_out" }); }
   if (rawInnings.batterStats[id]) rawInnings.batterStats[id].isOut = true;
   state.retiredOutCount = (state.retiredOutCount ?? 0) + 1;
+  queueNote(ni, retiredOutLine(pm[id].name, createRNG(state.score * 13 + state.overs)));
   if (state.nextBatterIdx >= ni.battingOrderIds.length) { ni.allOut = true; return; }
   const newIdx = state.nextBatterIdx;
   if (ni.battingOrderIds[state.strikerIdx] === id) state.strikerIdx = newIdx;
@@ -2979,6 +2998,7 @@ export function applyDecision(
     }
   }
 
+  flushNote(newState);
   return newState;
 }
 
@@ -3845,7 +3865,8 @@ export function playLiveSuperOvers(state: MatchState): void {
         res.outcome === "4" ? "four" : res.outcome === "6" ? "six" : res.outcome as DetailedBallEvent["eventType"];
       balls.push({
         over: 0, ball: legal, innings: 2, batterName: bat.name, bowlerName: pm[bowlerId].name, runs: res.runs, extras: res.extras,
-        eventType: ev, wicketType: d.dismissal?.kind, fielderName: res.fielderName, commentary: res.commentary,
+        eventType: ev, wicketType: d.dismissal?.kind, fielderName: res.fielderName,
+        commentary: balls.length === 0 && target === undefined ? `${superOverLine(round === 1 ? "start" : "tied", createRNG(round))} ${res.commentary}` : res.commentary,
         scoreSoFar: runs, wicketsSoFar: wickets, ...(playerOutName ? { playerOutName } : {}), ...(freeHit ? { freeHit: true } : {}),
       });
     }

@@ -38,7 +38,7 @@ import {
   type VenueProfile,
 } from "./venues.js";
 import { LEGACY_STADIUM_BOWLING_RATINGS } from "./team.js";
-import { describeDelivery } from "./delivery-text.js";
+import { describeDelivery, retiredHurtLine, retiredOutLine, timedOutLine } from "./delivery-text.js";
 import {
   applyFieldingToProbs,
   buildFieldingUnit,
@@ -55,14 +55,11 @@ import {
   trimRunningRuns,
   SUPER_OVER_CAL,
   applyFreeHitToProbs,
-  batterFaced,
-  bowlerRuns,
   dismissalText,
   expandDelivery,
   genderOf,
   isBowlerWicket,
   retireParams,
-  ruleOverrides,
   RETIRED_HURT_TEXT,
   type DismissalKind,
   type Gender,
@@ -128,6 +125,8 @@ export interface OffBallDismissal {
   ball: number;
   runs: number;
   wickets: number;
+  /** What the commentary says about it */
+  commentary?: string;
 }
 
 export interface ImpactSubEvent {
@@ -857,7 +856,9 @@ function simulateInnings(
   const availBowlingSubs = [...bowlingSubs];
 
   const logOffBall = (playerId: string, kind: OffBallDismissal["kind"], over: number, ball: number) => {
-    offBall.push({ playerId, kind, over, ball, runs: innings.runs, wickets: innings.wickets });
+    const name = battingOrder.find(p => p.id === playerId)?.name ?? playerId;
+    const line = kind === "timed_out" ? timedOutLine : kind === "retired_out" ? retiredOutLine : retiredHurtLine;
+    offBall.push({ playerId, kind, over, ball, runs: innings.runs, wickets: innings.wickets, commentary: line(name, createRNG(over * 100 + ball + innings.runs)) });
   };
 
   /** Next batter to the crease: a retired-hurt batter if fit, else the next in the order; -1 when nobody is left */
