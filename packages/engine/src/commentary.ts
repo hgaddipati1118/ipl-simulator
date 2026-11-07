@@ -6,7 +6,9 @@
  */
 
 import type { RNG } from "./rng.js";
-import { hasCommentaryModel, pickModelCommentary } from "./commentary-model.js";
+import { hasCommentaryModel, pickModelCommentary, type ModelPick } from "./commentary-model.js";
+import type { DeliveryDetail } from "./delivery-rules.js";
+import { describeDelivery } from "./delivery-text.js";
 
 type BowlingStyleCategory = "pace" | "spin" | "medium" | "unknown";
 
@@ -68,6 +70,25 @@ export function generateBallCommentary(params: BallCommentaryParams): string {
 }
 
 export function generateBallCommentaryDetailed(params: BallCommentaryParams): BallCommentaryResult {
+  // Corpus line (real commentary turned into templates), when a model is loaded and has a fit
+  const picked = hasCommentaryModel() && OUTCOME_LABEL[params.outcome]
+    ? pickModelCommentary({
+      outcome: params.outcome, wicketType: params.wicketType, bowlingStyle: params.bowlingStyle, battingHand: params.battingHand,
+      over: params.over, ball: params.ball, score: params.score, wickets: params.wickets,
+      isSecondInnings: params.isSecondInnings, target: params.target, gender: params.gender, batterName: params.batterName,
+      bowlerName: params.bowlerName, fielderName: params.fielderName, nonStrikerName: params.nonStrikerName,
+    }, params.rng ?? Math.random, params.usedLines)
+    : null;
+  return composeBallCommentary(params, picked);
+}
+
+interface ComposeOptions {
+  /** Do not add "a duck for X" / "well set" to a wicket (the striker is not the batter who is out) */
+  noWicketContext?: boolean;
+}
+
+/** Wrap a corpus pick (or, with none, the built-in lines) in the prefix, the outcome label and the milestone / chase / powerplay suffixes */
+function composeBallCommentary(params: BallCommentaryParams, picked: ModelPick | null, opts: ComposeOptions = {}): BallCommentaryResult {
   const {
     bowlerName: bowler, batterName: batter, outcome, over, score, wickets,
     isSecondInnings, target, bowlingStyle, batterRuns = 0, batterBalls = 0,
@@ -105,19 +126,10 @@ export function generateBallCommentaryDetailed(params: BallCommentaryParams): Ba
   let commentary: string;
   let lineKey: string | undefined;
 
-  // Corpus line (real commentary turned into templates), when a model is loaded and has a fit
-  const picked = hasCommentaryModel() && OUTCOME_LABEL[outcome]
-    ? pickModelCommentary({
-      outcome, wicketType, bowlingStyle, battingHand: params.battingHand, over, ball: params.ball, score, wickets,
-      isSecondInnings, target, gender: params.gender, batterName: batter, bowlerName: bowler, fielderName,
-      nonStrikerName: params.nonStrikerName,
-    }, rng, params.usedLines)
-    : null;
-
   if (picked) {
     lineKey = picked.key;
     commentary = `${prefix}, ${OUTCOME_LABEL[outcome]} ${/[.!?…]$/.test(picked.text) ? picked.text : picked.text + "."}`;
-    if (outcome === "wicket") {
+    if (outcome === "wicket" && !opts.noWicketContext) {
       commentary = addWicketContext(commentary, batter, batterRuns === 0, batterRuns >= 30, batterRuns >= 40 && batterRuns < 50);
     }
   } else switch (outcome) {
@@ -156,6 +168,176 @@ export function generateBallCommentaryDetailed(params: BallCommentaryParams): Ba
   }
 
   return { text: commentary + milestone + chaseSuffix + powerplaySuffix, key: lineKey };
+}
+
+/* ─────────────────── Any delivery: the full-Laws entry point ─────────────────── */
+
+export interface DeliveryCommentaryParams {
+  /** The complete delivery (DeliveryDetail from delivery-rules.ts expandDelivery) */
+  detail: DeliveryDetail;
+  bowlerName: string;
+  /** The striker: who played (or missed) the ball. NOT necessarily the batter who is out. */
+  batterName: string;
+  nonStrikerName?: string;
+  /** Catch / stumping / throw. The bowler for a caught and bowled is not needed. */
+  fielderName?: string;
+  /** Second fielder of a relay run out ("A to B") */
+  fielder2Name?: string;
+  /** The fielder is a substitute ("substitute X"); defaults to detail.dismissal.substitute */
+  substitute?: boolean;
+  /** This ball is a free hit: every line says so */
+  freeHit?: boolean;
+  /** No delivery was bowled (a Mankad) */
+  deadBall?: boolean;
+  over: number;
+  /** 1-based legal ball of the over this delivery belongs to */
+  ball: number;
+  score: number;
+  wickets: number;
+  isSecondInnings: boolean;
+  target?: number;
+  bowlingStyle?: string;
+  battingHand?: string;
+  gender?: "male" | "female";
+  batterRuns?: number;
+  batterBalls?: number;
+  boundaryShot?: string;
+  rng?: RNG;
+  /** Corpus lines already used in this match; never repeated */
+  usedLines?: Readonly<Record<string, unknown>>;
+}
+
+type LegacyKind = NonNullable<BallCommentaryParams["wicketType"]>;
+const LEGACY_KINDS: readonly string[] = ["bowled", "caught", "lbw", "run_out", "stumped"];
+
+interface CorpusRoute {
+  outcome: string;
+  wicketType?: string;
+  outNonStriker: boolean;
+  textFilter?: (t: string) => boolean;
+  /** The built-in lines in this file say the right thing when the corpus has no fit */
+  legacy: boolean;
+}
+
+/** A substitute fielder must be named ("substitute X"), so only templates that name the fielder qualify */
+const NAMES_FIELDER = (t: string) => t.includes("{fielder}");
+
+/** Which deliveries the corpus model (and, failing that, the built-in lines) describes fully; null = hand-written lines only */
+function corpusRoute(p: DeliveryCommentaryParams): CorpusRoute | null {
+  const d = p.detail;
+  const dis = d.dismissal;
+  if (d.overthrow || d.penalty) return null;
+  if (dis) {
+    if (d.outcome !== "wicket") return null; // a dismissal on a wide / no-ball
+    const k = dis.kind;
+    const nsOut = dis.out === "nonStriker";
+    if (nsOut && k !== "run_out") return null;
+    if (k === "caught_and_bowled") return { outcome: "wicket", wicketType: k, outNonStriker: false, legacy: false };
+    if (k === "run_out") {
+      if (p.fielder2Name) return null; // two fielders: the hand-written line names both
+      const sub = p.substitute ?? dis.substitute ?? false;
+      return { outcome: "wicket", wicketType: k, outNonStriker: nsOut, legacy: false, textFilter: sub ? NAMES_FIELDER : undefined };
+    }
+    if (k === "bowled" || k === "caught" || k === "lbw" || k === "stumped") {
+      const sub = p.substitute ?? dis.substitute ?? false;
+      return { outcome: "wicket", wicketType: k, outNonStriker: false, legacy: !(k === "caught" && sub), textFilter: k === "caught" && sub ? NAMES_FIELDER : undefined };
+    }
+    return null;
+  }
+  switch (d.outcome) {
+    case "dot": case "1": case "2": case "3": case "4": case "6":
+      return { outcome: d.outcome, outNonStriker: false, legacy: true };
+    case "wide": {
+      if (d.wides !== 1 || d.wideKind === "height") return null;
+      const leg = /\bleg\b/i;
+      return { outcome: "wide", outNonStriker: false, legacy: false, textFilter: d.wideKind === "leg" ? (t) => leg.test(t) : (t) => !/\b(leg|head|height|bouncer)\b/i.test(t) };
+    }
+    case "legbye":
+      return d.byes === 0 && d.legByes === 1 ? { outcome: "legbye", outNonStriker: false, legacy: true } : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The commentary line for ANY delivery the engines can produce: every dismissal kind with the right batter out (a
+ * non-striker run out names the non-striker; the striker played the shot), caught and bowled, substitute and relay
+ * fielders, wides of 1 to 5 by kind, no-balls with their runs and cost, byes / leg byes of 1 to 5, overthrows, penalty
+ * runs, free hits, the Mankad.
+ *
+ * Plain deliveries and the common dismissals draw a corpus line when the model has an unused fitting one (docs/COMMENTARY.md);
+ * everything else, and every case the corpus cannot say truthfully, uses the hand-written lines in delivery-text.ts.
+ * Only the bowler, striker, non-striker and the named fielders are ever mentioned. Uses only `rng` (never the simulation's
+ * stream) and returns the corpus key to remember in `usedLines`.
+ */
+export function generateDeliveryCommentary(p: DeliveryCommentaryParams): BallCommentaryResult {
+  const d = p.detail;
+  const dis = d.dismissal;
+  const rng = p.rng ?? Math.random;
+  const freeHit = !!p.freeHit;
+  const sub = p.substitute ?? dis?.substitute ?? false;
+  const withFreeHit = (r: BallCommentaryResult): BallCommentaryResult =>
+    freeHit && !r.text.startsWith("FREE HIT") ? { ...r, text: "FREE HIT! " + r.text } : r;
+
+  const route = p.deadBall ? null : corpusRoute(p);
+  if (route) {
+    const nsOut = route.outNonStriker;
+    const fielderForLine = dis && dis.kind !== "caught_and_bowled" ? p.fielderName : undefined;
+    const picked = hasCommentaryModel()
+      ? pickModelCommentary({
+        outcome: route.outcome, wicketType: route.wicketType, bowlingStyle: p.bowlingStyle, battingHand: p.battingHand,
+        over: p.over, ball: p.ball, score: p.score, wickets: p.wickets, isSecondInnings: p.isSecondInnings, target: p.target,
+        gender: p.gender, batterName: p.batterName, bowlerName: p.bowlerName, fielderName: fielderForLine,
+        nonStrikerName: p.nonStrikerName, outNonStriker: nsOut, substitute: sub, textFilter: route.textFilter,
+      }, rng, p.usedLines)
+      : null;
+    if (picked || route.legacy) {
+      const wt = route.wicketType && LEGACY_KINDS.includes(route.wicketType) ? (route.wicketType as LegacyKind) : undefined;
+      const base: BallCommentaryParams = {
+        bowlerName: p.bowlerName, batterName: p.batterName, outcome: route.outcome, runs: d.batRuns, over: p.over, ball: p.ball,
+        score: p.score, wickets: p.wickets, isSecondInnings: p.isSecondInnings, target: p.target, bowlingStyle: p.bowlingStyle,
+        batterRuns: p.batterRuns, batterBalls: p.batterBalls, wicketType: wt, fielderName: fielderForLine, boundaryShot: p.boundaryShot,
+        rng, battingHand: p.battingHand, gender: p.gender, nonStrikerName: p.nonStrikerName, usedLines: p.usedLines,
+      };
+      const r = withFreeHit(composeBallCommentary(base, picked, { noWicketContext: nsOut }));
+      // a wide bowled on a free hit leaves the free hit for the next ball
+      return freeHit && d.outcome === "wide" ? { ...r, text: r.text + " The free hit stays for the next ball." } : r;
+    }
+  }
+
+  // Hand-written lines
+  const batter = p.batterName;
+  const batterRuns = p.batterRuns ?? 0;
+  const batterBalls = p.batterBalls ?? 0;
+  let text = describeDelivery({
+    detail: d, bowler: p.bowlerName, batter, nonStriker: p.nonStrikerName, fielder: p.fielderName, fielder2: p.fielder2Name,
+    substitute: sub, freeHit, deadBall: p.deadBall, rng,
+  });
+  if (text === undefined) {
+    // an ordinary delivery nothing above handled (cannot normally happen): the built-in line
+    return withFreeHit(composeBallCommentary({
+      bowlerName: p.bowlerName, batterName: batter, outcome: d.outcome, runs: d.batRuns, over: p.over, ball: p.ball, score: p.score,
+      wickets: p.wickets, isSecondInnings: p.isSecondInnings, target: p.target, bowlingStyle: p.bowlingStyle, batterRuns, batterBalls,
+      rng, battingHand: p.battingHand, gender: p.gender, nonStrikerName: p.nonStrikerName, boundaryShot: p.boundaryShot,
+    }, null));
+  }
+  if (!p.deadBall) {
+    const teamRuns = d.batRuns + d.extras;
+    const strikerOut = !!dis && dis.out === "striker" && dis.kind !== "retired_out" && dis.kind !== "timed_out";
+    if (strikerOut) {
+      const total = batterRuns + d.batRuns;
+      text = addWicketContext(text, batter, total === 0, total >= 30, total >= 40 && total < 50);
+    } else if (!dis) {
+      if (batterRuns + d.batRuns >= 100 && batterRuns < 100) text += ` That's a CENTURY for ${batter}! What an innings!`;
+      else if (batterRuns + d.batRuns >= 50 && batterRuns < 50) text += ` FIFTY for ${batter}! Well-played half-century!`;
+    }
+    if (p.isSecondInnings && p.target && p.target > p.score) {
+      const need = p.target - p.score - teamRuns;
+      if (need > 0 && need <= 30) text += ` Need ${need} more to win.`;
+    }
+    if (d.legal && p.over === 5 && p.ball >= 6) text += ` That's the end of the powerplay, ${p.score + teamRuns}/${p.wickets + (dis ? 1 : 0)} after 6 overs.`;
+  }
+  return { text };
 }
 
 /* ─────────────────── Outcome-specific generators ─────────────────── */

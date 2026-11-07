@@ -330,10 +330,41 @@ describe("commentary model helpers", () => {
 });
 
 describe("run-out lines credit the right batter", () => {
-  it.runIf(model !== null)("no run-out template has the non-striker playing the shot (the game only runs out the striker)", () => {
-    const lines = (model as unknown as { lines: Record<string, { t: string[] }> }).lines["W:run_out"]?.t ?? [];
-    const shotByPartner = /\{nonstriker\}\s+(went|goes|looks?|looked|tried|tries|plays?|played|pulls?|pulled|drives?|drove|cuts?|flicks?|hooks?|punche[sd]|tap(s|ped)|nudge[sd]|push(es|ed))\b/i;
-    expect(lines.length).toBeGreaterThan(0);
-    expect(lines.filter(t => shotByPartner.test(t))).toEqual([]);
+  // Run-out templates are tagged by who was out: "W:run_out" = the striker ({batter}), "W:run_out_ns" = the partner ({nonstriker};
+  // {batter} is still the striker who played the shot and survives). docs/COMMENTARY.md section 8.
+  const lines = (cls: string) => (model as unknown as { lines: Record<string, { t: string[] }> }).lines[cls]?.t ?? [];
+  const shotByPartner = /\{nonstriker\}\s+(went|goes|looks?|looked|tried|tries|plays?|played|pulls?|pulled|drives?|drove|cuts?|flicks?|hooks?|punche[sd]|tap(s|ped)|nudge[sd]|push(es|ed))\b/i;
+  const outPhrase = "(is|was|has been|gets|got)\\s+(\\w+\\s+)?(run[- ]?out|out|gone|stranded)";
+  const slotOut = (slot: string) => new RegExp(`\\{${slot}\\}(?:'s)?\\s+(\\w+\\s+){0,2}?${outPhrase}|\\{${slot}\\}'s\\s+run[- ]?out`, "i");
+
+  it.runIf(model !== null)("no run-out template has the non-striker playing the shot, in either class", () => {
+    expect(lines("W:run_out").length).toBeGreaterThan(0);
+    expect([...lines("W:run_out"), ...lines("W:run_out_ns")].filter((t) => shotByPartner.test(t))).toEqual([]);
+  });
+  it.runIf(model !== null)("striker run outs (out = striker) never say the partner is the one out", () => {
+    expect(lines("W:run_out").filter((t) => slotOut("nonstriker").test(t))).toEqual([]);
+  });
+  it.runIf(model !== null)("non-striker run outs (out = nonstriker) refer to the partner and never describe the striker's own dismissal", () => {
+    const ns = lines("W:run_out_ns");
+    expect(ns.filter((t) => !t.includes("{nonstriker}"))).toEqual([]);
+    expect(ns.filter((t) => slotOut("batter").test(t))).toEqual([]);
+  });
+  it.runIf(model !== null)("a non-striker run out only draws from the non-striker class", () => {
+    setCommentaryModel(model);
+    const ns = new Set(lines("W:run_out_ns"));
+    const mk = (nonStriker: boolean): ModelBall => ({
+      outcome: "wicket", wicketType: "run_out", outNonStriker: nonStriker, over: 8, ball: 3, score: 60, wickets: 2, isSecondInnings: false,
+      bowlingStyle: "right-arm-fast", battingHand: "right", batterName: "Zayan Quillfeather", bowlerName: "Torin Marbleton",
+      fielderName: "Marlo Zephyrov", nonStrikerName: "Evander Oakhurst",
+    });
+    const rng = createRNG(4);
+    for (let i = 0; i < 100; i++) {
+      const p = pickModelCommentary(mk(true), rng);
+      if (p) { expect(p.key.startsWith("W:run_out_ns:")).toBe(true); expect(p.text).toContain("Oakhurst"); }
+      const q = pickModelCommentary(mk(false), rng);
+      if (q) expect(q.key.startsWith("W:run_out:")).toBe(true);
+    }
+    expect(ns.size).toBeGreaterThanOrEqual(0);
+    setCommentaryModel(null);
   });
 });

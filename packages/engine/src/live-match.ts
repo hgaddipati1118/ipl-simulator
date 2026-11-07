@@ -26,7 +26,7 @@ import {
   type MatchPhase,
   type PitchType,
 } from "./matchups.js";
-import { generateBallCommentaryDetailed } from "./commentary.js";
+import { generateDeliveryCommentary } from "./commentary.js";
 import {
   EXTRAS_RATE_CAL,
   trimRunningRuns,
@@ -808,47 +808,24 @@ function runOneBall(
   // Generate rich contextual commentary. It runs on its own seeded stream (derived from the ball's context), so
   // wording never changes how the match plays out, whether or not the corpus model is loaded.
   const commentaryRng = createRNG(commentarySeed(batter.id, bowler.id, over, legalBallInOver, currentScore, wicketsDown, batterRuns, batterBalls, outcome));
-  const plain = isPlainDelivery(detail);
-  let commentary: string;
-  let commentaryKey: string | undefined;
-  if (plain) {
-    const fielderForLine = resolution?.fielder && isWicket ? resolution.fielder : undefined;
-    const generated = generateBallCommentaryDetailed({
-      bowlerName: bowler.name,
-      batterName: batter.name,
-      outcome: isWicket ? "wicket" : outcome,
-      runs,
-      over,
-      ball: legalBallInOver + 1,
-      score: currentScore,
-      wickets: wicketsDown,
-      isSecondInnings,
-      target: isSecondInnings ? target : undefined,
-      bowlingStyle: bowler.bowlingStyle,
-      batterRuns,
-      batterBalls,
-      wicketType: isWicket ? toLegacyKind(wicketType) : undefined,
-      fielderName: fielderForLine?.name,
-      boundaryShot: (outcome === "4" || outcome === "6") ? randomBoundaryShot(runs || (outcome === "4" ? 4 : 6), commentaryRng) : undefined,
-      rng: commentaryRng,
-      battingHand: batter.battingHand,
-      gender: commentaryCtx?.gender,
-      nonStrikerName: commentaryCtx?.nonStrikerName,
-      usedLines: commentaryCtx?.usedLines,
-    });
-    commentary = generated.text;
-    commentaryKey = generated.key;
-  } else {
-    commentary = describeDelivery({
-      detail, bowler: bowler.name, batter: batter.name, nonStriker: rulesCtx.nonStrikerName,
-      fielder: fielderName, fielder2: fielder2Name, substitute: dis?.substitute, freeHit: rulesCtx.freeHit, rng: commentaryRng,
-    }) ?? "";
-  }
+  // Every delivery (dismissal kinds, extras, free hits ...) goes through one entry point: corpus line where it has a fit, hand-written otherwise
+  const generated = generateDeliveryCommentary({
+    detail, bowlerName: bowler.name, batterName: batter.name,
+    nonStrikerName: commentaryCtx?.nonStrikerName ?? rulesCtx.nonStrikerName, fielderName, fielder2Name,
+    substitute: dis?.substitute, freeHit: rulesCtx.freeHit,
+    over, ball: legalBallInOver + 1, score: currentScore, wickets: wicketsDown, isSecondInnings,
+    target: isSecondInnings ? target : undefined, bowlingStyle: bowler.bowlingStyle, battingHand: batter.battingHand,
+    gender: commentaryCtx?.gender, batterRuns, batterBalls,
+    boundaryShot: (outcome === "4" || outcome === "6") ? randomBoundaryShot(runs || (outcome === "4" ? 4 : 6), commentaryRng) : undefined,
+    rng: commentaryRng, usedLines: commentaryCtx?.usedLines,
+  });
+  const commentary = generated.text;
+  const commentaryKey = generated.key;
 
-  const fieldingLine = !isWicket && resolution?.note
-    ? fieldingCommentary(resolution, { batter: batter.name, bowler: bowler.name, runs }, rng)
-    : (isWicket && resolution?.note ? fieldingCommentary(resolution, { batter: batter.name, bowler: bowler.name, runs }, rng) : undefined);
-  if (rulesCtx.freeHit && plain && !commentary.startsWith("FREE HIT")) commentary = "FREE HIT! " + commentary;
+  // A fielding note replaces the line only where it says the right thing (those lines know only the striker, one fielder, no free hit)
+  const noteFits = !isWicket || (dis!.out === "striker" && detail.outcome === "wicket" && !dis!.substitute && !dis!.fielder2Id && (dis!.kind === "caught" || dis!.kind === "run_out"));
+  let fieldingLine = resolution?.note && noteFits ? fieldingCommentary(resolution, { batter: batter.name, bowler: bowler.name, runs }, rng) : undefined;
+  if (fieldingLine && rulesCtx.freeHit && !fieldingLine.startsWith("FREE HIT")) fieldingLine = "FREE HIT! " + fieldingLine;
 
   return {
     outcome: isWicket && outcome !== "wide" && outcome !== "noball" ? "wicket" : outcome,
@@ -865,25 +842,7 @@ function runOneBall(
   };
 }
 
-/** A delivery the corpus / built-in outcome lines describe fully: no extras beyond a single wide or leg bye, no unusual dismissal */
-function isPlainDelivery(d: DeliveryDetail): boolean {
-  if (d.overthrow || d.penalty) return false;
-  if (d.dismissal) {
-    const k = d.dismissal.kind;
-    return d.outcome === "wicket" && d.dismissal.out === "striker" && (k === "bowled" || k === "caught" || k === "lbw" || k === "stumped" || k === "run_out");
-  }
-  switch (d.outcome) {
-    case "wide": return d.wides === 1;
-    case "noball": return false;
-    case "legbye": return d.byes === 0 && d.legByes === 1;
-    default: return true;
-  }
-}
-
-/** The corpus commentary knows five dismissal kinds; the rest use their own wording */
-function toLegacyKind(k: DismissalKind | undefined): "bowled" | "caught" | "lbw" | "run_out" | "stumped" | undefined {
-  return k === "bowled" || k === "caught" || k === "lbw" || k === "run_out" || k === "stumped" ? k : undefined;
-}
+/* (which deliveries the corpus covers and which use hand-written lines is decided in commentary.ts generateDeliveryCommentary) */
 
 /* ─────────────────── Serialization helpers ─────────────────── */
 
