@@ -24,3 +24,12 @@ export type { WPLPlayerData } from "./wpl-players.js";
 
 export { WPL_2025_ROSTERS } from "./wpl-rosters.js";
 export type { WPLRosterPlayer, WPLRoster } from "./wpl-rosters.js";
+
+export {
+  getLeaguePlayers, getLeagueMatchStats, getLeagueSeason, getLeagueRosteredIds, getPoolPlayersForLeague,
+  registerCaPlayerSource, EXTRA_LEAGUE_IDS,
+} from "./league-players.js";
+export type {
+  LeaguePlayerData, LeagueRosterPlayer, LeagueRosterTeam, LeagueRosters, LeagueMatchStats, LeaguePlayerSource, CaPlayerSource, CaPlayerRecord,
+} from "./league-players.js";
+export { LEAGUE_ROSTERS } from "./league-rosters.js";
