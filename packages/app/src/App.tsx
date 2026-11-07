@@ -93,7 +93,7 @@ import {
   type SaveSlotInfo,
 } from "./game-state";
 import { saveState, loadState, clearState } from "./storage";
-import { poolLoader, type ExtendedPlayer } from "./extended-pool";
+import { poolLoader, prepareLeaguePool, type ExtendedPlayer } from "./extended-pool";
 import { saveMatchDetail } from "./match-db";
 
 function ThemeToggle({ resolved, toggle }: { resolved: "light" | "dark"; toggle: () => void }) {
@@ -351,6 +351,7 @@ export default function App() {
         ];
       } catch { extras = []; }
     }
+    await prepareLeaguePool(rules.league);
     const fresh = createGameState(rules, extras);
     setState(fresh);
     refreshSlots();
@@ -684,11 +685,12 @@ export default function App() {
 
 
 
-  const handleNewGame = () => {
+  const handleNewGame = async () => {
     // Don't delete the active slot — just deactivate it
     setActiveSlotId(null);
     setLiveMatchState(null);
     liveMatchIndex.current = -1;
+    await prepareLeaguePool(state.rules.league);
     const fresh = createGameState(state.rules);
     setState(fresh);
     refreshSlots();

@@ -7,8 +7,10 @@
  * Set VITE_POOL_BASE_URL to serve the shards from elsewhere (object storage / CDN) once they outgrow the repo.
  */
 
+import { EXTRA_LEAGUES } from "@ipl-sim/engine";
+import { registerCaPlayerSource } from "@ipl-sim/ratings/dist/league-players.js";
 import {
-  decodeShard, overallsOf, searchPlayers, topActive,
+  decodeShard, overallsOf, searchPlayers, toRealPlayerData, topActive,
   type ExtendedPlayer, type PoolGender, type PoolManifest, type PoolShard, type PoolShardInfo,
 } from "@ipl-sim/ratings/dist/extended-pool.js";
 
@@ -88,3 +90,23 @@ export function createPoolLoader(read: PoolReader = fetchReader()) {
 
 /** The shared loader the app uses */
 export const poolLoader = createPoolLoader();
+
+/**
+ * Before a non-IPL/WPL league game is created: let its squads use the extended pool, so squad players without an
+ * ESPN profile come in as their real CricketArchive record (`ca_<id>`) instead of a generated stand-in. Offline or
+ * on any failure the league keeps its stand-ins.
+ */
+export async function prepareLeaguePool(leagueId: string | undefined, loader = poolLoader): Promise<void> {
+  const league = EXTRA_LEAGUES.find(l => l.id === leagueId);
+  if (!league) return;
+  try {
+    const players = await loader.players(league.gender, ["senior", "tier0"]);
+    const byCa = new Map(players.map(p => [Number(String(p.id).replace(/^ca_/, "")), p]));
+    registerCaPlayerSource(({ ca }) => {
+      const p = byCa.get(ca);
+      return p ? { ...toRealPlayerData(p), id: p.id } : undefined;
+    });
+  } catch {
+    registerCaPlayerSource(null);
+  }
+}
