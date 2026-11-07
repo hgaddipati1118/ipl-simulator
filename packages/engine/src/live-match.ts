@@ -26,7 +26,8 @@ import {
   type MatchPhase,
   type PitchType,
 } from "./matchups.js";
-import { generateBallCommentary } from "./commentary.js";
+import { generateBallCommentaryDetailed } from "./commentary.js";
+import { commentarySeed } from "./commentary-model.js";
 import {
   applyFieldingToProbs,
   buildFieldingUnit,
@@ -276,6 +277,8 @@ interface MatchStateInternal {
   // Seeded RNG for deterministic simulation
   seed: number;
   rng: RNG;
+  /** Corpus commentary lines already used in this match (JSON-safe so it survives state cloning) */
+  commentaryUsed?: Record<string, 1>;
 
   // Playing XIs (player IDs)
   homeXIIds: string[];
@@ -562,7 +565,8 @@ function runOneBall(
   venueProfile: VenueProfile | null = null,
   chaseAdvantage: number | undefined = undefined,
   fieldingUnit?: FieldingUnit,
-): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped"; fielderId?: string; fieldingNote?: FieldingNote } {
+  commentaryCtx?: { gender?: "male" | "female"; nonStrikerName?: string; usedLines?: Readonly<Record<string, unknown>> },
+): { outcome: BallOutcome; runs: number; extras: number; isWicket: boolean; commentary: string; commentaryKey?: string; wicketType?: "bowled" | "caught" | "lbw" | "run_out" | "stumped"; fielderId?: string; fieldingNote?: FieldingNote } {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
 
   // Phase adjustment
@@ -712,8 +716,11 @@ function runOneBall(
   // Wicket type is decided with the dismissal chance (used for DRS logic)
   const wicketType = isWicket ? (resolution?.kind ?? randomWicketType(rng)) : undefined;
 
-  // Generate rich contextual commentary
-  const commentary = generateBallCommentary({
+  // Generate rich contextual commentary. It runs on its own seeded stream (derived from the ball's context), so
+  // wording never changes how the match plays out, whether or not the corpus model is loaded.
+  const commentaryRng = createRNG(commentarySeed(batter.id, bowler.id, over, legalBallInOver, currentScore, wicketsDown, batterRuns, batterBalls, outcome));
+  const fielderForLine = resolution?.fielder && (outcome === "wicket") ? resolution.fielder : undefined;
+  const generated = generateBallCommentaryDetailed({
     bowlerName: bowler.name,
     batterName: batter.name,
     outcome,
@@ -728,9 +735,15 @@ function runOneBall(
     batterRuns,
     batterBalls,
     wicketType,
-    boundaryShot: (outcome === "4" || outcome === "6") ? randomBoundaryShot(runs || (outcome === "4" ? 4 : 6), rng) : undefined,
-    rng,
+    fielderName: fielderForLine?.name,
+    boundaryShot: (outcome === "4" || outcome === "6") ? randomBoundaryShot(runs || (outcome === "4" ? 4 : 6), commentaryRng) : undefined,
+    rng: commentaryRng,
+    battingHand: batter.battingHand,
+    gender: commentaryCtx?.gender,
+    nonStrikerName: commentaryCtx?.nonStrikerName,
+    usedLines: commentaryCtx?.usedLines,
   });
+  const commentary = generated.text;
 
   const fieldingLine = resolution?.note
     ? fieldingCommentary(resolution, { batter: batter.name, bowler: bowler.name, runs }, rng)
@@ -739,6 +752,7 @@ function runOneBall(
   return {
     outcome, runs, extras, isWicket,
     commentary: fieldingLine ?? commentary,
+    commentaryKey: fieldingLine ? undefined : generated.key,
     wicketType,
     fielderId: resolution?.fielder && (isWicket || resolution.note) ? resolution.fielder.id : undefined,
     fieldingNote: resolution?.note,
@@ -1133,12 +1147,19 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     int.venueProfile ?? null,
     int.chaseAdvantage,
     fieldingUnit,
+    {
+      gender: int.rules.gender === "women" ? "female" : "male",
+      nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name,
+      usedLines: int.commentaryUsed,
+    },
   );
 
   // Clone state for mutation
   const newState = cloneState(state);
   const ni = newState._internal;
   const rawInnings = ni.currentInningsRaw;
+  // remember which corpus line this ball used so the same line is not repeated in this match
+  if (result.commentaryKey) (ni.commentaryUsed ??= {})[result.commentaryKey] = 1;
 
   // Build the detailed ball event for the UI
   let eventType: DetailedBallEvent["eventType"];

@@ -172,8 +172,13 @@ export type {
   FieldSetting,
 } from "./live-match.js";
 
-export { generateBallCommentary } from "./commentary.js";
-export type { BallCommentaryParams } from "./commentary.js";
+export { generateBallCommentary, generateBallCommentaryDetailed } from "./commentary.js";
+export type { BallCommentaryParams, BallCommentaryResult } from "./commentary.js";
+export {
+  setCommentaryModel, hasCommentaryModel, getCommentaryModel, loadCommentaryModel, pickModelCommentary,
+  commentaryShortName, bowlerKindIndex, commentarySeed,
+} from "./commentary-model.js";
+export type { CommentaryModelData, ModelBall, ModelPick } from "./commentary-model.js";
 
 export { generatePostMatchNarrative } from "./narrative.js";
 export type { NarrativeEvent, PostMatchNarrativeParams } from "./narrative.js";
