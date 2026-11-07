@@ -33,7 +33,11 @@ OUT_MODEL = ROOT.parent / "app" / "public" / "data" / "commentary-model.json"
 OUT_REPORT = DATA / "model-report.json"
 
 CLASSES = ["dot", "1", "2", "3", "4", "6", "wide", "noball", "legbye"]
-WICKET_KINDS = ["bowled", "caught", "lbw", "run_out", "stumped"]
+WICKET_KINDS = ["bowled", "caught", "lbw", "run_out", "stumped", "caught_bowled"]
+# Run outs are two classes because the template must say WHO was out: "W:run_out" = the striker (the batter who played the
+# ball, slot {batter}), "W:run_out_ns" = the non-striker (the partner, slot {nonstriker}; {batter} is still the striker who
+# played the shot and survives). "W:caught_and_bowled" = the bowler's own catch (no {fielder}).
+RUN_OUT_STRIKER, RUN_OUT_NONSTRIKER, CAUGHT_BOWLED = "W:run_out", "W:run_out_ns", "W:caught_and_bowled"
 BK = ["unknown", "fast", "medium", "offspin", "orthodox", "legspin"]
 PHASES = ["pp", "mid", "death"]
 PRESSURE = ["relaxed", "normal", "tense"]
@@ -76,6 +80,8 @@ KIND_REQUIRE = {  # a wicket line should actually describe how the batter went
     "run_out": re.compile(r"\b(run[- ]out|direct hit|hit the stumps|throw\w*|crease|mix[- ]?up|stump\w*|bails?|backing up|sent back|scramble\w*|short of)\b", re.I),
     "stumped": re.compile(r"\b(stump\w*|bails?|keeper|crease|down the (track|pitch)|dragged|out of (his|her) (ground|crease)|whips?|off the crease|leaves? the crease|advanc\w*)\b", re.I),
 }
+KIND_WORDS["caught_bowled"] = re.compile(r"\b(clean bowled|bowled him|lbw|stumped|run[- ]out|castle\w*|rattle\w*|cartwheel\w*|timber|plumb|pinned|trapped|bails?|stumps?|slip|keeper|boundary|rope)\b", re.I)
+KIND_REQUIRE["caught_bowled"] = re.compile(r"\b(caught|catch\w*|taken|pouch\w*|grabs?|holds?|snaffl\w*|gobbl\w*|hangs? on|swallow\w*|back (to|at) the bowler|returns?|back to|plucks?|clutch\w*|reflex|reacts?|dives?|lunges?|collects?|gathers?|takes? it)\b", re.I)
 LOW_MID_ONLY = re.compile(r"\b(he'd|she'd|he's|she's|he'll|she'll)\b", re.I)
 LEADING_CONJ = re.compile(r"^(and|but|so|then|also|plus|anyway|because|although|though|however|meanwhile|instead|otherwise|or|yet|still|even|just|only|too|either|neither|both|that one|this one)\b", re.I)
 NONWICKET_CONTEXT = re.compile(r"\b(catch\w*|dropp\w*|drops?|put down|misfield\w*|fumbl\w*|overthrow\w*|appeal\w*|edge[sd]? (and|but) (falls|drops)|just short of)\b", re.I)
@@ -129,8 +135,9 @@ class Lexicon:
 def slot_text(text: str, row: dict, lex: Lexicon, reasons: Counter):
     """-> templated text or None."""
     roles = [("batter", row["batter"]), ("bowler", row["bowler"])]
-    if row.get("fielder"):
-        roles.append(("fielder", row["fielder"]))
+    f = row.get("fielder")
+    if f and not (row.get("wk") == "caught_bowled" and f.get("id") == (row["bowler"] or {}).get("id")):
+        roles.append(("fielder", f))
     if row.get("nons") and row["nons"].get("id"):
         roles.append(("nonstriker", row["nons"]))
     # token -> role (ambiguous tokens, shared by several roles, drop the template if they occur)
@@ -372,6 +379,48 @@ def consistent(t: str, oc: str, wk: str | None):
     return False
 
 
+# ----------------------------------------------------------------------------- run-out tagging
+# Who was out decides which slot may carry the dismissal. {batter} is always the striker (who played the ball) and
+# {nonstriker} the partner.
+OUT_PHRASE = r"(is|was|has been|gets|got|ends up|looks to be|is going to be|is adjudged)\s+(\w+\s+)?(run[- ]?out|out|gone|stranded|short|sent back|dismissed|walking)"
+PARTNER_SHOT = re.compile(r"\{nonstriker\}\s+(went|goes|looks?|looked|tried|tries|plays?|played|pulls?|pulled|drives?|drove|cuts?|flicks?|hooks?|punche[sd]|tap(s|ped)|nudge[sd]|push(es|ed)|swings?|swung|slog(s|ged)|swats?|sweeps?|swept|glances?|glanced|clips?|clipped|slashe[sd]|hits?|struck|smashe[sd]|whack(s|ed)|chips?|chipped|works?|worked|steers?|steered|mows?|mowed|launche[sd]|lofts?|lofted|dabs?|dabbed|defends?|defended|blocks?|blocked|edges|edged|misses|missed|beaten)\b", re.I)
+SLOT_OUT = lambda slot: re.compile(r"\{" + slot + r"\}(?:'s)?\s+(?:\w+\s+){0,2}?" + OUT_PHRASE, re.I)
+BATTER_OUT = SLOT_OUT("batter")
+PARTNER_OUT = SLOT_OUT("nonstriker")
+POSS_RUN_OUT = re.compile(r"\{(batter|nonstriker)\}'s\s+(run[- ]?out|dismissal|wicket)", re.I)
+
+
+def run_out_class(r):
+    """The class of a run-out ball by who was out: striker (the batter who faced), non-striker (the partner), or None when unknown"""
+    out_id = r.get("out")
+    if out_id and out_id == (r.get("batter") or {}).get("id"):
+        return RUN_OUT_STRIKER
+    if out_id and out_id == (r.get("nons") or {}).get("id"):
+        return RUN_OUT_NONSTRIKER
+    return None
+
+
+def run_out_tag_ok(t: str, ck: str) -> bool:
+    """A run-out template must be truthful for the end that was out (see RUN_OUT_* above)."""
+    if PARTNER_SHOT.search(t):
+        return False                      # the partner never plays the shot, in either class
+    if re.search(r"\b(from|by|off) the (bowler|keeper|wicketkeeper)\b|\bupstairs\b|\bthird[- ]umpire\b", t, re.I):
+        return False                      # names a particular fielder / a referral: the engine's fielder may be anyone
+    if ck == RUN_OUT_NONSTRIKER:
+        if "{nonstriker}" not in t:
+            return False                  # every non-striker line must refer to the partner
+        if BATTER_OUT.search(t):
+            return False                  # ... and must not describe the striker's own dismissal
+        if re.search(r"\{batter\}'s\s+(run[- ]?out|dismissal|wicket)", t, re.I):
+            return False
+        return True
+    if ck == RUN_OUT_STRIKER:
+        if PARTNER_OUT.search(t) or re.search(r"\{nonstriker\}'s\s+(run[- ]?out|dismissal|wicket)", t, re.I):
+            return False                  # a striker line must not say the partner is the one out
+        return True
+    return True
+
+
 # ----------------------------------------------------------------------------- situation
 def pressure_of(row) -> int:
     rrr = row.get("rrr")
@@ -435,6 +484,10 @@ def main():
 
     def cls_key(r):
         if r["oc"] == "wicket":
+            if r["wk"] == "run_out":
+                return run_out_class(r)
+            if r["wk"] == "caught_bowled":
+                return CAUGHT_BOWLED
             return ("W:" + r["wk"]) if r["wk"] in WICKET_KINDS else None
         return r["oc"] if r["oc"] in CLASSES else None
 
@@ -476,12 +529,6 @@ def main():
         if not ck or not r["text"]:
             continue
         n_text += 1
-        if ck == "W:run_out" and r.get("out") and r["out"] == (r.get("nons") or {}).get("id"):
-            # The non-striker was run out. The game only runs out the striker, and these lines say who played the shot
-            # ("{nonstriker} went for the pull") as well as who was out, so swapping names misattributes the shot:
-            # leave them out.
-            reasons["nonstriker_run_out"] += 1
-            continue
         for t in make_templates(r, lex, args.max_len, reasons):
             if not ck.startswith("W:") and NONWICKET_CONTEXT.search(t):
                 reasons["nonwicket_event_word"] += 1
@@ -489,8 +536,15 @@ def main():
             if not bowler_vocab_ok(t, r["bk"]):
                 reasons["bowler_kind_vocab"] += 1
                 continue
-            if not consistent(t, "wicket" if ck.startswith("W:") else ck, ck[2:] if ck.startswith("W:") else None):
+            kind = {RUN_OUT_NONSTRIKER: "run_out", CAUGHT_BOWLED: "caught_bowled"}.get(ck, ck[2:] if ck.startswith("W:") else None)
+            if not consistent(t, "wicket" if ck.startswith("W:") else ck, kind):
                 reasons["inconsistent_with_outcome"] += 1
+                continue
+            if ck in (RUN_OUT_STRIKER, RUN_OUT_NONSTRIKER) and not run_out_tag_ok(t, ck):
+                reasons["run_out_tag_" + ("nonstriker" if ck == RUN_OUT_NONSTRIKER else "striker")] += 1
+                continue
+            if ck == CAUGHT_BOWLED and "{fielder}" in t:
+                reasons["caught_bowled_fielder_slot"] += 1
                 continue
             key = normalise_key(t)
             slot = by_class[ck].get(key)
@@ -503,7 +557,7 @@ def main():
 
     # ---- cap per class, preferring variety over the tag space, then shrink to the size budget
     TARGET = {"dot": 9000, "1": 7000, "2": 3000, "3": 800, "4": 8000, "6": 7000, "wide": 1200, "noball": 400, "legbye": 700,
-              "W:bowled": 1800, "W:caught": 4500, "W:lbw": 1500, "W:run_out": 700, "W:stumped": 500}
+              "W:bowled": 1800, "W:caught": 4500, "W:lbw": 1500, "W:run_out": 700, "W:run_out_ns": 500, "W:stumped": 500, "W:caught_and_bowled": 400}
 
     def select(cands, cap):
         if len(cands) <= cap:
@@ -532,7 +586,7 @@ def main():
             lines[ck] = {"t": [c[0] for c in sel], "g": [c[1] for c in sel]}
             total += len(sel)
         model = {
-            "v": 1, "dict": {"shot": dicts["shot"], "line": dicts["line"], "len": dicts["len"], "bk": BK, "hand": HANDS, "ph": PHASES, "pr": PRESSURE},
+            "v": 2, "dict": {"shot": dicts["shot"], "line": dicts["line"], "len": dicts["len"], "bk": BK, "hand": HANDS, "ph": PHASES, "pr": PRESSURE},
             "joint": joint, "lines": lines,
             "corpus": {"balls": len(rows), "balls_with_text": n_text, "templates": total},
         }

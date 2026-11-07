@@ -96,6 +96,26 @@ check("spin word on a spinner is accepted", cb.bowler_vocab_ok("Flighted outside
 check("pace word on a spinner is rejected", not cb.bowler_vocab_ok("A yorker at the toes", "legspin"))
 check("neutral line fits anyone", cb.bowler_vocab_ok("Pushed to cover", "unknown"))
 
+# run-out tagging: which end was out
+ro = cb.run_out_tag_ok
+S, NS = cb.RUN_OUT_STRIKER, cb.RUN_OUT_NONSTRIKER
+check("run out classes by who was out", cb.run_out_class({"out": 1, "batter": kohli, "nons": rohit}) == S
+      and cb.run_out_class({"out": 4, "batter": kohli, "nons": rohit}) == NS and cb.run_out_class({"out": 9, "batter": kohli, "nons": rohit}) is None
+      and cb.run_out_class({"out": None, "batter": kohli, "nons": rohit}) is None)
+check("non-striker template: partner is out, the striker played the shot", ro("{batter} pushes to cover and {nonstriker} is run out at the other end", NS))
+check("non-striker template must refer to the partner", not ro("{batter} is run out after a mix-up", NS))
+check("non-striker template must not describe the striker's own dismissal", not ro("{nonstriker} sets off but {batter} is run out", NS) and not ro("{batter}'s run out, {nonstriker} stays", NS))
+check("striker template with the striker out", ro("{batter} is run out after a direct hit from {fielder}", S))
+check("striker template must not say the partner is out", not ro("{batter} drives and {nonstriker} is run out", S) and not ro("{nonstriker}'s run out at the bowler's end", S))
+check("the partner never plays the shot (either class)", not ro("{nonstriker} pulls it to midwicket and {batter} is run out", S) and not ro("{nonstriker} went for the cut and {nonstriker} is run out", NS))
+check("referrals and named fielders are not reusable", not ro("Direct hit from the bowler, {batter} is run out", S) and not ro("{nonstriker} is run out, sent upstairs", NS))
+# caught and bowled: the bowler is the catcher, so the fielder role is dropped (it would make every name ambiguous)
+cb_row = dict(row, bowler=bumrah, fielder=bumrah, wk="caught_bowled", text="")
+cb_t = cb.slot_text("Bumrah takes a sharp return catch off the pull from Kohli", cb_row, lex, Counter())
+check("caught and bowled: bowler slot only", cb_t == "{bowler} takes a sharp return catch off the pull from {batter}")
+check("caught and bowled needs a catch", cb.consistent("Returns to the bowler who holds on", "wicket", "caught_bowled") and not cb.consistent("Clean bowled through the gate", "wicket", "caught_bowled"))
+check("caught and bowled never says slip or keeper", not cb.consistent("Edged and taken by the keeper", "wicket", "caught_bowled"))
+
 # pressure buckets
 check("pressure: steep chase is tense", cb.pressure_of({"inn": 2, "rrr": 13.0, "wkts": 2, "phase": "death"}) == 2)
 check("pressure: easy chase is relaxed", cb.pressure_of({"inn": 2, "rrr": 6.0, "wkts": 1, "phase": "mid"}) == 0)
