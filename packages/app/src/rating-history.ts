@@ -6,7 +6,7 @@
 
 import { calculateOverallRating, projectPlayer, type Player, type ProjectionPoint, type RatingHistoryEntry } from "@ipl-sim/engine";
 
-export type RatingSeries = "overall" | "batting" | "bowling";
+export type RatingSeries = "overall" | "batting" | "bowling" | "fielding" | "keeping";
 
 /** The compact file served at /data/rating-history.json */
 export interface RatingHistoryData {
@@ -17,12 +17,19 @@ export interface RatingHistoryData {
   f?: number[];
   /** CricketArchive id -> [firstYear, bat, bowl, bat, bowl, ...], -1 where there is no rating */
   p: Record<string, number[]>;
+  /** Version 2: CricketArchive id -> [firstYear, fielding, fielding, ...], one single-season (shrunk) rating a year, -1 = none */
+  q?: Record<string, number[]>;
+  /** Version 2: the same for keeping, wicketkeepers only */
+  k?: Record<string, number[]>;
 }
 
 export interface RealSeason {
   year: number;
   bat: number | null;
   bowl: number | null;
+  /** Single-season fielding / keeping (history file version 2); absent in old files */
+  field?: number | null;
+  keep?: number | null;
 }
 
 /** The year the game's first season starts from (ratings are as of the 2026 data) */
@@ -58,11 +65,26 @@ export function isWomanInHistory(data: RatingHistoryData | null, playerId: strin
 export function realSeasonsFor(data: RatingHistoryData | null, playerId: string): RealSeason[] {
   if (!data) return [];
   const ca = caIdOf(data, playerId);
-  const arr = ca === null ? undefined : data.p[String(ca)];
-  if (!arr) return [];
+  if (ca === null) return [];
+  const arr = data.p[String(ca)];
+  const fArr = data.q?.[String(ca)];
+  const kArr = data.k?.[String(ca)];
+  if (!arr && !fArr && !kArr) return [];
+  const at = (a: number[] | undefined, y: number, stride: number, off: number): number | null => {
+    if (!a) return null;
+    const i = 1 + (y - a[0]) * stride + off;
+    if (y < a[0] || i >= a.length) return null;
+    return a[i] >= 0 ? a[i] : null;
+  };
+  const firsts = [arr, fArr, kArr].filter((a): a is number[] => !!a).map(a => a[0]);
+  const lasts = [arr && arr[0] + (arr.length - 1) / 2 - 1, fArr && fArr[0] + fArr.length - 2, kArr && kArr[0] + kArr.length - 2]
+    .filter((y): y is number => typeof y === "number");
   const out: RealSeason[] = [];
-  for (let i = 1; i + 1 < arr.length; i += 2) {
-    out.push({ year: arr[0] + (i - 1) / 2, bat: arr[i] >= 0 ? arr[i] : null, bowl: arr[i + 1] >= 0 ? arr[i + 1] : null });
+  for (let y = Math.min(...firsts); y <= Math.max(...lasts); y++) {
+    const season: RealSeason = { year: y, bat: at(arr, y, 2, 0), bowl: at(arr, y, 2, 1) };
+    if (fArr) season.field = at(fArr, y, 1, 0);
+    if (kArr) season.keep = at(kArr, y, 1, 0);
+    out.push(season);
   }
   return out;
 }
@@ -105,20 +127,41 @@ export interface ChartInput {
   seasonNumber: number;
   ratingHistory: readonly RatingHistoryEntry[];
   /** Current ratings in the game */
-  current: { overall: number; batting: number; bowling: number };
+  current: { overall: number; batting: number; bowling: number; fielding?: number; keeping?: number };
   real: RealSeason[];
   projection: ProjectionPoint[];
 }
 
-function pick(entry: { overall: number; batting: number; bowling: number }, series: RatingSeries): number {
-  return series === "overall" ? entry.overall : series === "batting" ? entry.batting : entry.bowling;
+type Entry = { overall: number; batting: number; bowling: number; fielding?: number; keeping?: number };
+
+function pick(entry: Entry, series: RatingSeries): number | undefined {
+  return series === "overall" ? entry.overall : series === "batting" ? entry.batting : series === "bowling" ? entry.bowling
+    : series === "fielding" ? entry.fielding : entry.keeping;
 }
 
 function realValue(s: RealSeason, series: RatingSeries): number | null {
   if (series === "batting") return s.bat;
   if (series === "bowling") return s.bowl;
+  if (series === "fielding") return s.field ?? null;
+  if (series === "keeping") return s.keep ?? null;
   if (s.bat === null && s.bowl === null) return null;
   return calculateOverallRating(s.bat ?? 0, s.bowl ?? 0);
+}
+
+/** Fielding and keeping seasons are single-season values, shrunk toward 50 but noisy: they are not anchored to the game's rating */
+export function isNoisySeries(series: RatingSeries): boolean {
+  return series === "fielding" || series === "keeping";
+}
+
+/** Which series the chart offers: fielding when the player has the rating or a record of it, keeping only for wicketkeepers */
+export function availableSeries(
+  player: Pick<Player, "isWicketKeeper"> & { ratings: { fielding?: number; keeping?: number } },
+  real: readonly RealSeason[],
+): RatingSeries[] {
+  const out: RatingSeries[] = ["overall", "batting", "bowling"];
+  if (typeof player.ratings.fielding === "number" || real.some(s => s.field !== undefined && s.field !== null)) out.push("fielding");
+  if (player.isWicketKeeper && (typeof player.ratings.keeping === "number" || real.some(s => s.keep !== undefined && s.keep !== null))) out.push("keeping");
+  return out;
 }
 
 /** Assemble the three parts of the chart on one age axis */
@@ -127,10 +170,15 @@ export function buildChartModel(input: ChartInput): ChartModel {
   // The game's first season is played at this age; real seasons before it are placed by calendar year
   const startAge = ratingHistory.length > 0 && ratingHistory[0].age !== undefined ? ratingHistory[0].age : age - (seasonNumber - 1);
 
-  const career: ChartPoint[] = ratingHistory.map((h, i) => ({ age: h.age ?? startAge + i, value: pick(h, series) }));
-  career.push({ age, value: pick(current, series) });
+  // Seasons recorded before the player had the rating (older saves) have no value for fielding / keeping and are skipped
+  const career: ChartPoint[] = [];
+  ratingHistory.forEach((h, i) => {
+    const v = pick(h, series);
+    if (v !== undefined) career.push({ age: h.age ?? startAge + i, value: v });
+  });
+  const nowValue = pick(current, series);
+  if (nowValue !== undefined) career.push({ age, value: nowValue });
 
-  const startValue = career[0].value;
   const realPts: ChartPoint[] = [];
   for (const s of real) {
     if (s.year >= GAME_START_YEAR) continue;
@@ -139,26 +187,32 @@ export function buildChartModel(input: ChartInput): ChartModel {
     realPts.push({ age: startAge - (GAME_START_YEAR - s.year), value: v });
   }
   // Anchor: the latest real season is shown relative to the game's own rating (the game's pipeline differs a little
-  // from the raw per-year ratings), so the line runs into the career without a jump
+  // from the raw per-year ratings), so the line runs into the career without a jump. Not for fielding and keeping:
+  // a single season of those is mostly luck, and the career rating is the shrunk multi-season figure, so the line is
+  // left where the data put it.
   const lastReal = realPts[realPts.length - 1];
-  const shift = lastReal ? Math.round(startValue - lastReal.value) : 0;
+  const shift = lastReal && career.length > 0 && !isNoisySeries(series) ? Math.round(career[0].value - lastReal.value) : 0;
   const shifted = realPts.map(p => ({ age: p.age, value: Math.max(0, Math.min(99, p.value + shift)) }));
 
-  const bandOf = (p: ProjectionPoint) => (series === "overall" ? p.overall : series === "batting" ? p.batting : p.bowling);
-  const now = pick(current, series);
-  const band: ProjectionBandPoint[] = [{ age, p10: now, p25: now, p50: now, p75: now, p90: now, active: 1 }];
-  for (const p of projection) {
-    if (p.active === 0) break;
-    const b = bandOf(p);
-    band.push({ age: p.age, p10: b.p10, p25: b.p25, p50: b.p50, p75: b.p75, p90: b.p90, active: p.active });
+  const bandOf = (p: ProjectionPoint) => (series === "overall" ? p.overall : series === "batting" ? p.batting : series === "bowling" ? p.bowling
+    : series === "fielding" ? p.fielding : p.keeping);
+  const band: ProjectionBandPoint[] = [];
+  if (nowValue !== undefined) {
+    band.push({ age, p10: nowValue, p25: nowValue, p50: nowValue, p75: nowValue, p90: nowValue, active: 1 });
+    for (const p of projection) {
+      if (p.active === 0) break;
+      const b = bandOf(p);
+      if (!b) break;
+      band.push({ age: p.age, p10: b.p10, p25: b.p25, p50: b.p50, p75: b.p75, p90: b.p90, active: p.active });
+    }
   }
 
   const xs = [...shifted.map(p => p.age), ...career.map(p => p.age), ...band.map(p => p.age)];
   const ys = [...shifted.map(p => p.value), ...career.map(p => p.value), ...band.flatMap(p => [p.p10, p.p90])];
-  const lo = Math.min(...ys), hi = Math.max(...ys);
+  const lo = ys.length ? Math.min(...ys) : 40, hi = ys.length ? Math.max(...ys) : 60;
   return {
     series, real: shifted, career, projection: band, shift,
-    xMin: Math.min(...xs), xMax: Math.max(...xs),
+    xMin: xs.length ? Math.min(...xs) : age, xMax: xs.length ? Math.max(...xs) : age + 1,
     yMin: Math.max(0, Math.floor((lo - 3) / 5) * 5), yMax: Math.min(99, Math.ceil((hi + 3) / 5) * 5),
   };
 }

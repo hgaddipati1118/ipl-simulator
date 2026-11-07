@@ -99,6 +99,9 @@ export interface RatingHistoryEntry {
   bowling: number;
   /** Age during that season */
   age?: number;
+  /** Fielding / keeping rating during that season, when the player has one */
+  fielding?: number;
+  keeping?: number;
 }
 
 export interface PlayerProgressReport {
@@ -644,6 +647,8 @@ export class Player implements PlayerData {
       batting: this.battingOvr,
       bowling: this.bowlingOvr,
       age: this.age,
+      ...(typeof this.ratings.fielding === "number" ? { fielding: this.ratings.fielding } : {}),
+      ...(typeof this.ratings.keeping === "number" ? { keeping: this.ratings.keeping } : {}),
     });
     const keep = input?.historyLimit ?? RATING_HISTORY_MAX;
     if (this.ratingHistory.length > keep) this.ratingHistory = this.ratingHistory.slice(-keep);

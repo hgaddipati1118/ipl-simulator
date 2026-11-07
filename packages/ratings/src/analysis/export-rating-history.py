@@ -7,8 +7,12 @@ Format (compact, one array per player):
     "f": [ids of women],                                 so the right progression curves are used in combined leagues
     "p": { "1196767": [firstYear, bat, bowl, bat, bowl, ...] } }   one (bat, bowl) pair of 0-99 ovr per year from
                                                        firstYear to the last year with T20 data, -1 = none
+Version 2 adds "q": { "1196767": [firstYear, fielding, fielding, ...] } (one value per year from the first to the last year with a
+fielding season, -1 = none) and "k": the same for keeping, only for players who kept wicket, each with its own first year. Built by fielding-seasons.py: each season is the 0-99 fielding /
+keeping rating of that calendar year alone, with the same Gamma-Poisson shrinkage and scale as the career ratings (so a thin season sits near
+50 and a single season is noisy). Version 1 files (no "q") are still read by the app.
 Players are those of data/analysis/game_players.json that ca_espn_map.csv maps to a CricketArchive player with T20 rows.
-Run from packages/ratings:  python3 -I src/analysis/export-rating-history.py
+Run from packages/ratings (after fielding-seasons.py):  python3 -I src/analysis/export-rating-history.py
 """
 import csv, json, subprocess, sys
 from collections import defaultdict
@@ -45,11 +49,33 @@ def main():
             arr += [b, w]
         hist[str(pid)] = arr
     ids = {k: v for k, v in ids.items() if str(v) in hist}
+    # fielding and keeping seasons (fielding-seasons.py), by Cricinfo id = the tail of the game id
+    seasons = DATA / "fielding_player_seasons_all.csv"
+    q, k = {}, {}
+    if seasons.exists():
+        by_cinfo = defaultdict(lambda: defaultdict(dict))        # cricinfo id -> cricsheet id -> year -> (f, k)
+        inns = defaultdict(int)
+        for r in csv.DictReader(open(seasons)):
+            by_cinfo[int(r["cricinfo_id"])][r["cricsheet_id"]][int(r["year"])] = (
+                int(r["fielding"]) if r["fielding"] else -1, int(r["keeping"]) if r["keeping"] else -1)
+            inns[(int(r["cricinfo_id"]), r["cricsheet_id"])] += int(r["field_inns"]) + int(r["keep_inns"])
+        for gid, ca in ids.items():
+            tail = gid.split("_")[-1]
+            if not tail.isdigit() or int(tail) not in by_cinfo or str(ca) in q:
+                continue
+            cands = by_cinfo[int(tail)]
+            best = max(cands, key=lambda c: inns[(int(tail), c)])      # a player listed twice keeps the one with more innings
+            ys = cands[best]
+            for idx, store in ((0, q), (1, k)):
+                have = {y: v[idx] for y, v in ys.items() if v[idx] >= 0}
+                if have:
+                    first, last = min(have), max(have)
+                    store[str(ca)] = [first] + [have.get(y, -1) for y in range(first, last + 1)]
     OUT.parent.mkdir(parents=True, exist_ok=True)
     women = sorted({espn_to_ca[int(p["id"].split("_")[-1])] for p in game if p["g"] == "female" and p["id"].split("_")[-1].isdigit()
                     and int(p["id"].split("_")[-1]) in espn_to_ca} & {int(k) for k in hist})
-    OUT.write_text(json.dumps({"v": 1, "ids": ids, "f": women, "p": hist}, separators=(",", ":")))
-    print("wrote", OUT, OUT.stat().st_size // 1024, "KB;", len(hist), "players,", len(ids), "game ids")
+    OUT.write_text(json.dumps({"v": 2, "ids": ids, "f": women, "p": hist, "q": q, "k": k}, separators=(",", ":")))
+    print("wrote", OUT, OUT.stat().st_size // 1024, "KB;", len(hist), "players,", len(ids), "game ids;", len(q), "with fielding,", len(k), "with keeping seasons")
 
 
 if __name__ == "__main__":

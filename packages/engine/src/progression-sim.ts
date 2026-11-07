@@ -28,6 +28,9 @@ export interface ProjectionPoint {
   batting: Band;
   bowling: Band;
   overall: Band;
+  /** Only for players who have the rating (bands over the careers still going) */
+  fielding?: Band;
+  keeping?: Band;
 }
 
 export interface ProjectionOptions {
@@ -69,6 +72,8 @@ export interface CareerSeason {
   batting: number;
   bowling: number;
   overall: number;
+  fielding?: number;
+  keeping?: number;
   /** False from the season after he retires (ratings then stay frozen) */
   active: boolean;
 }
@@ -84,7 +89,11 @@ export function simulateCareer(
   for (let k = 1; k <= seasons; k++) {
     if (active && opts.retirement !== false && rng() < playerRetirementProbability(p, gender)) active = false;
     if (active) p.progress({ rng, gender });
-    out.push({ age: p.age, batting: p.battingOvr, bowling: p.bowlingOvr, overall: p.overall, active });
+    out.push({
+      age: p.age, batting: p.battingOvr, bowling: p.bowlingOvr, overall: p.overall, active,
+      ...(typeof p.ratings.fielding === "number" ? { fielding: p.ratings.fielding } : {}),
+      ...(typeof p.ratings.keeping === "number" ? { keeping: p.ratings.keeping } : {}),
+    });
   }
   return out;
 }
@@ -108,6 +117,9 @@ export function projectPlayer(data: PlayerData, opts: ProjectionOptions = {}): P
       batting: bandOf(live.map(c => c.batting)),
       bowling: bandOf(live.map(c => c.bowling)),
       overall: bandOf(live.map(c => c.overall)),
+      ...(typeof data.ratings.fielding === "number" ? { fielding: bandOf(live.map(c => c.fielding ?? data.ratings.fielding!)) } : {}),
+      // keeping is only projected for a designated keeper (for anyone else no match ever uses it)
+      ...(typeof data.ratings.keeping === "number" && data.isWicketKeeper ? { keeping: bandOf(live.map(c => c.keeping ?? data.ratings.keeping!)) } : {}),
     });
   }
   return points;

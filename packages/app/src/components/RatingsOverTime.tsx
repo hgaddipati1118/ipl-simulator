@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Player, ProjectionPoint } from "@ipl-sim/engine";
 import {
-  buildChartModel, loadRatingHistory, realSeasonsFor, isWomanInHistory, projectionFor, PROJECTION_RUNS, PROJECTION_SEASONS,
+  buildChartModel, availableSeries, isNoisySeries, loadRatingHistory, realSeasonsFor, isWomanInHistory, projectionFor, PROJECTION_RUNS, PROJECTION_SEASONS,
   type RatingHistoryData, type RatingSeries, type ChartModel,
 } from "../rating-history";
 
@@ -24,13 +24,15 @@ interface Props {
   runs?: number;
   /** Supply the history instead of fetching it (tests, or a parent that already has it) */
   historyData?: RatingHistoryData | null;
+  /** Series shown first (default: the player's main discipline) */
+  initialSeries?: RatingSeries;
 }
 
 const W = 640;
 const H = 250;
 const PAD = { l: 34, r: 12, t: 12, b: 28 };
 
-const SERIES_LABEL: Record<RatingSeries, string> = { overall: "Overall", batting: "Batting", bowling: "Bowling" };
+const SERIES_LABEL: Record<RatingSeries, string> = { overall: "Overall", batting: "Batting", bowling: "Bowling", fielding: "Fielding", keeping: "Keeping" };
 
 function pathOf(points: { x: number; y: number }[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
@@ -81,7 +83,7 @@ export function ChartSvg({ model, label }: { model: ChartModel; label: string })
         </>
       )}
       {model.real.length > 0 && (
-        <path d={pathOf([...model.real, model.career[0]].map(p => pt(p.age, p.value)))} fill="none" stroke="#6C8CFF" strokeWidth={2} data-testid="real-history" />
+        <path d={pathOf([...model.real, ...model.career.slice(0, 1)].map(p => pt(p.age, p.value)))} fill="none" stroke="#6C8CFF" strokeWidth={2} data-testid="real-history" />
       )}
       {model.real.map(p => <circle key={`r${p.age}`} cx={x(p.age)} cy={y(p.value)} r={2.5} fill="#6C8CFF" />)}
       {model.career.length > 1 && (
@@ -92,7 +94,7 @@ export function ChartSvg({ model, label }: { model: ChartModel; label: string })
   );
 }
 
-export function RatingsOverTime({ player, seasonNumber, leagueGender, projection: given, seasons = PROJECTION_SEASONS, runs = PROJECTION_RUNS, historyData }: Props) {
+export function RatingsOverTime({ player, seasonNumber, leagueGender, projection: given, seasons = PROJECTION_SEASONS, runs = PROJECTION_RUNS, historyData, initialSeries }: Props) {
   const [fetched, setFetched] = useState<RatingHistoryData | null>(null);
   const [loaded, setLoaded] = useState(historyData !== undefined);
   useEffect(() => {
@@ -104,7 +106,7 @@ export function RatingsOverTime({ player, seasonNumber, leagueGender, projection
   const data = historyData !== undefined ? historyData : fetched;
 
   const main: RatingSeries = player.battingOvr >= player.bowlingOvr ? "batting" : "bowling";
-  const [series, setSeries] = useState<RatingSeries>(main);
+  const [chosen, setChosen] = useState<RatingSeries>(initialSeries ?? main);
 
   const woman = isWomanInHistory(data, player.sourceId ?? player.id);
   const gender = (woman ?? leagueGender === "female") ? "female" : "male";
@@ -112,15 +114,19 @@ export function RatingsOverTime({ player, seasonNumber, leagueGender, projection
   const projection = useMemo(
     () => given ?? projectionFor(player, seasonNumber, gender, seasons, runs),
     // keyed by the ratings that drive the projection
-    [given, player.id, player.age, player.battingOvr, player.bowlingOvr, player.potential, seasonNumber, seasons, runs, gender],
+    [given, player.id, player.age, player.battingOvr, player.bowlingOvr, player.potential, player.ratings.fielding, player.ratings.keeping, seasonNumber, seasons, runs, gender],
   );
   const real = useMemo(() => realSeasonsFor(data, player.sourceId ?? player.id), [data, player.id, player.sourceId]);
+  const offered = availableSeries(player, real);
+  // a series that is not offered for this player (another player's choice carried over) falls back to the main one
+  const series: RatingSeries = offered.includes(chosen) ? chosen : main;
+  const setSeries = setChosen;
 
   const model = useMemo(() => buildChartModel({
     series, age: player.age, seasonNumber, ratingHistory: player.ratingHistory,
-    current: { overall: player.overall, batting: player.battingOvr, bowling: player.bowlingOvr },
+    current: { overall: player.overall, batting: player.battingOvr, bowling: player.bowlingOvr, fielding: player.ratings.fielding, keeping: player.isWicketKeeper ? player.ratings.keeping : undefined },
     real, projection,
-  }), [series, player.age, player.overall, player.battingOvr, player.bowlingOvr, player.ratingHistory, seasonNumber, real, projection]);
+  }), [series, player.age, player.overall, player.battingOvr, player.bowlingOvr, player.ratings.fielding, player.ratings.keeping, player.isWicketKeeper, player.ratingHistory, seasonNumber, real, projection]);
 
   const last = model.projection[model.projection.length - 1];
   const summary = last && model.projection.length > 1
@@ -132,7 +138,7 @@ export function RatingsOverTime({ player, seasonNumber, leagueGender, projection
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         <div className="text-th-faint text-[10px] uppercase tracking-wider font-display font-semibold">Ratings over time</div>
         <div className="flex gap-1" role="group" aria-label="Rating to chart">
-          {(["overall", "batting", "bowling"] as RatingSeries[]).map(s => (
+          {offered.map(s => (
             <button
               key={s}
               type="button"
@@ -152,6 +158,12 @@ export function RatingsOverTime({ player, seasonNumber, leagueGender, projection
         <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[#FF822A]" />Projected median, 50% and 80% bands</span>
       </div>
       <p className="text-xs text-th-muted mt-2" data-testid="ratings-over-time-summary">{summary}</p>
+      {isNoisySeries(series) && (
+        <p className="text-[10px] text-th-faint mt-1" data-testid="ratings-over-time-noise-note">
+          {SERIES_LABEL[series]} is rated from catches{series === "keeping" ? ", stumpings and byes" : " and run-outs"} in the matches on record. The real line is each season on its own,
+          pulled toward 50 (as the career rating is) but still noisy with a few dozen innings: read the trend, not single seasons. It is not shifted to meet the game&apos;s rating.
+        </p>
+      )}
       {model.shift !== 0 && model.real.length > 0 && (
         <p className="text-[10px] text-th-faint mt-1">Real history is shown {model.shift > 0 ? "+" : ""}{model.shift} to meet the game&apos;s rating.</p>
       )}

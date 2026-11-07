@@ -189,3 +189,47 @@ describe("20-season career sim stays balanced", () => {
     });
   }
 });
+
+describe("fielding and keeping in ratingHistory and projections", () => {
+  const base = (over: Partial<PlayerData> = {}, ratings: Partial<PlayerData["ratings"]> = {}): Player => new Player({
+    id: "h", name: "H", age: 24, country: "India", role: "batsman", isInternational: false, injured: false, injuryGamesLeft: 0,
+    ratings: { battingIQ: 70, timing: 70, power: 70, running: 65, wicketTaking: 20, economy: 20, accuracy: 20, clutch: 60, ...ratings }, ...over,
+  });
+
+  it("ratingHistory records fielding and keeping each season where present, and leaves them out where absent", () => {
+    const k = base({ isWicketKeeper: true }, { fielding: 55, keeping: 61 });
+    const rng = createRNG(5);
+    k.progress({ rng, seasonNumber: 1 });
+    const afterOne = { fielding: k.ratings.fielding, keeping: k.ratings.keeping };
+    k.progress({ rng, seasonNumber: 2 });
+    expect(k.ratingHistory[0]).toMatchObject({ season: 1, fielding: 55, keeping: 61 });
+    expect(k.ratingHistory[1]).toMatchObject({ season: 2, fielding: afterOne.fielding, keeping: afterOne.keeping });
+    const plain = base();
+    plain.progress({ rng: createRNG(5), seasonNumber: 1 });
+    expect("fielding" in plain.ratingHistory[0]).toBe(false);
+    expect("keeping" in plain.ratingHistory[0]).toBe(false);
+  });
+
+  it("projects fielding (and keeping for keepers) with bands, seeded and deterministic; none without the rating", () => {
+    const k = base({ isWicketKeeper: true }, { fielding: 55, keeping: 61 });
+    const a = projectPlayer(k, { seasons: 6, runs: 80, seed: 9 });
+    const b = projectPlayer(k, { seasons: 6, runs: 80, seed: 9 });
+    expect(a).toEqual(b);
+    expect(projectPlayer(k, { seasons: 6, runs: 80, seed: 10 })).not.toEqual(a);
+    for (const pt of a) {
+      expect(pt.fielding!.p10).toBeLessThanOrEqual(pt.fielding!.p50);
+      expect(pt.fielding!.p50).toBeLessThanOrEqual(pt.fielding!.p90);
+      expect(pt.keeping).toBeDefined();
+    }
+    // a 24-year-old fielder improves on the youth prior, then the median falls from the late 20s
+    expect(a[0].fielding!.p50).toBeGreaterThanOrEqual(55);
+    const old = projectPlayer(base({ age: 33 }, { fielding: 55 }), { seasons: 5, runs: 80, seed: 9 });
+    expect(old[4].fielding!.p50).toBeLessThan(55);
+    expect(old[0].keeping).toBeUndefined();
+    const none = projectPlayer(base(), { seasons: 3, runs: 20, seed: 1 });
+    expect(none[0].fielding).toBeUndefined();
+    expect(none[0].keeping).toBeUndefined();
+    // keeping is not projected for a non-keeper who happens to carry a rating
+    expect(projectPlayer(base({}, { fielding: 50, keeping: 40 }), { seasons: 2, runs: 20, seed: 1 })[0].keeping).toBeUndefined();
+  });
+});

@@ -7,7 +7,7 @@ vi.mock("@ipl-sim/ratings/dist/wpl-players.js", () => ({ getWPLPlayers: () => []
 
 import { DEFAULT_RULES, IPL_TEAMS, Player, Team, createRNG, generatePlayers, type PlayerData } from "@ipl-sim/engine";
 import {
-  buildChartModel, realSeasonsFor, isWomanInHistory, projectionFor, summariseProjection, seedOf, GAME_START_YEAR,
+  buildChartModel, availableSeries, isNoisySeries, realSeasonsFor, isWomanInHistory, projectionFor, summariseProjection, seedOf, GAME_START_YEAR,
   type RatingHistoryData,
 } from "../rating-history";
 import { RatingsOverTime } from "../components/RatingsOverTime";
@@ -204,5 +204,91 @@ describe("season rollover: seeded generation and progression", () => {
     const kept = next.teams[0].roster[0];
     expect(kept.ratingHistory.length).toBe(1);
     expect(kept.ratingHistory[0]).toMatchObject({ season: 2, age: kept.age - 1 });
+  });
+});
+
+describe("fielding and keeping in the chart (history file v2)", () => {
+  const V2: RatingHistoryData = {
+    ...DATA, v: 2,
+    q: { "101": [2020, 55, 58, -1, 60, 62, 61] },          // 2020..2025
+    k: { "101": [2022, 52, 57, 60] },                       // 2022..2024
+  };
+  const fielder = (over: Partial<PlayerData> = {}) => makePlayer({ ratings: { ...makePlayer().ratings, fielding: 60 }, ...over });
+  const keeper = () => makePlayer({ isWicketKeeper: true, ratings: { ...makePlayer().ratings, fielding: 55, keeping: 58 } });
+  const render = (p: Player, data: RatingHistoryData | null) => renderToStaticMarkup(
+    createElement(RatingsOverTime, { player: p, seasonNumber: 1, leagueGender: "male", historyData: data, runs: 40 }),
+  );
+
+  it("decodes single-season fielding and keeping next to bat and bowl, by calendar year", () => {
+    const seasons = realSeasonsFor(V2, "espn_1");
+    expect(seasons.find(s => s.year === 2020)).toMatchObject({ bat: 64, field: 55, keep: null });
+    expect(seasons.find(s => s.year === 2022)).toMatchObject({ bat: 68, field: null, keep: 52 });
+    expect(seasons.find(s => s.year === 2025)).toMatchObject({ field: 61, keep: null });
+  });
+
+  it("old (v1) history files still load: no fielding keys, same seasons", () => {
+    const seasons = realSeasonsFor(DATA, "espn_1");
+    expect(seasons).toHaveLength(7);
+    expect(seasons.every(s => s.field === undefined && s.keep === undefined)).toBe(true);
+    const html = render(fielder(), DATA);       // the player still has a fielding rating: career + projection, no real line
+    expect(html).toContain("Fielding");
+    const fhtml = renderToStaticMarkup(createElement(RatingsOverTime, { player: fielder(), seasonNumber: 1, leagueGender: "male", historyData: DATA, runs: 40, initialSeries: "fielding" }));
+    expect(fhtml).not.toContain('data-testid="real-history"');          // old file: no fielding record
+    expect(fhtml).toContain('data-testid="projection-median"');         // but the projection is there
+    // v2 data for a player the old file lists only for bat/bowl
+    expect(realSeasonsFor({ ...DATA, q: { "999": [2020, 50] } }, "espn_1")).toHaveLength(7);
+  });
+
+  it("offers Fielding for a player with the rating or a record, Keeping only for wicketkeepers", () => {
+    const real = realSeasonsFor(V2, "espn_1");
+    expect(availableSeries(fielder(), [])).toEqual(["overall", "batting", "bowling", "fielding"]);
+    expect(availableSeries(makePlayer(), [])).toEqual(["overall", "batting", "bowling"]);
+    expect(availableSeries(makePlayer(), real)).toContain("fielding");
+    expect(availableSeries(makePlayer(), real)).not.toContain("keeping");          // has keeping seasons but is not a keeper
+    expect(availableSeries(keeper(), [])).toEqual(["overall", "batting", "bowling", "fielding", "keeping"]);
+    const html = render(keeper(), V2);
+    expect(html).toContain(">Keeping<");
+    expect(html).toContain(">Fielding<");
+    expect(render(fielder(), V2)).not.toContain(">Keeping<");
+    expect(render(makePlayer(), null)).not.toContain(">Fielding<");
+  });
+
+  it("builds the fielding and keeping series: real line unshifted, career, deterministic projection bands", () => {
+    const p = keeper();
+    const proj = projectionFor(p, 1, "male", 6, 60);
+    expect(proj[0].fielding).toBeDefined();
+    expect(proj[0].keeping).toBeDefined();
+    expect(projectionFor(p, 1, "male", 6, 60)).toEqual(proj);
+    for (const series of ["fielding", "keeping"] as const) {
+      const m = buildChartModel({
+        series, age: p.age, seasonNumber: 1, ratingHistory: p.ratingHistory,
+        current: { overall: p.overall, batting: p.battingOvr, bowling: p.bowlingOvr, fielding: p.ratings.fielding, keeping: p.ratings.keeping },
+        real: realSeasonsFor(V2, "espn_1"), projection: proj,
+      });
+      const now = series === "fielding" ? 55 : 58;
+      expect(m.career).toEqual([{ age: 29, value: now }]);
+      expect(m.shift).toBe(0);
+      expect(m.projection[0]).toMatchObject({ age: 29, p50: now, active: 1 });
+      expect(m.projection.length).toBeGreaterThan(3);
+      expect(m.projection[3].p90).toBeGreaterThan(m.projection[3].p10);
+      expect(m.real.length).toBeGreaterThan(0);
+    }
+    const m = buildChartModel({ series: "fielding", age: 29, seasonNumber: 1, ratingHistory: [], current: { overall: 70, batting: 70, bowling: 20 }, real: [], projection: proj });
+    expect(m.projection).toEqual([]);          // no fielding rating: nothing to project, nothing thrown
+    expect(m.career).toEqual([]);
+  });
+
+  it("states how noisy single seasons are under the fielding chart, and not under batting", () => {
+    const at = (series: "fielding" | "keeping" | "batting", p: Player) => renderToStaticMarkup(
+      createElement(RatingsOverTime, { player: p, seasonNumber: 1, leagueGender: "male", historyData: V2, runs: 40, initialSeries: series }));
+    expect(at("fielding", keeper())).toContain("ratings-over-time-noise-note");
+    expect(at("fielding", keeper())).toContain('data-testid="real-history"');
+    expect(at("keeping", keeper())).toContain("read the trend, not single seasons");
+    expect(at("batting", keeper())).not.toContain("ratings-over-time-noise-note");
+    // an unavailable series (keeping for a non-keeper) falls back to the main one
+    expect(at("keeping", fielder())).toMatch(/aria-pressed="true"[^>]*>Batting/);
+    expect(isNoisySeries("fielding")).toBe(true);
+    expect(isNoisySeries("keeping")).toBe(true);
+    expect(isNoisySeries("batting")).toBe(false);
   });
 });

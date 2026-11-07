@@ -554,7 +554,16 @@ year from first to last season (`-1` = none), keyed by CricketArchive id with a 
 (`Player.ratingHistory`, one entry per season with the age, 25 seasons kept; green), and the simulated future (orange:
 median, 50% and 80% bands over the careers still playing, 200 seeded runs). The real line is shown shifted by a few
 points to meet the game's rating at the start of the career (stated under the chart); series buttons switch between
-overall, batting and bowling.
+overall, batting, bowling, **fielding** and (wicketkeepers only) **keeping**.
+
+Fielding and keeping on the chart. `fielding-seasons.py` (new; run after `fielding-ratings.py`) writes `data/analysis/fielding_player_seasons_all.csv`: the 0-99 fielding
+and keeping rating of every Cricsheet player-season with 4+ fielding (keeper) innings, by the same Gamma-Poisson shrinkage, fitted k and scale as the career ratings
+(it imports `season_fielding_z` / `season_keeping_z` from `fielding-progression.py`), but with each season shrunk on its own: a thin season sits close to 50 and a single season is noisy.
+`export-rating-history.py` then writes history file **version 2**: `"q"` (fielding, one value a year from the first to the last season, -1 = none) and `"k"` (keeping, keepers
+only), keyed like `"p"` and each with its own first year, 665 KB (208 KB gzipped; 4,391 players with fielding, 524 with keeping). The app reads version 1 files
+unchanged (no fielding line, the projection still shows). The real fielding/keeping line is **not** shifted to meet the game's rating (unlike bat/bowl): the career rating is a
+multi-season figure, single seasons scatter around it, and the chart says so underneath. `Player.ratingHistory` records `fielding` / `keeping` each season where the player has them; the
+projection (`projectPlayer`) adds `fielding` and, for designated keepers, `keeping` bands from the same seeded runs; players without the rating get no such series.
 
 ## Extended pool: every CricketArchive player, down to club cricket
 
