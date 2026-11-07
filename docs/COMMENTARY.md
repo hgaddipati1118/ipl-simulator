@@ -145,8 +145,10 @@ combinations per cell, with fallbacks to coarser cells).
 - The app fetches `/data/commentary-model.json` lazily when idle (`main.tsx`); the file is generated, not bundled.
 
 API: `setCommentaryModel(json | null)`, `loadCommentaryModel(url?)`, `hasCommentaryModel()`, `pickModelCommentary(ball, rng, used)`,
-`generateBallCommentaryDetailed(params) -> { text, key }`. Only the live match path (`live-match.ts`) uses the model; the instant
-simulation (`match.ts`) keeps its short built-in lines.
+`generateBallCommentaryDetailed(params) -> { text, key }` (plain outcomes and the five legacy wicket kinds) and, for every delivery the
+full Laws produce, `generateDeliveryCommentary(params) -> { text, key }` (section 8). The live match path (`live-match.ts runOneBall`)
+uses `generateDeliveryCommentary` for every ball; the instant simulation (`match.ts`) calls `describeDelivery` (`delivery-text.ts`,
+hand-written lines) for the special deliveries and keeps its short built-in lines for plain ones.
 
 ## 4. Regenerating
 
@@ -166,8 +168,10 @@ a player in the match; no real name from the source survives in any template (ch
 - Scraper: measured ~45 matches/hour (about 70 s of page time + 5-11 s pacing per T20, 0 Akamai blocks in the first hours). Planned set is roughly
   1,250 IPL, ~90 WPL, ~550 World Cup (incl. women's), ~560 T20Is since 2023/24 and ~1,900 league matches since 2021, about 4,300 matches, i.e. around 4 days
   of scraping; the IPL alone is ~27 hours.
-- The committed model was built from the first 28 matches (IPL 2026, 6,486 balls: 100% with text, 99.4% with shot tags, 100% with line and length):
-  4,156 templates, 0.48 MB raw / 122 KB gzipped. Common outcomes are well covered; rare dismissals (stumped, lbw, run out) and 3s have few lines
+- The committed model is built from 37 matches (IPL 2026, 8,619 balls: 100% with text, 99.4% with shot tags, 100% with line and length):
+  5,583 templates, 0.62 MB raw / 159 KB gzipped. Run outs: 12 striker and 10 non-striker run-out balls in the corpus gave 7 striker and
+  8 non-striker templates; 9 caught-and-bowled balls gave 6 templates; hit wicket, obstructing, handled, hit twice and timed out have no
+  corpus lines at all (hand-written, section 8). Common outcomes are well covered; rare dismissals (stumped, lbw, run out) and 3s have few lines
   and fall back to the built-in text (the picker steps aside when fewer than 4 unused lines are left). Regenerate on the full corpus to fill those
   in; the size budget (`--max-gz-kb`) caps the file at ~1.4 MB gzipped.
 
@@ -178,3 +182,59 @@ a player in the match; no real name from the source survives in any template (ch
 - Line / length / shot are sampled, not simulated: they make the words consistent with the outcome, they do not feed back into the result.
 - Nicknames not in the corpus and typos that happen to be common survive the filters; `model-report.json` shows what is dropped, so the
   lexicon can be tuned.
+
+## 8. Every delivery of the full Laws (situation lines)
+
+The engines simulate the complete Laws (`delivery-rules.ts`, RULES-MATCH.md section 12): twelve dismissal kinds, a run out of the striker OR the
+non-striker, wides of 1 to 5, no-balls with runs / byes / the two-run cost, free hits, byes vs leg byes of 1 to 5, overthrows, penalty runs,
+a Mankad, retirements. The corpus covers only a few of those, so one entry point decides per delivery:
+
+```ts
+generateDeliveryCommentary({
+  detail,                      // DeliveryDetail (expandDelivery): outcome, wides, noBalls, byes, legByes, overthrow, penalty, wideKind, dismissal{kind,out,substitute}
+  bowlerName, batterName,      // batterName = the STRIKER (who played the ball), not necessarily who is out
+  nonStrikerName, fielderName, fielder2Name, substitute, freeHit, deadBall,   // deadBall = Mankad (no ball bowled)
+  over, ball, score, wickets, isSecondInnings, target, bowlingStyle, battingHand, gender, batterRuns, batterBalls, boundaryShot,
+  rng, usedLines,
+}) -> { text, key? }            // key = corpus line used (remember it in usedLines)
+```
+
+| delivery | line |
+| --- | --- |
+| dot / 1 / 2 / 3 / 4 / 6, leg bye of 1, wide of 1 (off or leg), bowled, caught, lbw, stumped, striker run out, caught and bowled, non-striker run out | **corpus** line when the model has at least `MIN_UNUSED` unused fitting lines (a substitute catch / run out only takes templates that name `{fielder}`; a wide down the leg side only takes templates that say "leg"); else the built-in line (plain balls, bowled / caught / lbw / stumped) or the hand-written line |
+| everything else: hit wicket, obstructing, handled, hit twice, run out with two fielders, any dismissal off a wide / no-ball, wides of 2 to 5 and wides for height, every no-ball, byes, leg byes of 2 to 5, overthrows, penalty runs, the Mankad, a caught by a substitute without a corpus line | **hand-written** (`delivery-text.ts describeDelivery`, 2 to 4 variants each, picked with the ball's seeded RNG) |
+| a free hit | every line starts with `FREE HIT!`; a wide or no-ball on a free hit also says the free hit stays; every no-ball says the free hit follows |
+
+Rules for the hand-written text: only the people of the ball are named (bowler, striker, non-striker, the fielder(s)); the opening is
+"Bowler to Batter" with the names as given and the body uses commentator short names; no pronouns (the same line fits men's and women's
+matches); no em dashes. A substitute fielder is "substitute Name" (`ModelBall.substitute` does the same inside corpus lines, on the first
+mention); a two-fielder relay run out names both ("A gathers, relays to B"). A non-striker run out always names the non-striker as
+the one who is out and says the striker survives; a Mankad names the bowler and the non-striker and says no ball is bowled.
+Retirements have their own helpers (`retiredHurtLine`, `retiredOutLine`, `timedOutLine`, `superOverLine`) for the engine to call
+where it records those events.
+
+Wrappers (milestones, "Need N more", end of the powerplay, "a duck for X") are added to every line; they are skipped when the striker is
+not the batter who is out. A fielding-note line (`fieldingCommentary`: great catch, direct hit) replaces the generated line in
+`runOneBall` only for a striker caught / run out by one regular fielder; everything else keeps the new line.
+
+### Run-out tagging
+
+Corpus run outs are split into two classes by **who was out**, decided in `commentary-build.py run_out_class` from the ball's `outPlayerId`:
+
+| class | out | slots | rules enforced by `run_out_tag_ok` |
+| --- | --- | --- | --- |
+| `W:run_out` | the striker | `{batter}` = out | no `{nonstriker}` playing the shot; the partner is never the one out |
+| `W:run_out_ns` | the non-striker | `{batter}` = the striker who played the shot (and survives), `{nonstriker}` = out | every template contains `{nonstriker}`; no `{batter}` dismissal ("{batter} is run out", "{batter}'s run out"); the partner never plays the shot |
+
+Both classes also drop lines that name a particular fielder or a referral ("from the bowler", "upstairs", "third umpire"), because the
+engine's fielder can be anyone. `ModelBall.outNonStriker` selects the class (`DeliveryDetail.dismissal.out === "nonStriker"`); the joint tag
+distribution of a thin class falls back to its parent (`W:run_out_ns` to `W:run_out`, `W:caught_and_bowled` to `W:caught`). Caught and bowled is
+its own class (`W:caught_and_bowled`): the bowler is the catcher, so the build drops the `{fielder}` role (it used to make every name
+ambiguous and lose the lines) and rejects templates with `{fielder}`.
+
+Tests: `commentary-situations.test.ts` (every dismissal kind and extras situation: clean line, right people named, free hit says free hit,
+deterministic, no repeated corpus key, with and without the model; whole matches with forced non-striker run outs and forced kinds) and
+the run-out tagging tests in `commentary-model.test.ts` and `commentary_build.test.py`.
+
+Known gap: the DRS review lines in `live-match.ts` (run out "Batter was short / IN") are written without regard to who was out; they are
+outside this module.

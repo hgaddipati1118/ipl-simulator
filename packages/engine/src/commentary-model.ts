@@ -47,6 +47,12 @@ export interface ModelBall {
   bowlerName: string;
   fielderName?: string;
   nonStrikerName?: string;
+  /** A run out that took the non-striker: picks the "W:run_out_ns" templates (the partner is out, the striker played the shot) */
+  outNonStriker?: boolean;
+  /** The fielder is a substitute: the line says "substitute X" the first time the fielder is named */
+  substitute?: boolean;
+  /** Only templates whose text passes (e.g. a wide down the leg side) */
+  textFilter?: (templateText: string) => boolean;
 }
 
 /** What was drawn for a ball (exposed for tests and tooling). */
@@ -182,7 +188,8 @@ function pressureOf(b: ModelBall, phaseIdx: number): number {
 function classKey(b: ModelBall): string | null {
   if (b.outcome === "wicket") {
     const k = b.wicketType ?? "";
-    return ["bowled", "caught", "lbw", "run_out", "stumped"].includes(k) ? `W:${k}` : null;
+    if (k === "run_out" && b.outNonStriker) return "W:run_out_ns";
+    return ["bowled", "caught", "lbw", "run_out", "stumped", "caught_and_bowled"].includes(k) ? `W:${k}` : null;
   }
   return ["dot", "1", "2", "3", "4", "6", "wide", "noball", "legbye"].includes(b.outcome) ? b.outcome : null;
 }
@@ -190,7 +197,10 @@ function classKey(b: ModelBall): string | null {
 function sampleTags(cls: string, bk: number, hand: number, rng: RNG): number[] | null {
   if (!MODEL) return null;
   const j = MODEL.joint;
-  const cell = j[`${cls}|${bk}|${hand}`] ?? j[`${cls}|${bk}|0`] ?? j[`${cls}|0|${hand}`] ?? j[`${cls}|0|0`];
+  // thin classes borrow the tags of their parent (non-striker run outs from run outs, caught and bowled from caught)
+  const parent = cls === "W:run_out_ns" ? "W:run_out" : cls === "W:caught_and_bowled" ? "W:caught" : cls;
+  const cell = j[`${cls}|${bk}|${hand}`] ?? j[`${cls}|${bk}|0`] ?? j[`${cls}|0|${hand}`] ?? j[`${cls}|0|0`]
+    ?? j[`${parent}|${bk}|${hand}`] ?? j[`${parent}|${bk}|0`] ?? j[`${parent}|0|${hand}`] ?? j[`${parent}|0|0`];
   if (!cell || cell.length === 0) return null;
   return sampleWeighted(cell, cell.map((c) => c[5]), rng);
 }
@@ -226,9 +236,13 @@ function fill(text: string, b: ModelBall): string {
     nonstriker: b.nonStrikerName ? commentaryShortName(b.nonStrikerName) : "",
     he: female ? "she" : "he", him: female ? "her" : "him", his: female ? "her" : "his", himself: female ? "herself" : "himself",
   };
-  const filled = text.replace(/\{(\w+)\}/g, (m, k: string) => names[k] ?? m);
-  // pronouns that open a sentence need a capital ("{he} swivels" -> "He swivels")
-  return filled.replace(/(^|[.!?]["']?\s+)(she|he|her|his|him|herself|himself)\b/g, (_m, p: string, w: string) => p + w[0].toUpperCase() + w.slice(1));
+  let subPending = !!b.substitute && !!b.fielderName;
+  const filled = text.replace(/\{(\w+)\}/g, (m, k: string) => {
+    if (k === "fielder" && subPending) { subPending = false; return `substitute ${names.fielder}`; }
+    return names[k] ?? m;
+  });
+  // pronouns (and "substitute") that open a sentence need a capital ("{he} swivels" -> "He swivels")
+  return filled.replace(/(^|[.!?]["']?\s+)(she|he|her|his|him|herself|himself|substitute)\b/g, (_m, p: string, w: string) => p + w[0].toUpperCase() + w.slice(1));
 }
 
 /**
@@ -262,6 +276,7 @@ export function pickModelCommentary(b: ModelBall, rng: RNG, used?: Readonly<Reco
       const i = cands ? cands[k] : k;
       if ((ix.slots[i] & ~have) !== 0) continue;
       if (seen && seen[`${cls}:${i}`] !== undefined) continue;
+      if (b.textFilter && !b.textFilter(ix.t[i])) continue;
       // a slight preference for lines that say something (very short fragments read oddly without context)
       scored.push({ i, s: scoreTemplate(ix.g[i], shot, line, len, zone, ctl, bk, phIdx, pr, hand) + Math.min(ix.t[i].length, 100) / 100 });
     }
