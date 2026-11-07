@@ -6,6 +6,7 @@ import { getActiveSlotId } from "../storage";
 import { PlayerLink } from "../components/PlayerLink";
 import { WormChart } from "../components/WormChart";
 import { getDrsVerdict, getDrsVerdictLabel } from "../drs-utils";
+import { oversLabel } from "../ui-utils";
 import type {
   DetailedMatchResult,
   InningsScorecard,
@@ -210,7 +211,7 @@ export function MatchPage({ state }: Props) {
         >
           <span className="block">1st Innings &mdash; {detailed.innings1.battingTeamName}</span>
           <span className="mt-1 block text-xs opacity-75">
-            {detailed.innings1.totalRuns}/{detailed.innings1.totalWickets} ({detailed.innings1.totalOvers} ov)
+            {detailed.innings1.totalRuns}/{detailed.innings1.totalWickets} ({oversLabel(detailed.innings1.totalOvers)})
           </span>
         </button>
         <button
@@ -223,7 +224,7 @@ export function MatchPage({ state }: Props) {
         >
           <span className="block">2nd Innings &mdash; {detailed.innings2.battingTeamName}</span>
           <span className="mt-1 block text-xs opacity-75">
-            {detailed.innings2.totalRuns}/{detailed.innings2.totalWickets} ({detailed.innings2.totalOvers} ov)
+            {detailed.innings2.totalRuns}/{detailed.innings2.totalWickets} ({oversLabel(detailed.innings2.totalOvers)})
           </span>
         </button>
       </div>
@@ -368,7 +369,7 @@ function MatchHeader({
             <p className="text-th-primary font-semibold">{detailed.homeTeamName}</p>
             <p className="text-th-secondary text-lg font-bold">
               {homeInn.totalRuns}/{homeInn.totalWickets}
-              <span className="text-th-muted text-sm font-normal ml-1">({homeInn.totalOvers} ov)</span>
+              <span className="text-th-muted text-sm font-normal ml-1">({oversLabel(homeInn.totalOvers)})</span>
             </p>
           </div>
         </div>
@@ -381,7 +382,7 @@ function MatchHeader({
             <p className="text-th-primary font-semibold text-right">{detailed.awayTeamName}</p>
             <p className="text-th-secondary text-lg font-bold text-right">
               {awayInn.totalRuns}/{awayInn.totalWickets}
-              <span className="text-th-muted text-sm font-normal ml-1">({awayInn.totalOvers} ov)</span>
+              <span className="text-th-muted text-sm font-normal ml-1">({oversLabel(awayInn.totalOvers)})</span>
             </p>
           </div>
           <div
@@ -477,7 +478,7 @@ function BattingCard({ innings }: { innings: InningsScorecard }) {
               </td>
               <td className="text-center px-2 py-2 text-th-primary font-bold">{innings.totalRuns}</td>
               <td className="text-center px-2 py-2 text-th-secondary" colSpan={4}>
-                ({innings.totalWickets} wkts, {innings.totalOvers} ov)
+                ({innings.totalWickets} wkts, {oversLabel(innings.totalOvers)})
               </td>
             </tr>
           </tbody>

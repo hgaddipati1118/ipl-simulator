@@ -98,7 +98,7 @@ export function SavesPage({
                     )}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-th-muted">
-                    <span className={`uppercase font-medium ${slot.league === "wpl" ? "text-purple-400" : "text-blue-400"}`}>
+                    <span className={`uppercase font-medium ${slot.league === "wpl" ? "text-purple-400" : slot.league === "ipl" ? "text-blue-400" : "text-cyan-400"}`}>
                       {slot.league}
                     </span>
                     <span>Season {slot.season}</span>

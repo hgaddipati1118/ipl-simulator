@@ -145,3 +145,8 @@ export function getPlayerInitials(name: string): string {
   if (parts.length === 1) return parts[0][0].toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
+
+/** "19.2 ov" for T20 scorecards, "93 balls" for The Hundred (whose innings totals are already in balls). */
+export function oversLabel(totalOvers: string): string {
+  return /balls/.test(totalOvers) ? totalOvers : `${totalOvers} ov`;
+}

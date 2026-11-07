@@ -194,6 +194,8 @@ export interface SerializableInningsScore {
   overs: number;
   balls: number;
   totalBalls: number;
+  /** 5 for The Hundred (innings `overs` counts five-ball sets); absent = 6 */
+  ballsPerOver?: number;
   extras: number;
   fours: number;
   sixes: number;
@@ -210,6 +212,7 @@ export function serializeMatchResult(result: MatchResult): SerializableMatchResu
     overs: inn.overs,
     balls: inn.balls,
     totalBalls: inn.totalBalls,
+    ...(inn.ballsPerOver && inn.ballsPerOver !== 6 ? { ballsPerOver: inn.ballsPerOver } : {}),
     extras: inn.extras,
     fours: inn.fours,
     sixes: inn.sixes,
@@ -307,8 +310,57 @@ function spreadFixtures(fixtures: Array<[string, string]>): Array<[string, strin
   return bestResult;
 }
 
-export function generateSchedule(teams: Team[], matchesPerTeam = 14): ScheduledMatch[] {
+/**
+ * Group-stage schedule. IPL / WPL / custom leagues keep their original generators; the extra leagues
+ * (BBL, PSL, The Hundred, ...) use the balanced generator so every team plays exactly matchesPerTeam.
+ */
+export function generateSchedule(teams: Team[], matchesPerTeam = 14, rules?: Pick<RuleSet, "league">): ScheduledMatch[] {
+  if (rules && usesBalancedSchedule(rules)) return generateBalancedSchedule(teams, matchesPerTeam);
   return generateIPLSchedule(teams, matchesPerTeam);
+}
+
+function usesBalancedSchedule(rules: Pick<RuleSet, "league">): boolean {
+  return rules.league !== "ipl" && rules.league !== "wpl" && rules.league !== "custom";
+}
+
+/**
+ * Balanced round-robin for any number of teams: every pair meets floor(m/(n-1)) times (alternating home and away),
+ * and the remaining r = m mod (n-1) fixtures per team come from an r-regular circulant graph (offsets
+ * 1..floor(r/2), plus n/2 when r is odd, which needs an even n). E.g. 8 teams x 10 matches = one full round
+ * robin + a 3-regular graph; 7 teams x 10 = one round robin + a 4-regular graph; 6 teams x 10 = double round robin.
+ */
+export function generateBalancedSchedule(teams: Team[], matchesPerTeam: number): ScheduledMatch[] {
+  const n = teams.length;
+  if (n < 2) return [];
+  const ids = teams.map(t => t.id);
+  const full = Math.floor(matchesPerTeam / (n - 1));
+  const rest = matchesPerTeam - full * (n - 1);
+  if ((n * rest) % 2 !== 0) {
+    throw new Error(`Cannot give ${n} teams ${matchesPerTeam} matches each (odd team count with an odd remainder)`);
+  }
+  const pairs: Array<[number, number]> = [];
+  for (let round = 0; round < full; round++) {
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pairs.push([i, j]);
+  }
+  if (rest > 0) {
+    for (let d = 1; d <= Math.floor(rest / 2); d++) for (let i = 0; i < n; i++) pairs.push([i, (i + d) % n]);
+    if (rest % 2 === 1) for (let i = 0; i < n / 2; i++) pairs.push([i, i + n / 2]);
+  }
+  // Orient each fixture toward the team that has had fewer home than away games so far, keeping home/away within 1-2.
+  const homeBalance = new Array<number>(n).fill(0);
+  const fixtures: Array<[string, string]> = pairs.map(([a, b], k) => {
+    const [home, away] = homeBalance[a] === homeBalance[b] ? (k % 2 === 0 ? [a, b] : [b, a]) : homeBalance[a] < homeBalance[b] ? [a, b] : [b, a];
+    homeBalance[home]++;
+    homeBalance[away]--;
+    return [ids[home], ids[away]];
+  });
+  return spreadFixtures(fixtures).map(([homeTeamId, awayTeamId], index) => ({
+    matchNumber: index + 1,
+    homeTeamId,
+    awayTeamId,
+    isPlayoff: false,
+    type: "group" as const,
+  }));
 }
 
 function generateOfficialModernIPLSchedule(teams: Team[]): ScheduledMatch[] {
@@ -711,6 +763,64 @@ export function addFinal(schedule: ScheduledMatch[]): ScheduledMatch[] {
   return schedule;
 }
 
+/**
+ * Interactive-season playoff progression: call after every match. Adds the next playoff fixtures to
+ * `schedule` as the earlier ones finish, following rules.playoffFormat. Returns true once playoffs have started.
+ *
+ * IPL, WPL and custom leagues keep the original behaviour (top 4, Qualifier 1 / Eliminator / Qualifier 2 / Final);
+ * the extra leagues follow their own bracket: "eliminator" (top 4, same as IPL), "top3" (The Hundred) and "wbbl".
+ */
+export function progressPlayoffs(
+  schedule: ScheduledMatch[],
+  teams: Team[],
+  rules: Pick<RuleSet, "league" | "playoffFormat" | "playoffTeams">,
+  nextMatchIndex: number,
+  playoffsStarted: boolean,
+): boolean {
+  const groupCount = getGroupStageCount(schedule);
+  let started = playoffsStarted;
+  const legacy = rules.league === "ipl" || rules.league === "wpl" || rules.league === "custom";
+  const format = rules.playoffFormat ?? "eliminator";
+  const find = (t: PlayoffMatchType) => schedule.find(m => m.playoffType === t);
+  const winnerOf = (m: ScheduledMatch) => m.result!.winnerId!;
+  const push = (home: string, away: string, type: PlayoffMatchType) => {
+    schedule.push({ matchNumber: schedule.length + 1, homeTeamId: home, awayTeamId: away, isPlayoff: true, playoffType: type, type });
+  };
+
+  if (!started && nextMatchIndex === groupCount) {
+    started = true;
+    const top = getStandings(teams).map(s => s.teamId);
+    if (legacy || format === "eliminator" || format === "simple" || format === "none") {
+      addPlayoffMatches(schedule, teams);
+    } else if (format === "top3") {
+      push(top[1], top[2], "eliminator");
+    } else if (format === "wbbl") {
+      push(top[2], top[3], "eliminator");
+    }
+  }
+  if (!started) return started;
+
+  if (legacy || format === "eliminator" || format === "simple" || format === "none") {
+    const q1 = find("qualifier1");
+    const elim = find("eliminator");
+    if (q1?.result && elim?.result && !find("qualifier2")) addQualifier2(schedule);
+    const q2 = find("qualifier2");
+    if (q1?.result && q2?.result && !find("final")) addFinal(schedule);
+    return started;
+  }
+
+  const top = getStandings(teams).map(s => s.teamId);
+  const elim = find("eliminator");
+  if (format === "top3") {
+    if (elim?.result && !find("final")) push(top[0], winnerOf(elim), "final");
+  } else if (format === "wbbl") {
+    const ch = find("qualifier2");
+    if (elim?.result && !ch) push(top[1], winnerOf(elim), "qualifier2");
+    if (ch?.result && !find("final")) push(top[0], winnerOf(ch), "final");
+  }
+  return started;
+}
+
 /** Get the number of group stage matches in a schedule */
 export function getGroupStageCount(schedule: ScheduledMatch[]): number {
   return schedule.filter(m => m.type === "group").length;
@@ -811,6 +921,24 @@ function runPlayoffs(
   // ── Simple bracket format ──────────────────────────────────────────
   if (format === "simple") {
     return runSimpleBracket(schedule, topIds, teamMap, teams, rules);
+  }
+
+  // ── The Hundred: 1st straight to the final, 2nd v 3rd eliminator ─────
+  if (format === "top3" && topIds.length >= 3) {
+    const elim = playAndPush(makePlayoff(schedule, topIds[1], topIds[2], "eliminator"), schedule, teamMap, teams, rules);
+    const elimWinner = getWinner(elim, topIds[1], topIds[2]);
+    const fin = playAndPush(makePlayoff(schedule, topIds[0], elimWinner, "final"), schedule, teamMap, teams, rules);
+    return getWinner(fin, topIds[0], elimWinner);
+  }
+
+  // ── WBBL: top 4, 1st straight to the final ──────────────────────────
+  if (format === "wbbl" && topIds.length >= 4) {
+    const ko = playAndPush(makePlayoff(schedule, topIds[2], topIds[3], "eliminator"), schedule, teamMap, teams, rules);
+    const koWinner = getWinner(ko, topIds[2], topIds[3]);
+    const ch = playAndPush(makePlayoff(schedule, topIds[1], koWinner, "qualifier2"), schedule, teamMap, teams, rules);
+    const chWinner = getWinner(ch, topIds[1], koWinner);
+    const fin = playAndPush(makePlayoff(schedule, topIds[0], chWinner, "final"), schedule, teamMap, teams, rules);
+    return getWinner(fin, topIds[0], chWinner);
   }
 
   // ── Eliminator format (IPL-style) ─────────────────────────────────
@@ -940,7 +1068,7 @@ export function runSeason(teams: Team[], rules: RuleSet = DEFAULT_RULES): Season
   for (const t of teams) t.resetSeason();
 
   const teamMap = new Map(teams.map(t => [t.id, t]));
-  const schedule = generateIPLSchedule(teams, rules.matchesPerTeam);
+  const schedule = generateSchedule(teams, rules.matchesPerTeam, rules);
 
   // Play group stage
   for (const match of schedule) {

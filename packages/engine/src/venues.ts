@@ -17,6 +17,7 @@
 
 import type { BowlingStyle, PitchType, BoundarySize, DewFactor } from "./matchups.js";
 import { VENUE_DATA } from "./venue-data.js";
+import { LEAGUE_DEFS } from "./league-defs.js";
 
 export interface VenueTypeEdge {
   /** Wickets per 100 balls vs the same bowlers elsewhere */
@@ -40,7 +41,8 @@ export interface VenueGroundRecord {
 export interface VenueDataFile {
   teams: Record<string, VenueGroundRecord>;
   countries: Record<string, { runFactor: number; sixFactor: number; wicketFactor: number; matches: number }>;
-  chase: { ipl: number; wpl: number; male: number; female: number };
+  /** leagues: chase advantage per extra league (shrunk toward the gender mean), keyed by league id */
+  chase: { ipl: number; wpl: number; male: number; female: number; leagues?: Record<string, number> };
   tossValueWin: number;
   fieldShare2024_26: number;
   generated?: string;
@@ -59,6 +61,8 @@ export interface VenueProfile {
   sixMult: number;
   /** Wickets multiplier, shrunk toward 1.0 */
   wicketMult: number;
+  /** Dot-ball multiplier (league scoring level; absent = 1) */
+  dotMult?: number;
   edges: Partial<Record<VenueEdgeKey, VenueTypeEdge>>;
   /** P(chasing side wins) - 0.5 for equal teams at this ground */
   chaseAdvantage: number;
@@ -74,6 +78,27 @@ export interface VenueProfile {
 export const LEAGUE_LEVEL_RUN = 1.04;
 export const LEAGUE_LEVEL_WICKET = 1.0;
 
+/**
+ * Scoring level of each extra league, relative to the IPL calibration above. `run` scales the ground run factor, `wicket`
+ * the wicket rate and `dot` the dot-ball rate (more dots = lower scoring, slightly fewer wickets). They were fitted so a
+ * simulated season averages what the competition's 2024-26 innings averaged in the real data (runs, wickets and balls
+ * per innings; a linear fit over a grid of simulated seasons, then verified over 16 seasons: docs/LEAGUES.md,
+ * "Calibration"). Leagues not listed use the IPL levels.
+ */
+export const LEAGUE_LEVELS: Record<string, { run: number; wicket: number; dot: number }> = {
+  "bbl": { run: 1.0, wicket: 0.875, dot: 1.123 },
+  "wbbl": { run: 1.0, wicket: 0.98, dot: 1.445 },
+  "psl": { run: 1.0, wicket: 0.878, dot: 0.997 },
+  "sa20": { run: 1.0, wicket: 0.851, dot: 1.271 },
+  "hundred-m": { run: 1.0, wicket: 0.925, dot: 1.043 },
+  "hundred-w": { run: 1.0, wicket: 1.062, dot: 1.397 },
+  "cpl": { run: 1.0, wicket: 0.894, dot: 1.206 },
+  "ilt20": { run: 1.0, wicket: 0.858, dot: 1.217 },
+  "mlc": { run: 1.0, wicket: 0.895, dot: 1.084 },
+  "bpl": { run: 1.0, wicket: 0.89, dot: 1.24 },
+  "lpl": { run: 1.0, wicket: 0.842, dot: 0.95 },
+};
+
 /** Ground effects on wickets did not hold up out of sample, so keep only a quarter of them. */
 export const WICKET_FACTOR_WEIGHT = 0.25;
 /** Weight on a ground's own chase record relative to its league's baseline. */
@@ -86,20 +111,27 @@ const BASE_ECONOMY = 8.6;
 const IPL_IDS = ["srh", "dc", "rcb", "kkr", "rr", "csk", "mi", "pbks", "gt", "lsg"];
 const WPL_IDS = ["mi-w", "dc-w", "rcb-w", "gg-w", "upw"];
 
-function leagueOf(teamId: string): "ipl" | "wpl" | null {
-  if (IPL_IDS.includes(teamId)) return "ipl";
-  if (WPL_IDS.includes(teamId)) return "wpl";
-  return null;
+/** Team ids of every league with measured grounds (IPL, WPL and the extra leagues), keyed by league id. */
+const LEAGUE_TEAM_IDS: Record<string, string[]> = {
+  ipl: IPL_IDS,
+  wpl: WPL_IDS,
+  ...Object.fromEntries(LEAGUE_DEFS.map(l => [l.id, l.teams.map(t => t.id)])),
+};
+const LEAGUE_OF_TEAM = new Map<string, string>(
+  Object.entries(LEAGUE_TEAM_IDS).flatMap(([league, ids]) => ids.map(id => [id, league] as [string, string])),
+);
+
+function leagueOf(teamId: string): string | null {
+  return LEAGUE_OF_TEAM.get(teamId) ?? null;
 }
 
 function geoMean(values: number[]): number {
   return Math.exp(values.reduce((s, v) => s + Math.log(v), 0) / values.length);
 }
 
-const leagueNorm: Record<"ipl" | "wpl", { run: number; six: number; wkt: number; chase: number }> = {
-  ipl: computeNorm(IPL_IDS),
-  wpl: computeNorm(WPL_IDS),
-};
+const leagueNorm: Record<string, { run: number; six: number; wkt: number; chase: number }> = Object.fromEntries(
+  Object.entries(LEAGUE_TEAM_IDS).map(([league, ids]) => [league, computeNorm(ids)]),
+);
 
 function computeNorm(ids: string[]) {
   const recs = ids.map(id => VENUE_DATA.teams[id]).filter(Boolean);
@@ -118,24 +150,53 @@ export function getVenueProfileForTeam(teamId: string): VenueProfile | null {
   const league = leagueOf(teamId);
   if (!rec || !league) return null;
   const norm = leagueNorm[league];
-  const base = league === "ipl" ? VENUE_DATA.chase.ipl : VENUE_DATA.chase.wpl;
+  const base = chaseBaseline(league);
   const ground = rec.chaseAdvantage ?? norm.chase;
   const wkt = rec.wicketFactor / 100 / norm.wkt;
+  const level = LEAGUE_LEVELS[league];
   return {
     groundName: rec.name,
-    runMult: LEAGUE_LEVEL_RUN * rec.runFactor / 100 / norm.run,
+    runMult: (level?.run ?? LEAGUE_LEVEL_RUN) * rec.runFactor / 100 / norm.run,
     sixMult: rec.sixFactor / 100 / norm.six,
-    wicketMult: LEAGUE_LEVEL_WICKET * (1 + (wkt - 1) * WICKET_FACTOR_WEIGHT),
+    wicketMult: (level?.wicket ?? LEAGUE_LEVEL_WICKET) * (1 + (wkt - 1) * WICKET_FACTOR_WEIGHT),
+    ...(level ? { dotMult: level.dot } : {}),
     edges: rec.edges ?? {},
     chaseAdvantage: base + GROUND_CHASE_WEIGHT * (ground - norm.chase),
     source: rec.source,
   };
 }
 
-/** Chase advantage for a neutral venue in a league (playoffs) or an unmapped team. */
-export function getLeagueChaseAdvantage(league: string | undefined, gender: "men" | "women" | "combined" | undefined): number {
+/**
+ * A neutral ground (playoffs) in an extra league: the league's scoring level with no ground effects. Null for IPL, WPL and
+ * custom leagues, whose neutral matches keep using no measured profile.
+ */
+export function getNeutralVenueProfile(league: string | undefined): VenueProfile | null {
+  const level = league ? LEAGUE_LEVELS[league] : undefined;
+  if (!league || !level) return null;
+  return {
+    groundName: "Neutral venue",
+    runMult: level.run,
+    sixMult: 1,
+    wicketMult: level.wicket,
+    dotMult: level.dot,
+    edges: {},
+    chaseAdvantage: chaseBaseline(league),
+    source: "league average",
+  };
+}
+
+/** A league's competition-wide chase advantage: IPL / WPL / extra league estimate, else the gender mean. */
+function chaseBaseline(league: string): number {
   if (league === "ipl") return VENUE_DATA.chase.ipl;
   if (league === "wpl") return VENUE_DATA.chase.wpl;
+  const own = VENUE_DATA.chase.leagues?.[league];
+  if (own !== undefined) return own;
+  return LEAGUE_DEFS.find(l => l.id === league)?.gender === "women" ? VENUE_DATA.chase.female : VENUE_DATA.chase.male;
+}
+
+/** Chase advantage for a neutral venue in a league (playoffs) or an unmapped team. */
+export function getLeagueChaseAdvantage(league: string | undefined, gender: "men" | "women" | "combined" | undefined): number {
+  if (league === "ipl" || league === "wpl" || (league && LEAGUE_TEAM_IDS[league])) return chaseBaseline(league);
   return gender === "women" ? VENUE_DATA.chase.female : VENUE_DATA.chase.male;
 }
 
@@ -241,6 +302,7 @@ export function applyVenueProfile(probs: Probs, profile: VenueProfile, bowlingSt
   }
   if (probs["6"] !== undefined) probs["6"] *= six * type.runMod;
   if (probs.wicket !== undefined) probs.wicket *= profile.wicketMult * type.wicketMod;
+  if (profile.dotMult !== undefined && probs.dot !== undefined) probs.dot *= profile.dotMult;
 }
 
 /** Small second-innings tilt so the chasing side's edge matches the measured chase advantage. */

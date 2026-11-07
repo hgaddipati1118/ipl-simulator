@@ -8,7 +8,11 @@ Run from packages/ratings:  python3 -I src/analysis/export-engine-venues.py
 """
 import csv
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from league_defs import LEAGUES, team_grounds, team_id  # extra leagues (BBL, PSL, ...): home grounds and competitions
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "data-export" / "venue-conditions.json"
@@ -36,6 +40,10 @@ TEAM_GROUNDS = {
     "upw": "Ekana Cricket Stadium",
 }
 WOMEN_TEAMS = {"mi-w", "dc-w", "rcb-w", "gg-w", "upw"}
+for _team, (_ground, _gender) in team_grounds().items():
+    TEAM_GROUNDS[_team] = _ground
+    if _gender == "female":
+        WOMEN_TEAMS.add(_team)
 
 # Engine bowling-style groups -> keys used in the export's bowlerTypeEdges
 EDGE_KEYS = ["RA fast", "RA fast-medium", "RA medium", "LA pace", "off-spin", "wrist-spin", "LA orthodox"]
@@ -138,6 +146,14 @@ def main():
         "male": r(men_all),
         "female": r(women_all),
     }
+    # Extra leagues: each competition's own chase record, shrunk toward the gender mean like the WPL's
+    league_chase = {}
+    for lg in LEAGUES:
+        gender = "female" if lg["gender"] == "women" else "male"
+        x, se = est("chase_advantage", gender, "competition", lg["competition"])
+        prior = women_all if gender == "female" else men_all
+        league_chase[lg["id"]] = r(shrink(x, se, prior)) if x is not None else r(prior)
+    chase["leagues"] = league_chase
     toss_value, _ = est("toss_value_win", "male", "overall", "all")
     field_share, _ = est("toss_choice_field_share", "male", "era", "2024-26")
 

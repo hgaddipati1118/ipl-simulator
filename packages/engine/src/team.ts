@@ -97,7 +97,7 @@ export const LEGACY_STADIUM_BOWLING_RATINGS: Record<string, number> = {
  * are labels derived from the run / six / bowler-type / chase measurements. The match engine
  * uses the measurements directly; these labels drive UI, lineup advice and live-mode extras.
  */
-function withMeasuredVenue(config: TeamConfig): TeamConfig {
+export function withMeasuredVenue(config: TeamConfig): TeamConfig {
   const profile = getVenueProfileForTeam(config.venueTeamId ?? config.id);
   if (!profile) return config;
   return {
