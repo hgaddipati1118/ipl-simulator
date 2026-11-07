@@ -34,6 +34,7 @@ import { useTheme } from "./hooks/useTheme";
 import {
   GameState,
   createGameState,
+  addPlayerToPool,
   runAuctionPhase,
   runSeasonPhase,
   nextSeason,
@@ -92,6 +93,7 @@ import {
   type SaveSlotInfo,
 } from "./game-state";
 import { saveState, loadState, clearState } from "./storage";
+import { poolLoader, type ExtendedPlayer } from "./extended-pool";
 import { saveMatchDetail } from "./match-db";
 
 function ThemeToggle({ resolved, toggle }: { resolved: "light" | "dark"; toggle: () => void }) {
@@ -338,7 +340,18 @@ export default function App() {
     await clearState();
     setLiveMatchState(null);
     liveMatchIndex.current = -1;
-    const fresh = createGameState(rules);
+    // A "deep" pool adds the best active extended-pool players (fetched on demand); fall back to the standard pool offline
+    let extras: ExtendedPlayer[] = [];
+    if (rules.poolDepth === "deep") {
+      const men = rules.gender !== "women", women = rules.gender === "women" || rules.gender === "combined";
+      try {
+        extras = [
+          ...(men ? await poolLoader.auctionExtras("men") : []),
+          ...(women ? await poolLoader.auctionExtras("women") : []),
+        ];
+      } catch { extras = []; }
+    }
+    const fresh = createGameState(rules, extras);
     setState(fresh);
     refreshSlots();
     navigate("/");
@@ -847,6 +860,7 @@ export default function App() {
             onToggleMarketAssignment={handleToggleMarketScoutAssignment}
             onToggleShortlist={handleToggleShortlist}
             onToggleWatchlist={handleToggleWatchlist}
+            onAddToPool={player => update(addPlayerToPool(state, player))}
           />
         } />
         <Route path="/player/:playerId" element={

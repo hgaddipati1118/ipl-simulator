@@ -11,6 +11,8 @@ import {
 } from "../scouting";
 import { getRecruitmentCounts, getRecruitmentTag, type RecruitmentState } from "../recruitment";
 import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentControls";
+import { DatabaseSearch } from "../components/DatabaseSearch";
+import type { ExtendedPlayer } from "../extended-pool";
 
 interface Props {
   teams: Team[];
@@ -24,6 +26,8 @@ interface Props {
   onToggleMarketAssignment: () => void;
   onToggleShortlist: (playerId: string) => void;
   onToggleWatchlist: (playerId: string) => void;
+  /** Sign a player from the full database as a free agent */
+  onAddToPool?: (player: ExtendedPlayer) => void;
 }
 
 type SortKey = "overall" | "battingOvr" | "bowlingOvr" | "age" | "runs" | "wickets" | "name";
@@ -41,6 +45,7 @@ export function PlayerRatingsPage({
   onToggleMarketAssignment,
   onToggleShortlist,
   onToggleWatchlist,
+  onAddToPool,
 }: Props) {
   const [sortBy, setSortBy] = useState<SortKey>("overall");
   const [filterRole, setFilterRole] = useState<string>("all");
@@ -403,6 +408,7 @@ export function PlayerRatingsPage({
           </table>
         </div>
       </div>
+      {onAddToPool && <DatabaseSearch onAddToPool={onAddToPool} />}
     </div>
   );
 }

@@ -65,6 +65,7 @@ import { seasonDraftConfig, draftRoundPrice } from "./draft-pools";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
+import { toRealPlayerData, type ExtendedPlayer } from "@ipl-sim/ratings/dist/extended-pool.js";
 import { buildNarrativeEventsForEngineResult, prependNarrativeEvents, type FeedMatchResult } from "./news-feed";
 import {
   boostPlayerScouting,
@@ -386,7 +387,7 @@ function refreshUserContractState(state: GameState): GameState {
 }
 
 /** Initialize fresh game state */
-export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
+export function createGameState(rules: RuleSet = DEFAULT_RULES, extraPool: ExtendedPlayer[] = []): GameState {
   const isWPL = rules.league === "wpl";
   const isCustom = rules.league === "custom";
   const allTeamConfigs = [...IPL_TEAMS, ...WPL_TEAMS];
@@ -435,8 +436,12 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
   const realPoolPlayers = realPoolData.map(data => createPlayerFromData(data));
 
   // Add a few generated players to supplement if pool is thin
-  const supplementCount = Math.max(0, 50 - realPoolPlayers.length);
-  const additionalPlayers = [...realPoolPlayers, ...generatePlayerPool(supplementCount)];
+  // "Deep" pools add the best active extended-pool (CricketArchive-only) players, already chosen by the caller
+  const extraPoolPlayers = rules.poolDepth === "deep" && playerSource === "real"
+    ? extraPool.map(data => createPlayerFromData(toRealPlayerData(data)))
+    : [];
+  const supplementCount = Math.max(0, 50 - realPoolPlayers.length - extraPoolPlayers.length);
+  const additionalPlayers = [...realPoolPlayers, ...extraPoolPlayers, ...generatePlayerPool(supplementCount)];
 
   return {
     phase: "setup",
@@ -466,6 +471,17 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     fantasyLeaderboard: [],
     contractsResolved: true,
   };
+}
+
+/**
+ * Sign a database (extended pool) player as a free agent: he joins the market with scouting set up like any other
+ * pool player. Returns the same state if a player of that name, country and age is already in a squad or the pool.
+ */
+export function addPlayerToPool(state: GameState, data: ExtendedPlayer): GameState {
+  const same = (p: Player) => p.name === data.name && p.country === data.country && p.age === data.age;
+  if (state.playerPool.some(same) || state.teams.some(t => t.roster.some(same))) return state;
+  const player = createPlayerFromData(toRealPlayerData(data));
+  return withSyncedScouting({ ...state, playerPool: [...state.playerPool, player] });
 }
 
 /** Run the auction phase */

@@ -29,6 +29,7 @@ export interface RuleSet {
   injuriesEnabled: boolean;      // whether injuries can occur during matches
   gender?: GenderOption;         // player pool gender filter
   playerSource?: PlayerSource;   // "real" = existing rated players, "generated" = all CPU
+  poolDepth?: "standard" | "deep"; // "deep" adds the best active CricketArchive-only players to the auction pool (default "standard")
   megaAuctionCycle?: number;     // seasons between mega auctions (default 3 for IPL)
   maxRetentions?: number;        // max players retained at mega auction (default 6)
   maxMiniRetentions?: number;    // max players retained at mini auction (default 4)

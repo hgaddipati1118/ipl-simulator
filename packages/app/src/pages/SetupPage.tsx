@@ -30,6 +30,7 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
   const [injuriesEnabled, setInjuriesEnabled] = useState(rules.injuriesEnabled);
   const [gender, setGender] = useState<GenderOption>(rules.gender ?? "men");
   const [playerSource, setPlayerSource] = useState<PlayerSource>(rules.playerSource ?? "real");
+  const [poolDepth, setPoolDepth] = useState<"standard" | "deep">(rules.poolDepth ?? "standard");
 
   const toggleTeam = (id: string) => {
     const next = new Set(selectedTeams);
@@ -59,6 +60,7 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
       injuriesEnabled,
       gender,
       playerSource,
+      poolDepth,
     });
   };
 
@@ -118,6 +120,28 @@ function CustomLeaguePanel({ rules, onRulesChange }: { rules: RuleSet; onRulesCh
           </div>
         </div>
       </div>
+
+      {playerSource === "real" && (
+        <div>
+          <div className={sectionLabel}>Auction Pool</div>
+          <div className="grid grid-cols-1 gap-2 sm:flex">
+            {(["standard", "deep"] as const).map(d => (
+              <button
+                key={d}
+                onClick={() => setPoolDepth(d)}
+                className={`w-full rounded-lg border px-3 py-1.5 text-xs font-display font-medium transition-colors sm:w-auto ${
+                  poolDepth === d
+                    ? "bg-orange-500/20 border-orange-500/40 text-white"
+                    : "bg-th-surface border-th text-th-muted hover:text-th-primary"
+                }`}
+              >
+                {d === "standard" ? "Standard" : "Deep (adds up to 1,500 more active players)"}
+              </button>
+            ))}
+          </div>
+          <p className="text-th-faint text-[11px] mt-1.5">Every rated cricketer is also searchable and signable from the Player Ratings page.</p>
+        </div>
+      )}
 
       {/* Team Selection */}
       <div>

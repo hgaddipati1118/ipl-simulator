@@ -421,7 +421,7 @@ season value, decayed rating, uncertainty, 0-99 ovr and next-year projection for
   on the player's own record) a discipline can't rate above the 95th percentile of established players. A
   discipline rated only from List A / first-class can't rate above the median of players with a real T20
   record (240+ balls), and never below what the generator gave it.
-- The pool is unchanged: CA-only players with no ESPN profile don't meet the pool's rules.
+- The ESPN pool (`all-players.ts` / `wpl-players.ts`) is unchanged: CA-only players with no ESPN profile live in the extended pool (next section), which is rated through this same code path.
 
 ### Career mode
 
@@ -430,6 +430,91 @@ curves: rating points per season by gender, for batting attributes (`bat`) and b
 `spin`). `Player.progress()` uses it in place of the old hand-set `(30 - age) * 0.3` trend (and extra decline
 after 32); randomness, training focus and youth potential are unchanged. Women's leagues use the women's
 curves (`nextSeason` passes the gender).
+
+## Extended pool: every CricketArchive player, down to club cricket
+
+The bundled pool (5,541 men + 2,379 women, all with ESPN profiles) is joined by an **extended pool** of every other CricketArchive
+player with an appearance since 2000: `ca_<CricketArchive id>` ids, rated from CA scorecards only. Counts today (partial lower-level scrape, 10%):
+
+| | men | women |
+|---|---|---|
+| Senior (Twenty20 / List A / First-Class cards, no ESPN profile) | 18,573 | 12,406 |
+| Lower level, tier0: second XIs, touring and other senior sides (event-only cards) | 129,313 | 4,560 |
+| tier1 university / tier2 club-league / tier3 youth / tier4 veterans | 0 / 506 / 55 / 22 | 0 |
+
+(165,435 players, 3.7 MB of gzip shards; the 4 tiers below tier0 are small only because the scraper walks tier0 first.)
+
+### Pipeline (from `packages/ratings`, in this order; the CA outputs in `data/analysis/` are gitignored)
+
+    npx tsx src/pipeline/build-db.ts --events-only          # data/cricket-events.db from scorecards-events.jsonl.gz (20 s; cricket.db is untouched)
+    duckdb < src/analysis/ca-lower-cells.sql                # lower-level player x competition x year cells
+    CA_RATINGS_WORK=/some/tmp python3 -I src/analysis/ca-lower-ratings.py   # lower-level ratings on the senior scale (~1 min)
+    duckdb < src/analysis/ca-pool-stats.sql                 # career stats + profile facts for every candidate
+    npx tsx src/pipeline/generate-ca-pool.ts --verify       # rates the pool, writes ../app/public/pool/*.json.gz + manifest.json
+
+Re-run all of it as the scrape grows (the events DB is rebuilt from the gzip file; a gzip member being appended is tolerated).
+`--verify` proves the bundled pool is untouched: it re-runs the ESPN players through the same model call next to the extended
+players and compares with `espn-ratings.json` (0 players changed, both genders). `build-db.ts` without the flag still builds
+`cricket.db` as before (it now also stores each match's event tier in `matches.tier`).
+
+### Lower-level ratings (`ca-lower-cells.sql`, `ca-lower-ratings.py`)
+
+Event-only cards (second XIs, university, club, youth, veterans; tiered by `event-tiers.ts`, the scraper's `EVENT_TIERS`, now shared)
+become cells like the senior ones: format inferred from the card ("20-over match" -> T20, 25..60 overs -> List A, "N-day" / timed -> FC; else from the
+most overs bowled), value = runs above the competition-season average ball. Cards already counted as senior are skipped. Batting is valued only on
+innings with balls recorded (29% of tier0 and 67% of club innings have them); bowling uses overs, which every card has.
+
+The senior fit (strengths, weak-tier translation, pools, role offsets, tuned h/K) is re-used unchanged, so no senior rating moves. A lower-level cell is put
+on the senior scale as `a = L_c + rho_t * r` (r = rate vs. its competition-season average): `rho_t, alpha_t` are the tier's translation, fitted on cells of
+players who also played senior cricket in the same year (the links between the levels, errors-in-variables corrected, rho clipped to [0.3, 1]);
+`L_c = alpha_t +` the shrunk mean residual of the links in that competition. A tier with < 40 link cells has no fit and falls back to rho 0.5 and a level below the
+weakest senior competitions (5th percentile of senior pools minus 0..1.5 SDs by tier). Ratings then use the senior estimator (decay, shrinkage K, role offset)
+over the player's senior and lower-level cells together; sd adds the link regression's residual. Partial-data fits (`ca_lower_validation.json`): T20 men tier0
+rho 0.30 (853 links), club rho 1.0 / alpha -24.9 (270 links); List A men tier0 rho 1.0 (561 links); the other tiers are on the fallback until the scrape reaches them.
+The link players are selected (good enough to play senior cricket), which flatters alpha, hence the ceilings below.
+
+### Game ratings (`generate-ca-pool.ts`)
+
+- **Who**: every CA player in the stats (senior or lower level) whose id is not mapped to a pool player by `ca_espn_map.csv`, not an ESPN profile with the same
+  DOB and a compatible name, and not the same full name + country + age as a pool player (the map missed ~160 men, ~55 women); one gender per player (most matches).
+  `LL_MIN_MATCHES` (default 1 = everyone) raises the bar for lower-level-only players when the pool outgrows what you want to ship.
+- **Overall and discipline scores**: `ca-model.ts` `loadCa(gender, { lower: true })` gives each CA-only player a batting and bowling score (T20, else List A,
+  else batting-only FC, translated exactly as for ESPN players; a lower-level rating replaces the senior one per side as it includes it). `model-ratings.ts` maps the score to the overall a
+  Cricsheet-rated player with that score has, without shifting anyone (`playerKey()`: `ca_<id>` is key -id). Small-sample caps are the same function, with
+  percentiles still taken over the ESPN pool; List A / FC-only sides cap at the median of T20 regulars.
+- **Attribute mix**: the generator's job for ESPN players. For CA-only players it is `calculator.ts` on their own scorecard stats, converted to T20 rates by each
+  format's population ratio, and shrunk toward a below-average prior (worth 90 balls batting / 120 bowling, doubled and weaker for lower-level-only players); innings without balls are rated by
+  runs and dismissals at the format's average pace. Disciplines without a usable CA record are capped at the median of T20 regulars.
+- **Lower-tier ceilings**: a player whose best cricket is tier t can't rate above the 85 / 70 / 55 / 55 / 40th percentile (tier0..4) of established ESPN players per discipline.
+- **Role, keeper, style, country, age**: role from what he does (bowls in 35%+ of matches with 2+ overs a spell, bats in the top 7; both within 25 overall points -> all-rounder),
+  keeper if he keeps in half his innings, bowling style / hand from the CA profile, country from the international side, else birth country, else the country of his matches; age from DOB (26 when unknown, true for most lower-level players).
+
+### Sanity checks (this run)
+
+- Overall distribution (p10 / median / p90 / p99 / max): ESPN men 44 / 59 / 77 / 87 / 97; extended senior men 34 / 51 / 73 / 81 / 89; tier0 men 26 / 28 / 45 / 67 / 77; club (tier2) men 27 / 28 / 41 / 60 / 69;
+  ESPN women 43 / 53 / 73 / 83 / 96; extended senior women 43 / 51 / 67 / 74 / 81; tier0 women 41 / 41 / 48 / 63 / 71.
+- Club, youth and veterans players never reach the median of the bundled pool's 100+-match players (77) and none is above the 80th percentile of the pool in either discipline (tests).
+- Spot checks: Anil Kumble, Jacques Kallis, Shane Watson (retired, so not in the ESPN pool) rate 87-89 in the extended senior pool.
+- Retired players are included (`lastYear` in each row); the deep auction pool uses only players active since 2022 and 40 or younger.
+
+### How the app loads it
+
+`packages/app/public/pool/` holds `manifest.json` and gzip JSON shards (`ca-<men|women>-<senior|tier0..4>[-n].json.gz`, 40,000 players max per shard, sorted best first), format in
+`packages/ratings/src/extended-pool.ts`. They are not in the JS bundle: `app/src/extended-pool.ts` fetches the manifest and the shards a request needs
+(gunzip with `DecompressionStream`; also fine if the server already decoded them), caches them, and offers `players`, `search`, `counts` and `auctionExtras`.
+Set `VITE_POOL_BASE_URL` to serve the shards from object storage once they outgrow the repo (the full scrape could be tens of MB; the pipeline already shards by tier and size).
+Shards for 840k lower-level matches should be generated into that storage rather than committed.
+
+- **Player Ratings page**: "Full player database" panel (name / country search over the senior pool, optional lower-level tiers, 50 results, "Add to free agents" via `addPlayerToPool`).
+  The page's own table is still the game state's pool and stays capped at 125 rows; only a league's pool is ever scored for scouting.
+- **Auction pools**: unchanged by default. A custom league can pick "Deep" (`rules.poolDepth = "deep"`): the best 1,500 active senior extended-pool players per gender join the free-agent pool.
+  Lower-level players never enter default or deep pools; they are for search, signing, and (later) youth and domestic squads.
+- Presets, saves and multiplayer are untouched (`createGameState(rules, extras)` takes the extras as a second argument).
+
+### Known gaps
+
+Batting for lower-level players rests on the minority of innings with balls recorded; tiers below tier0 are thin or on fallback translations until the scrape reaches them (re-run the pipeline then);
+selection bias in the link players (see above); no per-ground or per-team lower-level strength; lower-level players have no DOB on most cards (age 26) and no batting position.
 
 ## Venues, pitches, toss/chase and geography (analysis only)
 
