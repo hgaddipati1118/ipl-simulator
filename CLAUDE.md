@@ -12,7 +12,7 @@ packages/
 ```
 
 Match rules (every dismissal kind, extras, free hits, strike after a wicket, retirements, super overs) are fitted from Cricsheet and documented in
-`docs/RULES-MATCH.md` section 12 (`delivery-rules.ts`, `match-rules-data.ts`, built by `packages/ratings/src/analysis/match-rules.py`).
+`docs/RULES-MATCH.md` section 12 (`delivery-rules.ts`, `match-rules-data.ts`, built by `packages/ratings/src/analysis/match-rules.py`); rain / DLS / no result, DRS, fielding errors (drops, misfields), short runs, beamers, the over-rate restriction and the other rare plays in section 13 (`dls.ts`, `drs.ts`, `special-plays.ts`, `match-rules-extra-data.ts` from `match-rules-extra.py`).
 
 Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ball text (scraper, templates, engine API: `docs/COMMENTARY.md`;
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).

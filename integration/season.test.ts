@@ -177,12 +177,14 @@ describe("season stat consistency", () => {
     expect(group.length + playoffs.length).toBe(result.schedule.length);
   });
 
-  it("every match has exactly one winner", () => {
+  it("every match has exactly one winner (or is a washed-out league match)", () => {
     const { result, teams } = setup();
     const teamIds = new Set(teams.map(t => t.id));
 
     for (const match of result.schedule) {
       expect(match.result).toBeDefined();
+      // rain can wash out a group match (no result, RULES-MATCH.md 13.3); a knockout always has a winner
+      if (match.result!.margin === "No result" && !match.isPlayoff) { expect(match.result!.winnerId).toBeNull(); continue; }
       expect(match.result!.winnerId).toBeTruthy();
       expect(teamIds.has(match.result!.winnerId!)).toBe(true);
       // Winner must be one of the two teams
@@ -197,7 +199,8 @@ describe("season stat consistency", () => {
       const validMargin =
         margin.includes("wickets") ||
         margin.includes("runs") ||
-        margin === "Super Over";
+        margin === "Super Over" ||
+        margin === "No result";
       expect(validMargin).toBe(true);
     }
   });
