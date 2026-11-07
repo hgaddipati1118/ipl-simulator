@@ -138,13 +138,13 @@ export function drsText(r: DrsReview, team: string, rng: RNG): string {
   const pick = (xs: string[]) => xs[Math.min(xs.length - 1, Math.floor(rng() * xs.length))];
   const what = r.kind === "lbw" ? "lbw" : "caught behind";
   if (r.onField === "out") {
-    const lead = `Given out ${what}, and ${team} review.`;
+    const lead = `Given out ${what}, and ${team} ask for a DRS review.`;
     if (r.result === "overturned") return `${lead} ${r.kind === "lbw" ? pick(["Ball tracking shows it missing the stumps.", "There is an inside edge onto the pad!", "Pitched outside leg."]) : pick(["UltraEdge shows a gap between bat and ball.", "No spike on UltraEdge, it brushed the pad."])} OVERTURNED, not out!`;
-    if (r.result === "umpires_call") return `${lead} Umpire's call, clipping the stumps, so the decision stands. ${team} keep their review.`;
-    return `${lead} ${r.kind === "lbw" ? "Hitting the stumps." : "A clear spike on UltraEdge."} The decision stands and ${team} lose a review.`;
+    if (r.result === "umpires_call") return `${lead} UMPIRE'S CALL, clipping the stumps, so the decision stands. ${team} keep their review.`;
+    return `${lead} ${r.kind === "lbw" ? "Hitting the stumps." : "A clear spike on UltraEdge."} The decision stands and ${team} lose their review.`;
   }
-  const lead = `Big appeal for ${what}, not out says the umpire, and ${team} go upstairs.`;
+  const lead = `Big appeal for ${what}, not out says the umpire, and ${team} go for a DRS review.`;
   if (r.result === "overturned") return `${lead} ${r.kind === "lbw" ? "Three reds on ball tracking!" : "A spike on UltraEdge as it passes the bat!"} OVERTURNED, that's OUT!`;
-  if (r.result === "umpires_call") return `${lead} Umpire's call on ${r.kind === "lbw" ? "impact" : "the deflection"}, so it stays not out. ${team} keep their review.`;
-  return `${lead} ${r.kind === "lbw" ? "Missing the stumps." : "Nothing on UltraEdge."} Not out, and ${team} lose a review.`;
+  if (r.result === "umpires_call") return `${lead} UMPIRE'S CALL on impact, so it stays not out. ${team} keep their review.`;
+  return `${lead} ${r.kind === "lbw" ? "Missing the stumps." : "Nothing on UltraEdge."} Not out, and ${team} lose their review.`;
 }

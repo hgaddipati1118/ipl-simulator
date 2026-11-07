@@ -45,7 +45,13 @@ export { getMatchupModifiers, getMatchPhase, isPaceBowler, isFastBowler, isSpinB
 export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";
 
 export { calculateWinProbability } from "./win-probability.js";
-export { getDLSResource, calculateDLSTarget, checkRainInterruption, canProduceResult, getRainDelayNarrative } from "./dls.js";
+export { getDLSResource, calculateDLSTarget, checkRainInterruption, canProduceResult, getRainDelayNarrative, resources50, resourcesPct, inningsResources, dlsTarget, dlsPar, DLS_G_T20 } from "./dls.js";
+export { DRS_REVIEWS_PER_INNINGS, drsAtDismissal, drsAtDot, drsKindOf, drsText, reviewLost } from "./drs.js";
+export type { DrsReview, DrsKind, DrsResult, DrsSide } from "./drs.js";
+export {
+  applySpecialPlays, applyGenderExtras, extrasGenderFactor, drawOverRatePenalty, applyOverRatePenalty, OVER_RATE, OVER_RATE_EFFECT, specialPlayText, specialPlayTail,
+} from "./special-plays.js";
+export { MATCH_RULES_EXTRA } from "./match-rules-extra-data.js";
 
 export {
   determineDismissalType, isCatchDropped, determineWideType, runsOffWide,
@@ -58,9 +64,9 @@ export type { DismissalType, WideType, NoBallType, MatchInjuryType, InjuryRespon
 
 export {
   fieldingRating, keepingRating, pickKeeper, fieldingValueBonus, buildFieldingUnit, resolveWicketChance, applyFieldingToProbs,
-  chanceInflation, fieldingCommentary, NEUTRAL_FIELDING, DEFAULT_KEEPER_KEEPING, DEFAULT_NONKEEPER_KEEPING, CONV as FIELDING_CONVERSION,
+  chanceInflation, fieldingCommentary, fieldingTally, battingLives, missedChanceOutcome, NEUTRAL_FIELDING, DEFAULT_KEEPER_KEEPING, DEFAULT_NONKEEPER_KEEPING, CONV as FIELDING_CONVERSION,
 } from "./fielding.js";
-export type { FielderLike, FieldingUnit, FieldingNote, FieldingResolution, WicketKind } from "./fielding.js";
+export type { FielderLike, FieldingUnit, FieldingNote, FieldingResolution, WicketKind, FieldingTally, FieldingLogEvent } from "./fielding.js";
 
 export { simulateMatch, calculateMVPPoints } from "./match.js";
 export {

@@ -18,6 +18,7 @@ import {
   setAggression,
   setFieldSetting,
   calculateWinProbability,
+  battingLives,
   type NarrativeEvent,
 } from "@ipl-sim/engine";
 import {
@@ -49,7 +50,7 @@ type DrsReviewingState = {
   batterName: string;
   bowlerName: string;
   reviewsLeft: number;
-  reviewKind: "lbw" | "wide" | "noball" | "runout";
+  reviewKind: "lbw" | "caught" | "wide" | "noball" | "runout";
   reviewingSide: "batting" | "bowling";
 };
 
@@ -63,7 +64,7 @@ type DrsResultState = {
 type LiveMatchDrsContext = {
   batterName: string;
   bowlerName?: string;
-  reviewKind?: "lbw" | "wide" | "noball" | "runout";
+  reviewKind?: "lbw" | "caught" | "wide" | "noball" | "runout";
   reviewingSide?: "batting" | "bowling";
   onFieldCall?: "out" | "not_out" | "wide" | "not_wide" | "noball" | "not_noball" | "run_out" | "not_run_out";
   isGivenOut: boolean;
@@ -131,6 +132,17 @@ function buildDrsResultState(
   teamShortName: string,
   drsContext?: LiveMatchDrsContext | null,
 ): DrsResultState {
+  // lbw / caught behind reviewed by the batting side (given out)
+  if (drsContext && (drsContext.reviewKind === "lbw" || drsContext.reviewKind === "caught") && drsContext.reviewingSide === "batting") {
+    const what = drsContext.reviewKind === "lbw" ? "lbw" : "caught behind";
+    if (verdict === "overturned") return { verdict, title: "Decision Overturned", message: `${teamShortName} got it right. Not out, the batter survives.`, badgeLabel: "NOT OUT" };
+    if (verdict === "umpires-call") return { verdict, title: "Umpire's Call", message: `Out ${what} stands on umpire's call. ${teamShortName} keep the review.`, badgeLabel: "UMPIRE'S CALL" };
+    return { verdict, title: "Review Lost", message: `Out ${what}, the decision stands and ${teamShortName} lose the review.`, badgeLabel: "REVIEW LOST" };
+  }
+  if (drsContext && drsContext.reviewKind === "caught") {
+    if (verdict === "overturned") return { verdict, title: "Decision Overturned", message: `${teamShortName} got it right. The batter is out caught behind.`, badgeLabel: "DRS OUT" };
+    return { verdict, title: "Review Lost", message: `${teamShortName} challenged, but UltraEdge showed nothing. Not out.`, badgeLabel: getDrsVerdictLabel(verdict) };
+  }
   if (drsContext && drsContext.reviewKind !== "lbw") {
     const callLabel = drsContext.reviewKind === "wide" ? "wide" : "no-ball";
     if (verdict === "overturned") {
@@ -227,6 +239,13 @@ export function LiveMatchPage({
   useEffect(() => { playingRef.current = playing; }, [playing]);
   useEffect(() => { speedRef.current = speed; }, [speed]);
   useEffect(() => { stateRef.current = state; }, [state]);
+
+  // Chances the current innings' batters have survived ("dropped on 23 (Jadeja)")
+  const liveLives = useMemo(() => {
+    if (!state) return new Map<string, string[]>();
+    const pm = state._internal.playerDataMap;
+    return battingLives(state._internal.currentInningsRaw.ballLog, id => pm[id]?.name);
+  }, [state]);
 
   // Determine if user's team is in this match
   const isUserMatch = Boolean(
@@ -586,7 +605,7 @@ export function LiveMatchPage({
       ));
       window.setTimeout(() => setDrsResult(null), DRS_RESULT_DURATION_MS);
 
-      if (resolvedVerdict === "overturned") {
+      if (resolvedVerdict === "overturned" && newState.wickets > reviewingState.wickets) {
         setFlashType("wicket");
         window.setTimeout(() => setFlashType(null), 600);
       }
@@ -1320,7 +1339,8 @@ export function LiveMatchPage({
                               </span>
                             </td>
                             <td className="px-2 py-1.5 text-th-faint hidden sm:table-cell">
-                              {b.isOut ? b.howOut : "not out"}
+                              {b.isOut ? b.howOut : b.retiredHurt ? "retired hurt" : "not out"}
+                              {liveLives.get(b.playerId) && <div className="text-[10px] text-amber-500/80">{liveLives.get(b.playerId)!.join(", ")}</div>}
                             </td>
                             <td className="text-right px-2 py-1.5 font-mono font-semibold text-th-primary">{b.runs}</td>
                             <td className="text-right px-2 py-1.5 font-mono text-th-muted">{b.balls}</td>
@@ -1555,7 +1575,14 @@ export function LiveMatchPage({
 
       {/* Choose Bowler Modal */}
       {isDecisionForUser && state.pendingDecision!.type === "choose_bowler" && (
-        <DecisionModal title="Choose Your Bowler" subtitle={`${battingTeam.shortName} ${state.score}/${state.wickets} (${oversDisplay} ov)`}>
+        <DecisionModal
+          title={state.pendingDecision!.reason ? "Who Finishes the Over?" : "Choose Your Bowler"}
+          subtitle={state.pendingDecision!.reason === "injury"
+            ? `${state.pendingDecision!.outgoingBowlerName ?? "Your bowler"} has left the field injured mid-over. ${battingTeam.shortName} ${state.score}/${state.wickets} (${oversDisplay} ov)`
+            : state.pendingDecision!.reason === "beamer"
+            ? `${state.pendingDecision!.outgoingBowlerName ?? "Your bowler"} is removed from the attack after a second beamer. ${battingTeam.shortName} ${state.score}/${state.wickets} (${oversDisplay} ov)`
+            : `${battingTeam.shortName} ${state.score}/${state.wickets} (${oversDisplay} ov)`}
+        >
           <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
             {(state.pendingDecision!.optionDetails ?? []).map((opt, i) => {
               const isRecommended = i === 0 || opt.bowlingOvr === Math.max(...(state.pendingDecision!.optionDetails ?? []).map(o => o.bowlingOvr));
@@ -1612,11 +1639,42 @@ export function LiveMatchPage({
       {/* Choose Batter Modal */}
       {isDecisionForUser && state.pendingDecision!.type === "choose_batter" && (() => {
         const opts = state.pendingDecision!.optionDetails ?? [];
-        const xiOpts = opts.filter(o => !o.isBench);
+        const hurtIds = new Set(state.pendingDecision!.retiredHurtIds ?? []);
+        const xiOpts = opts.filter(o => !o.isBench && !hurtIds.has(o.playerId));
+        const hurtOpts = opts.filter(o => hurtIds.has(o.playerId));
         const benchOpts = opts.filter(o => o.isBench);
+        const canEnd = state.pendingDecision!.options.includes("none");
         return (
           <DecisionModal title="Who Bats Next?" subtitle={`${battingTeam.shortName} ${state.score}/${state.wickets} (${oversDisplay} ov)`}>
             <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
+              {hurtOpts.length > 0 && (
+                <div className="space-y-1.5 pb-2" data-testid="retired-hurt-options">
+                  <span className="text-[10px] uppercase tracking-wider text-amber-400 font-display font-semibold">Retired hurt: send back in?</span>
+                  {hurtOpts.map(opt => (
+                    <button
+                      key={opt.playerId}
+                      onClick={() => handleDecision("choose_batter", opt.playerId)}
+                      className="w-full text-left px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 transition-all hover:border-amber-500/60"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-display font-semibold text-th-primary text-sm">{opt.playerName}</span>
+                          <span className="ml-2 text-[10px] uppercase tracking-wider text-amber-400 px-1.5 py-0.5 bg-amber-500/10 rounded">Resumes {opt.oversBowled ?? 0} ({opt.oversRemaining ?? 0})</span>
+                        </div>
+                        <div className="text-lg font-display font-bold text-th-primary stat-num">{opt.battingOvr}</div>
+                      </div>
+                    </button>
+                  ))}
+                  {canEnd && (
+                    <button
+                      onClick={() => handleDecision("choose_batter", "none")}
+                      className="w-full text-left px-4 py-3 rounded-xl border border-th bg-th-body text-sm text-th-secondary font-display hover:border-red-500/40"
+                    >
+                      Nobody else can bat: end the innings
+                    </button>
+                  )}
+                </div>
+              )}
               {xiOpts.map((opt, i) => {
                 const isRecommended = i === 0;
                 return (
@@ -1737,6 +1795,8 @@ export function LiveMatchPage({
           subtitle={
             drsReviewing.reviewKind === "lbw"
               ? "Ball-tracking is loading"
+              : drsReviewing.reviewKind === "caught"
+              ? "UltraEdge is loading"
               : drsReviewing.reviewKind === "wide"
               ? "Line check is loading"
               : "Front-foot and contact checks are loading"
@@ -1747,6 +1807,8 @@ export function LiveMatchPage({
               <div className="text-[10px] uppercase tracking-[0.2em] text-sky-600 dark:text-sky-200 font-display font-semibold">
                 {drsReviewing.reviewKind === "lbw"
                   ? "Review In Progress"
+                  : drsReviewing.reviewKind === "caught"
+                  ? "Caught Behind Review In Progress"
                   : drsReviewing.reviewKind === "runout"
                   ? "Run Out Review In Progress"
                   : drsReviewing.reviewKind === "wide"
@@ -1759,6 +1821,8 @@ export function LiveMatchPage({
               <div className="mt-1 text-sm text-th-muted font-display">
                 {drsReviewing.reviewKind === "lbw"
                   ? "The third umpire is checking line, impact, and wickets."
+                  : drsReviewing.reviewKind === "caught"
+                  ? "The third umpire is checking UltraEdge and the replays for bat on ball."
                   : drsReviewing.reviewKind === "runout"
                   ? "The third umpire is checking multiple angles to see if the batter made the crease."
                   : drsReviewing.reviewKind === "wide"
@@ -1776,6 +1840,8 @@ export function LiveMatchPage({
                 ? ["Side Angle", "Front View", "Grounding"]
                 : drsReviewing.reviewKind === "lbw"
                 ? ["Pitching", "Impact", "Wickets"]
+                : drsReviewing.reviewKind === "caught"
+                ? ["UltraEdge", "Replay", "Carry"]
                 : drsReviewing.reviewKind === "wide"
                 ? ["Release", "Reach", "Wide Line"]
                 : ["Front Foot", "Release", "Call"]).map(step => (
@@ -1807,7 +1873,9 @@ export function LiveMatchPage({
         const currentBowler = state.currentBowlerName;
         const reviewKind = drsCtx?.reviewKind ?? "lbw";
         const reviewingSide = drsCtx?.reviewingSide ?? "bowling";
-        const kindLabel = reviewKind === "wide" ? "Wide" : reviewKind === "noball" ? "No-ball" : reviewKind === "runout" ? "Run Out" : "LBW";
+        const kindLabel = reviewKind === "wide" ? "Wide" : reviewKind === "noball" ? "No-ball" : reviewKind === "runout" ? "Run Out" : reviewKind === "caught" ? "Caught Behind" : "LBW";
+        const appealKind = reviewKind === "lbw" || reviewKind === "caught";
+        const givenOut = appealKind && reviewingSide === "batting";
         const onFieldCallLabel = (() => {
           switch (drsCtx?.onFieldCall) {
             case "wide":
@@ -1830,7 +1898,11 @@ export function LiveMatchPage({
           }
         })();
         const decisionTitle =
-          reviewKind === "lbw"
+          givenOut
+            ? `Given Out ${kindLabel}!`
+            : reviewKind === "caught"
+            ? "Caught Behind Appeal!"
+            : reviewKind === "lbw"
             ? "LBW Appeal!"
             : reviewKind === "runout"
             ? "Run Out!"
@@ -1838,7 +1910,11 @@ export function LiveMatchPage({
             ? (reviewingSide === "bowling" ? "Wide Review?" : "Wide Check?")
             : (reviewingSide === "bowling" ? "No-ball Review?" : "No-ball Check?");
         const decisionSubtitle =
-          reviewKind === "runout"
+          givenOut
+            ? "On-field call is OUT. Review it, or accept and walk off."
+            : reviewKind === "caught"
+            ? "On-field call is NOT OUT. Use DRS if you heard an edge."
+            : reviewKind === "runout"
             ? "On-field call is RUN OUT. Use DRS to check if the batter was in."
             : reviewKind === "lbw"
             ? "On-field call is NOT OUT. Use DRS or stay with it."
@@ -1868,7 +1944,11 @@ export function LiveMatchPage({
           ? ((currentBowlerStats.runs / Math.max(currentBowlerStats.overs + currentBowlerStats.balls / 6, 1 / 6))).toFixed(2)
           : "0.00";
         let leverageLine = `${phaseLabel}: use the review when you felt strong pad-line confidence from the over.`;
-        if (reviewKind === "lbw") {
+        if (givenOut) {
+          leverageLine = reviewsLeft === 1
+            ? "Last review this innings: only spend it if you are sure it was not out."
+            : `${striker?.playerName ?? "The batter"} is on ${striker?.runs ?? 0}. A wrong decision overturned keeps the innings going.`;
+        } else if (appealKind) {
           if (state.innings === 2 && state.target) {
             if (ballsLeft <= 24) {
               leverageLine = `Late chase: ${runsNeeded} needed from ${ballsLeft} balls, so one wicket can swing the finish quickly.`;
@@ -1890,7 +1970,9 @@ export function LiveMatchPage({
             : `If the line looked close, claiming the ${reviewKind === "wide" ? "wide" : "no-ball"} gives you an extra run and a rebowl.`;
         }
 
-        const riskLine = reviewKind === "lbw"
+        const riskLine = givenOut
+          ? (reviewKind === "lbw" ? "Umpire's call keeps the review; a clear hit on the stumps loses it." : "Caught behind: if there is an edge, the review is lost.")
+          : appealKind
           ? (reviewsLeft === 1
               ? "If ball-tracking does not overturn the call, this innings is out of reviews."
               : "If ball-tracking stays with not out, marginal calls keep the review but clear misses burn one.")
@@ -1975,12 +2057,15 @@ export function LiveMatchPage({
                 <div className="rounded-xl border border-th bg-th-raised px-4 py-3">
                   <div className="text-[10px] uppercase tracking-wider text-th-faint font-display">If Overturned</div>
                   <div className="mt-1 text-sm font-display font-semibold text-th-primary">
-                    {reviewKind === "lbw" ? `${battingTeam.shortName} ${wicketIfOverturned}`
+                    {givenOut ? `${battingTeam.shortName} ${state.score}/${state.wickets} — NOT OUT`
+                      : appealKind ? `${battingTeam.shortName} ${wicketIfOverturned}`
                       : reviewKind === "runout" ? `${battingTeam.shortName} ${state.score + 1}/${state.wickets} — NOT OUT`
                       : extraScoreIfOverturned}
                   </div>
                   <div className="mt-1 text-[11px] text-th-muted font-display">
-                    {reviewKind === "lbw"
+                    {givenOut
+                      ? "The out decision is reversed and the batter stays in."
+                      : appealKind
                       ? (nextBatter ? `${nextBatter.name} would be the next batter.` : "This would expose a fresh batter.")
                       : reviewKind === "runout"
                       ? "Run out overturned — batter was in. The run counts and batter stays at the crease."
@@ -2337,6 +2422,40 @@ export function LiveMatchPage({
                   {state.result}
                 </div>
               </div>
+
+              {/* Super overs (a tie): each round's two innings, ball by ball */}
+              {state.superOvers && state.superOvers.length > 0 && (
+                <div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-500/5 px-4 py-3 text-left" data-testid="super-overs">
+                  <div className="text-[10px] uppercase tracking-wider text-sky-500 font-display font-semibold mb-2">
+                    Super Over{state.superOvers.length > 2 ? "s" : ""}
+                  </div>
+                  {state.superOvers.map((so, i) => {
+                    const team = so.battingTeamId === state.homeTeam.id ? state.homeTeam : state.awayTeam;
+                    const bowler = state._internal.playerDataMap[so.bowler]?.name ?? so.bowler;
+                    return (
+                      <div key={i} className="mb-2 last:mb-0">
+                        <div className="flex items-center justify-between text-sm font-display">
+                          <span className="font-semibold" style={{ color: team.primaryColor }}>
+                            {state.superOvers!.length > 2 ? `#${so.round} ` : ""}{team.shortName}
+                          </span>
+                          <span className="font-bold text-th-primary stat-num">{so.runs}/{so.wickets}</span>
+                        </div>
+                        <div className="text-[10px] text-th-faint font-display">
+                          {so.batters.map(id => state._internal.playerDataMap[id]?.name ?? id).join(", ")} v {bowler}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {so.balls.map((b, j) => (
+                            <span key={j} title={b.commentary}
+                              className={`inline-flex h-6 min-w-6 px-1 items-center justify-center rounded-full text-[10px] font-mono font-bold ${b.eventType === "wicket" ? "bg-red-500/20 text-red-400" : b.eventType === "six" || b.eventType === "four" ? "bg-emerald-500/20 text-emerald-400" : b.eventType === "wide" || b.eventType === "noball" ? "bg-amber-500/20 text-amber-400" : "bg-th-hover text-th-secondary"}`}>
+                              {b.eventType === "wicket" ? "W" : b.eventType === "wide" ? `${b.extras}wd` : b.eventType === "noball" ? `nb${b.runs || ""}` : b.eventType === "legbye" ? `${b.extras}lb` : String(b.runs)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Man of the Match */}
               {state.manOfTheMatch && (

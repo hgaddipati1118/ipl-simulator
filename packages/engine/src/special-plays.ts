@@ -268,17 +268,12 @@ export function specialPlayText(d: DeliveryDetail, n: PlayNames, rng: RNG): stri
 /** Extra sentence for a no-ball's reason / beamer / boundary catch / penalty reason, added to the ball's line */
 export function specialPlayTail(d: DeliveryDetail, n: PlayNames, rng: RNG): string {
   const bits: string[] = [];
-  if (d.outcome === "noball" && d.noBallKind) {
-    if (d.beamer) bits.push(pick(["That was a beamer, a full toss above the waist! The umpire has a word with the bowler.", "A head-high full toss, a beamer. The bowler raises a hand in apology."], rng));
-    else if (d.noBallKind === "height") bits.push(pick(["Called for height.", "Above waist height, so it is a no ball."], rng));
-    else if (d.noBallKind === "fielding") bits.push(pick(["Too many fielders outside the circle, so it is a no ball!", "The fielding side has broken the fielding restrictions: no ball."], rng));
-  }
+  if (d.outcome === "noball" && d.beamer) bits.push(pick(["The umpire has a word with the bowler about the beamer.", "The bowler raises a hand in apology for the beamer."], rng));
   if (d.dismissal && d.boundaryCatch) {
     bits.push(d.relayFielderId && n.fielder2
       ? pick([`A relay catch on the rope! ${n.fielder2} parries it back over the line before ${n.fielder ?? "a team-mate"} completes it.`, `${n.fielder2} catches it, loses balance, tosses it up, and ${n.fielder ?? "the fielder"} takes the relay inside the rope!`], rng)
       : pick([`Taken right on the boundary rope!`, `${n.fielder ?? "The fielder"} keeps the feet inside the rope and holds it.`], rng));
   }
-  if (d.penalty && d.penaltyReason === "fielding") bits.push("The umpires penalise the fielding side for illegal fielding.");
   return bits.length > 0 ? " " + bits.join(" ") : "";
 }
 

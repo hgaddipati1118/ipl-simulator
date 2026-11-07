@@ -60,6 +60,11 @@ export interface PlayerStats {
   /** Stumpings and run outs credited (absent in older saves) */
   stumpings?: number;
   runOuts?: number;
+  /** Chances put down / missed and misfields (absent in older saves) */
+  drops?: number;
+  missedStumpings?: number;
+  missedRunOuts?: number;
+  misfields?: number;
   // per-match tracking
   matchLog: MatchPerformance[];
 }

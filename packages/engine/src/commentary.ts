@@ -9,6 +9,7 @@ import type { RNG } from "./rng.js";
 import { hasCommentaryModel, pickModelCommentary, type ModelPick } from "./commentary-model.js";
 import type { DeliveryDetail } from "./delivery-rules.js";
 import { describeDelivery } from "./delivery-text.js";
+import { specialPlayTail, specialPlayText } from "./special-plays.js";
 
 type BowlingStyleCategory = "pace" | "spin" | "medium" | "unknown";
 
@@ -219,6 +220,9 @@ interface CorpusRoute {
   legacy: boolean;
 }
 
+/** A catch in the deep / on the rope */
+const DEEP = /\b(rope|boundary|deep|long[- ]?(on|off|leg)|sweeper|cow corner|third man|fine leg)\b/i;
+
 /** A substitute fielder must be named ("substitute X"), so only templates that name the fielder qualify */
 const NAMES_FIELDER = (t: string) => t.includes("{fielder}");
 
@@ -240,6 +244,11 @@ function corpusRoute(p: DeliveryCommentaryParams): CorpusRoute | null {
     }
     if (k === "bowled" || k === "caught" || k === "lbw" || k === "stumped") {
       const sub = p.substitute ?? dis.substitute ?? false;
+      if (k === "caught" && d.relayFielderId) return null; // a relay catch names both fielders: hand-written
+      if (k === "caught" && d.boundaryCatch) {
+        // a catch on the rope: only corpus lines that say it was in the deep (the hand-written tail says it otherwise)
+        return { outcome: "wicket", wicketType: k, outNonStriker: false, legacy: !sub, textFilter: (t) => DEEP.test(t) && (!sub || NAMES_FIELDER(t)) };
+      }
       return { outcome: "wicket", wicketType: k, outNonStriker: false, legacy: !(k === "caught" && sub), textFilter: k === "caught" && sub ? NAMES_FIELDER : undefined };
     }
     return null;
@@ -271,6 +280,16 @@ function corpusRoute(p: DeliveryCommentaryParams): CorpusRoute | null {
  * stream) and returns the corpus key to remember in `usedLines`.
  */
 export function generateDeliveryCommentary(p: DeliveryCommentaryParams): BallCommentaryResult {
+  const r = generateDeliveryCommentaryBase(p);
+  // Section 13 plays: no-ball reasons and beamers, boundary / relay catches (unless the corpus line already says so), illegal fielding
+  const d = p.detail;
+  const names = { bowler: p.bowlerName, batter: p.batterName, fielder: p.fielderName, fielder2: p.fielder2Name };
+  const tailDetail = d.boundaryCatch && r.key && !d.relayFielderId ? { ...d, boundaryCatch: false } : d;
+  const tail = specialPlayTail(tailDetail, names, p.rng ?? Math.random);
+  return tail ? { ...r, text: r.text + tail } : r;
+}
+
+function generateDeliveryCommentaryBase(p: DeliveryCommentaryParams): BallCommentaryResult {
   const d = p.detail;
   const dis = d.dismissal;
   const rng = p.rng ?? Math.random;
@@ -278,6 +297,12 @@ export function generateDeliveryCommentary(p: DeliveryCommentaryParams): BallCom
   const sub = p.substitute ?? dis?.substitute ?? false;
   const withFreeHit = (r: BallCommentaryResult): BallCommentaryResult =>
     freeHit && !r.text.startsWith("FREE HIT") ? { ...r, text: "FREE HIT! " + r.text } : r;
+
+  // Short runs, a ball lodged in the helmet, misfields and sixes saved on the rope: hand-written (the corpus has a handful at most)
+  if (!dis && (d.sixSaved || d.shortRun || d.lodged || d.misfield)) {
+    const t = specialPlayText(d, { bowler: p.bowlerName, batter: p.batterName, fielder: p.fielderName }, rng);
+    if (t) return withFreeHit({ text: t });
+  }
 
   const route = p.deadBall ? null : corpusRoute(p);
   if (route) {

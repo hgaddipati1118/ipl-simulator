@@ -42,7 +42,9 @@ import { describeDelivery, retiredHurtLine, retiredOutLine, timedOutLine } from 
 import {
   applyFieldingToProbs,
   buildFieldingUnit,
+  battingLives,
   fieldingCommentary,
+  fieldingTally,
   pickKeeper,
   resolveWicketChance,
   type FieldingNote,
@@ -255,6 +257,8 @@ export interface BatterInnings {
   strikeRate: number;
   howOut: string;       // "c Jadeja b Bumrah" or "not out"
   fallOfWicket?: string; // "45/3 (8.2 ov)"
+  /** Chances the batter survived: "dropped on 23 (Jadeja)", "missed stumping on 12 (Pant)" */
+  lives?: string[];
 }
 
 export interface BowlerFigures {
@@ -1321,6 +1325,18 @@ function simulateInnings(
   return innings;
 }
 
+/** Add one innings' fielding (catches, stumpings, run outs, drops, missed chances, misfields) to a player's season stats */
+export function addFieldingStats(player: Player, log: readonly BallEvent[]): void {
+  const t = fieldingTally(log, player.id);
+  player.stats.catches += t.catches;
+  if (t.stumpings) player.stats.stumpings = (player.stats.stumpings ?? 0) + t.stumpings;
+  if (t.runOuts) player.stats.runOuts = (player.stats.runOuts ?? 0) + t.runOuts;
+  if (t.drops) player.stats.drops = (player.stats.drops ?? 0) + t.drops;
+  if (t.missedStumpings) player.stats.missedStumpings = (player.stats.missedStumpings ?? 0) + t.missedStumpings;
+  if (t.missedRunOuts) player.stats.missedRunOuts = (player.stats.missedRunOuts ?? 0) + t.missedRunOuts;
+  if (t.misfields) player.stats.misfields = (player.stats.misfields ?? 0) + t.misfields;
+}
+
 /** Update player season stats from innings */
 function updatePlayerStats(
   team: Team,
@@ -1348,13 +1364,8 @@ function updatePlayerStats(
       }
     }
 
-    // Catches taken in the field (the opposing innings is the one this side bowled in)
-    for (const ev of bowlingInnings.ballLog) {
-      if (!ev.isWicket || ev.substitute) continue; // a substitute fielder's credit is nobody's in the XI
-      if ((ev.wicketType === "caught" || ev.wicketType === "caught_and_bowled") && ev.fielderId === player.id) player.stats.catches++;
-      else if (ev.wicketType === "stumped" && ev.fielderId === player.id) player.stats.stumpings = (player.stats.stumpings ?? 0) + 1;
-      else if (ev.wicketType === "run_out" && (ev.fielderId === player.id || ev.fielder2Id === player.id)) player.stats.runOuts = (player.stats.runOuts ?? 0) + 1;
-    }
+    // Fielding in the opposing innings (the one this side bowled in): catches, stumpings, run outs, and the chances put down
+    addFieldingStats(player, bowlingInnings.ballLog);
 
     if (bowlStat && (bowlStat.overs > 0 || bowlStat.balls > 0)) {
       const overs = bowlStat.overs + bowlStat.balls / 10; // display format
@@ -1511,6 +1522,7 @@ function buildInningsScorecard(
     else if (ball.outcome === "legbye") totalLegByes += ball.extras;
   }
 
+  const lives = battingLives(inningsScore.ballLog, id => playerMap.get(id)?.name);
   for (const batter of battingOrder) {
     const stat = inningsScore.batterStats.get(batter.id);
     if (!stat) continue;
@@ -1557,6 +1569,7 @@ function buildInningsScorecard(
       strikeRate: stat.balls > 0 ? Math.round((stat.runs / stat.balls) * 1000) / 10 : 0,
       howOut,
       fallOfWicket: fowMap.get(batter.id),
+      ...(lives.get(batter.id) ? { lives: lives.get(batter.id) } : {}),
     });
   }
 

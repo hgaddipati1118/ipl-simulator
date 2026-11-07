@@ -48,6 +48,7 @@ import { T20_FORMAT } from "./format.js";
 import { commentarySeed } from "./commentary-model.js";
 import {
   applyFieldingToProbs,
+  battingLives,
   buildFieldingUnit,
   fieldingCommentary,
   resolveWicketChance,
@@ -56,6 +57,28 @@ import {
   type FielderLike,
 } from "./fielding.js";
 import { checkRainInterruption, calculateDLSTarget, canProduceResult, getRainDelayNarrative } from "./dls.js";
+import { ruleOverrides } from "./dismissal-kinds.js";
+import {
+  applyGenderExtras,
+  applyOverRatePenalty,
+  applySpecialPlays,
+  beamerSuspensionLine,
+  bowlerInjuryLine,
+  drawOverRatePenalty,
+  overRateLine,
+} from "./special-plays.js";
+import {
+  DRS_REVIEWS_PER_INNINGS,
+  drsAtDismissal,
+  drsAtDot,
+  drsKindOf,
+  drsText,
+  reviewLost,
+  userBattingReviewOfWicket,
+  userFieldingReviewOfNotOut,
+  type DrsKind,
+  type DrsReview,
+} from "./drs.js";
 import type {
   BallOutcome,
   BallEvent,
@@ -144,7 +167,7 @@ export interface LiveBowlerStats {
   maidens: number;
 }
 
-export type DrsReviewKind = "lbw" | "wide" | "noball" | "runout";
+export type DrsReviewKind = "lbw" | "caught" | "wide" | "noball" | "runout";
 export type DrsReviewingSide = "batting" | "bowling";
 export type DrsOnFieldCall = "out" | "not_out" | "wide" | "not_wide" | "noball" | "not_noball" | "run_out" | "not_run_out";
 
@@ -175,6 +198,11 @@ export interface PendingDecision {
   teamId: string;
   /** For drs_review: the batter who was given out / not out */
   drsContext?: PendingDrsContext;
+  /** choose_bowler in the middle of an over: why the bowler left, and who he was */
+  reason?: "injury" | "beamer";
+  outgoingBowlerName?: string;
+  /** choose_batter: the options that are retired-hurt batters who may resume (ids); "none" = nobody comes in, the innings ends */
+  retiredHurtIds?: string[];
 }
 
 export interface PendingDecisionOption {
@@ -291,6 +319,9 @@ export interface MatchState {
   /** The next ball is a free hit (after a no-ball; carries over a wide or no-ball bowled on a free hit) */
   freeHit?: boolean;
 
+  /** This innings the bowling side is behind the over rate from this over (0-based) on: one fewer fielder outside the circle */
+  overRatePenaltyFrom?: number;
+
   /** Super overs played to settle a tie, in order (absent = no tie) */
   superOvers?: LiveSuperOver[];
 
@@ -328,8 +359,14 @@ interface MatchStateInternal {
   deferredOverSwap?: boolean;
   /** Batting-order indices of batters who retired hurt and may return at a wicket */
   retiredHurtIdx?: number[];
-  /** Bowlers who left the field hurt this innings */
+  /** A user's choose_batter with a retired-hurt option: the batting-order index the incoming batter's end was set to */
+  batterSlotIdx?: number;
+  /** Bowlers who left the field hurt (or were removed from the attack) this innings */
   unavailableBowlers?: string[];
+  /** Beamers per bowler this innings (two remove him from the attack) */
+  beamers?: Record<string, number>;
+  /** The over-rate restriction has been announced this innings */
+  overRateAnnounced?: boolean;
   /** Corpus commentary lines already used in this match (JSON-safe so it survives state cloning) */
   commentaryUsed?: Record<string, 1>;
 
@@ -598,6 +635,8 @@ export function applyLiveBallContextModifiers(
 /** What the Laws add to a live ball: free hit, gender (fitted rates), substitute fielders */
 interface LiveRulesCtx {
   freeHit: boolean;
+  /** The slow over-rate restriction is on (one fewer fielder outside the circle) */
+  overRatePenalty?: boolean;
   /** A super over: wickets come faster (SUPER_OVER_CAL) */
   superOver?: boolean;
   gender: Gender;
@@ -619,6 +658,8 @@ interface LiveBallResult {
   detail: DeliveryDetail;
   fielderName?: string;
   fielder2Name?: string;
+  /** A catch put down in the deep */
+  deepChance?: boolean;
   /** The context needed to re-expand the delivery after a review changes its outcome */
   ctx: { gender: Gender; unit?: FieldingUnit };
 }
@@ -652,6 +693,10 @@ function runOneBall(
   rulesCtx: LiveRulesCtx = { freeHit: false, gender: "male", bench: [], nonStrikerName: undefined },
 ): LiveBallResult {
   let probs = baseOutcomeProbabilities(batter, bowler, aggression);
+  // Women's cricket has its own wide / no-ball / bye rates
+  applyGenderExtras(probs, rulesCtx.gender);
+  const nbf = ruleOverrides().noBallRateFactor;
+  if (nbf !== undefined) probs.noball *= nbf;
 
   // Phase adjustment
   const phase = getMatchPhase(over);
@@ -768,6 +813,9 @@ function runOneBall(
 
   if (rulesCtx.superOver) { probs.wicket *= SUPER_OVER_CAL.wicket; probs["4"] *= SUPER_OVER_CAL.boundary; probs["6"] *= SUPER_OVER_CAL.boundary; }
 
+  // Slow over rate: one fewer fielder outside the circle, so more boundaries
+  if (rulesCtx.overRatePenalty) applyOverRatePenalty(probs);
+
   // A free hit: boundaries come easier and only the run-out family can dismiss
   if (rulesCtx.freeHit) applyFreeHitToProbs(probs);
 
@@ -776,7 +824,7 @@ function runOneBall(
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
-  let outcome = weightedRandom(entries, rng);
+  let outcome = ruleOverrides().forceCoarseOutcome ?? weightedRandom(entries, rng);
 
   // A wicket draw is a dismissal chance: its kind, who was involved, and whether it was taken
   let resolution: ReturnType<typeof resolveWicketChance> | undefined;
@@ -792,6 +840,8 @@ function runOneBall(
     rng, fmt: T20_FORMAT, gender: rulesCtx.gender, freeHit: rulesCtx.freeHit,
     bowlerId: bowler.id, bowlerStyle: bowler.bowlingStyle, unit: fieldingUnit, bench: rulesCtx.bench,
   });
+  // Rare plays: short runs, misfields, sixes saved on the rope, boundary catches, no-ball and penalty reasons, lodged balls
+  applySpecialPlays(detail, { rng, unit: fieldingUnit, bowlerId: bowler.id, resolution, labelsOnly: !!resolution?.note && !detail.dismissal });
   const dis = detail.dismissal;
   const runs = detail.batRuns;
   const isWicket = !!dis;
@@ -803,8 +853,10 @@ function runOneBall(
     if (resolution?.fielder2?.id === id) return resolution.fielder2.name;
     return undefined;
   };
-  const fielderName = nameOf(dis?.fielderId);
-  const fielder2Name = nameOf(dis?.fielder2Id);
+  const unitName = (id?: string) => (id ? fieldingUnit?.fielders.find(p => p.id === id)?.name : undefined);
+  const fielderName = nameOf(dis?.fielderId) ?? unitName(dis?.fielderId);
+  const fielder2Name = nameOf(dis?.fielder2Id) ?? unitName(detail.relayFielderId);
+  const playFielderName = unitName(detail.sixSaved?.fielderId ?? detail.misfield?.fielderId);
 
   // Generate rich contextual commentary. It runs on its own seeded stream (derived from the ball's context), so
   // wording never changes how the match plays out, whether or not the corpus model is loaded.
@@ -812,7 +864,7 @@ function runOneBall(
   // Every delivery (dismissal kinds, extras, free hits ...) goes through one entry point: corpus line where it has a fit, hand-written otherwise
   const generated = generateDeliveryCommentary({
     detail, bowlerName: bowler.name, batterName: batter.name,
-    nonStrikerName: commentaryCtx?.nonStrikerName ?? rulesCtx.nonStrikerName, fielderName, fielder2Name,
+    nonStrikerName: commentaryCtx?.nonStrikerName ?? rulesCtx.nonStrikerName, fielderName: fielderName ?? playFielderName, fielder2Name,
     substitute: dis?.substitute, freeHit: rulesCtx.freeHit,
     over, ball: legalBallInOver + 1, score: currentScore, wickets: wicketsDown, isSecondInnings,
     target: isSecondInnings ? target : undefined, bowlingStyle: bowler.bowlingStyle, battingHand: batter.battingHand,
@@ -834,8 +886,9 @@ function runOneBall(
     commentary: fieldingLine ?? commentary,
     commentaryKey: fieldingLine ? undefined : commentaryKey,
     wicketType,
-    fielderId: dis?.fielderId ?? (resolution?.fielder && resolution.note ? resolution.fielder.id : undefined),
-    fieldingNote: resolution?.note,
+    fielderId: dis?.fielderId ?? (resolution?.fielder && resolution.note ? resolution.fielder.id : undefined) ?? detail.misfield?.fielderId ?? detail.sixSaved?.fielderId,
+    fieldingNote: resolution?.note ?? (detail.misfield ? "misfield" : detail.sixSaved ? "six_saved" : undefined),
+    deepChance: !dis && !!resolution?.deep,
     detail,
     fielderName,
     fielder2Name,
@@ -1071,6 +1124,7 @@ export function createMatchState(
     },
     maxOvers: 20,
     rainChecked: false,
+    ...(() => { const f = drawOverRatePenalty(rng, 20); return f >= 0 ? { overRatePenaltyFrom: f } : {}; })(),
 
     _internal: {
       matchId,
@@ -1172,26 +1226,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   const rp = retireParams();
   const rulesGender: Gender = genderOf(int.rules);
 
-  // An over left incomplete: the bowler goes off hurt and another bowler finishes the over. He cannot bowl
-  // again in the innings; the replacement cannot bowl the next over (the consecutive-overs rule sees him as the
-  // over's bowler), and the part-bowled over counts towards both bowlers' four.
-  if (int.currentOverLegalBalls > 0 && int.rng() < rp.bowlerLeavesPerOver / 6) {
-    const bowlingXIIds = state.bowlingTeamId === state.homeTeam.id ? int.homeXIIds : int.awayXIIds;
-    const gone = new Set(int.unavailableBowlers ?? []);
-    const pool = bowlingXIIds
-      // (not the bowler of the previous over: he cannot bowl two overs running)
-      .filter(id => id !== bowlerId && id !== int.lastBowlerId && !gone.has(id) && (int.bowlerOvers[id] ?? 0) < int.maxOversPerBowler && pm[id])
-      .sort((a, b) => (pm[b].bowlingOvr ?? 0) - (pm[a].bowlingOvr ?? 0));
-    if (pool.length > 0) {
-      (int.unavailableBowlers ??= []).push(bowlerId);
-      int.bowlerOvers[bowlerId] = int.maxOversPerBowler; // off the field for good: his four are used up
-      let idx = int.bowlingOrderIds.indexOf(pool[0]);
-      if (idx < 0) { int.bowlingOrderIds.push(pool[0]); idx = int.bowlingOrderIds.length - 1; }
-      int.bowlerOvers[pool[0]] = int.bowlerOvers[pool[0]] ?? 0;
-      assignNextBowler(state, int, pm, idx);
-      bowlerId = pool[0];
-    }
-  }
+  // (A bowler leaving mid-over, hurt or removed for two beamers, is handled after the ball: bowlerLeavesMidOver)
 
   // Mankad: the bowler runs out the non-striker before delivering. No ball is bowled.
   if (int.rng() < rp.mankadPerDelivery && state.wickets < 9) {
@@ -1242,6 +1277,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     }
   }
 
+  const overRateOn = state.overRatePenaltyFrom !== undefined && state.overs >= state.overRatePenaltyFrom;
   const result = runOneBall(
     effectiveStriker,
     effectiveBowler,
@@ -1272,13 +1308,20 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name,
       usedLines: int.commentaryUsed,
     },
-    { freeHit: freeHitNow, gender: rulesGender, bench: benchPool, nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name },
+    {
+      freeHit: freeHitNow, gender: rulesGender, bench: benchPool, nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name,
+      overRatePenalty: overRateOn,
+    },
   );
+  if (overRateOn && !int.overRateAnnounced) {
+    result.commentary = `${overRateLine(state.bowlingTeamId === state.homeTeam.id ? state.homeTeam.name : state.awayTeam.name)} ${result.commentary}`;
+  }
 
   // Clone state for mutation
   const newState = cloneState(state);
   const ni = newState._internal;
   const rawInnings = ni.currentInningsRaw;
+  if (overRateOn) ni.overRateAnnounced = true;
   // remember which corpus line this ball used so the same line is not repeated in this match
   if (result.commentaryKey) (ni.commentaryUsed ??= {})[result.commentaryKey] = 1;
 
@@ -1304,6 +1347,11 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   // For DRS user review: store whether the review should overturn, and if marginal (umpire's call)
   let _drsOverturns: boolean | undefined;
   let _drsMarginal: boolean | undefined;
+  /** lbw / caught behind: the kind under review, a user batting review's hidden answer, a CPU review that happened */
+  let _drsKind: DrsKind | undefined;
+  let _drsResult: DrsReview["result"] | undefined;
+  let _drsFielderId: string | undefined;
+  let _drsReview: DrsReview | undefined;
   const canOfferNonLbwReview = int.currentOverLegalBalls < 5;
   /** A review changes the call, so the delivery is built again for the new outcome */
   const redo = (outcome: BallOutcome, res?: { outcome: "wicket"; kind: DismissalKind }) => {
@@ -1336,25 +1384,54 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       fielderName = pm[fielderId]?.name ?? "fielder";
     }
 
-    // DRS logic for LBW decisions
-    if (wicketType === "lbw") {
-      // 20% of LBW decisions are incorrect (umpire's call — should be not out)
-      const isIncorrectDecision = rng() < 0.20;
-      if (isIncorrectDecision) {
-        // Batting team auto-reviews incorrectly given LBW
-        const battingTeamIsHome = newState.battingTeamId === newState.homeTeam.id;
-        const drsAvailable = battingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
-        if (drsAvailable > 0) {
-          // DRS overturns the incorrect LBW — not out
+    // DRS for lbw and caught behind (drs.ts): the batting side reviews out decisions, the fielding side not-outs
+    const drsK = !freeHitNow && result.detail.outcome === "wicket"
+      ? drsKindOf(wicketType, !!fieldingUnit.keeper && result.fielderId === fieldingUnit.keeper.id) : null;
+    if (drsK) {
+      const d = drsSides(newState, ni);
+      const what = drsK === "lbw" ? "lbw" : "caught behind";
+      const r = drsAtDismissal(drsK, rng, d.avail);
+      if (r.cancel) {
+        // given not out, and the fielding side has no review left to overturn it
+        drsOverturned = true;
+        redo("dot");
+        result.commentary = `${bowler.name} to ${striker.name}, big appeal for ${what}... not out says the umpire, and ${d.bowlSN} have no reviews left.`;
+        eventType = "dot";
+        wicketType = undefined;
+        fielderName = undefined;
+      } else if (r.review?.by === "fielding") {
+        if (d.userBowling) {
+          // shown as not out: the user decides whether to review it (it would be overturned)
           drsOverturned = true;
+          _drsOverturns = true;
+          _drsKind = drsK;
+          _drsFielderId = result.fielderId;
           redo("dot");
-          result.commentary = `${bowler.name} to ${striker.name}, given OUT lbw! DRS review... OVERTURNED! Not out — ball missing the stumps.`;
           eventType = "dot";
           wicketType = undefined;
-          // DRS retained on successful review
+          fielderName = undefined;
+          result.commentary = `${bowler.name} to ${striker.name}, huge appeal for ${what}! Not out says the umpire.`;
+          newState.pendingDecision = drsPending(newState.bowlingTeamId, striker.name, bowler.name, drsK, "bowling", false,
+            drsK === "lbw" ? 55 : 60, drsK === "lbw" ? "Struck on the pad in line, looked to be hitting" : "A faint noise as it passed the bat");
+          newState.status = "waiting_for_decision";
+        } else {
+          _drsReview = r.review;
+          result.commentary = `${bowler.name} to ${striker.name}, ${drsText(r.review, d.bowlSN, rng)} ${result.commentary}`;
         }
+      } else if (d.userBatting && d.avail.batting > 0) {
+        // given out: the user may review it (the decision was right: struck down, or umpire's call)
+        _drsResult = userBattingReviewOfWicket(drsK, rng);
+        _drsKind = drsK;
+        newState.pendingDecision = drsPending(newState.battingTeamId, striker.name, bowler.name, drsK, "batting", true,
+          _drsResult === "umpires_call" ? 30 : 15, drsK === "lbw" ? "Struck on the pad, the question is whether it was going on to hit" : "Given caught behind, was there bat on it?");
+        newState.status = "waiting_for_decision";
+      } else if (r.review) {
+        _drsReview = r.review;
+        if (reviewLost(r.review)) decDrs(newState, newState.battingTeamId);
+        result.commentary += " " + drsText(r.review, d.batSN, rng);
       }
     }
+
 
     // DRS for run out decisions: ~30% of run outs are close calls worth reviewing
     if (wicketType === "run_out" && !drsOverturned) {
@@ -1512,76 +1589,46 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
           result.commentary = `${bowler.name} to ${striker.name}, ${callText}. DRS review... stays ${reviewKind === "wide" ? "a fair delivery" : "a legal delivery"}. ${shortName} lose their review.`;
         }
       }
-    } else {
-      // DRS review opportunity: ~8% of dots could be close LBW appeals (not given out)
-      const isCloseLbwAppeal = !freeHitNow && rng() < 0.08;
-      if (isCloseLbwAppeal) {
-        // Variable overturn rate based on bowler type and context
-        const bowlerStyle = bowler.bowlingStyle ?? "unknown";
-        const isPace = isPaceBowler(bowlerStyle as any);
-        const isInswinger = isPace && striker.battingHand === "right"; // simplified heuristic
-        // Pace in-line appeals: 35% overturn, spin turning: 15%, pace angling away: 20%
-        let overturnChance = isPace
-          ? (isInswinger ? 0.35 : 0.20)
-          : 0.15;
-        // Death overs: umpires tighter, slightly more overturns
-        if (newState.overs >= 16) overturnChance += 0.05;
-        // Marginal chance varies inversely with overturn chance
-        let marginalChance = overturnChance > 0.25 ? 0.30 : 0.55;
-        const wasActuallyOut = rng() < overturnChance;
-        const isMarginal = !wasActuallyOut && rng() < marginalChance;
-        const confidence = Math.round(overturnChance * 100);
-        // Appeal description for UI context
-        const appealDesc = isPace
-          ? (isInswinger
-              ? "Full length, angling into the pads — looked plumb in real time"
-              : "Hit on the back pad, ball may be going over or sliding down leg")
-          : "Hit on the front pad, question is whether it pitched in line and was turning enough";
-        const bowlingTeamIsHome = newState.bowlingTeamId === newState.homeTeam.id;
-        const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
-        const drsAvailable = bowlingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
-
-        if (drsAvailable > 0 && isUserBowling) {
-          // Offer DRS review to user
-          _drsOverturns = wasActuallyOut;
-          _drsMarginal = isMarginal;
-          result.commentary = `${bowler.name} to ${striker.name}, huge appeal for LBW! Not out says the umpire.`;
-          newState.pendingDecision = {
-            type: "drs_review",
-            options: ["review", "accept"],
-            teamId: newState.bowlingTeamId,
-            drsContext: {
-              batterName: striker.name,
-              bowlerName: bowler.name,
-              reviewKind: "lbw",
-              reviewingSide: "bowling",
-              onFieldCall: "not_out",
-              isGivenOut: false,
-              confidence,
-              appealDescription: appealDesc,
-            },
-          };
+    } else if (!freeHitNow) {
+      // DRS on a dot ball: a wrong out decision (overturned, or standing when the batting side has no review left) or a
+      // fielding-side review of a not-out appeal that fails (drs.ts)
+      const d = drsSides(newState, ni);
+      const r = drsAtDot(rng, d.avail, !!fieldingUnit.keeper);
+      if (r.wicket) {
+        const k = r.wicket;
+        const keeper = k === "caught" ? fieldingUnit.keeper : undefined;
+        redo("wicket", { outcome: "wicket", kind: k === "lbw" ? "lbw" : "caught", fielder: keeper } as any);
+        eventType = "wicket";
+        wicketType = result.wicketType;
+        fielderName = keeper?.name;
+        result.fielderId = keeper?.id;
+        result.commentary = `${bowler.name} to ${striker.name}, given out ${k === "lbw" ? "lbw" : "caught behind"}! ${k === "lbw" ? "It looked to be sliding down leg" : "It looked to brush only the pad"}, but ${d.batSN} have no reviews left, so the decision stands.`;
+      } else if (r.review?.by === "batting") {
+        // a wrong out decision; the review will overturn it
+        if (d.userBatting) {
+          _drsResult = "overturned";
+          _drsKind = r.review.kind;
+          result.commentary = `${bowler.name} to ${striker.name}, given OUT ${r.review.kind === "lbw" ? "lbw" : "caught behind"}!`;
+          newState.pendingDecision = drsPending(newState.battingTeamId, striker.name, bowler.name, r.review.kind, "batting", true,
+            70, r.review.kind === "lbw" ? "Felt like an inside edge, or going down leg" : "The bat looked well clear of the ball");
           newState.status = "waiting_for_decision";
-        } else if (drsAvailable > 0 && !isUserBowling) {
-          // CPU auto-reviews: higher confidence = more likely to review
-          const cpuReviewChance = 0.15 + overturnChance * 0.6; // 21-36% based on context
-          if (rng() < cpuReviewChance) {
-            if (wasActuallyOut) {
-              redo("wicket", { outcome: "wicket", kind: "lbw" });
-              result.commentary = `${bowler.name} to ${striker.name}, not out says the umpire. DRS review... OVERTURNED! That's OUT! LBW!`;
-              eventType = "wicket";
-              wicketType = "lbw";
-            } else {
-              const sn = bowlingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
-              if (isMarginal) {
-                result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... UMPIRE'S CALL — clipping leg stump. Stays NOT OUT. ${sn} retain their review.`;
-              } else {
-                if (bowlingTeamIsHome) newState.drsRemaining.home--;
-                else newState.drsRemaining.away--;
-                result.commentary = `${bowler.name} to ${striker.name}, appeal for LBW! DRS review... stays NOT OUT. ${sn} lose their review.`;
-              }
-            }
-          }
+        } else {
+          _drsReview = r.review;
+          result.commentary = `${bowler.name} to ${striker.name}, ${drsText(r.review, d.batSN, rng)}`;
+        }
+      } else if (r.review?.by === "fielding") {
+        if (d.userBowling) {
+          _drsOverturns = false;
+          _drsMarginal = r.review.result === "umpires_call";
+          _drsKind = r.review.kind;
+          result.commentary = `${bowler.name} to ${striker.name}, huge appeal for ${r.review.kind === "lbw" ? "lbw" : "caught behind"}! Not out says the umpire.`;
+          newState.pendingDecision = drsPending(newState.bowlingTeamId, striker.name, bowler.name, r.review.kind, "bowling", false,
+            _drsMarginal ? 35 : 20, r.review.kind === "lbw" ? "Hit on the pad, but was it pitching in line?" : "A noise as it passed the bat, or the pad?");
+          newState.status = "waiting_for_decision";
+        } else {
+          _drsReview = r.review;
+          if (reviewLost(r.review)) decDrs(newState, newState.bowlingTeamId);
+          result.commentary = `${bowler.name} to ${striker.name}, ${drsText(r.review, d.bowlSN, rng)}`;
         }
       }
     }
@@ -1629,6 +1676,21 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   }
   if (_drsOverturns !== undefined) (rawBall as any)._drsOverturns = _drsOverturns;
   if (_drsMarginal !== undefined) (rawBall as any)._drsMarginal = _drsMarginal;
+  if (_drsKind !== undefined) (rawBall as any)._drsKind = _drsKind;
+  if (_drsResult !== undefined) (rawBall as any)._drsResult = _drsResult;
+  if (_drsFielderId !== undefined) (rawBall as any)._drsFielderId = _drsFielderId;
+  if (_drsReview) rawBall.review = _drsReview;
+  // fielding errors and the section 13 plays, for the scorecard ("dropped on 23") and the fielding stats
+  if (!dis && result.fieldingNote && !result.isWicket) { rawBall.fieldingNote = result.fieldingNote; if (result.fielderId) rawBall.fielderId = result.fielderId; }
+  if (dis && result.fieldingNote) rawBall.fieldingNote = result.fieldingNote;
+  if (!dis && result.deepChance) rawBall.deepChance = true;
+  if (detail.noBallKind) rawBall.noBallKind = detail.noBallKind;
+  if (detail.beamer) rawBall.beamer = true;
+  if (detail.penaltyReason) rawBall.penaltyReason = detail.penaltyReason;
+  if (detail.shortRun) rawBall.shortRun = true;
+  if (detail.lodged) rawBall.lodged = true;
+  if (dis && detail.boundaryCatch) { rawBall.boundaryCatch = true; if (detail.relayFielderId) rawBall.fielder2Id = detail.relayFielderId; }
+  if (overRateOn) rawBall.overRatePenalty = true;
   rawInnings.ballLog.push(rawBall);
 
   // Score and extras
@@ -1744,6 +1806,19 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     newState.innings1BallLog.push(detailedBall);
   } else {
     newState.innings2BallLog.push(detailedBall);
+  }
+
+  // ── The bowler leaves mid-over: removed from the attack after a second beamer, or hurt (another bowler finishes the over) ──
+  {
+    const overNow = newState.wickets >= 10 || !!ni.allOut || (isSecondInnings && newState.score >= target);
+    if (detail.beamer && !overNow) {
+      const n = ((ni.beamers ??= {})[bowlerId] ?? 0) + 1;
+      ni.beamers[bowlerId] = n;
+      if (n >= 2 && ni.currentOverLegalBalls < 6) bowlerLeavesMidOver(newState, ni, "beamer");
+      else if (n < 2) queueNote(ni, "The umpire gives the bowler a first and final warning for the beamer.");
+    } else if (!overNow && ni.currentOverLegalBalls > 0 && ni.currentOverLegalBalls < 6 && rng() < rp.bowlerLeavesPerOver / 6) {
+      bowlerLeavesMidOver(newState, ni, "injury");
+    }
   }
 
   // Check for end of over
@@ -2055,6 +2130,101 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   return { state: newState, ball: detailedBall };
 }
 
+/* ─────────────────── A bowler leaves in the middle of an over ─────────────────── */
+
+/** What the bowler-choice panel shows for each option */
+function bowlerOptionDetails(state: MatchState, ni: MatchStateInternal, ids: string[]): PendingDecisionOption[] {
+  const pm = ni.playerDataMap;
+  return ids.map(id => {
+    const p = pm[id];
+    const oversBowled = ni.bowlerOvers[id] ?? 0;
+    const liveStat = state.bowlerStats.find(b => b.playerId === id);
+    return {
+      playerId: id, playerName: p.name, role: p.role, battingOvr: p.battingOvr, bowlingOvr: p.bowlingOvr, overall: p.overall,
+      bowlingStyle: p.bowlingStyle, battingHand: p.battingHand, oversBowled, oversRemaining: ni.maxOversPerBowler - oversBowled,
+      runsConceded: liveStat?.runs ?? 0, wicketsTaken: liveStat?.wickets ?? 0,
+      economy: liveStat && (liveStat.overs > 0 || liveStat.balls > 0) ? Math.round((liveStat.runs / (liveStat.overs + liveStat.balls / 6)) * 100) / 100 : 0,
+      dots: liveStat?.dots ?? 0, wicketTakingRating: p.ratings.wicketTaking, economyRating: p.ratings.economy, accuracyRating: p.ratings.accuracy,
+    };
+  });
+}
+
+/**
+ * The current bowler cannot finish the over: hurt (he takes no further part) or removed from the attack after a second
+ * beamer (Law 41.7). Another bowler, not the previous over's, finishes it; the part-bowled over counts towards both. When
+ * the user's side is bowling the user picks him, as at the start of an over.
+ */
+function bowlerLeavesMidOver(state: MatchState, ni: MatchStateInternal, reason: "injury" | "beamer"): void {
+  const pm = ni.playerDataMap;
+  const goneId = ni.bowlingOrderIds[state.currentBowlerIdx];
+  const xi = state.bowlingTeamId === state.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
+  const unavailable = new Set(ni.unavailableBowlers ?? []);
+  const pool = xi
+    .filter(id => id !== goneId && id !== ni.lastBowlerId && !unavailable.has(id) && (ni.bowlerOvers[id] ?? 0) < ni.maxOversPerBowler && pm[id])
+    .sort((a, b) => (pm[b].bowlingOvr ?? 0) - (pm[a].bowlingOvr ?? 0));
+  if (pool.length === 0) return; // nobody can take over: he carries on
+  (ni.unavailableBowlers ??= []).push(goneId);
+  ni.bowlerOvers[goneId] = ni.maxOversPerBowler; // off for the innings: his overs are used up
+  const goneName = pm[goneId].name;
+  const userBowling = ni.userTeamId !== null && state.bowlingTeamId === ni.userTeamId;
+  if (userBowling && pool.length > 1 && state.status !== "waiting_for_decision") {
+    for (const id of pool) if (ni.bowlerOvers[id] === undefined) ni.bowlerOvers[id] = 0;
+    state.pendingDecision = {
+      type: "choose_bowler", options: pool, teamId: state.bowlingTeamId, optionDetails: bowlerOptionDetails(state, ni, pool),
+      reason, outgoingBowlerName: goneName,
+    };
+    state.status = "waiting_for_decision";
+    queueNote(ni, reason === "beamer"
+      ? `That is the second beamer from ${goneName}, who is removed from the attack and cannot bowl again in the innings.`
+      : `${goneName} pulls up mid-over and has to leave the field.`);
+    return;
+  }
+  let idx = ni.bowlingOrderIds.indexOf(pool[0]);
+  if (idx < 0) { ni.bowlingOrderIds.push(pool[0]); idx = ni.bowlingOrderIds.length - 1; }
+  ni.bowlerOvers[pool[0]] = ni.bowlerOvers[pool[0]] ?? 0;
+  assignNextBowler(state, ni, pm, idx);
+  queueNote(ni, reason === "beamer" ? beamerSuspensionLine(goneName, pm[pool[0]].name) : bowlerInjuryLine(goneName, pm[pool[0]].name));
+}
+
+/* ─────────────────── DRS helpers ─────────────────── */
+
+/** Reviews left for the two sides of the innings, who the user is, and the teams' short names */
+function drsSides(state: MatchState, ni: MatchStateInternal) {
+  const batHome = state.battingTeamId === state.homeTeam.id;
+  const r = state.drsRemaining;
+  return {
+    avail: { batting: batHome ? r.home : r.away, fielding: batHome ? r.away : r.home },
+    userBatting: ni.userTeamId !== null && state.battingTeamId === ni.userTeamId,
+    userBowling: ni.userTeamId !== null && state.bowlingTeamId === ni.userTeamId,
+    batSN: batHome ? state.homeTeam.shortName : state.awayTeam.shortName,
+    bowlSN: batHome ? state.awayTeam.shortName : state.homeTeam.shortName,
+  };
+}
+
+/** The keeper of the side in the field */
+function pickKeeperId(state: MatchState, ni: MatchStateInternal): string | undefined {
+  const ids = state.bowlingTeamId === state.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
+  const unit = buildFieldingUnit(ids.map(id => ni.playerDataMap[id]).filter(Boolean) as FielderLike[]);
+  return unit.keeper?.id;
+}
+
+function decDrs(state: MatchState, teamId: string): void {
+  if (teamId === state.homeTeam.id) state.drsRemaining.home = Math.max(0, state.drsRemaining.home - 1);
+  else state.drsRemaining.away = Math.max(0, state.drsRemaining.away - 1);
+}
+
+function drsPending(teamId: string, batterName: string, bowlerName: string, kind: DrsKind, side: DrsReviewingSide, givenOut: boolean, confidence: number, appealDescription: string): PendingDecision {
+  return {
+    type: "drs_review",
+    options: ["review", "accept"],
+    teamId,
+    drsContext: {
+      batterName, bowlerName, reviewKind: kind, reviewingSide: side,
+      onFieldCall: givenOut ? "out" : "not_out", isGivenOut: givenOut, confidence, appealDescription,
+    },
+  };
+}
+
 /* ─────────────────── Helper: bring in next batter (auto) ─────────────────── */
 
 function bringInNextBatter(
@@ -2134,6 +2304,33 @@ function afterWicket(
   newBatterFaces: boolean,
 ): void {
   const rng = ni.rng;
+  // The user's side with a batter who retired hurt: the user decides whether he resumes (or, with nobody else left, whether
+  // the innings goes on at all). He takes the end of the batter who is out, like anyone coming in.
+  const hurt = ni.retiredHurtIdx ?? [];
+  const userBats = ni.userTeamId !== null && state.battingTeamId === ni.userTeamId;
+  if (userBats && hurt.length > 0 && state.wickets < 10) {
+    const fresh = state.nextBatterIdx < ni.battingOrderIds.length ? ni.battingOrderIds.slice(state.nextBatterIdx) : [];
+    const slot = fresh.length > 0 ? state.nextBatterIdx : hurt[0];
+    if (newBatterFaces) { state.strikerIdx = slot; state.nonStrikerIdx = survivorIdx; }
+    else { state.strikerIdx = survivorIdx; state.nonStrikerIdx = slot; }
+    const hurtIds = hurt.map(i => ni.battingOrderIds[i]);
+    const ids = [...fresh, ...hurtIds];
+    const optionDetails: PendingDecisionOption[] = ids.map(id => {
+      const p = pm[id];
+      const live = state.batterStats.find(b => b.playerId === id);
+      return {
+        playerId: id, playerName: p.name, role: p.role, battingOvr: p.battingOvr, bowlingOvr: p.bowlingOvr, overall: p.overall,
+        battingHand: p.battingHand, battingIQRating: p.ratings.battingIQ, timingRating: p.ratings.timing, powerRating: p.ratings.power,
+        ...(hurtIds.includes(id) ? { oversBowled: live?.runs, oversRemaining: live?.balls } : {}),
+      };
+    });
+    ni.batterSlotIdx = slot;
+    state.pendingDecision = {
+      type: "choose_batter", options: fresh.length > 0 ? ids : [...ids, "none"], teamId: state.battingTeamId, optionDetails, retiredHurtIds: hurtIds,
+    };
+    state.status = "waiting_for_decision";
+    return;
+  }
   // A batter can be timed out on arrival (three minutes without being ready); the next one then comes in
   for (;;) {
     if (state.wickets >= 10) { ni.allOut = true; return; }
@@ -2400,6 +2597,7 @@ function finalizeFirstInningsBreak(
     formatOvers(state.overs, ni.currentOverLegalBalls >= 6 ? 0 : ni.currentOverLegalBalls),
     state.fallOfWickets,
     rawInnings,
+    id => ni.playerDataMap[id]?.name,
   );
 
   state.status = "innings_break";
@@ -2431,10 +2629,33 @@ export function applyDecision(
     throw new Error(`Invalid selection: ${decision.selectedPlayerId} not in options`);
   }
 
+  /** The decision ended the innings (nobody left to bat) */
+  let endInningsNow = false;
+
   switch (pending.type) {
     case 'choose_batter': {
       const chosenId = decision.selectedPlayerId;
       const currentIdx = newState.nextBatterIdx;
+      // A retired-hurt batter resumes, or nobody can come in and the innings is over
+      if (pending.retiredHurtIds && (chosenId === "none" || pending.retiredHurtIds.includes(chosenId))) {
+        const slot = ni.batterSlotIdx ?? currentIdx;
+        ni.batterSlotIdx = undefined;
+        if (chosenId === "none") {
+          ni.allOut = true;
+          endInningsNow = true;
+          break;
+        }
+        const h = ni.battingOrderIds.indexOf(chosenId);
+        ni.retiredHurtIdx = (ni.retiredHurtIdx ?? []).filter(i => i !== h);
+        if (newState.strikerIdx === slot) newState.strikerIdx = h;
+        else if (newState.nonStrikerIdx === slot) newState.nonStrikerIdx = h;
+        queueNote(ni, `${pm[chosenId].name} walks back out to resume the innings after retiring hurt.`);
+        bringInNextBatter(newState, ni, pm, rawInnings, h);
+        if (ni.deferredOverSwap) { ni.deferredOverSwap = false; swapStrike(newState); }
+        flushNote(newState);
+        break;
+      }
+      ni.batterSlotIdx = undefined;
       const isHome = newState.battingTeamId === newState.homeTeam.id;
       const benchIds = isHome ? ni.homeBenchIds : ni.awayBenchIds;
       const isBenchPlayer = benchIds.includes(chosenId);
@@ -2611,72 +2832,83 @@ export function applyDecision(
       const choice = decision.selectedPlayerId; // "review" or "accept"
       const drsContext = pending.drsContext;
       const reviewingTeamIsHome = pending.teamId === newState.homeTeam.id;
+      const lastBall = rawInnings.ballLog[rawInnings.ballLog.length - 1];
+      const shortName = reviewingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
+      const lbwOrCaught = drsContext && (drsContext.reviewKind === "lbw" || drsContext.reviewKind === "caught");
+      const kind: DrsKind = drsContext?.reviewKind === "caught" ? "caught" : "lbw";
+      const keeperId = (lastBall as any)?._drsFielderId as string | undefined
+        ?? (kind === "caught" ? pickKeeperId(newState, ni) : undefined);
+
+      /** The on-field call was wrong-out-that-stands / not-out-that-is-overturned: the ball becomes the wicket */
+      const wicketPostHoc = () => {
+        lastBall.isWicket = true;
+        lastBall.outcome = "wicket";
+        lastBall.wicketType = kind === "lbw" ? "lbw" : "caught";
+        lastBall.newBatterFaces = true;
+        if (kind === "caught" && keeperId) lastBall.fielderId = keeperId;
+        lastBall.fieldingNote = undefined;
+        newState.wickets++;
+        rawInnings.wickets++;
+        const strikerId = lastBall.batter;
+        const rawBat = rawInnings.batterStats[strikerId];
+        if (rawBat) rawBat.isOut = true;
+        const liveBatter = newState.batterStats.find(b => b.playerId === strikerId);
+        const bowlerName = pm[lastBall.bowler]?.name ?? "unknown";
+        if (liveBatter) {
+          liveBatter.isOut = true;
+          liveBatter.howOut = dismissalText({ kind: kind === "lbw" ? "lbw" : "caught", bowler: bowlerName, fielder: keeperId ? pm[keeperId]?.name : undefined });
+        }
+        const overBall = `${newState.overs}.${ni.currentOverLegalBalls}`;
+        const fow = `${newState.score}/${newState.wickets} (${overBall} ov)`;
+        newState.fallOfWickets.push(fow);
+        if (liveBatter) liveBatter.fallOfWicket = fow;
+        const rawBowler = rawInnings.bowlerStats[lastBall.bowler];
+        if (rawBowler) rawBowler.wickets++;
+        const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
+        if (liveBowler) liveBowler.wickets++;
+        // The new batter takes the dismissed striker's slot (which is the non-striker's if the over has since ended)
+        const outSlotIsStriker = ni.battingOrderIds[newState.strikerIdx] === strikerId;
+        const survivor = outSlotIsStriker ? newState.nonStrikerIdx : newState.strikerIdx;
+        afterWicket(newState, ni, pm, rawInnings, survivor, outSlotIsStriker);
+        syncLatestDetailedBall(newState, {
+          eventType: "wicket",
+          wicketType: lastBall.wicketType,
+          fielderName: keeperId && kind === "caught" ? pm[keeperId]?.name : undefined,
+          commentary: lastBall.commentary,
+          wicketsSoFar: newState.wickets,
+        });
+      };
 
       if (choice === "accept" || !drsContext) {
-        // User accepts the umpire's decision (not out) — no DRS used
+        // The umpire's call stands. A wrong out decision the user does not review is a wicket.
+        if (lbwOrCaught && drsContext!.reviewingSide === "batting" && !lastBall.isWicket && (lastBall as any)._drsResult === "overturned") {
+          lastBall.commentary += ` ${newState.battingTeamId === newState.homeTeam.id ? newState.homeTeam.shortName : newState.awayTeam.shortName} do not review, and the batter walks.`;
+          wicketPostHoc();
+        }
         break;
       }
 
       // User reviews: resolve the hidden review outcome stored on the last ball.
-      const lastBall = rawInnings.ballLog[rawInnings.ballLog.length - 1];
       const shouldOverturn = (lastBall as any)?._drsOverturns === true;
 
-      if (drsContext.reviewKind === "lbw") {
+      if (lbwOrCaught && drsContext.reviewingSide === "batting") {
+        // The batting side reviews an out decision
+        const res = ((lastBall as any)._drsResult ?? "struck_down") as DrsReview["result"];
+        const review: DrsReview = { by: "batting", kind, onField: "out", result: res };
+        lastBall.review = review;
+        lastBall.commentary += " " + drsText(review, shortName, ni.rng);
+        if (reviewLost(review)) decDrs(newState, pending.teamId);
+        syncLatestDetailedBall(newState, { commentary: lastBall.commentary });
+        // overturned: the ball stays the dot it was; otherwise the wicket stands and the new batter comes in below
+      } else if (lbwOrCaught) {
+        const isMarginal = (lastBall as any)?._drsMarginal === true;
+        const review: DrsReview = { by: "fielding", kind, onField: "not_out", result: shouldOverturn ? "overturned" : isMarginal ? "umpires_call" : "struck_down" };
+        lastBall.review = review;
+        lastBall.commentary += " " + drsText(review, shortName, ni.rng);
         if (shouldOverturn) {
-          // Successful review: overturn to wicket
-          lastBall.isWicket = true;
-          lastBall.outcome = "wicket";
-          lastBall.wicketType = "lbw";
-          lastBall.newBatterFaces = true;
-          lastBall.commentary += " DRS review... OVERTURNED! That's OUT! LBW!";
-
-          newState.wickets++;
-          rawInnings.wickets++;
-
-          const strikerId = lastBall.batter;
-          const rawBat = rawInnings.batterStats[strikerId];
-          if (rawBat) rawBat.isOut = true;
-
-          const liveBatter = newState.batterStats.find(b => b.playerId === strikerId);
-          if (liveBatter) {
-            liveBatter.isOut = true;
-            const bowlerName = pm[lastBall.bowler]?.name ?? "unknown";
-            liveBatter.howOut = dismissalText({ kind: "lbw", bowler: bowlerName });
-          }
-
-          const overBall = `${newState.overs}.${ni.currentOverLegalBalls}`;
-          const fow = `${newState.score}/${newState.wickets} (${overBall} ov)`;
-          newState.fallOfWickets.push(fow);
-          if (liveBatter) liveBatter.fallOfWicket = fow;
-
-          const rawBowler = rawInnings.bowlerStats[lastBall.bowler];
-          if (rawBowler) rawBowler.wickets++;
-          const liveBowler = newState.bowlerStats.find(b => b.playerId === lastBall.bowler);
-          if (liveBowler) liveBowler.wickets++;
-
-          // The new batter takes the dismissed striker's slot (which is the non-striker's if the over has since ended)
-          const outSlotIsStriker = ni.battingOrderIds[newState.strikerIdx] === strikerId;
-          const survivor = outSlotIsStriker ? newState.nonStrikerIdx : newState.strikerIdx;
-          afterWicket(newState, ni, pm, rawInnings, survivor, outSlotIsStriker);
-
-          syncLatestDetailedBall(newState, {
-            eventType: "wicket",
-            wicketType: "lbw",
-            commentary: lastBall.commentary,
-            wicketsSoFar: newState.wickets,
-          });
+          wicketPostHoc();
         } else {
-          const isMarginal = (lastBall as any)?._drsMarginal === true;
-
-          if (!isMarginal) {
-            if (reviewingTeamIsHome) newState.drsRemaining.home--;
-            else newState.drsRemaining.away--;
-          }
-
-          const shortName = reviewingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
-          lastBall.commentary += isMarginal
-            ? ` DRS review... UMPIRE'S CALL — clipping leg stump. Stays NOT OUT. ${shortName} retain their review.`
-            : ` DRS review... clearly missing off stump. Stays NOT OUT. ${shortName} lose their review.`;
+          if (reviewLost(review)) decDrs(newState, pending.teamId);
           syncLatestDetailedBall(newState, { commentary: lastBall.commentary });
         }
       } else if (drsContext.reviewKind === "runout") {
@@ -2738,8 +2970,7 @@ export function applyDecision(
           syncLatestDetailedBall(newState, { commentary: lastBall.commentary });
         }
       } else {
-        const shortName = reviewingTeamIsHome ? newState.homeTeam.shortName : newState.awayTeam.shortName;
-        const reviewKind = drsContext.reviewKind;
+        const reviewKind = drsContext.reviewKind as "wide" | "noball";
         const rawBat = rawInnings.batterStats[lastBall.batter];
         const liveBatter = newState.batterStats.find(b => b.playerId === lastBall.batter);
         const rawBowler = rawInnings.bowlerStats[lastBall.bowler] ?? {
@@ -2923,6 +3154,13 @@ export function applyDecision(
       if (w.swapAfter && newState.status !== "waiting_for_decision") swapStrike(newState);
       else if (w.swapAfter) ni.deferredOverSwap = true;
     }
+  }
+
+  if (endInningsNow) {
+    newState.pendingDecision = undefined;
+    if (newState.innings === 1) finalizeFirstInningsBreak(newState, ni, rawInnings);
+    else completeMatch(newState);
+    return newState;
   }
 
   // A case can chain a new decision (e.g. DRS wicket -> choose_batter): that sets a new
@@ -3142,6 +3380,10 @@ export function startSecondInnings(state: MatchState): MatchState {
   ni.awaitingBatter = undefined;
   ni.retiredHurtIdx = [];
   ni.unavailableBowlers = [];
+  ni.beamers = {};
+  ni.overRateAnnounced = false;
+  const orp = drawOverRatePenalty(ni.rng, newState.maxOvers ?? 20);
+  newState.overRatePenaltyFrom = orp >= 0 ? orp : undefined;
 
   // Reset strategic timeouts for the new innings
   newState.strategicTimeouts = {
@@ -3237,10 +3479,13 @@ export function autoResolveDecision(state: MatchState): MatchState {
 
   switch (pending.type) {
     case 'choose_batter': {
-      // Pick the batter with highest batting OVR
-      let bestId = pending.options[0];
+      // Pick the batter with highest batting OVR (as the CPU does, a retired-hurt batter does not come back)
+      const hurtIds = new Set(pending.retiredHurtIds ?? []);
+      const pool = pending.options.filter(id => !hurtIds.has(id) && id !== "none");
+      if (pool.length === 0) return applyDecision(state, { type: 'choose_batter', selectedPlayerId: pending.options.includes("none") ? "none" : pending.options[0] });
+      let bestId = pool[0];
       let bestOvr = pm[bestId]?.battingOvr ?? 0;
-      for (const id of pending.options) {
+      for (const id of pool) {
         const ovr = pm[id]?.battingOvr ?? 0;
         if (ovr > bestOvr) { bestOvr = ovr; bestId = id; }
       }
@@ -3315,8 +3560,12 @@ export function autoResolveDecision(state: MatchState): MatchState {
     }
 
     case 'drs_review': {
-      // CPU auto-accepts (no review when auto-resolving)
-      return applyDecision(state, { type: 'drs_review', selectedPlayerId: "accept" });
+      // Auto-resolving (fast-forward): review what the CPU would have reviewed, the lbw / caught-behind calls the model
+      // marked (a wrong out, or a not-out the fielding side would overturn); accept everything else
+      const last = state._internal.currentInningsRaw.ballLog[state._internal.currentInningsRaw.ballLog.length - 1] as any;
+      const ctx = state.pendingDecision?.drsContext;
+      const review = !!ctx && (ctx.reviewKind === "lbw" || ctx.reviewKind === "caught") && (last?._drsResult === "overturned" || last?._drsOverturns === true);
+      return applyDecision(state, { type: 'drs_review', selectedPlayerId: review ? "review" : "accept" });
     }
 
     case 'retire_out': {
@@ -3457,6 +3706,7 @@ export function buildDetailedResultFromState(state: MatchState): DetailedMatchRe
   const innings1Scorecard = state.innings1Scorecard!;
 
   // For innings 2, build from stored data
+  const inn2Lives = battingLives(state._internal.currentInningsRaw.ballLog, id => state._internal.playerDataMap[id]?.name);
   const inn2Batters: BatterInnings[] = state.batterStats.map(b => ({
     playerId: b.playerId,
     playerName: b.playerName,
@@ -3467,6 +3717,7 @@ export function buildDetailedResultFromState(state: MatchState): DetailedMatchRe
     strikeRate: b.balls > 0 ? Math.round((b.runs / b.balls) * 1000) / 10 : 0,
     howOut: b.howOut,
     fallOfWicket: b.fallOfWicket,
+    ...(inn2Lives.get(b.playerId) ? { lives: inn2Lives.get(b.playerId) } : {}),
   })).filter(b => b.balls > 0 || b.howOut !== "not out");
 
   const inn2Bowlers: BowlerFigures[] = state.bowlerStats
@@ -3689,7 +3940,12 @@ function buildLiveInningsScorecard(
   totalOvers: string,
   fallOfWickets: string[],
   rawInnings: InningsScoreRaw,
+  nameOf?: (id: string) => string | undefined,
 ): InningsScorecard {
+  const names = new Map<string, string>();
+  for (const b of batterStats) names.set(b.playerId, b.playerName);
+  for (const b of bowlerStats) names.set(b.playerId, b.playerName);
+  const lives = battingLives(rawInnings.ballLog, id => names.get(id) ?? nameOf?.(id));
   const batters: BatterInnings[] = batterStats
     .filter(b => b.balls > 0 || b.isOut)
     .map(b => ({
@@ -3702,6 +3958,7 @@ function buildLiveInningsScorecard(
       strikeRate: b.balls > 0 ? Math.round((b.runs / b.balls) * 1000) / 10 : 0,
       howOut: b.howOut,
       fallOfWicket: b.fallOfWicket,
+      ...(lives.get(b.playerId) ? { lives: lives.get(b.playerId) } : {}),
     }));
 
   const bowlers: BowlerFigures[] = bowlerStats

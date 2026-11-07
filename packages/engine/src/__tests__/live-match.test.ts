@@ -529,7 +529,7 @@ describe("live match DRS", () => {
     });
     const clearMissNext = applyDecision(clearMiss.state, { type: "drs_review", selectedPlayerId: "review" });
     expect(clearMiss.bowlingTeamIsHome ? clearMissNext.drsRemaining.home : clearMissNext.drsRemaining.away).toBe(1);
-    expect(clearMissNext.ballLog[clearMissNext.ballLog.length - 1].commentary).toContain("lose their review");
+    expect(clearMissNext.ballLog[clearMissNext.ballLog.length - 1].commentary).toMatch(/lose (their|a) review/);
 
     const marginal = buildPendingDrsState({
       actuallyOut: false,
@@ -538,7 +538,7 @@ describe("live match DRS", () => {
     });
     const marginalNext = applyDecision(marginal.state, { type: "drs_review", selectedPlayerId: "review" });
     expect(marginal.bowlingTeamIsHome ? marginalNext.drsRemaining.home : marginalNext.drsRemaining.away).toBe(2);
-    expect(marginalNext.ballLog[marginalNext.ballLog.length - 1].commentary).toContain("UMPIRE'S CALL");
+    expect(marginalNext.ballLog[marginalNext.ballLog.length - 1].commentary).toMatch(/umpire's call/i);
   });
 
   it("successful batting wide reviews turn a legal dot into an extra and rebowl", () => {
@@ -606,7 +606,7 @@ describe("live match DRS", () => {
     });
     const battingMissNext = applyDecision(battingMiss.state, { type: "drs_review", selectedPlayerId: "review" });
     expect(battingMiss.reviewingTeamIsHome ? battingMissNext.drsRemaining.home : battingMissNext.drsRemaining.away).toBe(1);
-    expect(battingMissNext.ballLog[battingMissNext.ballLog.length - 1].commentary).toContain("lose their review");
+    expect(battingMissNext.ballLog[battingMissNext.ballLog.length - 1].commentary).toMatch(/lose (their|a) review/);
 
     const bowlingMiss = buildPendingExtraReviewState({
       reviewKind: "noball",
@@ -616,7 +616,7 @@ describe("live match DRS", () => {
     });
     const bowlingMissNext = applyDecision(bowlingMiss.state, { type: "drs_review", selectedPlayerId: "review" });
     expect(bowlingMiss.reviewingTeamIsHome ? bowlingMissNext.drsRemaining.home : bowlingMissNext.drsRemaining.away).toBe(1);
-    expect(bowlingMissNext.ballLog[bowlingMissNext.ballLog.length - 1].commentary).toContain("lose their review");
+    expect(bowlingMissNext.ballLog[bowlingMissNext.ballLog.length - 1].commentary).toMatch(/lose (their|a) review/);
   });
 
   it("keeps zero-legal-ball bowlers in exported scorecards after extra-call reviews", () => {

@@ -15,7 +15,7 @@ import type { DeliveryDetail, DismissalKind } from "./delivery-rules.js";
 import { commentaryShortName } from "./commentary-model.js";
 
 export interface DeliveryTextInput {
-  detail: Pick<DeliveryDetail, "outcome" | "batRuns" | "wides" | "noBalls" | "byes" | "legByes" | "penalty" | "overthrow" | "wideKind" | "dismissal"> & Partial<Pick<DeliveryDetail, "freeHitNext">>;
+  detail: Pick<DeliveryDetail, "outcome" | "batRuns" | "wides" | "noBalls" | "byes" | "legByes" | "penalty" | "overthrow" | "wideKind" | "dismissal"> & Partial<Pick<DeliveryDetail, "freeHitNext" | "noBallKind" | "beamer" | "penaltyReason">>;
   bowler: string;
   /** The striker (who played, or failed to play, the ball) */
   batter: string;
@@ -205,7 +205,16 @@ function wideLine(i: DeliveryTextInput, n: Names, fh: string, pre: string): stri
 function noBallLine(i: DeliveryTextInput, n: Names, fh: string, pre: string): string {
   const d = i.detail;
   const rng = i.rng;
-  const reason = pick(["Overstepped.", "Front foot no ball.", "The umpire signals no ball, the bowler has overstepped.", "A high full toss, and the umpire calls no ball."], rng);
+  const k = d.noBallKind;
+  const reason = k === "height"
+    ? (d.beamer
+      ? pick(["A beamer! A full toss above the waist, and the umpire calls no ball.", "That is a dangerous full toss, head high: no ball."], rng)
+      : pick(["A high full toss above the waist, called no ball.", "Too high: a bouncer over the batter's head is a no ball.", "Above waist height, so the umpire signals no ball."], rng))
+    : k === "fielding"
+      ? pick(["Too many fielders outside the circle, so the umpire calls no ball!", "The fielding side has broken the fielding restrictions: no ball."], rng)
+      : k === "front_foot"
+        ? pick(["Overstepped.", "Front foot no ball.", "The umpire signals no ball, the bowler has overstepped."], rng)
+        : pick(["Overstepped.", "Front foot no ball.", "The umpire signals no ball, the bowler has overstepped.", "A high full toss, and the umpire calls no ball."], rng);
   const cost = d.noBalls >= 2 ? `That costs ${numWord(d.noBalls)} runs.` : "One extra.";
   const bits: string[] = [];
   if (d.batRuns >= 6) bits.push(`SIX off the no ball! ${n.S} sends it into the stands.`);
@@ -252,10 +261,17 @@ function overthrowLine(i: DeliveryTextInput, fh: string, pre: string): string {
   ], rng)} ${upper(runWord(d.batRuns))} in all.`;
 }
 
-function penaltyTail(rng: RNG): string {
+function penaltyTail(rng: RNG, reason?: "helmet" | "fielding" | "other"): string {
+  if (reason === "helmet") return pick([
+    "The ball hits the helmet lying on the ground behind the keeper, so it is five penalty runs!",
+    "It rolls into the keeper's helmet on the ground: five penalty runs to the batting side.",
+  ], rng);
+  if (reason === "fielding") return pick([
+    "The umpires rule illegal fielding and award five penalty runs to the batting side!",
+    "A fielder is penalised for deliberately distracting the batters: five penalty runs.",
+  ], rng);
   return pick([
     "Five penalty runs are awarded to the batting side!",
-    "The ball hits a helmet lying on the ground behind the keeper, so it is five penalty runs!",
     "The umpires signal five penalty runs.",
   ], rng);
 }
@@ -278,7 +294,7 @@ function describeDeliveryRaw(i: DeliveryTextInput): string | undefined {
   const fh = i.freeHit ? "FREE HIT! " : "";
   const tail: string[] = [];
   if (d.overthrow && (d.dismissal || d.outcome !== "dot" && d.outcome !== "1" && d.outcome !== "2" && d.outcome !== "3")) tail.push(`Overthrows, and ${numWord(d.overthrow)} more runs are added!`);
-  if (d.penalty) tail.push(penaltyTail(rng));
+  if (d.penalty) tail.push(penaltyTail(rng, d.penaltyReason));
   const suffix = tail.length > 0 ? " " + tail.join(" ") : "";
 
   if (i.deadBall && d.dismissal) {

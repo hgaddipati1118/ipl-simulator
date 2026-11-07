@@ -7,7 +7,7 @@
  */
 
 import { Team } from "./team.js";
-import { MatchResult, simulateMatch, calculateMVPPoints, type InningsScore, type MatchInjuryEvent } from "./match.js";
+import { MatchResult, simulateMatch, calculateMVPPoints, addFieldingStats, type InningsScore, type MatchInjuryEvent } from "./match.js";
 import { Player } from "./player.js";
 import { shuffle } from "./math.js";
 import { DEFAULT_RULES, IPL_10_TEAM_IDS, type RuleSet } from "./rules.js";
@@ -560,8 +560,9 @@ export function applyLiveResult(
   const innings1 = toInningsScore(inn1Raw);
   const innings2 = toInningsScore(inn2Raw);
 
-  const winnerId = completedMatch.winnerId ?? null;
-  const margin = completedMatch.result?.replace(/^.*won by /, "").replace(/^Match tied.*$/, "Super Over") ?? "";
+  // A knockout washed out goes to the higher-placed side (the home side of this game's playoff fixtures)
+  const winnerId = completedMatch.winnerId ?? (match.isPlayoff ? home.id : null);
+  const margin = !completedMatch.winnerId ? "No result" : completedMatch.result?.replace(/^.*won by /, "").replace(/^Match tied.*$/, "Super Over") ?? "";
 
   // Build the MatchResult
   const result: MatchResult = {
@@ -588,30 +589,33 @@ export function applyLiveResult(
       winner.wins++;
       loser.losses++;
     } else {
+      // abandoned (no result): a point each; the match is left out of the net run rate
       home.ties++;
       away.ties++;
     }
 
-    // Update NRR components
+    // Update NRR components (not for a no result)
     const maxInningsBalls = completedMatch.maxOvers * 6;
-    const homeBattingInnings = battingFirstId === home.id ? innings1 : innings2;
-    const homeBowlingInnings = battingFirstId === home.id ? innings2 : innings1;
-    const awayBattingInnings = battingFirstId === away.id ? innings1 : innings2;
-    const awayBowlingInnings = battingFirstId === away.id ? innings2 : innings1;
+    if (winnerId) {
+      const homeBattingInnings = battingFirstId === home.id ? innings1 : innings2;
+      const homeBowlingInnings = battingFirstId === home.id ? innings2 : innings1;
+      const awayBattingInnings = battingFirstId === away.id ? innings1 : innings2;
+      const awayBowlingInnings = battingFirstId === away.id ? innings2 : innings1;
 
-    home.runsFor += homeBattingInnings.runs;
-    home.ballsFacedFor += getNRRBallDenominator(homeBattingInnings, maxInningsBalls);
-    home.runsAgainst += homeBowlingInnings.runs;
-    home.ballsFacedAgainst += getNRRBallDenominator(homeBowlingInnings, maxInningsBalls);
-    home.wicketsTaken += homeBowlingInnings.wickets;
-    home.updateNRR();
+      home.runsFor += homeBattingInnings.runs;
+      home.ballsFacedFor += getNRRBallDenominator(homeBattingInnings, maxInningsBalls);
+      home.runsAgainst += homeBowlingInnings.runs;
+      home.ballsFacedAgainst += getNRRBallDenominator(homeBowlingInnings, maxInningsBalls);
+      home.wicketsTaken += homeBowlingInnings.wickets;
+      home.updateNRR();
 
-    away.runsFor += awayBattingInnings.runs;
-    away.ballsFacedFor += getNRRBallDenominator(awayBattingInnings, maxInningsBalls);
-    away.runsAgainst += awayBowlingInnings.runs;
-    away.ballsFacedAgainst += getNRRBallDenominator(awayBowlingInnings, maxInningsBalls);
-    away.wicketsTaken += awayBowlingInnings.wickets;
-    away.updateNRR();
+      away.runsFor += awayBattingInnings.runs;
+      away.ballsFacedFor += getNRRBallDenominator(awayBattingInnings, maxInningsBalls);
+      away.runsAgainst += awayBowlingInnings.runs;
+      away.ballsFacedAgainst += getNRRBallDenominator(awayBowlingInnings, maxInningsBalls);
+      away.wicketsTaken += awayBowlingInnings.wickets;
+      away.updateNRR();
+    }
   }
 
   // Update player stats — mirrors updatePlayerStats() in match.ts
@@ -643,6 +647,9 @@ export function applyLiveResult(
   updateBatterStats(innings2);
   updateBowlerStats(innings1);
   updateBowlerStats(innings2);
+  // Fielding: catches, stumpings, run outs, drops and missed chances, from the side's innings in the field
+  for (const p of home.roster) addFieldingStats(p, (battingFirstId === home.id ? innings2 : innings1).ballLog);
+  for (const p of away.roster) addFieldingStats(p, (battingFirstId === away.id ? innings2 : innings1).ballLog);
 
   // Mark matches played for all XI players
   const homeXISet = new Set(completedMatch._internal.homeXIIds);

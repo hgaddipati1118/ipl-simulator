@@ -455,7 +455,10 @@ function BattingCard({ innings }: { innings: InningsScorecard }) {
                     </PlayerLink>
                     {isTop && <span className="text-yellow-500 text-xs ml-1">*</span>}
                   </td>
-                  <td className="px-4 py-2 text-th-secondary text-xs">{b.howOut}</td>
+                  <td className="px-4 py-2 text-th-secondary text-xs">
+                    {b.howOut}
+                    {b.lives && b.lives.length > 0 && <div className="text-[10px] text-amber-500/80">{b.lives.join(", ")}</div>}
+                  </td>
                   <td className="text-center px-2 py-2 text-th-primary font-semibold">{b.runs}</td>
                   <td className="text-center px-2 py-2 text-th-secondary">{b.balls}</td>
                   <td className="text-center px-2 py-2 text-th-secondary">{b.fours}</td>

@@ -95,7 +95,7 @@ describe("live: free hit", () => {
     for (const kind of ["bowled", "caught", "lbw", "hit_wicket", "stumped"] as DismissalKind[]) {
       withOverrides({ forceKind: kind }, () => {
         let checked = 0;
-        for (let seed = 20; seed < 26; seed++) {
+        for (let seed = 20; seed < 34; seed++) {
           for (const log of rawLogs(playOut(seed))) {
             for (const e of log) {
               if (e.outcome === "noball" || e.freeHit) {

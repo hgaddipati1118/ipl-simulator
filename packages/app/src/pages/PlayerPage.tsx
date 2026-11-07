@@ -208,6 +208,9 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
       econ,
       bestBowling: s.bestBowling,
       catches: s.catches,
+      drops: s.drops ?? 0,
+      stumpings: s.stumpings ?? 0,
+      runOuts: s.runOuts ?? 0,
     };
   }, [player, matchLog]);
 
@@ -689,6 +692,9 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
                 <MiniStat label="Econ" value={seasonStats.overs > 0 ? seasonStats.econ.toFixed(1) : "-"} />
                 <MiniStat label="Best" value={seasonStats.bestBowling} />
                 <MiniStat label="Ct" value={String(seasonStats.catches)} />
+                {seasonStats.stumpings > 0 && <MiniStat label="St" value={String(seasonStats.stumpings)} />}
+                {seasonStats.runOuts > 0 && <MiniStat label="RO" value={String(seasonStats.runOuts)} />}
+                <MiniStat label="Drops" value={String(seasonStats.drops)} />
               </div>
             </div>
           </div>

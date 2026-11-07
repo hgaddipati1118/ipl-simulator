@@ -468,3 +468,72 @@ export function fieldingCommentary(
 function clampN(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
+
+// ── Fielding errors in the scorecard and the stats ──────────────────────
+
+/** The parts of a ball-log event the fielding tallies read (BallEvent in match.ts) */
+export interface FieldingLogEvent {
+  batter: string;
+  runs: number;
+  isWicket: boolean;
+  wicketType?: string;
+  fielderId?: string;
+  fielder2Id?: string;
+  substitute?: boolean;
+  fieldingNote?: FieldingNote;
+  playerOutId?: string;
+  deadBall?: boolean;
+}
+
+export interface FieldingTally {
+  catches: number;
+  stumpings: number;
+  runOuts: number;
+  /** Catches put down */
+  drops: number;
+  missedStumpings: number;
+  missedRunOuts: number;
+  misfields: number;
+  sixesSaved: number;
+}
+
+/** Everything a fielder did in one innings' ball log (substitutes' credits belong to nobody in the XI) */
+export function fieldingTally(log: readonly FieldingLogEvent[], playerId: string): FieldingTally {
+  const t: FieldingTally = { catches: 0, stumpings: 0, runOuts: 0, drops: 0, missedStumpings: 0, missedRunOuts: 0, misfields: 0, sixesSaved: 0 };
+  for (const ev of log) {
+    if (ev.substitute) continue;
+    if (ev.isWicket) {
+      if ((ev.wicketType === "caught" || ev.wicketType === "caught_and_bowled") && ev.fielderId === playerId) t.catches++;
+      else if (ev.wicketType === "stumped" && ev.fielderId === playerId) t.stumpings++;
+      else if (ev.wicketType === "run_out" && (ev.fielderId === playerId || ev.fielder2Id === playerId)) t.runOuts++;
+      continue;
+    }
+    if (ev.fielderId !== playerId) continue;
+    switch (ev.fieldingNote) {
+      case "dropped_catch": t.drops++; break;
+      case "missed_stumping": t.missedStumpings++; break;
+      case "run_out_missed": t.missedRunOuts++; break;
+      case "misfield": t.misfields++; break;
+      case "six_saved": t.sixesSaved++; break;
+    }
+  }
+  return t;
+}
+
+/** A batter's reprieves in an innings: "dropped on 23 (Jadeja)", "missed stumping on 12 (Pant)", "run out chance missed on 4" */
+export function battingLives(log: readonly FieldingLogEvent[], nameOf: (id: string) => string | undefined): Map<string, string[]> {
+  const score = new Map<string, number>();
+  const out = new Map<string, string[]>();
+  for (const ev of log) {
+    const before = score.get(ev.batter) ?? 0;
+    if (!ev.isWicket && (ev.fieldingNote === "dropped_catch" || ev.fieldingNote === "missed_stumping" || ev.fieldingNote === "run_out_missed")) {
+      const who = ev.fielderId ? nameOf(ev.fielderId) : undefined;
+      const what = ev.fieldingNote === "dropped_catch" ? "dropped" : ev.fieldingNote === "missed_stumping" ? "missed stumping" : "run out chance missed";
+      const list = out.get(ev.batter) ?? [];
+      list.push(`${what} on ${before}${who ? ` (${who})` : ""}`);
+      out.set(ev.batter, list);
+    }
+    score.set(ev.batter, before + ev.runs);
+  }
+  return out;
+}
