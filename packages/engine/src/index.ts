@@ -32,7 +32,7 @@ export type {
   PlayerProgressReport,
 } from "./player.js";
 
-export { Team, IPL_TEAMS, WPL_TEAMS, LEGACY_STADIUM_BOWLING_RATINGS } from "./team.js";
+export { Team, IPL_TEAMS, WPL_TEAMS, LEGACY_STADIUM_BOWLING_RATINGS, xiSelectionValue, keeperSelectionValue } from "./team.js";
 export {
   getVenueProfileForTeam, getLeagueChaseAdvantage, deriveStadiumBowlingRating,
   derivePitchType, deriveBoundarySize, deriveDewFactor,

@@ -62,7 +62,7 @@ npm run build --workspace=packages/app
 ### @ipl-sim/engine
 Core simulation logic:
 - **Match simulation** (`match.ts`): Ball-by-ball with multi-layer probability system (phase multipliers, chase context, pressure/clutch factors)
-- **Player system** (`player.ts`): 8 attributes (battingIQ, timing, power, running, wicketTaking, economy, accuracy, clutch) on 0-99 scale, plus optional `fielding` / `keeping` (50 = average; absent = default; `fielding.ts`, docs/RULES-MATCH.md section 11). Fielding / keeping are priced into market value, trades, CPU retention and the draft AI as points of overall (`Player.valueOverall`, docs/RULES-AUCTION.md section 9), age in `Player.progress()` (`fielding-progression.ts`, docs/RULES-SEASON.md section 7), and are drawn for generated players
+- **Player system** (`player.ts`): 8 attributes (battingIQ, timing, power, running, wicketTaking, economy, accuracy, clutch) on 0-99 scale, plus optional `fielding` / `keeping` (50 = average; absent = default; `fielding.ts`, docs/RULES-MATCH.md section 11). Fielding / keeping are priced into market value, trades, CPU retention and the draft AI as points of overall (`Player.valueOverall`, docs/RULES-AUCTION.md section 9) and weigh auto-picked XIs and the keeper choice (`xiSelectionValue`, docs/RULES-SQUAD.md section 5), age in `Player.progress()` (`fielding-progression.ts`, docs/RULES-SEASON.md section 7), and are drawn for generated players
 - **Auction** (`auction.ts`): CPU bidding AI with position needs, age preference, domestic bias
 - **Season** (`schedule.ts`): 70 group matches + 4-team playoff (Qualifier 1, Eliminator, Qualifier 2, Final)
 - **Team** (`team.ts`): Roster management, playing XI selection, stadium ratings, NRR tracking

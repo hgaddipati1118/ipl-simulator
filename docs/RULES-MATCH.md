@@ -261,7 +261,8 @@ that are sometimes put down, so the engine models them that way:
 ### Keeper selection
 
 `pickKeeper(xi)` returns the designated keeper with the best `keeping`; if the XI has none, the player with the best `keeping` rating (an emergency
-keeper, 25 unless rated). `Team.autoSelectPlayingXI()` already placed a designated keeper in every XI when the squad has one; it now also covers a
+keeper, 25 unless rated). `Team.autoSelectPlayingXI()` places a designated keeper in every XI when the squad has one, choosing among several by
+selection value plus keeping worth (`keeperSelectionValue`, RULES-SQUAD.md section 5); it also covers a
 squad with none (or an injured keeper): the squad's best-keeping player is brought into the XI when he is clearly better (10+ points) than anyone already
 in it, subject to the overseas limit. A user-chosen XI still has to contain a designated keeper to be used as is. Impact-player substitutions update
 the fielding unit (the substitute fields, the player replaced does not).

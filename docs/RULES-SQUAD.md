@@ -95,16 +95,31 @@ interface TeamBudget {
 - Must have a wicket-keeper
 - Cannot select injured players
 
-### Selection Algorithm (CPU)
+### Selection Algorithm (CPU, and the Lineup page's Auto Select)
+`Team.autoSelectPlayingXI()` in `packages/engine/src/team.ts`:
 ```
-1. Select best WK (by overall)
-2. Select 4 overseas players (highest overall, mixing bat/bowl)
-3. Fill remaining spots with best available Indian players
-4. Ensure at least 5 bowling options:
-   - If < 5 bowlers/all-rounders, swap weakest batter for best available bowler
-5. Batting order: WK + top-order batters first, all-rounders middle, bowlers last
-6. Bowling rotation: 5-6 bowlers, each max 4 overs
+value(p)        = fitness-adjusted overall (selectionScore) + 0.145 * (fielding - 48)            (xiSelectionValue)
+keeperValue(p)  = value(p) + 0.185 * (keeping - 50)                                              (keeperSelectionValue)
+                  (the fielding / keeping parts are fieldingValueBonus, clamped to [-6, +9]; absent ratings add 0)
+
+1. Keeper first: the designated keeper with the best keeperValue
+2. Bowling core: the five best bowling options by fitness-adjusted bowling overall (fielding does NOT reorder the core)
+3. Fill to 11 by value, max 4 overseas; a sixth bowling option is preferred if within 3 value points of the next batter
+4. Guarantee a designated keeper (swap one in if step 1 found none that fits the overseas cap)
+5. No designated keeper available: bring in the squad's best keeping rating if 10+ points better than anyone in the XI
+6. Batting order: WK + top-order batters first, all-rounders middle, bowlers last
+7. Bowling rotation: 5-6 bowlers, each max 4 overs
 ```
+The fielding and keeping weights are the match-engine-measured exchange rates (RULES-AUCTION.md section 9): one fielding point is worth 0.145
+overall points, one keeping point (for the man who keeps) 0.185. So a 20-point better fielder edges out a batter up to ~3 overall points better,
+and a specialist gloveman (keeping 80) beats a batter-keeper who keeps at 25 unless the batter is ~10 points better. Fielding only reorders the
+batting/all-rounder fill and the keeper choice; the five-man bowling core is still chosen on bowling. On the 2026 IPL squads this changes 0-2
+players per XI, keeps every side's five best bowlers, raises the mean XI fielding by ~1.4 points and changes runs per innings by <0.5%
+(`benchmark-fielding.ts`, 6,000 matches). Tests: `packages/engine/src/__tests__/xi-fielding.test.ts`.
+
+The Lineup page shows each player's fielding (and keeping, for keepers) in the FLD column, lists the bench by the same value, and its advisor
+adds "Sharp in the Field" / "Leaky Fielding" (XI mean fielding >= 54 / <= 42), "Keeper Choice" (a benched keeper keeps 15+ points better and is
+worth more behind the stumps) and "No Specialist Keeper" insights.
 
 ### Impact Sub Considerations
 - If team plans to use batting impact sub: can start with 5 bowlers (sub in 6th batter later)

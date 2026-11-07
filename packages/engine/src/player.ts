@@ -467,7 +467,7 @@ export class Player implements PlayerData {
 
   /**
    * Overall as valued by the market, the auction AI, trades and the draft AI: batting / bowling overall plus what
-   * fielding and keeping are worth. Not shown as the player's overall and not used to pick the XI.
+   * fielding and keeping are worth. Not shown as the player's overall. Auto XI selection uses the same rates (team.ts xiSelectionValue).
    */
   get valueOverall(): number {
     return this.overall + this.fieldingBonus;

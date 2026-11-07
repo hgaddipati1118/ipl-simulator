@@ -220,12 +220,15 @@ describe("fielding in the match engine", () => {
   it("balance: rated fielders (mean 50) don't move scoring or wickets away from the unrated game by more than 2%", { timeout: 180000 }, () => {
     const n = 1500;
     const spread = [30, 40, 50, 60, 70, 45, 55, 50, 35, 65, 50];
+    // Exactly eleven players, so both sides field the same XI: with a twelfth man, auto-selection (which weighs
+    // fielding) would leave out the worst fielder and lift the XI's mean above 50.
+    const eleven = (t: Team) => { t.removePlayer(t.roster[t.roster.length - 1].id); return t; };
     const rated = (tag: string) => () => {
-      const t = buildTeam(tag === "a" ? 0 : 1, tag);
+      const t = eleven(buildTeam(tag === "a" ? 0 : 1, tag));
       t.roster.forEach((p, i) => { p.ratings.fielding = spread[i % spread.length]; p.ratings.keeping = p.isWicketKeeper ? 50 : undefined; });
       return t;
     };
-    const unrated = league(n, () => buildTeam(0, "a"), () => buildTeam(1, "b"), 9000);
+    const unrated = league(n, () => eleven(buildTeam(0, "a")), () => eleven(buildTeam(1, "b")), 9000);
     const withRatings = league(n, rated("a"), rated("b"), 9000);
     expect(Math.abs(withRatings.runs / unrated.runs - 1)).toBeLessThan(0.02);
     expect(Math.abs(withRatings.wkts / unrated.wkts - 1)).toBeLessThan(0.02);

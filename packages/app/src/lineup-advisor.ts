@@ -1,4 +1,4 @@
-import { Player, Team, type BowlingPlan } from "@ipl-sim/engine";
+import { Player, Team, type BowlingPlan, fieldingRating, keepingRating, pickKeeper, keeperSelectionValue } from "@ipl-sim/engine";
 
 export type BowlingPhase = "powerplay" | "middle" | "death";
 type BattingSlot = "opener" | "top-order" | "middle-order" | "finisher" | "lower-order";
@@ -247,6 +247,29 @@ export function buildLineupReport(params: {
   if ((team.config.boundarySize ?? "medium") === "large") {
     if (topSixRunning >= 58) addIfRoom(strengths, "Large-Ground Running", `The top six average ${Math.round(topSixRunning)} running for the bigger outfield.`);
     else addIfRoom(concerns, "Large-Ground Fit", `Top-six running averages ${Math.round(topSixRunning)} on a large ground.`);
+  }
+
+  // Fielding and keeping (fielding.ts): the XI's mean fielding moves the runs it concedes and the catches it holds;
+  // the keeper's keeping moves stumpings and byes. Auto Select weighs both (team.ts xiSelectionValue).
+  if (selectedPlayers.length >= 11) {
+    const meanFielding = average(selectedPlayers.map(player => fieldingRating(player)));
+    if (meanFielding >= 54) addIfRoom(strengths, "Sharp in the Field", `The XI averages ${Math.round(meanFielding)} fielding, so it should hold its chances and save runs.`);
+    else if (meanFielding <= 42) addIfRoom(concerns, "Leaky Fielding", `The XI averages only ${Math.round(meanFielding)} fielding. Expect dropped chances and extra runs.`);
+  }
+  const keeper = pickKeeper(selectedPlayers);
+  const benchKeeper = availablePlayers
+    .filter(player => player.isWicketKeeper && !selectedPlayers.some(selected => selected.id === player.id))
+    .sort((a, b) => keeperSelectionValue(b) - keeperSelectionValue(a))[0];
+  if (keeper && keeper.isWicketKeeper && benchKeeper
+    && keepingRating(benchKeeper) - keepingRating(keeper) >= 15
+    && keeperSelectionValue(benchKeeper) > keeperSelectionValue(keeper)) {
+    addIfRoom(
+      recommendations,
+      "Keeper Choice",
+      `${benchKeeper.name} keeps much better (${keepingRating(benchKeeper)} vs ${keepingRating(keeper)}) and is worth more behind the stumps than ${keeper.name}.`,
+    );
+  } else if (keeper && !keeper.isWicketKeeper) {
+    addIfRoom(concerns, "No Specialist Keeper", `${keeper.name} would take the gloves with a ${keepingRating(keeper)} keeping rating.`);
   }
 
   if (hotStarters >= 2) addIfRoom(strengths, "In-Form Core", `${hotStarters} starters are in strong recent form.`);
