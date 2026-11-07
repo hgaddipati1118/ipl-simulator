@@ -6,6 +6,7 @@
 import { clamp, randomNormal, displayOversToReal } from "./math.js";
 import { fieldingValueBonus } from "./fielding.js";
 import { sampleFieldingChange } from "./fielding-progression.js";
+import { attributeTilt } from "./attribute-tilt.js";
 import type { RNG } from "./rng.js";
 import {
   sampleChange, estimateExperience, meanPathOvr, type ProgressionState, type ProgressionGender,
@@ -698,7 +699,7 @@ export class Player implements PlayerData {
         const noise = e[i] - (we / ww) * weights[i];
         const focusBoost = (focusBias[attr] ?? 0) * gainMultiplier;
         const d = attr === "clutch" && clutchDelta !== undefined ? clutchDelta : delta;
-        const next = clamp(Math.round(this.ratings[attr] + d + noise + focusBoost), 1, 99);
+        const next = clamp(Math.round(this.ratings[attr] + d + noise + focusBoost + attributeTilt(attr, this.age, gender)), 1, 99);
         ratingChanges[attr] = (ratingChanges[attr] ?? 0) + next - this.ratings[attr];
         this.ratings[attr] = next;
       });

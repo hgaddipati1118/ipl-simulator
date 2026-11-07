@@ -212,6 +212,9 @@ change = mean(age, level, last season's change, seasons of evidence, kind) + sd(
 - The change is spread over the discipline's attributes so the discipline overall moves by the drawn amount, with a little
   individual noise per attribute. Each player's `ratingHistory` keeps one entry per season (overall, batting, bowling, age;
   25 seasons) for the "ratings over time" chart.
+- **Attributes age differently** (`attribute-tilt.ts`): each attribute's share of the discipline change gets a fitted tilt by age and gender, centred so the discipline overall is
+  unchanged: clutch gains about +0.8 a season more than the discipline (experience), running fades relative to batting from the late 20s (-0.1 at 28, -0.3 at 34), battingIQ, economy and accuracy hold up better than
+  wicketTaking, power sits a little below the rest. Parameters and the evidence per attribute (what the data show against what is shrunk) are in `docs/RATINGS-PIPELINE.md`, "Per-attribute age curves".
 - All draws come from an RNG derived from `GameState.worldSeed` and the season number, so a seed reproduces a career.
 - **Fielding and keeping** (when a player has the ratings; absent stays absent) age on their own fitted curves (`fielding-progression.ts`,
   parameters in the generated `fielding-progression-model.ts`; method and numbers in `docs/RATINGS-PIPELINE.md`, "Fielding and keeping

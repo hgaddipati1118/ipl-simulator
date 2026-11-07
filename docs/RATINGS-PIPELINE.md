@@ -736,6 +736,42 @@ generated players are unaffected. `src/pipeline/fielding-model.ts` maps the CSV 
 source on disk and moves unrelated ratings, so the committed files were produced by `patch-fielding.ts`, which adds only the two fields.
 `getRealPlayers()` now also marks a player a keeper when the ESPN data does (it used to rely only on its short curated list).
 
+### Per-attribute age curves (tilts)
+
+`Player.progress()` draws one change per discipline and spreads it over the discipline's four attributes with the weights (bat .30/.30/.35/.05, bowl .55/.20/.10/.15),
+so every attribute used to age alike. `src/analysis/attribute-tilts.py` fits how each attribute ages *relative to its discipline*: `attribute change = discipline change + tilt(attr, age, gender)`,
+the tilts centred so that the weighted sum is zero in each discipline at every age (the validated discipline overall is unchanged). From `packages/ratings`:
+
+    python3 -I src/analysis/attribute-tilts.py    # -> engine/src/attribute-tilt-model.ts (generated), __tests__/fixtures/attribute-tilt-cohort.json, data/analysis/attribute_tilts.json, attribute-tilts-report.md
+
+**Data and method.** `player_ratings_by_season.parquet`: the ratings model's component values per player and year-start snapshot (battingIQ = `bat_dismissal + bat_runs`, timing = `bat_timing`, power = `bat_power`,
+running = `bat_running`, wicketTaking = `bowl_wickets`, economy = `bowl_economy`, accuracy = `bowl_accuracy`, clutch = `clutch`; the mapping of `model-ratings.ts`). Regulars (300+ batting / 240+ bowling balls),
+age known, who played in the season between the two snapshots (a retired player's values are carried forward and must not count: without this the 37+ bin was 35% of the pairs). Each component is standardised within its snapshot and
+gender (removes the calendar drift of the run scale) and turned into attribute points with the attribute's sd in the game's pool (battingIQ 14.0, running 12.1, economy 18.7 ...). Delta method on consecutive snapshots,
+by age at the later snapshot, two-year bins, standard errors inflated 1.5x (a player appears in overlapping pairs); a line `alpha + beta (age - 28)` through the bins with 40+ pairs, each coefficient shrunk by empirical
+Bayes (prior sd 0.25 points a season for the level, 0.04 per year of age for the slope; women toward the men's posterior with prior sds x0.6), because the snapshots are cumulative, decayed estimates that damp every real
+change, so a raw slope understates and a noisy one is not to be trusted. Men 7,492 pairs, women 2,215.
+
+**Fitted tilts, men** (points a season relative to the discipline; centred tilt at 22 / 28 / 34 / 38; the raw level at 28 +- s.e. and the raw slope per year of age, against what survives shrinkage):
+
+| attribute | tilt 22 / 28 / 34 / 38 | raw level (s.e.) -> shrunk | raw slope (s.e.) -> shrunk | what the data show |
+|---|---|---|---|---|
+| battingIQ | +0.15 / +0.09 / +0.03 / -0.01 | +0.09 (0.07) | -0.011 (0.019) -> -0.009 | holds up: slightly positive at every age, mild fade late; weak evidence |
+| timing | +0.15 / +0.14 / +0.13 / +0.12 | +0.20 (0.17) -> +0.14 | -0.001 | flat; the data are noisy (s.e. 0.4 a bin) so the level is mostly shrunk |
+| power | -0.26 / -0.18 / -0.10 / -0.05 | -0.24 (0.14) -> -0.18 | +0.025 (0.034) -> +0.015 | **not** an early fader here: a little below the others at all ages, fading less late; slope not distinguishable from 0 |
+| running | +0.08 / -0.08 / -0.24 / -0.34 | -0.16 (0.25) | -0.087 (0.062) -> -0.026 | fades relative to batting from the late 20s (the raw bins: about -0.9 a season at 29-36); big s.e., 70% of the raw slope shrunk away; running has weight 0.05 so it hardly moves the overall |
+| wicketTaking | +0.04 / -0.08 / -0.20 / -0.29 | -0.08 (0.10) | -0.038 (0.027) -> -0.026 | declines a little faster than economy and accuracy |
+| economy | -0.41 / -0.21 / 0.00 / +0.14 | -0.30 (0.19) -> -0.19 | +0.073 (0.049) -> +0.029 | holds up with age (positive slope) |
+| accuracy | -0.55 / -0.37 / -0.19 / -0.07 | -0.58 (0.20) -> -0.36 | +0.069 (0.054) -> +0.025 | lower level than the rest but holds up with age, as expected |
+| clutch | +0.76 / +0.82 / +0.88 / +0.91 | **+1.09 (0.14)** -> +0.83 | +0.009 | the one clear signal: clutch rises about 0.8 points a season more than the discipline, at every age (experience), and the data leave no room for doubt |
+
+Women (smaller sample, shrunk toward the men's curve): the same directions, with a larger power gap (-0.58 at 28) and battingIQ/timing gains (+0.29, +0.41), economy up and accuracy down; clutch +0.73.
+Full bin tables, with s.e., are in `data/analysis/attribute-tilts-report.md`. The tilt is exported as a line through three nodes (20, 28, 40), clamped at +-1.5 points a season and flat outside the nodes.
+
+**Validation.** (1) The 2015-cohort discipline validation (`progression.test.ts`) is unchanged to 0.01 points in level and spread at every horizon, men and women (e.g. men level at 1 / 3 / 5 / 8 seasons 65.32 / 65.95 / 66.44 / 67.16 with the tilts, 65.32 / 65.95 / 66.43 / 67.15 without). (2) The 20-season league-balance test
+still passes (overall, top 150, spread and age). (3) `attribute-tilt.test.ts`: tilts weight to zero at every age; deterministic; a 34-year-old's running falls faster than his battingIQ (and wicketTaking faster than economy); and for the age bands 30-33 and 34+ the simulated mean
+change of every attribute relative to its discipline is within two standard errors (+0.3) of the real one in `attribute-tilt-cohort.json`, men and women.
+
 ### Fielding and keeping progression
 
 `Player.progress()` used to move only the eight core ratings. The fielding and keeping ratings now age too, on curves fitted from the same Cricsheet
