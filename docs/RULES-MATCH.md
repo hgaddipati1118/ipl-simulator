@@ -124,6 +124,7 @@ The current engine uses phase multipliers which is the right approach. The key r
 - Boundary/no-boundary (did the ball cross the rope?)
 
 ### Implementation for Simulator
+(Superseded by section 13.4: both engines now use reviews fitted from Cricsheet `review` records. The original sketch follows.)
 Since we don't model fielding positions, DRS is simplified:
 - When a wicket falls, there's a 10-15% chance it would have been overturned by DRS
 - If the batting team has a review remaining, the decision may be reversed
@@ -435,8 +436,214 @@ the FREE HIT badge shows after a no-ball, the ball log carries "FREE HIT!" lines
 no ball is bowled") with the scorecard row "run out (bowler)", retired hurt, non-striker run outs, "c & b", lbw and run-out scorecard text, the match completes
 (PBKS 202/10) with the extras row split. Super overs in the viewer are covered by the engine tests (the match page shows `state.result`).
 
-### 12.6 Not modelled
+### 12.6 Not modelled (at the time of section 12)
 
 Short runs; the slow over-rate in-field penalty; DLS and no-result in the instant sim; DRS for caught-behind edges; bouncers per over (a third bouncer is a
 no-ball); the Hundred's ends changing every ten balls (strike still changes every set); the live viewer has no Hundred; user decisions for a mid-over bowler
-replacement and for a returning retired-hurt batter (both automatic).
+replacement and for a returning retired-hurt batter (both automatic). **Section 13 adds all of these except bouncers per over and a live Hundred.**
+
+
+---
+
+## 13. Rain and DLS, DRS, fielding errors and the rarer plays
+
+Second pass over both engines (`match.ts` instant, `live-match.ts` live viewer). New shared modules: `dls.ts` (rewritten), `drs.ts`,
+`special-plays.ts`; the fielding errors live in `fielding.ts`. New rates are fitted by `packages/ratings/src/analysis/match-rules-extra.py`
+into `packages/engine/src/match-rules-extra-data.ts` (report without commentary excerpts: `docs/data/match_rules_extra.json`). Inputs: the
+Cricsheet parquet tables (rain, extras), the raw Cricsheet JSON for the `review` records (`CRICSHEET_JSON_DIR`, downloaded from
+cricsheet.org: IPL, WPL, BBL, WBBL, PSL, CPL, SA20, ILT20, MLC, Hundred, BPL, LPL, T20Is) and the ESPNcricinfo ball-by-ball commentary of IPL
+2025-26 (76 matches, 17,587 balls; its structured `DROPPED_CATCH` / `RUN_OUT_CHANCE` / `STUMPING_CHANCE` events and text regexes, hand-checked).
+Run from `packages/ratings`: `CRICSHEET_JSON_DIR=/path/to/json python3 -I src/analysis/match-rules-extra.py`.
+
+### 13.1 Audit table
+
+`I` = instant engine, `L` = live engine. "Before" is the branch point (2a262f1).
+
+| Situation | Before | After | Rate / source |
+|---|---|---|---|
+| **Fielding errors** (item 8) | | | |
+| dropped catch | I, L: chance put down at 18% (assumed); ball resampled from the whole outcome mix (a ring drop could be a six); line in the commentary only. L: not on the raw ball log, so no stats; live matches credited no catches at all | I, L: drop share 20.9% for an average fielder, moved by the catcher's `fielding` (keeper: `keeping`); a deep (rope) drop goes 6 / 4 / 1 / 2 (20 / 15 / 40 / 25%), a ring drop dot / 1 / 2, a keeper's drop dot / 1 / 4 (off the gloves) / 2; batter survives; `fieldingNote`, `fielderId`, `deepChance` on the ball (both engines); deep-drop lines | 180 drops v 682 catches (commentary events), CricViz T20 catch efficiency 75-80% |
+| missed stumping | I, L (assumed 10%) | I, L: 16.7% of stumping chances, keeper's `keeping` drives it; dot or single | 2 v 12 (thin, Jeffreys) |
+| run-out chance missed | I, L (assumed 25%) | I, L: 60% of run-out chances (Cricinfo tags every missed direct-hit chance); the runs are completed (1 / 2 / 3); fielding rating drives it | 62 v 41 |
+| drops in the scorecard | no | I, L: batting row "dropped on 23 (Jadeja)", "missed stumping on 12 (Pant)", "run out chance missed on 4" (`BatterInnings.lives`); shown in the match page and the live scorecard | |
+| drops in the stats | no | I, L: `PlayerStats.drops`, `missedStumpings`, `missedRunOuts`, `misfields` (player page: Ct, St, RO, Drops); live matches now also credit catches, stumpings and run outs | |
+| misfield (a run or the four given away) | no | I, L: label on 1 / 2 / 3 / 4 balls (runs unchanged: the base model's runs already contain them), weaker fielders and weaker sides fumble more; fielder named, stats | 0.76% of deliveries, 32% to the boundary (commentary) |
+| catch on the boundary rope | no | I, L: `boundaryCatch` (47.5% of outfield catches), corpus lines filtered to deep catches, hand-written fallback | commentary, 0.91 precision |
+| relay catch | no | I, L: one fielder parries, the other completes it (credited); `fielder2Id` | 0.46% of boundary catches (1 in 321, Jeffreys) |
+| six saved on the rope | no | I, L: a hit for six palmed back, 1 or 2 run (six weight raised by 1/(1-share) so sixes stay at the base rate) | 0.41% of six-bound hits (6 of 1,442; low confidence) |
+| **Running and dead balls** | | | |
+| short run (item 1) | no | I, L: "one short", a run off the bat not counted; the batters still change ends by what they ran | none signalled in 17,587 balls: Jeffreys 2.8e-5 per delivery (~0.003 an innings) |
+| ball lodged in helmet / pads (dead ball) | no | I, L: legal ball, nothing scored, dead-ball line | 1 in 17,587 (Jeffreys 8.5e-5) |
+| ball hits the keeper's helmet on the ground (5 penalty) | I, L: penalty runs without a reason | I, L: penalty reason drawn: helmet 60% / illegal fielding 30% / other 10% (assumption; Laws 28.3, 41.5), each with its line | 1.4e-5 per delivery (Cricsheet) |
+| **Bowling** | | | |
+| no-ball reason | I, L: random wording ("overstepped" / "high full toss") | I, L: `noBallKind` front foot 62.6% / height 35.3% / fielding restriction 2.2%, the line says which | 68 no-balls in the commentary |
+| beamer, warning, removal | no | I, L: beamers are height no-balls (1.05e-3 per delivery); first: warning; second in the innings: the bowler is removed from the attack (Law 41.7), another bowler finishes the over (L: the user picks when it is his side) | 17 beamers |
+| leg-side wide | I, L (section 12: wide kinds off / leg / height) | unchanged | 36.7% of wides |
+| slow over-rate restriction (item 2) | no | I, L: drawn per innings: 7.9% of innings, from the last over (75%), the last two (17%) or the last four (8%); in those overs one more fielder inside the circle: fours x1.10, sixes x1.04, dots x0.97; announced in the commentary; `overRatePenalty` on the balls | commentary IPL 2025-26: 12 of 151 innings; effect sizes an assumption |
+| mid-over bowler injury | I, L automatic | I unchanged; L: the user picks who finishes the over (same panel as an over's start, "Who finishes the over?") | |
+| no consecutive overs | I: fixed on main (another XI player bowls first) | L: the same (`ensureFreshBowlerOption`) | |
+| **Batting** | | | |
+| retired hurt returning | I, L automatic (return 0.2%) | L: on the user's side the user decides whether a retired-hurt batter resumes (or ends the innings when nobody else is left); CPU unchanged | |
+| striker run out on a free hit | I, L (section 12) | unchanged | |
+| **Umpiring** | | | |
+| DRS lbw (item 4) | L: 20% of lbw given out auto-overturned (it removed wickets); not-out appeals on 8% of dots; I: none | I, L: fitted model (13.4), umpire's call keeps the review, two reviews per side per innings (one in a super over), reset each innings | Cricsheet: 6,679 reviews |
+| DRS caught behind | no | I, L: batting reviews of a keeper catch given out; fielding reviews of a not-out caught-behind appeal; UltraEdge lines | 95% of reviewed catches are the keeper's |
+| wrong decision with no review left | no | I, L: a wrong out stands (a wicket), an out given not out stands (no wicket) | |
+| DRS for wides / no-balls / run outs | L | L unchanged (live only) | |
+| **Match** | | | |
+| rain, DLS, no result in the instant sim (item 3) | no | I: per league p(no result), p(reduced) (13.3); DLS par / revised target; a point each and out of the NRR for a no result; DLS NRR | Cricsheet 4,696 league matches |
+| DLS resource table | made-up parameters | I, L: the Standard Edition model fitted to the published table | 40 published cells, rms 0.03 |
+| washed-out knockout | n/a | I, L: the higher-placed (home) side goes through | IPL playing conditions |
+| The Hundred: ends (item 6) | ends changed every set of five | I: every ten balls (strike carries across a set boundary inside a ten) | Hundred playing conditions |
+| women's extras (item 5) | men's base rates | I, L: scaled to the women's per-delivery rates of the women's T20 leagues since 2019: wides x0.894, no-balls x0.974, byes / leg byes x0.918 | 145,917 women's deliveries; women's T20Is excluded (associate nations double the wide rate) |
+| strategic timeout | L (bowling side overs 6-9, batting 13-16, user choice, small rating boost) | I: IPL innings record the two timeouts (after overs 7 and 14) without an effect; L unchanged | IPL playing conditions |
+| impact player | I, L | unchanged | |
+| super overs in the viewer (item 7) | played but not shown (the result text only) | L: the result panel lists every super over: side, three batters v bowler, each ball, score | |
+| **Not added** | | | |
+| bouncers per over (a third is a no-ball), concussion substitutes, the ICC stop clock (T20Is only), batters deliberately running on the pitch (5 penalty against the batting side), the live Hundred | | | see 13.8 |
+
+### 13.2 How the plays fit on a delivery
+
+`simulateBall` (instant) and `runOneBall` (live) now do, after the base model: women's extras factor; the over-rate factor; the fielding chance
+resolution (drops by where the chance went); DRS (`applyDrs` in the instant engine, the review block of `stepBall` in the live one); `expandDelivery`;
+then `applySpecialPlays` (no-ball and penalty reasons, beamers, boundary / relay catches, six saved, misfield, short run, lodged ball). Labels (misfield,
+boundary catch, reasons) never change the runs, so the scores stay on the base model; a short run takes one off, a six saved turns six into one or two (and
+the six weight is raised to keep the sixes that clear the rope at the base rate). A chance that was put down only gets the labels.
+
+New optional `BallEvent` fields: `noBallKind`, `beamer`, `penaltyReason`, `shortRun`, `lodged`, `boundaryCatch`, `deepChance`, `review`,
+`overRatePenalty`; `fieldingNote` gained `misfield` and `six_saved`. `InningsScore`: `overRatePenaltyFrom`, `drsLeft`, `timeouts`, `scheduledOvers`,
+`dlsTarget`, `suspendedBowlers`. `MatchResult.rain`. Old logs load unchanged. Instant matches' lazily generated commentary (`instant-commentary.ts`)
+carries the new facts in its cues and keeps the play lines.
+
+Test hooks (`setRuleOverrides`): `shortRunPerDelivery`, `lodgedPerDelivery`, `misfieldPerDelivery`, `sixSavedShare`, `boundaryCatchShare`,
+`relayCatchShare`, `forceBeamer`, `noBallRateFactor`, `overRatePenaltyPerInnings`, `rainNoResult`, `rainReduced`, `drsRateFactor`,
+`forceCoarseOutcome` (with `forceOutcomeSparesSuperOver`: a forced tie, then real super overs).
+
+### 13.3 Rain, DLS and no result
+
+**Rates** (per match, shrunk towards the pooled 13 leagues with 20 pseudo-matches; Cricsheet leaves out matches abandoned without a ball, so p(no result)
+is a lower bound):
+
+| league | matches | p(no result) | p(reduced, a result) |
+|---|---|---|---|
+| IPL | 1,243 | 0.74% | 2.68% |
+| WPL | 88 | 0.27% | 0.76% |
+| BBL | 662 | 1.66% | 5.99% |
+| WBBL | 527 | 3.16% | 7.28% |
+| PSL | 357 | 0.87% | 3.14% |
+| SA20 | 130 | 4.86% | 3.88% |
+| Hundred (men / women) | 201 / 188 | 3.30% / 1.10% | 2.63% / 2.80% |
+| CPL | 445 | 1.57% | 7.70% |
+| ILT20 / MLC / BPL / LPL | 134 / 109 / 469 / 143 | 0.84% / 1.00% / 0.06% / 2.02% | 1.18% / 5.29% / 0.78% / 6.64% |
+
+A reduced match is cut before the start (54%: both sides get N overs), during the first innings (12%: the first innings stops at over s, is cut to N
+overs, the chase gets N overs and a DLS target) or during the chase (34%: at over s with w down the chase is cut to N overs and the target revised); N
+follows the data (5-19 overs, roughly flat). A no result is abandoned in the first innings, or in the chase before the five overs a result needs.
+
+**DLS.** `dls.ts` uses the Duckworth-Lewis model behind the Standard Edition table, Z(u, w) = Z0 F(w) [1 - exp(-b u / F(w))], with b = 0.0274093
+and F(w) = 1, 0.885, 0.760, 0.630, 0.500, 0.375, 0.262, 0.164, 0.089, 0.035 fitted to the published Standard Edition values (the 50, 40, 30, 25, 20,
+10 and 5 overs-left rows at 0 / 2 / 5 / 7 / 9 down, and the whole 50-overs row: 100, 93.4, 85.1, 74.9, 62.7, 49.0, 34.9, 22.0, 11.9, 4.7); it reproduces
+all of them to 0.1 (rms 0.03). A T20 is the bottom of the table rescaled so 20 overs = 100% (e.g. 10 overs, none down = 56.7%); The Hundred counts
+balls / 6. Target: R2 < R1: floor(S R2 / R1) + 1; R2 >= R1: floor(S + G (R2 - R1) / 100) + 1 with G = 160 (x the league's scoring multiplier, x 100/120
+in The Hundred). The live engine's rain (its own checks, unchanged) now uses these resources too.
+
+**Results and tables.** A DLS win reads "by 12 runs (DLS method)"; a tie on DLS goes to a super over. A no result is a point each (`ties`, which the
+standings already counted as tie / NR) and is left out of the NRR. When DLS revised the target, the side batting first is credited with the target minus
+one off the overs the chase was given (ICC NRR rule); each side is charged the overs it had. A knockout cannot end without a winner: the higher-placed side
+(the home side of this game's playoff fixtures) goes through. Benchmarks pass `rain: false` (option `MatchOptions.rain`) so innings compare like for like;
+with rain on, 60,000 IPL matches had 2.7% shortened and 0.72% no results, as fitted.
+
+### 13.4 DRS
+
+From 6,679 Cricsheet reviews in 3,042 matches with reviews recorded: 1.10 reviews an innings (both sides), 38.7% by the batting side. Batting side, given
+out: lbw 91.5% / caught 8.5% of its reviews; overturned 34.5%, umpire's call 17.8% (lbw; none for catches), the rest struck down. Fielding side, given not
+out: lbw 59.8% / caught 40.2%; overturned 20.4% (lbw) / 25.9% (caught), umpire's call 21.3% (lbw). 95% of reviewed catches are the keeper's, so
+"caught" reviews are caught behind (catches by the keeper). Overturned batting reviews and struck-down fielding reviews carry no dismissal kind in Cricsheet;
+they are split by the kinds of the others.
+
+`drs.ts` turns these into per-ball rates with the engine's average lbw (0.5) and keeper-catch (0.7) wickets an innings:
+- a drawn lbw / keeper-catch wicket was given not out and overturned on the fielding side's review (lbw 16% of them, caught behind 10%); with no review
+  left the batter survives (a dot);
+- otherwise the batting side may review it (struck down, or umpire's call which keeps the review);
+- on a dot ball (not a free hit): a wrong out decision overturned on the batting side's review (with no review left it stands: a wicket), or a fielding-side
+  review of a not-out that fails (struck down / umpire's call).
+Only a struck-down review is lost; two per side per innings (one in a super over), reset at the innings break (the live engine had kept the count over
+both innings). The live viewer asks the user on his side's decisions: "Given out LBW / caught behind!" (review or walk; a wrong decision not reviewed is a
+wicket), "LBW / caught-behind appeal!" (review or accept); fast-forward reviews what the CPU would. The old live-only reviews of wides, no-balls and run
+outs are unchanged. Simulated: 0.98 reviews an innings (fewer than 1.10 because sides run out).
+
+### 13.5 Fielding errors: audit and model
+
+Before: both engines resolved catch / stumping / run-out chances in `fielding.ts` with assumed conversions (82 / 90 / 75%), and a miss resampled the
+ball from the whole outcome mix (so a ring drop could become a six). The instant engine logged `fieldingNote` and the fielder; the live engine put the
+drop only in the commentary (its raw ball log had no `fieldingNote`), so live matches recorded no drops, and the live path into the season stats
+credited no catches, stumpings or run outs at all. No scorecard or stat showed a drop. After: conversions from the commentary (13.1), the outcome of a
+miss by where the chance went, the ball logs of both engines carry the note and the fielder, `fieldingTally` / `battingLives` feed the stats and the
+"dropped on N" scorecard lines in both engines. A side of average fielders still gives the base model's wickets (the chance inflation uses the new
+conversions). Simulated per innings: 0.72 catches put down (0.45 of them in the deep), 0.71 run-out chances missed, 0.028 stumpings missed, 0.85
+misfields, 1.67 catches on the rope, 0.03 sixes saved.
+
+### 13.6 Live viewer
+
+Mid-over bowler changes (injury, two beamers) and retired-hurt returns pause for the user on his side ("Who finishes the over?" lists the bowlers who may
+bowl, not the previous over's bowler; "Who bats next?" has a "Retired hurt: send back in?" section and, when nobody else is left, "end the innings").
+The match-complete panel lists the super overs ball by ball.
+
+Smoke test (Playwright's own headless Chromium, Vite dev server on port 3891, killed by PID afterwards; script kept outside the repo): a Draft Match v
+CPU with raised rates through `setRuleOverrides` (imported from the same engine module the page uses): 8 "Who finishes the over?" panels (7 injuries, one
+second beamer) each answered, 3 retired-hurt returns chosen, "Given out LBW!" reviewed, lbw appeals and a wide check reviewed, and the feed showing "pulls
+up mid-over", retirements, DRS reviews, misfields, beamers and "removed from the attack", no page errors. A forced 0-0 tie (`forceCoarseOutcome: "dot"`,
+`forceOutcomeSparesSuperOver`) ended "Your XI won by Super Over (17/0 v 15/1)" with both super overs listed ball by ball.
+
+### 13.7 Balance
+
+Same setup as 12.4: the ten IPL 2026 squads, random pairings, injuries off, rain off (`benchmark-rules.ts`; `RAIN=1` turns it on, `GENDER=women`
+plays the same squads under the women's rates). "Before" is 2a262f1; "after" is this work before merging main; "after + main" includes main's own changes
+(features-2: keeper / XI selection and the consecutive-overs fix), which move the byes.
+
+Instant engine, 60,000 matches (120,000 innings):
+
+| per innings | before | after | after + main | Cricsheet IPL 2023-26 |
+|---|---|---|---|---|
+| runs | 168.33 | 167.98 (-0.2%) | 168.68 (+0.2%) | 174-186 |
+| wickets | 6.866 | 6.843 (-0.3%) | 6.875 (+0.1%) | 5.9-6.2 |
+| fours | 16.66 | 16.44 (-1.3%) | 16.53 (-0.8%) | 14.7-15.8 |
+| sixes | 7.734 | 7.684 (-0.6%) | 7.759 (+0.3%) | 7.6-9.6 |
+| extras | 8.05 | 8.04 | 7.85 | 8.2-9.3 |
+| wides / no-balls / bye-legbye balls | 3.81 / 0.50 / 2.11 | 3.80 / 0.50 / 2.11 | 3.82 / 0.50 / 1.97 | |
+| chasing side wins | 55.0% | 55.1% | 55.0% | |
+| super overs | 1.15% | 1.18% | 1.18% | 0.7% |
+
+The fours move most (-1.3%): a put-down catch now ends in a boundary less often than the old proportional resample gave it, and the over-rate
+restriction (+10% fours in about 1.3 overs an innings in 7.9% of innings) only gives part of it back. With rain on (60,000 matches): 2.7% of matches
+shortened and 0.72% no results (IPL fitted: 2.68% / 0.74%), runs 166.2 an innings over all innings. Women's rates on the same squads (20,000 matches):
+extras 8.03 -> 7.27, wides 3.83 -> 3.41 balls an innings, runs 168.8 -> 167.2.
+
+Live engine, 5,000 CPU-v-CPU matches (10,000 innings; noise about 0.3% on the runs):
+
+| per innings | before | after + main |
+|---|---|---|
+| runs | 242.21 | 242.13 |
+| wickets | 6.088 | 6.035 (-0.9%) |
+| fours | 25.72 | 25.61 |
+| sixes | 14.82 | 14.78 |
+| extras | 7.89 | 7.62 |
+| lbw share of dismissals | 8.0% | 7.2% (the old live DRS added lbws; the fitted one does not) |
+| chasing side wins | 62.8% | 62.6% |
+
+Rates of the new events per innings (instant, after): reviews 0.98 (batting lbw struck down 0.15, overturned 0.12, umpire's call 0.06; fielding lbw struck
+down 0.21, overturned 0.08, umpire's call 0.08; fielding caught struck down 0.18, overturned 0.07), dropped catches 0.72 (0.45 in the deep), run-out chances
+missed 0.71, misfields 0.85, catches on the rope 1.67, no-balls: front foot 0.31 / height 0.18 / fielding 0.011, beamers 0.13, bowlers removed for two
+beamers 0.0014, innings under the over-rate restriction 7.8%, sixes saved 0.032, missed stumpings 0.028, lodged balls 0.009, short runs 0.003, penalty runs
+(helmet) 0.001.
+
+### 13.8 Not done
+
+- Bouncers per over (a third bouncer a no-ball, `maxBouncersPerOver`): the engines have no ball lengths; height no-balls stand in.
+- Concussion substitutes, the ICC stop clock (T20Is only, not in the franchise leagues), penalty runs against the batting side.
+- The live engine still has no Hundred (so the ten-ball ends are instant-only) and its own rain model (now with the fitted DLS resources, not the
+  per-league rates). Users do not nominate super-over batters / bowler (the AI picks).
+- The instant sim's strategic timeouts are records only (no effect); misfields are labels (they do not add runs: the base model's runs already contain them).
+- Thin rates (stumping misses, relay catches, sixes saved, short runs, lodged balls) are order-of-magnitude (Jeffreys); the over-rate effect sizes and
+  penalty-reason split are assumptions.
+- The live engine's scoring level (about 242 an innings, against 174-186 in the IPL since 2023, section 12.4) is its own older calibration and was left alone.
