@@ -251,6 +251,14 @@ Generated players are sampled from the real joint distribution of the game's rat
 - **15 fill-in squad players** (age 22-34, any nationality by the usual T20 mix).
 - **2-4 youth academy prospects** (Indian, aged 17-20) with a potential and a scouting grade (Diamond 78+, Gold 71+,
   Silver 64+, Bronze); they enter the auction pool.
+- **Gender.** Each generated player is drawn from the men's or the women's generation model (strata, ages, names,
+  fielding). Men's and women's leagues generate only their own gender. In a **combined** league (custom rules with gender
+  "combined", men's and women's franchises side by side) the gender is per player (`playerGender`, `leagues.ts`):
+  `Player.isFemale` (set for every generated woman and for the real women loaded into the league), else the side the player
+  plays for (`teamGender`: WPL, WBBL and The Hundred women franchises are women's sides). So a retiring woman's regen is a
+  woman, the fill-ins split by the share of women's teams (4 of 8 teams -> 8 of 15 fill-ins are women), the user's youth
+  prospects match the user's side, generated pool supplements at the start match the share too, and every player ages
+  (progression) and retires (hazard) on their own gender's curves. Saves from before the tag fall back to the team.
 - Every generated player gets a **fielding** rating, keepers also a **keeping** rating (`sampleFieldingRatings`, drawn from the
   real distribution of the role class and gender, with good batters and bowlers fielding a little better; generated keepers average
   52 men / 56 women keeping, other players have none). The draw uses a stream of its own seeded from the player, so it does not

@@ -6,24 +6,27 @@
 import {
   type Player, type RuleSet, type DraftConfig, type DraftPlayer, type TeamConfig,
   type MatchState, type DetailedMatchResult,
-  Player as PlayerClass, Team, IPL_TEAMS, WPL_TEAMS, RULE_PRESETS,
+  Player as PlayerClass, Team, IPL_TEAMS, WPL_TEAMS, RULE_PRESETS, EXTRA_LEAGUES, isOverseasIn, isWomenLeague,
+  type ExtraLeagueId,
   createPlayerFromData, generatePlayerPool, toDraftPlayer, isDraftBowlingOption,
   createMatchState, simulateRemaining, buildDetailedResultFromState,
 } from "@ipl-sim/engine";
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
+import { getLeaguePlayers } from "@ipl-sim/ratings/dist/league-players.js";
 
 // ── Season draft ────────────────────────────────────────────────────────
 
 export function seasonDraftConfig(rules: RuleSet, seed: number, careerMode = true): DraftConfig {
-  const rounds = Math.min(rules.maxSquadSize, rules.league === "wpl" ? 15 : 18);
+  const women = isWomenLeague(rules);
+  const rounds = Math.min(rules.maxSquadSize, women ? 15 : 18);
   return {
     type: rules.draftType ?? "snake",
     rounds,
     maxOverseas: rules.maxOverseasInSquad,
     maxOverseasInXI: rules.maxOverseasInXI,
     minWicketKeepers: 2,
-    minBowlingOptions: rules.league === "wpl" ? 6 : 7,
+    minBowlingOptions: women ? 6 : 7,
     pickSeconds: rules.draftPickSeconds ?? 45,
     careerMode,
     seed,
@@ -38,7 +41,9 @@ export function draftRoundPrice(round: number, salaryCap: number): number {
 
 // ── Draft Match pools ───────────────────────────────────────────────────
 
-export type DraftMatchPoolId = "ipl-current" | "wpl-current" | "top-stars" | "nations" | "full";
+/** `league:<id>`: the current squads of one of the extra leagues (BBL, PSL, The Hundred, ...) */
+export type LeagueDraftPoolId = `league:${ExtraLeagueId}`;
+export type DraftMatchPoolId = "ipl-current" | "wpl-current" | "top-stars" | "nations" | "full" | LeagueDraftPoolId;
 
 export const DRAFT_MATCH_POOLS: { id: DraftMatchPoolId; label: string; desc: string }[] = [
   { id: "ipl-current", label: "IPL 2026 squads", desc: "Everyone on a current IPL roster. 4 overseas max per XI." },
@@ -46,7 +51,17 @@ export const DRAFT_MATCH_POOLS: { id: DraftMatchPoolId; label: string; desc: str
   { id: "nations", label: "Nation vs nation", desc: "Two countries' players in one pool." },
   { id: "wpl-current", label: "WPL squads", desc: "Everyone on a current WPL roster. 5 overseas max per XI." },
   { id: "full", label: "Full database", desc: "The top 500 men's players from the whole database." },
+  ...EXTRA_LEAGUES.map(l => ({
+    id: `league:${l.id}` as LeagueDraftPoolId,
+    label: `${l.short} ${l.season} squads`,
+    desc: `Everyone on a current ${l.name} roster. ${l.rules.maxOverseasInXI} overseas max per XI.`,
+  })),
 ];
+
+/** The extra league a Draft Match pool is drawn from, if any */
+export function draftPoolLeague(id: DraftMatchPoolId) {
+  return id.startsWith("league:") ? EXTRA_LEAGUES.find(l => `league:${l.id}` === id) : undefined;
+}
 
 function realMen(): Player[] {
   try {
@@ -93,7 +108,17 @@ export function buildDraftMatchPool(id: DraftMatchPoolId, nations?: [string, str
   let maxOverseasInXI: number | undefined;
   let label = DRAFT_MATCH_POOLS.find(p => p.id === id)?.label ?? id;
 
-  if (id === "ipl-current") {
+  const league = draftPoolLeague(id);
+  if (league) {
+    try {
+      players = getLeaguePlayers(league.id).map(d => {
+        const p = createPlayerFromData(d);
+        p.isInternational = isOverseasIn(league.id, d.country);
+        return p;
+      });
+    } catch { players = []; }
+    maxOverseasInXI = league.rules.maxOverseasInXI;
+  } else if (id === "ipl-current") {
     try { players = getRealPlayers().map(d => createPlayerFromData(d)); } catch { players = []; }
     maxOverseasInXI = 4;
   } else if (id === "wpl-current") {
@@ -164,12 +189,31 @@ export function autoLineup(players: DraftPlayer[]): DraftMatchLineup {
   return { battingOrder: order.map(p => p.id), captainId: captain?.id ?? "" };
 }
 
-/** Grounds available for a Draft Match: every franchise home ground in the game. */
+const ALL_FRANCHISES = (): TeamConfig[] => [...IPL_TEAMS, ...WPL_TEAMS, ...EXTRA_LEAGUES.flatMap(l => l.teams)];
+
+/** Grounds available for a Draft Match: every franchise home ground in the game (IPL, WPL, then the extra leagues). */
 export function draftMatchVenues(): { teamId: string; stadiumName: string; city: string }[] {
-  return [...IPL_TEAMS, ...WPL_TEAMS]
+  return ALL_FRANCHISES()
     .filter(c => c.stadiumName)
     .filter((c, i, all) => all.findIndex(x => x.stadiumName === c.stadiumName) === i)
     .map(c => ({ teamId: c.id, stadiumName: c.stadiumName!, city: c.city }));
+}
+
+const isWplGround = (teamId: string) => /-w$|^upw$/.test(teamId);
+
+/** Grounds a random Draft Match venue is drawn from: the pool's league (WPL for the WPL pool, IPL grounds otherwise). */
+export function draftPoolVenues(id: DraftMatchPoolId): { teamId: string; stadiumName: string; city: string }[] {
+  const all = draftMatchVenues();
+  const league = draftPoolLeague(id);
+  if (league) {
+    const ids = new Set(league.teams.map(t => t.id));
+    const own = all.filter(v => ids.has(v.teamId));
+    // a ground shared with another league keeps the first franchise's id; match by name too
+    const names = new Set(league.teams.map(t => t.stadiumName));
+    return own.length ? own : all.filter(v => names.has(v.stadiumName));
+  }
+  const ipl = new Set(IPL_TEAMS.map(t => t.id));
+  return all.filter(v => (id === "wpl-current" ? isWplGround(v.teamId) : ipl.has(v.teamId)));
 }
 
 const SIDE_COLORS: [string, string][] = [
@@ -195,7 +239,7 @@ export function buildDraftMatchTeam(
    */
   explicitLineup = true,
 ): Team {
-  const venue = [...IPL_TEAMS, ...WPL_TEAMS].find(c => c.id === venueTeamId);
+  const venue = ALL_FRANCHISES().find(c => c.id === venueTeamId);
   const [primaryColor, secondaryColor] = SIDE_COLORS[sideIndex % SIDE_COLORS.length];
   const config: TeamConfig = {
     id: side.id,

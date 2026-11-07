@@ -140,6 +140,11 @@ export interface PlayerData {
   careerStats?: { m: number; r: number; avg: number; sr: number; w: number; econ: number };
   teamId?: string;
   bid?: number; // auction price in crores
+  /**
+   * A women's cricketer, when the game knows it apart from the league: set for every generated woman and for real
+   * women loaded into a combined (men + women) league. Absent = the league's gender (see leagues.ts playerGender).
+   */
+  isFemale?: boolean;
   injured: boolean;
   injuryGamesLeft: number;
   injuryType?: string;          // "hamstring", "shoulder", "back", "finger", "ankle", "side strain"
@@ -351,6 +356,7 @@ export class Player implements PlayerData {
   careerStats?: { m: number; r: number; avg: number; sr: number; w: number; econ: number };
   teamId?: string;
   bid: number;
+  isFemale?: boolean;
   injured: boolean;
   injuryGamesLeft: number;
   injuryType?: string;
@@ -385,6 +391,7 @@ export class Player implements PlayerData {
     this.careerStats = data.careerStats;
     this.teamId = data.teamId;
     this.bid = data.bid ?? 0;
+    if (data.isFemale) this.isFemale = true;
     this.injured = data.injured ?? false;
     this.injuryGamesLeft = data.injuryGamesLeft ?? 0;
     this.injuryType = data.injuryType;
@@ -472,7 +479,7 @@ export class Player implements PlayerData {
 
   /**
    * Overall as valued by the market, the auction AI, trades and the draft AI: batting / bowling overall plus what
-   * fielding and keeping are worth. Not shown as the player's overall and not used to pick the XI.
+   * fielding and keeping are worth. Not shown as the player's overall. Auto XI selection uses the same rates (team.ts xiSelectionValue).
    */
   get valueOverall(): number {
     return this.overall + this.fieldingBonus;
@@ -764,6 +771,7 @@ export class Player implements PlayerData {
       battingPosition: this.battingPosition,
       teamId: this.teamId,
       bid: this.bid,
+      ...(this.isFemale ? { isFemale: true } : {}),
       injured: this.injured,
       injuryGamesLeft: this.injuryGamesLeft,
       injuryType: this.injuryType,

@@ -5,6 +5,7 @@
 
 import type { DraftPlayer, DraftState, DraftPick, DraftType, PlayerData } from "@ipl-sim/engine";
 import type { DraftMatchPoolId, DraftMatchResultSummary } from "../draft-pools";
+import type { MultiplayerLeagueId } from "./leagues";
 
 export interface LobbyPlayer {
   peerId: string;
@@ -62,7 +63,7 @@ export type GuestMessage =
 // ── Messages from Host → All ────────────────────────────────────────────
 
 export type HostMessage =
-  | { type: "lobby-state"; players: LobbyPlayer[]; teams: TeamBudgetInfo[]; roomCode: string; phase: RoomPhase }
+  | { type: "lobby-state"; players: LobbyPlayer[]; teams: TeamBudgetInfo[]; roomCode: string; phase: RoomPhase; league?: MultiplayerLeagueId }
   | { type: "auction-state"; state: MultiAuctionState }
   | { type: "bid-update"; teamId: string; teamName: string; amount: number; bidderName: string }
   | { type: "sold"; playerId: string; playerName: string; teamId: string; teamName: string; amount: number }
@@ -113,8 +114,8 @@ export interface DraftRoomSettings {
   mode: "season-draft" | "draft-match";
   draftType: DraftType;
   pickSeconds: number;
-  /** Season draft: which league's franchises */
-  league: "ipl" | "wpl";
+  /** Season draft: which league's franchises (IPL, WPL or any extra league, multiplayer/leagues.ts) */
+  league: MultiplayerLeagueId;
   /** Season draft: draft order random (coin toss/shuffle) or the order seats are listed in */
   order: "random" | "listed";
   /** Draft Match: pool and number of sides (2 = head-to-head, 3-4 = mini round-robin) */

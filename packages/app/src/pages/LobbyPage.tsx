@@ -13,8 +13,8 @@ import type {
 import { DraftRoomHost, reduceDraftRoomView, EMPTY_DRAFT_ROOM_VIEW, type DraftRoomView } from "../multiplayer/draft-room";
 import { realDraftRoomDeps } from "../multiplayer/draft-room-deps";
 import { DraftRoom, type DraftRoomActions } from "../components/DraftRoom";
-import { RULE_PRESETS, IPL_TEAMS, type RuleSet } from "@ipl-sim/engine";
 import { TeamBadge } from "../components/TeamBadge";
+import { MULTIPLAYER_LEAGUES, multiplayerAuctionRules, multiplayerLeagueName, type MultiplayerLeagueId } from "../multiplayer/leagues";
 
 type Mode = "choose" | "host" | "guest" | "draft-host";
 
@@ -23,8 +23,6 @@ const ROOM_MODES: { value: RoomMode; label: string; desc: string }[] = [
   { value: "season-draft", label: "Season Draft", desc: "Snake-draft full squads, then a season" },
   { value: "draft-match", label: "Draft Match", desc: "Pick XIs head-to-head and play now" },
 ];
-
-const ALL_TEAM_CONFIGS = IPL_TEAMS;
 
 export function LobbyPage() {
   const navigate = useNavigate();
@@ -53,6 +51,9 @@ export function LobbyPage() {
   const [phase, setPhase] = useState<RoomPhase>("lobby");
   const [auctionState, setAuctionState] = useState<MultiAuctionState | null>(null);
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
+  // Auction room league (host picks in the lobby; guests learn it from lobby-state)
+  const [league, setLeague] = useState<MultiplayerLeagueId>("ipl");
+  const [startingAuction, setStartingAuction] = useState(false);
 
   // Refs for host/guest instances
   const hostRef = useRef<MultiplayerHost | null>(null);
@@ -104,8 +105,7 @@ export function LobbyPage() {
         return;
       }
 
-      const rules: RuleSet = { ...RULE_PRESETS.modern };
-      const logic = new HostGameLogic(host, rules);
+      const logic = new HostGameLogic(host, multiplayerAuctionRules(league));
       logicRef.current = logic;
       logic.setHostName(name.trim());
 
@@ -123,19 +123,7 @@ export function LobbyPage() {
         isHost: true,
         isCPU: false,
       }]);
-      setTeams(
-        ALL_TEAM_CONFIGS.map(c => ({
-          teamId: c.id,
-          teamName: c.name,
-          shortName: c.shortName,
-          primaryColor: c.primaryColor,
-          budget: rules.salaryCap,
-          spent: 0,
-          rosterCount: 0,
-          controlledBy: "",
-          playerName: "",
-        }))
-      );
+      setTeams(logic.getTeamsInfo());
 
       // Listen for lobby updates via broadcast interception
       const origBroadcast = host.broadcast.bind(host);
@@ -147,6 +135,7 @@ export function LobbyPage() {
           setPlayers(msg.players);
           setTeams(msg.teams);
           setPhase(msg.phase);
+          if (msg.league) setLeague(msg.league);
         }
       };
 
@@ -156,7 +145,7 @@ export function LobbyPage() {
     } finally {
       setConnecting(false);
     }
-  }, [name, roomMode]);
+  }, [name, roomMode, league]);
 
   const handleHostPickTeam = useCallback((teamId: string) => {
     if (!logicRef.current) return;
@@ -175,7 +164,19 @@ export function LobbyPage() {
   }, []);
 
   const handleStartAuction = useCallback(() => {
-    logicRef.current?.startAuction();
+    const started = logicRef.current?.startAuction();
+    if (started) {
+      setStartingAuction(true);
+      void started.finally(() => setStartingAuction(false));
+    }
+  }, []);
+
+  const handleHostLeague = useCallback((id: MultiplayerLeagueId) => {
+    const logic = logicRef.current;
+    if (!logic) return;
+    logic.setLeague(id);
+    setLeague(id);
+    setMyTeamId(null);
   }, []);
 
   // ── Guest Flow ──
@@ -201,6 +202,9 @@ export function LobbyPage() {
             setTeams(msg.teams);
             setPhase(msg.phase);
             setRoomCode(msg.roomCode);
+            if (msg.league) setLeague(msg.league);
+            // the host changed league: team claims were cleared
+            if (!msg.players.some(p => p.peerId === guestRef.current?.peerId && p.teamId)) setMyTeamId(null);
             break;
           case "auction-state":
             setAuctionState(msg.state);
@@ -291,8 +295,8 @@ export function LobbyPage() {
   // ── Derived State ──
 
   const isHost = mode === "host";
-  const allTeamsAssigned = ALL_TEAM_CONFIGS.every(tc =>
-    players.some(p => p.teamId === tc.id)
+  const allTeamsAssigned = teams.length > 0 && teams.every(tc =>
+    players.some(p => p.teamId === tc.teamId)
   );
   const humanCount = players.filter(p => !p.isCPU).length;
 
@@ -504,12 +508,35 @@ export function LobbyPage() {
               )}
               {p.teamId && (
                 <span className="text-[10px] text-th-muted font-mono">
-                  {ALL_TEAM_CONFIGS.find(c => c.id === p.teamId)?.shortName ?? p.teamId}
+                  {teams.find(c => c.teamId === p.teamId)?.shortName ?? p.teamId}
                 </span>
               )}
             </div>
           ))}
         </div>
+      </div>
+
+      {/* League (host decides; every league single player offers) */}
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label htmlFor="mp-league" className="text-xs font-display font-semibold text-th-muted uppercase tracking-wider">League</label>
+        {isHost ? (
+          <select
+            id="mp-league"
+            data-testid="mp-league"
+            value={league}
+            onChange={e => handleHostLeague(e.target.value as MultiplayerLeagueId)}
+            disabled={startingAuction}
+            className="rounded-lg border border-th bg-th-surface px-3 py-1.5 text-sm text-th-primary font-display"
+          >
+            {MULTIPLAYER_LEAGUES.map(l => (
+              <option key={l.id} value={l.id}>{l.name} ({l.teams} teams)</option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-sm font-display text-th-primary" data-testid="mp-league">
+            {MULTIPLAYER_LEAGUES.find(l => l.id === league)?.name ?? multiplayerLeagueName(league)}
+          </span>
+        )}
       </div>
 
       {/* Team Selection Grid */}
@@ -518,7 +545,7 @@ export function LobbyPage() {
           Choose Your Team
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-          {ALL_TEAM_CONFIGS.map(config => {
+          {teams.map(t => ({ id: t.teamId, name: t.teamName, shortName: t.shortName, primaryColor: t.primaryColor })).map(config => {
             const controller = getTeamController(config.id);
             const isMine = myTeamId === config.id;
             const isCPU = controller?.isCPU ?? false;
@@ -602,10 +629,10 @@ export function LobbyPage() {
           </button>
           <button
             onClick={handleStartAuction}
-            disabled={!allTeamsAssigned}
+            disabled={!allTeamsAssigned || startingAuction}
             className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-2.5 text-sm font-display font-semibold text-white shadow-lg shadow-orange-500/20 transition-all duration-200 hover:from-orange-400 hover:to-amber-400 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
-            Start Auction
+            {startingAuction ? "Loading squads..." : "Start Auction"}
           </button>
         </div>
       )}

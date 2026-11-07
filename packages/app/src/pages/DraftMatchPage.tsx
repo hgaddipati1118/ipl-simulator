@@ -12,7 +12,7 @@ import {
   createDraft, applyDraftAction, runAiPicks, getCurrentSeatId, getSquad, isDraftComplete, toDraftPlayer,
 } from "@ipl-sim/engine";
 import {
-  DRAFT_MATCH_POOLS, buildDraftMatchPool, draftMatchCountries, draftMatchVenues, ensurePoolCoverage,
+  DRAFT_MATCH_POOLS, buildDraftMatchPool, draftMatchCountries, draftMatchVenues, draftPoolVenues, draftPoolLeague, ensurePoolCoverage,
   autoLineup, buildDraftMatchTeam, summarizeMatch, shareableResult,
   type DraftMatchPoolId, type DraftMatchLineup, type DraftMatchResultSummary,
 } from "../draft-pools";
@@ -127,7 +127,7 @@ export function DraftMatchPage() {
   // ── Lineups → match ──
   const startMatch = (yourLineup: DraftMatchLineup) => {
     if (!draft) return;
-    const venue = venueTeamId ?? venues.filter(v => poolId === "wpl-current" ? /-w$|^upw$/.test(v.teamId) : !/-w$|^upw$/.test(v.teamId))
+    const venue = venueTeamId ?? draftPoolVenues(poolId)
       .sort(() => Math.random() - 0.5)[0]?.teamId ?? "mi";
     const order = draft.seats.map(s => s.id); // first picker is "home"
     const sides = order.map((seatId, i) => {
@@ -222,7 +222,7 @@ export function DraftMatchPage() {
                 </select>
               </label>
             </div>
-            <p className="text-[11px] text-th-faint font-display mt-2">Each XI needs a wicket-keeper and 5 bowling options{poolId === "ipl-current" ? ", with at most 4 overseas players" : poolId === "wpl-current" ? ", with at most 5 overseas players" : ""}.</p>
+            <p className="text-[11px] text-th-faint font-display mt-2">Each XI needs a wicket-keeper and 5 bowling options{poolId === "ipl-current" ? ", with at most 4 overseas players" : poolId === "wpl-current" ? ", with at most 5 overseas players" : draftPoolLeague(poolId) ? `, with at most ${draftPoolLeague(poolId)!.rules.maxOverseasInXI} overseas players` : ""}.</p>
           </Section>
 
           <div className="grid sm:grid-cols-2 gap-3">

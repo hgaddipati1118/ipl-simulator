@@ -543,7 +543,8 @@ Samples (seed 3, `npm run progression -- --generate 6 --kind youth --seed 3`):
 **Where it is used.** Career mode (`nextSeason`): a regen replaces every retiree (same role class, country and gender),
 15 fill-in squad players and 2-4 youth academy prospects join the pool, all seeded from `GameState.worldSeed`; the
 fully-generated pools (`generatePlayerPool`, `generateRandomPlayer`, `playerSource: "generated"` leagues, the
-multiplayer draft top-ups) use the same generator.
+multiplayer draft top-ups) use the same generator; `generatePlayerPool(count, rng, gender)` takes the gender (women's
+leagues and multiplayer women's rooms pass "female"), and generated women carry `isFemale` (RULES-SEASON.md section 8).
 
 ## Ratings over time (app)
 

@@ -32,7 +32,7 @@ export type {
   PlayerProgressReport,
 } from "./player.js";
 
-export { Team, IPL_TEAMS, WPL_TEAMS, LEGACY_STADIUM_BOWLING_RATINGS } from "./team.js";
+export { Team, IPL_TEAMS, WPL_TEAMS, LEGACY_STADIUM_BOWLING_RATINGS, xiSelectionValue, keeperSelectionValue } from "./team.js";
 export {
   getVenueProfileForTeam, getLeagueChaseAdvantage, deriveStadiumBowlingRating,
   derivePitchType, deriveBoundarySize, deriveDewFactor,
@@ -137,7 +137,7 @@ export { RULE_PRESETS, DEFAULT_RULES, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_
 export type { RuleSet, LeagueType, ExtraLeagueId, PlayoffFormat, MatchFormatId, GenderOption, PlayerSource, AuctionType } from "./rules.js";
 export {
   ALL_LEAGUES, EXTRA_LEAGUES, LEAGUE_RULE_PRESETS, LEAGUE_SCORING_MULTIPLIER,
-  getLeague, getExtraLeagueTeams, isExtraLeague, isWomenLeague, isOverseasIn,
+  getLeague, getExtraLeagueTeams, isExtraLeague, isWomenLeague, isOverseasIn, teamGender, playerGender,
 } from "./leagues.js";
 export type { LeagueDef, LeagueDefData } from "./leagues.js";
 export { T20_FORMAT, HUNDRED_FORMAT, matchFormatFor, phaseOver } from "./format.js";
@@ -271,3 +271,7 @@ export { FIELDING_PROGRESSION } from "./fielding-progression-model.js";
 export { generatePlayer, generatePlayers, assignPotential, roleClassOfPlayer, roleOfClass, regionOf, sampleRatings, ROLE_CLASSES, TALENT_SD } from "./player-generator.js";
 export type { GeneratePlayerOptions, GenerationKind, RoleClass, Region } from "./player-generator.js";
 export { generateName, isRealName, nameGroupOf, normaliseName } from "./names.js";
+
+// Model commentary for instantly simulated matches, generated when a match is viewed (docs/COMMENTARY.md section 9)
+export { attachCommentaryCues, withModelCommentary } from "./instant-commentary.js";
+export type { CommentaryCues, BallCommentaryCue, DetailedWithCues } from "./instant-commentary.js";

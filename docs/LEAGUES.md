@@ -70,7 +70,16 @@ players in the XI).
 * Offseason: retention, mini/mega auctions and trades work as in the IPL (mega auction every third season; retentions
   = a third of the squad). Setting Squad building to Draft on the Setup page runs the draft instead of auctions for
   any league.
-* Multiplayer lobbies and the Draft Match mode still offer IPL and WPL only.
+* Multiplayer offers every league (`packages/app/src/multiplayer/leagues.ts`, built from `ALL_LEAGUES`): an auction room's
+  host picks the league in the lobby (franchises, budget and rules follow; team claims reset), a season-draft room has a
+  League setting with every league, and Draft Match has a "<league> <season> squads" pool for each extra league (its
+  overseas cap per XI, random grounds from that league). An extra league's room loads its squads the way a single-player
+  new game does: `prepareLeaguePool(league)` (extended CricketArchive pool, on the host only) and then `createGameState(rules)`;
+  an auction room is then a mega auction: every franchise starts empty with the league's budget and the league's real
+  players (squads and free agents, best first, 1.4 squads' worth per team, capped at 320) go under the hammer, topped up
+  with generated players (the women's model in a women's league) if thin; the season-draft pool is its squads plus free agents (capped at 600, best first). IPL and WPL rooms behave
+  as before. Guests receive everything from the host, so they need no league data. Draft Match itself plays T20 rules
+  in every pool (as the WPL pool always has).
 
 ## Season structure
 

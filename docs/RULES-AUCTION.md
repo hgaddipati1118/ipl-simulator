@@ -309,7 +309,7 @@ valueOverall = overall + bonus
 ```
 
 The bonus is added to the overall before the quality curve of `calculateMarketValue`, so a fielder or keeper is priced exactly like a
-batter or bowler of that many more (or fewer) overall points. It is not shown as the overall and does not pick the XI. Pivots: fielding 48
+batter or bowler of that many more (or fewer) overall points. It is not shown as the overall. Auto-picked XIs use the same exchange rate (`xiSelectionValue` / `keeperSelectionValue`, RULES-SQUAD.md section 5). Pivots: fielding 48
 (the neutral point of the engine, a little under 50 because bowlers rate lower) and keeping 50 (an average keeper, also the mean of the keepers in
 the pool, most of whom have no record and sit at 50). Players without the ratings get a zero bonus and their old price. Only designated keepers
 are paid for keeping: for anyone else it is a rating no match uses.

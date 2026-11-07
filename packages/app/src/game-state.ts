@@ -10,8 +10,8 @@ import {
   DEFAULT_RULES,
   generateAITradeOffers, processTradeOffer, executeTrade,
   generateSchedule, simulateNextMatch, getStandings,
-  progressPlayoffs, applyLiveResult,
-  EXTRA_LEAGUES, isOverseasIn, isWomenLeague, type LeagueDef,
+  progressPlayoffs, applyLiveResult, attachCommentaryCues, genderOf,
+  EXTRA_LEAGUES, isOverseasIn, isWomenLeague, playerGender, teamGender, type LeagueDef,
   serializeMatchResult, healInjuries, simulateMatch, calculateMVPPoints,
   initAuction as engineInitAuction,
   userBid as engineUserBid,
@@ -519,6 +519,8 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES, extraPool: Exten
       for (const data of wplPlayers) {
         if (!data.teamId || !activeIds.has(data.teamId)) continue;
         const player = createPlayerFromData(data);
+        // so a combined league knows who is a woman wherever she plays (generation, progression, retirement)
+        player.isFemale = true;
         const team = teams.find(t => t.id === data.teamId);
         if (team) team.addPlayer(player, Math.min(player.marketValue, maxBid));
       }
@@ -536,7 +538,14 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES, extraPool: Exten
     ? extraPool.map(data => createPlayerFromData(toRealPlayerData(data)))
     : [];
   const supplementCount = Math.max(0, 50 - realPoolPlayers.length - extraPoolPlayers.length);
-  const additionalPlayers = [...realPoolPlayers, ...extraPoolPlayers, ...generatePlayerPool(supplementCount)];
+  // Generated supplements match the league: women for a women's league, a combined league's share of women's teams
+  const womenShare = teams.length ? teams.filter(t => teamGender(t.id, rules) === "female").length / teams.length : 0;
+  const womenSupplement = Math.round(supplementCount * womenShare);
+  const additionalPlayers = [
+    ...realPoolPlayers, ...extraPoolPlayers,
+    ...generatePlayerPool(supplementCount - womenSupplement),
+    ...generatePlayerPool(womenSupplement, Math.random, "female"),
+  ];
 
   return {
     phase: "setup",
@@ -750,6 +759,9 @@ export function playNextMatch(state: GameState): {
 
   // Capture detailed result before it's lost
   const detailed = rawResult.detailed;
+  // Cues for the model commentary the match page writes when this match is viewed (cheap: no text is generated here)
+  const cueTeams = teams.filter(t => t.id === rawResult.homeTeamId || t.id === rawResult.awayTeamId);
+  attachCommentaryCues(rawResult, cueTeams.flatMap(t => t.roster), genderOf(state.rules));
 
   // Strip the heavy `detailed` field from the schedule entry's result
   // to keep in-memory / localStorage footprint small.
@@ -1142,8 +1154,11 @@ const POOL_HISTORY_SEASONS = 8;
 export function nextSeason(state: GameState): GameState {
   const trainingReport: TrainingReportEntry[] = [];
 
-  // Progress all players (age, ratings). Women's leagues use the women's age curves; men's and combined use men's
-  const curveGender = (state.rules.league === "wpl" || state.rules.gender === "women") ? "female" : "male";
+  // Progress all players (age, ratings) on their own gender's curves: women's leagues use the women's age curves, men's
+  // the men's, and a combined league each player's own (playerGender: the player's tag, else the team's side)
+  const rules = state.rules;
+  const curveGender = isWomenLeague(rules) ? "female" : "male";
+  const genderOfPlayer = (p: Player) => playerGender(p, rules);
   // Every random step between seasons draws from streams derived from the world seed, so a seed reproduces a career
   const worldSeed = state.worldSeed ?? deriveSeed(...state.teams.flatMap(t => [...t.id].map(c => c.charCodeAt(0))));
   const progressRng = createRNG(deriveSeed(worldSeed, state.seasonNumber, 1));
@@ -1153,7 +1168,7 @@ export function nextSeason(state: GameState): GameState {
         focus: player.trainingFocus,
         intensity: team.trainingIntensity,
         seasonNumber: state.seasonNumber,
-        gender: curveGender,
+        gender: genderOfPlayer(player),
         rng: progressRng,
       });
       trainingReport.push({
@@ -1174,9 +1189,13 @@ export function nextSeason(state: GameState): GameState {
   // the age during the season just played. Under 30 the real hazard also counts losing a place, which the auction
   // already models here, so it is halved.
   const retireRng = createRNG(deriveSeed(worldSeed, state.seasonNumber, 2));
+  // a retiree's gender, taken while they are still on their team (removePlayer clears teamId)
+  const retireeGender = new Map<Player, "male" | "female">();
   function shouldRetire(p: Player, seasonAge: number): boolean {
+    const gender = genderOfPlayer(p);
+    retireeGender.set(p, gender);
     let prob = retirementProbability({
-      age: seasonAge, overall: p.overall, gender: curveGender, role: retirementRole(p.bowlingStyle, p.role),
+      age: seasonAge, overall: p.overall, gender, role: retirementRole(p.bowlingStyle, p.role),
     });
     if (seasonAge < 30) prob *= 0.5;
     return retireRng() < prob;
@@ -1223,7 +1242,7 @@ export function nextSeason(state: GameState): GameState {
   // yet still develop. Their history is kept shorter than a rostered player's to keep saves small.
   const poolRng = createRNG(deriveSeed(worldSeed, state.seasonNumber, 4));
   for (const p of prunedPool) {
-    p.progress({ seasonNumber: state.seasonNumber, gender: curveGender, rng: poolRng, historyLimit: POOL_HISTORY_SEASONS });
+    p.progress({ seasonNumber: state.seasonNumber, gender: genderOfPlayer(p), rng: poolRng, historyLimit: POOL_HISTORY_SEASONS });
   }
 
   // Regens replace each retiree (same role, nationality and gender) as young players from the real joint
@@ -1231,9 +1250,18 @@ export function nextSeason(state: GameState): GameState {
   const genRng = createRNG(deriveSeed(worldSeed, state.seasonNumber, 3));
   const idBase = `g${worldSeed.toString(36)}s${state.seasonNumber}`;
   const regens = [...poolRetirees, ...retiredFromTeams].map((r, i) => generatePlayer(genRng, {
-    kind: "regen", gender: curveGender, country: r.country, roleClass: roleClassOfPlayer(r), id: `${idBase}_r${i + 1}`,
+    kind: "regen", gender: retireeGender.get(r) ?? genderOfPlayer(r), country: r.country, roleClass: roleClassOfPlayer(r), id: `${idBase}_r${i + 1}`,
   }));
-  const fillIns = generatePlayers(15, genRng, { kind: "fill", gender: curveGender }, `${idBase}_f`);
+  // Fill-ins: a combined league gets its share of women's teams as women (one stream, so a men's or women's league
+  // draws exactly the players it always did)
+  const womenTeams = state.teams.filter(t => teamGender(t.id, rules) === "female").length;
+  const womenFill = curveGender === "female" ? 15 : Math.round(15 * womenTeams / Math.max(1, state.teams.length));
+  const fillIns = womenFill === 0 || womenFill === 15
+    ? generatePlayers(15, genRng, { kind: "fill", gender: womenFill ? "female" : "male" }, `${idBase}_f`)
+    : [
+      ...generatePlayers(15 - womenFill, genRng, { kind: "fill", gender: "male" }, `${idBase}_f`),
+      ...generatePlayers(womenFill, genRng, { kind: "fill", gender: "female" }, `${idBase}_fw`),
+    ];
   const newPlayers = [...regens, ...fillIns];
   localizeForLeague(state.rules, newPlayers);
 
@@ -1242,7 +1270,7 @@ export function nextSeason(state: GameState): GameState {
     state.userTeamId ?? state.teams[0]?.id ?? "pool",
     2 + Math.floor(genRng() * 3),
     genRng,
-    { gender: curveGender, idPrefix: `${idBase}_y` },
+    { gender: teamGender(state.userTeamId ?? state.teams[0]?.id, rules), idPrefix: `${idBase}_y` },
   );
   // Add youth prospect players to the pool so they're available at next auction
   const youthPoolPlayers = youthProspects.map(y => y.player);

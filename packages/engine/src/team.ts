@@ -4,7 +4,7 @@
  */
 
 import { Player, type TrainingIntensity } from "./player.js";
-import { keepingRating, pickKeeper } from "./fielding.js";
+import { fieldingValueBonus, keepingRating, pickKeeper } from "./fielding.js";
 import {
   getVenueProfileForTeam,
   deriveStadiumBowlingRating,
@@ -16,8 +16,32 @@ import {
 const MIN_BOWLING_OPTIONS = 5;
 const EXTRA_BOWLING_DEPTH_SELECTION_GAP = 3;
 
+/**
+ * What a player brings to an XI in points of overall: fatigue-adjusted overall (selectionScore) plus the worth of his
+ * fielding (fieldingValueBonus, the match-engine-measured exchange rate, RULES-AUCTION.md section 9). Keeping is left
+ * out: only the man who keeps uses it, see keeperSelectionValue. Players with no fielding rating add zero.
+ */
+export function xiSelectionValue(player: Player): number {
+  return player.selectionScore + fieldingValueBonus({ fielding: player.ratings.fielding });
+}
+
+/** Selection value of a player as the XI's keeper: xiSelectionValue plus the worth of his keeping rating. */
+export function keeperSelectionValue(player: Player): number {
+  return player.selectionScore + fieldingValueBonus({
+    fielding: player.ratings.fielding,
+    keeping: player.ratings.keeping,
+    isWicketKeeper: true,
+  });
+}
+
+function compareKeeperValue(a: Player, b: Player): number {
+  const diff = keeperSelectionValue(b) - keeperSelectionValue(a);
+  if (diff !== 0) return diff;
+  return keepingRating(b) - keepingRating(a);
+}
+
 function compareSelectionScore(a: Player, b: Player): number {
-  const scoreDiff = b.selectionScore - a.selectionScore;
+  const scoreDiff = xiSelectionValue(b) - xiSelectionValue(a);
   if (scoreDiff !== 0) return scoreDiff;
   return b.overall - a.overall;
 }
@@ -228,11 +252,15 @@ export class Team {
     return this.autoSelectPlayingXI(maxOverseas);
   }
 
-  /** Auto-select best playing XI (guarantees at least 1 wicket-keeper) */
+  /**
+   * Auto-select best playing XI (guarantees at least 1 wicket-keeper). Players are ranked by xiSelectionValue
+   * (overall + fielding worth); the keeper is the designated keeper with the best keeperSelectionValue (overall +
+   * fielding + keeping worth), so a specialist gloveman beats a slightly better batter who keeps badly.
+   */
   autoSelectPlayingXI(maxOverseas = 4): Player[] {
     const available = this.roster.filter(p => !p.injured);
     const sorted = [...available].sort(compareSelectionScore);
-    const wicketKeepers = sorted.filter(p => p.isWicketKeeper);
+    const wicketKeepers = sorted.filter(p => p.isWicketKeeper).sort(compareKeeperValue);
     const preferredWicketKeeper = wicketKeepers[0];
     const bowlingCandidates = available
       .filter(p => !p.isWicketKeeper)
@@ -275,7 +303,7 @@ export class Team {
         if (
           extraBowlingDepth &&
           extraBowlingDepth.id !== bestAvailable.id &&
-          bestAvailable.selectionScore - extraBowlingDepth.selectionScore <= EXTRA_BOWLING_DEPTH_SELECTION_GAP
+          xiSelectionValue(bestAvailable) - xiSelectionValue(extraBowlingDepth) <= EXTRA_BOWLING_DEPTH_SELECTION_GAP
         ) {
           addToXI(extraBowlingDepth);
           continue;
@@ -322,7 +350,7 @@ export class Team {
         // Swap for the lowest-rated batter-only player in the XI that keeps the overseas limit and the bowling core
         const swapOut = [...xi]
           .filter(p => p !== inXI && !isExtraBowlingDepthCandidate(p))
-          .sort((a, b) => a.selectionScore - b.selectionScore)[0];
+          .sort((a, b) => xiSelectionValue(a) - xiSelectionValue(b))[0];
         if (swapOut) {
           const newIntl = xi.filter(p => p.isInternational).length - (swapOut.isInternational ? 1 : 0) + (standIn.isInternational ? 1 : 0);
           if (newIntl <= maxOverseas) xi[xi.indexOf(swapOut)] = standIn;

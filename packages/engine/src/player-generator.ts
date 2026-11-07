@@ -236,6 +236,7 @@ export function generatePlayer(rng: RNG, opts: GeneratePlayerOptions = {}): Play
   player = best ?? player;
   if (!player) throw new Error("player generation failed");
   player.id = opts.id ?? nextPlayerId();
+  if (gender === "female") player.isFemale = true;
   player.experience = kind === "fill" || kind === "pool" ? estimateExperience(age, 0) : 1;
   // Fielding / keeping come from a stream of their own, seeded from the player just drawn, so that adding them left every
   // other draw of a seeded generation exactly as it was (same players, same later draws)

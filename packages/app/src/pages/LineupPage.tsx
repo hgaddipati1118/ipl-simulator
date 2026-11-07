@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Team, Player, type BowlingPlan, type RuleSet } from "@ipl-sim/engine";
+import { Team, Player, type BowlingPlan, type RuleSet, xiSelectionValue, fieldingRating, keepingRating } from "@ipl-sim/engine";
 import { bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 import {
   buildLineupReport,
@@ -416,8 +416,8 @@ function PlayingXITab({
         // Both selected — sort by batting order position
         return (batOrderMap.get(a.id) ?? 99) - (batOrderMap.get(b.id) ?? 99);
       }
-      // Both unselected — sort by selectionScore
-      return b.selectionScore - a.selectionScore || b.overall - a.overall;
+      // Both unselected — sort by selection value (fitness-adjusted overall + fielding worth), as Auto Select does
+      return xiSelectionValue(b) - xiSelectionValue(a) || b.overall - a.overall;
     });
   }, [available, selectedIds, battingOrder]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -445,6 +445,7 @@ function PlayingXITab({
               <th className="text-center px-2 py-2">OVR</th>
               <th className="hidden md:table-cell text-center px-2 py-2">BAT</th>
               <th className="hidden md:table-cell text-center px-2 py-2">BWL</th>
+              <th className="hidden md:table-cell text-center px-2 py-2" title="Fielding (keeping for wicket-keepers)">FLD</th>
               <th className="hidden sm:table-cell text-center px-2 py-2">Age</th>
               <th className="hidden sm:table-cell text-center px-2 py-2">Ready</th>
               <th className="hidden lg:table-cell text-center px-2 py-2">Status</th>
@@ -536,13 +537,19 @@ function PlayingXITab({
                   </td>
                   <td className="hidden md:table-cell text-center px-2 py-2 text-th-secondary">{p.battingOvr}</td>
                   <td className="hidden md:table-cell text-center px-2 py-2 text-th-secondary">{p.bowlingOvr}</td>
+                  <td
+                    className="hidden md:table-cell text-center px-2 py-2 text-th-secondary"
+                    title={p.isWicketKeeper ? `Fielding ${fieldingRating(p)}, keeping ${keepingRating(p)}` : `Fielding ${fieldingRating(p)}`}
+                  >
+                    {fieldingRating(p)}{p.isWicketKeeper && <span className="text-cyan-700 dark:text-cyan-400 text-[10px]"> /{keepingRating(p)}</span>}
+                  </td>
                   <td className="hidden sm:table-cell text-center px-2 py-2 text-th-muted">{p.age}</td>
                   <td className={`hidden sm:table-cell text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{p.readiness}</td>
                   <td className={`hidden lg:table-cell text-center px-2 py-2 text-xs ${conditionTextColor(p.readiness)}`}>{conditionLabel(p.readiness)}</td>
                 </tr>
                 {isExpanded && (
                   <tr className="border-t border-th/50">
-                    <td colSpan={9} className="px-4 py-3 bg-th-raised/50">
+                    <td colSpan={10} className="px-4 py-3 bg-th-raised/50">
                       <PlayerRatingBars player={p} />
                     </td>
                   </tr>
@@ -578,6 +585,7 @@ function PlayingXITab({
                 </td>
                 <td className="hidden md:table-cell text-center px-2 py-2 text-th-faint">{p.battingOvr}</td>
                 <td className="hidden md:table-cell text-center px-2 py-2 text-th-faint">{p.bowlingOvr}</td>
+                <td className="hidden md:table-cell text-center px-2 py-2 text-th-faint">{fieldingRating(p)}</td>
                 <td className="hidden sm:table-cell text-center px-2 py-2 text-th-faint">{p.age}</td>
                 <td className="hidden sm:table-cell text-center px-2 py-2 text-th-faint text-xs">{p.readiness}</td>
                 <td className="hidden lg:table-cell text-center px-2 py-2">

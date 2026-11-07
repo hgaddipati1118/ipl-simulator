@@ -148,7 +148,8 @@ API: `setCommentaryModel(json | null)`, `loadCommentaryModel(url?)`, `hasComment
 `generateBallCommentaryDetailed(params) -> { text, key }` (plain outcomes and the five legacy wicket kinds) and, for every delivery the
 full Laws produce, `generateDeliveryCommentary(params) -> { text, key }` (section 8). The live match path (`live-match.ts runOneBall`)
 uses `generateDeliveryCommentary` for every ball; the instant simulation (`match.ts`) calls `describeDelivery` (`delivery-text.ts`,
-hand-written lines) for the special deliveries and keeps its short built-in lines for plain ones.
+hand-written lines) for the special deliveries and keeps its short built-in lines for plain ones while it simulates. Instant matches get
+corpus lines too, lazily, when their commentary is viewed (section 9).
 
 ## 4. Regenerating
 
@@ -238,3 +239,28 @@ the run-out tagging tests in `commentary-model.test.ts` and `commentary_build.te
 
 Known gap: the DRS review lines in `live-match.ts` (run out "Batter was short / IN") are written without regard to who was out; they are
 outside this module.
+
+## 9. Instant-simulated matches (lazy model commentary)
+
+What the UI shows for an instantly simulated match: the season match page (`/match/:idx`, `MatchPage.tsx`) has a collapsible
+"Ball-by-Ball Commentary" panel that lists `DetailedMatchResult.ballLog[].commentary` over by over. The detailed result is passed in the route
+state right after the match, or read back from IndexedDB (`match-db.ts`). That is the only place instant-sim ball text appears (the news
+feed and season pages use scores, not ball text; Draft Match and multiplayer show results only). Live-viewed matches already carry model lines.
+
+The instant engine still writes its cheap built-in lines while it simulates. Model lines are produced only for a match someone opens:
+
+1. `attachCommentaryCues(result, players, gender)` (`instant-commentary.ts`, called from `game-state.ts playNextMatch`) stores on
+   `result.detailed.commentaryCues` the facts the detailed ball log lacks: non-striker, extras split, bat boundary, overthrow, wide kind,
+   non-striker out, the real fielder(s), substitute, dead ball, fielding note, and each player's bowling style / batting hand. It copies fields
+   only (~0.1 ms a match, ~8 KB stored with the match, about 11% of its detailed record).
+2. When the commentary panel is opened, the page loads the model if it is not loaded yet (`commentary-loader.ts ensureCommentaryModel`,
+   shared with the idle preload in `main.tsx`) and calls `withModelCommentary(detailed)`: each delivery is rebuilt (`DeliveryDetail`) and
+   passed to `generateDeliveryCommentary` with the score, wickets, target, batter's runs / balls before the ball, the legal ball of the over,
+   style, hand and gender, on an RNG seeded by the match and ball. A ball takes the new line only when it is a corpus line (the result has a
+   `key`); keys are remembered so no line repeats in the match. About 12 ms a match.
+3. Unchanged: balls the corpus cannot describe (they keep their hand-written `describeDelivery` line), a missed chance that did not end in a
+   wicket (its fielding line says what happened), the Mankad, and any line mentioning DRS. Matches stored before cues existed, and every
+   match when the model failed to load, show the built-in lines as before.
+
+Only the `commentary` strings change: runs, wickets, scores and every other field are identical (tests:
+`packages/engine/src/__tests__/instant-commentary.test.ts`).

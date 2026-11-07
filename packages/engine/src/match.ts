@@ -1113,7 +1113,14 @@ function simulateInnings(
       (b.id !== lastBowlerId || consecutiveOvers < fmt.maxConsecutiveOvers)
     );
 
-    // If no one eligible (consecutive-over rule conflict), relax the consecutive rule
+    // If no one eligible (consecutive-over rule conflict): someone else in the XI with overs to spare bowls (a keeper
+    // last), and only failing that is the consecutive rule relaxed
+    if (eligibleBowlers.length === 0) {
+      const others = fieldXI.filter(b => b.id !== lastBowlerId && !unavailable.has(b.id) && (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler);
+      const fielders = others.filter(b => !b.isWicketKeeper);
+      eligibleBowlers = fielders.length > 0 ? fielders : others;
+      for (const b of eligibleBowlers) if (!bowlers.includes(b)) { bowlers.push(b); bowlerOvers.set(b.id, bowlerOvers.get(b.id) ?? 0); }
+    }
     if (eligibleBowlers.length === 0) {
       eligibleBowlers = ableBowlers.filter(b =>
         (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler
