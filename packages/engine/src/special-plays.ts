@@ -191,18 +191,14 @@ export function applySpecialPlays(d: DeliveryDetail, ctx: SpecialPlayContext): D
     }
   }
 
-  // A short run: one run is not counted (Law 18.3). The batters still end where they ran to.
-  if (!d.batBoundary && (d.batRuns >= 1 || d.byes >= 1 || d.legByes >= 1) && d.runsRun >= 1 && d.overthrow === 0) {
+  // A short run: one run off the bat is not counted (Law 18.3). The batters still end where they ran to.
+  if (!d.batBoundary && d.batRuns >= 1 && d.runsRun >= 1 && d.overthrow === 0 && d.legal) {
     const p = (o.shortRunPerDelivery ?? X.shortRunPerDelivery) / RUN_BALL_SHARE;
     if (rng() < p) {
       d.shortRun = true;
-      if (d.batRuns >= 1) d.batRuns--;
-      else if (d.byes >= 1) d.byes--;
-      else d.legByes--;
-      if (d.outcome === "1" || d.outcome === "2" || d.outcome === "3") {
-        const r = d.batRuns;
-        d.outcome = r === 0 ? "dot" : (String(r) as "1" | "2");
-      }
+      d.batRuns--;
+      d.outcome = d.batRuns === 0 ? "dot" : (String(d.batRuns) as "1" | "2");
+      d.misfield = undefined;
       return finishExtras(d);
     }
   }

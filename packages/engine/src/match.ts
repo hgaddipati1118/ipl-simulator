@@ -640,8 +640,8 @@ function buildBallEvent(
     fielder: nameIn(detail.sixSaved?.fielderId ?? detail.misfield?.fielderId) ?? fielderPlayer(dis?.fielderId) ?? nameIn(dis?.fielderId),
     fielder2: nameIn(detail.relayFielderId),
   };
-  const playLine = special === undefined && !fieldingLine ? specialPlayText(detail, playNames, rng) : undefined;
-  const commentary = (special ?? fieldingLine ?? playLine ?? generateCommentary(outcome === "wicket" ? "wicket" : outcome, batter.name, bowler.name, over, detail.batRuns, rng))
+  const playLine = !dis && !fieldingLine ? specialPlayText(detail, playNames, rng) : undefined;
+  const commentary = (playLine ? (freeHit ? "FREE HIT! " : "") + playLine : special ?? fieldingLine ?? generateCommentary(outcome === "wicket" ? "wicket" : outcome, batter.name, bowler.name, over, detail.batRuns, rng))
     + specialPlayTail(detail, playNames, rng);
 
   const event: BallEvent = {
@@ -653,7 +653,7 @@ function buildBallEvent(
     runs: detail.batRuns,
     extras: detail.extras,
     isWicket: !!dis,
-    commentary: (freeHit && !special ? "FREE HIT! " : "") + commentary,
+    commentary: (freeHit && !special && !playLine ? "FREE HIT! " : "") + commentary,
     runsRun: detail.runsRun,
   };
   if (nonStriker) event.nonStriker = nonStriker.id;
