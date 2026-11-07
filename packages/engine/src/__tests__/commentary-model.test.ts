@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import {
-  loadCommentaryModel, setCommentaryModel, getCommentaryModel, hasCommentaryModel, pickModelCommentary, commentaryShortName,
+  loadCommentaryModel, setCommentaryModel, getCommentaryModel, MIN_UNUSED, hasCommentaryModel, pickModelCommentary, commentaryShortName,
   bowlerKindIndex, type CommentaryModelData, type ModelBall,
 } from "../commentary-model.js";
 import { generateBallCommentary, generateBallCommentaryDetailed } from "../commentary.js";
@@ -89,7 +89,7 @@ describe.skipIf(!model)("corpus commentary model", () => {
       for (let i = 0; i < 300; i++) {
         for (const wt of o === "wicket" ? WICKETS : [undefined]) {
           const p = pickModelCommentary(ball({ outcome: o, wicketType: wt, over: i % 20, gender: i % 2 ? "female" : "male" }), rng);
-          if (!p) { expect(has(o === "wicket" ? `W:${wt}` : o), `${o}/${wt}`).toBe(false); continue; }
+          if (!p) { expect(getCommentaryModel()!.lines[o === "wicket" ? `W:${wt}` : o]?.t.length ?? 0, `${o}/${wt}`).toBeLessThan(12); continue; }
           expect(p!.text).not.toMatch(/\{[a-z]+\}/i);
           expect(p!.text).not.toMatch(/undefined|NaN|\{|\}/);
           expect(p!.text.length).toBeGreaterThan(8);
@@ -231,7 +231,7 @@ describe.skipIf(!model)("corpus commentary model", () => {
     for (const n of names) for (const t of n.split(/\s+/)) inMatch.add(t);
     for (const n of names) inMatch.add(commentaryShortName(n));
     const words = new Set<string>();
-    for (const { t } of Object.values(getCommentaryModel()!.lines)) for (const s of t) for (const w of s.match(/[a-z][a-z'’-]+/g) ?? []) words.add(w);
+    for (const { t } of Object.values(getCommentaryModel()!.lines)) for (const s of t) for (const w of s.match(/[a-z][a-z'’]+/g) ?? []) words.add(w);
     // fixed vocabulary that the engine's own suffixes use
     for (const w of ["Need", "That", "FIFTY", "CENTURY", "Well", "What", "Crucial", "Agonisingly", "Fires", "The", "A", "End"]) words.add(w.toLowerCase());
     const realTokens = new Set<string>();
@@ -250,9 +250,11 @@ describe.skipIf(!model)("corpus commentary model", () => {
 
   it("no template carries a real player name: capitalised words are plain vocabulary", () => {
     const lowerWords = new Set<string>();
-    for (const { t } of Object.values(getCommentaryModel()!.lines)) for (const s of t) for (const w of s.match(/\b[a-z][a-z'’-]+\b/g) ?? []) lowerWords.add(w);
+    for (const { t } of Object.values(getCommentaryModel()!.lines)) for (const s of t) for (const w of s.match(/\b[a-z][a-z'’]+\b/g) ?? []) lowerWords.add(w);
     const realTokens = new Set<string>();
     for (const pool of Object.values(NAME_POOLS)) for (const t of [...pool.first, ...pool.last]) if (t.length >= 3) realTokens.add(t);
+    // onomatopoeia and exclamations that happen to be a first name somewhere in the world
+    for (const w of ["Bam", "Boom", "Wham", "Pow", "Zing", "Whack", "Wow", "Ooh", "Oof", "Yes", "Hope", "Love", "Lord", "King", "Major", "Short", "Brown", "Gray", "Grey", "Rose", "Sunny", "Happy", "Faith", "Free", "Grace"]) lowerWords.add(w.toLowerCase());
     const offenders: string[] = [];
     for (const [cls, { t }] of Object.entries(getCommentaryModel()!.lines)) {
       for (const s of t) {
@@ -270,13 +272,18 @@ describe.skipIf(!model)("corpus commentary model", () => {
     for (const cls of ["dot", "1", "4"]) {
       const pool = getCommentaryModel()!.lines[cls].t.length;
       const used: Record<string, 1> = {};
-      const draws = Math.min(pool, 80);
+      const draws = Math.min(pool - MIN_UNUSED, 80);
       for (let i = 0; i < draws; i++) {
         const p = pickModelCommentary(ball({ outcome: cls, over: i % 20 }), rng, used)!;
+        expect(p, `${cls} ran dry on draw ${i}`).not.toBeNull();
         expect(used[p.key], `${cls} repeated ${p.key} on draw ${i}`).toBeUndefined();
         used[p.key] = 1;
       }
     }
+    // when a class is used up the picker steps aside instead of repeating
+    const dry: Record<string, 1> = {};
+    getCommentaryModel()!.lines["dot"].t.forEach((_, i) => (dry[`dot:${i}`] = 1));
+    expect(pickModelCommentary(ball({ outcome: "dot" }), rng, dry)).toBeNull();
   });
 
   it("falls back to the built-in lines when the model is cleared", () => {

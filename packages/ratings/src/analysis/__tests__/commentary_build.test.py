@@ -44,7 +44,8 @@ row = {"batter": kohli, "bowler": bumrah, "fielder": iyer, "nons": rohit, "g": "
 
 def make(text, **kw):
     r = dict(row, text=text, **kw)
-    return cb.make_template(r, lex, 190, Counter())
+    out = cb.make_templates(r, lex, 190, Counter())
+    return out[0] if out else None
 
 
 cb.RARE_BELOW = 0  # synthetic lexicon: disable the typo filter except where tested
@@ -63,7 +64,9 @@ check("unknown proper noun mid-sentence drops the line", make("Short and outside
 check("women's ambiguous 'her' drops the line", make("Short and outside off, pulls it over midwicket with her usual flair", g="F") is None)
 check("women's she becomes the same slot", "{he}" in (make("Short and outside off, she pulls it over midwicket for four", g="F") or ""))
 check("ambiguous name (shared by two roles) drops the line", cb.slot_text("Sharma pulls it", dict(row, bowler=player(5, "Karn Sharma"), nons=rohit), lex, Counter()) is None)
-check("max length", len(make("Short and outside off, he pulls it over midwicket for four. " * 6) or "x" * 999) <= 190)
+check("max length", all(len(x) <= 190 for x in cb.make_templates(dict(row, text="Short and outside off, he pulls it over midwicket for four. " * 6), lex, 190, Counter())))
+two = cb.make_templates(dict(row, text="Short and outside off, he pulls it over midwicket. He did that on 34 off 20. Kohli gets it away for four"), lex, 190, Counter())
+check("a sentence with a score is cut out, the clean ones survive", len(two) == 2 and all("34" not in x for x in two))
 check("leading 'FOUR!' echo stripped", not (make("FOUR! Short and outside off, he pulls it over midwicket") or "FOUR").startswith("FOUR"))
 
 cb.RARE_BELOW = 2

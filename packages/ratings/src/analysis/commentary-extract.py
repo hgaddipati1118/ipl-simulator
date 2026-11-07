@@ -114,10 +114,9 @@ def outcome_class(c) -> str:
     return "other"
 
 
-def phase_of(over: int, comp: str) -> str:
-    if comp and comp.startswith("HUNDRED"):
-        return "pp" if over < 2 else ("mid" if over < 4 else "death")
-    return "pp" if over < 6 else ("mid" if over < 15 else "death")
+def phase_of(legal: int, max_balls: int) -> str:
+    """powerplay: first 30% of the innings' balls (6 overs of 20, 25-30 balls of the Hundred), death: last 25%"""
+    return "pp" if legal < 0.3 * max_balls else ("mid" if legal < 0.75 * max_balls else "death")
 
 
 def read_records(path, stats):
@@ -143,13 +142,20 @@ def main():
     team_tokens = Counter()
     per_comp = Counter()
     per_comp_text = Counter()
-    seen = set()
+    # a match can appear twice (the scraper re-tries incomplete ones): keep the record with the most balls
+    best = {}
+    for f in files:
+        for i, rec in enumerate(read_records(f, stats)):
+            n = sum(len(v) for v in rec["commentary"].values())
+            if rec["matchId"] not in best or n > best[rec["matchId"]][0]:
+                best[rec["matchId"]] = (n, f.name, i)
+    stats["duplicate_records_dropped"] = 0
     with gzip.open(OUT_BALLS, "wt") as out:
         for f in files:
-            for rec in read_records(f, stats):
-                if rec["matchId"] in seen:
+            for i, rec in enumerate(read_records(f, stats)):
+                if best[rec["matchId"]][1:] != (f.name, i):
+                    stats["duplicate_records_dropped"] += 1
                     continue
-                seen.add(rec["matchId"])
                 stats["matches"] += 1
                 emit_match(rec, out, stats, name_tokens, team_tokens, per_comp, per_comp_text)
     json.dump({"names": name_tokens, "teams": team_tokens}, OUT_NAMES.open("w"))
@@ -195,6 +201,8 @@ def emit_match(rec, out, stats, name_tokens, team_tokens, per_comp, per_comp_tex
                 dism[(n, b["player"]["id"])] = (dismissal_kind(dt.get("short"), dt.get("long")), fl[0]["player"] if fl else None,
                                                (fl[0] or {}).get("isKeeper") if fl else False)
     runs_by_inn = {n: (i.get("runs") or 0) for n, i in innings.items()}
+    # scheduled length of an innings in balls (T20 120, the Hundred 100)
+    max_balls = int((match.get("scheduledOvers") or 20) * (match.get("ballsPerOver") or 6)) or 120
     comp = rec.get("comp")
     series_name = (rec.get("fixture") or {}).get("seriesSlug") or rec.get("seriesSlug") or ""
     per_comp[comp] += 1
@@ -233,15 +241,15 @@ def emit_match(rec, out, stats, name_tokens, team_tokens, per_comp, per_comp_tex
             # situation before this ball
             crr = (score * 6 / legal) if legal else 0.0
             rrr = None
-            if target is not None and legal < 120:
-                rrr = (target - score) * 6 / (120 - legal)
+            if target is not None and legal < max_balls:
+                rrr = (target - score) * 6 / (max_balls - legal)
             row = {
                 "m": rec["matchId"], "comp": comp, "season": (rec.get("fixture") or {}).get("startDate", "")[:4], "g": gender,
                 "inn": n, "over": over, "ball": c.get("ballNumber"), "legal": legal, "oc": oc, "tot": total, "bat": bat,
                 "wk": kind, "keeper": bool(keeper),
                 "shot": c.get("shotType"), "line": c.get("pitchLine"), "len": c.get("pitchLength"),
                 "zone": c.get("wagonZone"), "ctl": c.get("shotControl"),
-                "phase": phase_of(over, comp), "score": score, "wkts": wkts, "crr": round(crr, 2), "rrr": None if rrr is None else round(rrr, 2),
+                "phase": phase_of(legal, max_balls), "score": score, "wkts": wkts, "crr": round(crr, 2), "rrr": None if rrr is None else round(rrr, 2),
                 "bruns": bat_runs[bid], "bballs": bat_balls[bid],
                 "hand": ((bp or {}).get("battingStyles") or [None])[0],
                 "bstyle": ((wp or {}).get("bowlingStyles") or [None])[0], "bk": bowl_kind((wp or {}).get("bowlingStyles")),

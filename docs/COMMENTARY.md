@@ -30,10 +30,12 @@ token. It lets the page make its own requests and records the answers:
 1. `Page.addScriptToEvaluateOnNewDocument` installs a hook that wraps `fetch` and `XMLHttpRequest` and pushes every
    `/match/comments` response (status + JSON) into `window.__cmts`.
 2. `Page.bringToFront` (without it the page's infinite scroll never fires), then the page loads.
-3. The page's infinite scroll is triggered by scrolling the **last commentary row into view**
-   (`scrollIntoView({block:'center'})`), not by scrolling to the bottom of the document. Each trigger makes the page request the
-   next two overs (`nextInningOver` in the response says where to resume); the innings is complete when a response has no
-   `nextInningOver`. About 10 requests per innings.
+3. The page's infinite scroll is triggered by bringing the **end of the commentary list** into view
+   (`scrollIntoView({block:'center'})` on the last ball row; when fan comments / blurbs follow the last ball row the sentinel is the
+   list's last child, so that is tried next, then scrolling past it), not by scrolling to the bottom of the document. Each trigger
+   makes the page request the next two overs (`nextInningOver` in the response says where to resume); the innings is complete when a
+   response has no `nextInningOver`. About 10 requests per innings. An innings that ends up with a missing over is re-scraped
+   (up to 2 more times, merging by comment id); matches that are still incomplete are retried once on the next run.
 4. The other innings is selected through the page's team drop-down (a real click on the team button, then on the other
    team's entry). That makes the page request `inningNumber=<other>` with no `fromInningOver`, and the same scroll loop
    finishes it. Super overs appear as extra innings and are picked up the same way.

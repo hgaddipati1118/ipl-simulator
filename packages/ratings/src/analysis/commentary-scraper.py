@@ -194,10 +194,20 @@ def strip(o):
     if isinstance(o, list): return [strip(v) for v in o]
     return o
 
-LASTROW_JS = """(function(){
- const c=[...document.querySelectorAll('div')].filter(e=>{const h=e.offsetHeight;return h>40&&h<600&&e.children.length<=6&&/^\\d{1,2}\\.\\d\\n/.test(e.innerText||'')});
+_ROWS = """const c=[...document.querySelectorAll('div')].filter(e=>{const h=e.offsetHeight;return h>40&&h<600&&e.children.length<=6&&/^\\d{1,2}\\.\\d\\n/.test(e.innerText||'')});
  if(!c.length) return 0; c.sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top);
- c[c.length-1].scrollIntoView({block:'center'}); return c.length;})()"""
+ const row=c[c.length-1];"""
+# the page's infinite-scroll trigger fires when the end of its list scrolls into view: first the last ball row, then (fan comments and
+# blurbs can follow the last ball row) the last child of the list, then past it
+LASTROW_JS = "(function(){" + _ROWS + " row.scrollIntoView({block:'center'}); return c.length;})()"
+LASTCHILD_JS = "(function(){" + _ROWS + " const t=(row.parentElement&&row.parentElement.lastElementChild)||row; t.scrollIntoView({block:'center'}); return c.length;})()"
+PASTEND_JS = "(function(){" + _ROWS + " const t=(row.parentElement&&row.parentElement.lastElementChild)||row; const r=t.getBoundingClientRect(); window.scrollTo(0, window.scrollY+r.bottom-window.innerHeight+400); return c.length;})()"
+
+def innings_ok(st, strict=False):
+    """an innings is complete when it reaches over 1 and has every over up to its last (no page missing)"""
+    if not st: return False
+    overs = {c.get('overNumber') for c in st.values() if c.get('overNumber')}
+    return bool(overs) and min(overs) == 1 and len(overs) == max(overs)
 
 class Collector:
     def __init__(self): self.resp = []; self.statuses = []
@@ -224,21 +234,21 @@ def inn_of(u):
     m = re.search(r'inningNumber=(\d+)', u); return int(m.group(1)) if m else None
 
 def drain_innings(col, store, nextover, inn):
-    """Scroll the last commentary row into view until the page's own loads reach the start of the innings."""
+    """Scroll the end of the commentary list into view until the page's own loads reach the start of the innings."""
     idle = 0; loads = 0
+    variants = [LASTROW_JS, LASTCHILD_JS, PASTEND_JS]
     while nextover not in (None, 0) or idle == 0 and loads == 0:
-        n0 = len(col.resp)
-        js(LASTROW_JS)
-        got = wait_responses(col, 14)
-        got = [g for g in got if inn_of(g['u']) == inn]
+        got = []
+        # normal trigger first; if the page does not react, try the other ways of bringing the list end into view, then jiggle
+        for k, trig in enumerate(variants + ["window.scrollBy(0,-500)"] + variants):
+            js(trig)
+            got = [g for g in wait_responses(col, 9 if k < len(variants) else 6) if inn_of(g['u']) == inn]
+            if got: break
         if not got:
             idle += 1
-            # jiggle then retry
-            js("window.scrollBy(0,-400)"); time.sleep(0.6); js(LASTROW_JS)
-            got = [g for g in wait_responses(col, 10) if inn_of(g['u']) == inn]
-            if not got:
-                if idle >= 3: return False
-                continue
+            if idle >= 3: return False
+            nap(3, 6)
+            continue
         idle = 0
         for g in got:
             if g.get('status') in (403, 429) or g.get('j') is None:
@@ -252,13 +262,17 @@ def drain_innings(col, store, nextover, inn):
 
 ABBRS = []
 def list_innings_options():
-    """locate the team-selector button (text = a team abbreviation) in the commentary filter row"""
-    r = js("""(function(){const ab=%s;
-      const btn=[...document.querySelectorAll('button')].find(e=>ab.indexOf((e.innerText||'').trim())>-1);
-      if(!btn) return null;
-      btn.scrollIntoView({block:'center'}); const b=btn.getBoundingClientRect();
-      return JSON.stringify({x:b.x+b.width/2,y:b.y+b.height/2,t:(btn.innerText||'').trim()})})()""" % json.dumps(ABBRS))
-    return json.loads(r) if r else None
+    """locate the team-selector button (text = a team abbreviation) in the commentary filter row; the page renders it lazily,
+    so poll and nudge the scroll for a few seconds"""
+    for i in range(7):
+        r = js("""(function(){const ab=%s;
+          const btn=[...document.querySelectorAll('button')].find(e=>ab.indexOf((e.innerText||'').trim())>-1);
+          if(!btn) return null;
+          btn.scrollIntoView({block:'center'}); const b=btn.getBoundingClientRect();
+          return JSON.stringify({x:b.x+b.width/2,y:b.y+b.height/2,t:(btn.innerText||'').trim()})})()""" % json.dumps(ABBRS))
+        if r: return json.loads(r)
+        js("window.scrollBy(0, 900)"); time.sleep(1.5)
+    return None
 
 def open_dropdown_options():
     b = list_innings_options()
@@ -267,7 +281,7 @@ def open_dropdown_options():
     r = js("""(function(){return JSON.stringify([...document.querySelectorAll('li')].filter(e=>e.offsetHeight>0&&e.offsetHeight<60&&e.className.indexOf('ds-w-full')>-1).map(e=>{const r=e.getBoundingClientRect();return {t:(e.innerText||'').trim(),x:r.x+r.width/2,y:r.y+r.height/2}}))})()""")
     return b, json.loads(r)
 
-def scrape_match(mm, series):
+def scrape_match(mm, series, prior=None, attempt=0):
     url = '%s/series/%s-%s/%s-%s/ball-by-ball-commentary' % (BASE, series['slug'], series['id'], mm['slug'], mm['objectId'])
     t0 = time.time()
     nav(url); dismiss_popups()
@@ -279,16 +293,22 @@ def scrape_match(mm, series):
     global ABBRS
     ABBRS = sorted({(i.get('team') or {}).get('abbreviation') or (i.get('team') or {}).get('name') for i in innings} - {None})
     col = Collector(); stores = {n: {} for n in inn_nums}
+    skip_ok = set()
+    for n_, st_ in (prior or {}).items():
+        stores.setdefault(n_, {}).update(st_)
+        if innings_ok(st_): skip_ok.add(n_)
     for c in content.get('comments') or []:
         stores.setdefault(c.get('inningNumber') or cur, {})[c['id']] = c
     complete = {}
     # 1) current innings via page's own infinite scroll
-    complete[cur] = drain_innings(col, stores[cur], content.get('nextInningOver'), cur) if content.get('nextInningOver') not in (None, 0) else True
+    if cur in skip_ok: complete[cur] = True
+    else: complete[cur] = drain_innings(col, stores[cur], content.get('nextInningOver'), cur) if content.get('nextInningOver') not in (None, 0) else True
     # 2) other innings through the team dropdown
     for n in inn_nums:
         if n in complete: continue
+        if n in skip_ok: complete[n] = True; continue
         done = False
-        for attempt in range(2):
+        for _try in range(2):
             b, opts = open_dropdown_options()
             if not opts: break
             # click the option that is not the currently selected team; if several, try the ones we haven't loaded
@@ -327,6 +347,11 @@ def scrape_match(mm, series):
         out_comments[str(n)] = arr
         overs = sorted({c.get('overNumber') for c in arr if c.get('overNumber')})
         stats[str(n)] = {'balls': len(arr), 'overs': len(overs), 'maxOver': max(overs) if overs else 0, 'complete': bool(complete.get(n))}
+    bad = [n for n in stores if not (complete.get(n) and innings_ok(stores[n], True))]
+    if bad and attempt < 2 and any(stores[n] for n in stores):
+        log('incomplete innings %s of %s (attempt %d), retrying' % (bad, mm['slug'], attempt + 1))
+        nap(20, 40)
+        return scrape_match(mm, series, prior=stores, attempt=attempt + 1)
     rec = {'v': 1, 'matchId': mm['objectId'], 'seriesId': series['id'], 'seriesSlug': series['slug'], 'slug': mm['slug'], 'url': url,
            'comp': series.get('comp'), 'scrapedAt': now(), 'fixture': mm,
            'page': {'match': strip(match), 'currentInningNumber': cur, 'innings': strip(innings)},
@@ -390,7 +415,8 @@ def main():
             log('series', sr['season'], sr['name'], sr['id'], 'eligible', len(todo), 'already', sum(1 for m in todo if str(m['objectId']) in state['done']))
             for mm in todo:
                 key = str(mm['objectId'])
-                if key in state['done']: continue
+                dn = state['done'].get(key)
+                if dn and (dn.get('complete', True) or dn.get('retried')): continue   # incomplete ones get one more try
                 if state['failed'].get(key, {}).get('n', 0) >= 3: continue
                 if os.path.exists(STOP_F): raise Stop()
                 try:
@@ -404,7 +430,7 @@ def main():
                     nap(20, 40); continue
                 fn, nb = write_match(rec)
                 balls = sum(s['balls'] for s in rec['stats'].values())
-                state['done'][key] = {'file': fn, 'balls': balls, 'series': sr['id'], 'comp': sr['comp'], 'season': sr['season'], 'complete': all(s['complete'] for s in rec['stats'].values()), 'at': now()}
+                state['done'][key] = {'retried': bool(dn), 'file': fn, 'balls': balls, 'series': sr['id'], 'comp': sr['comp'], 'season': sr['season'], 'complete': all(s['complete'] for s in rec['stats'].values()), 'at': now()}
                 state['failed'].pop(key, None)
                 jsave(STATE_F, state)
                 ndone0 += 1; balls_run += balls

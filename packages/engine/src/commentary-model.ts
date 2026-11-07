@@ -67,6 +67,9 @@ interface ClassIndex {
 let MODEL: CommentaryModelData | null = null;
 let INDEX: Record<string, ClassIndex> = {};
 
+/** Below this many unused lines for a ball the picker steps aside (the built-in lines answer instead). */
+export const MIN_UNUSED = 4;
+
 const SLOT_BITS: Record<string, number> = { batter: 1, bowler: 2, fielder: 4, nonstriker: 8 };
 
 export function setCommentaryModel(data: CommentaryModelData | null): void {
@@ -259,14 +262,16 @@ export function pickModelCommentary(b: ModelBall, rng: RNG, used?: Readonly<Reco
       const i = cands ? cands[k] : k;
       if ((ix.slots[i] & ~have) !== 0) continue;
       if (seen && seen[`${cls}:${i}`] !== undefined) continue;
-      scored.push({ i, s: scoreTemplate(ix.g[i], shot, line, len, zone, ctl, bk, phIdx, pr, hand) });
+      // a slight preference for lines that say something (very short fragments read oddly without context)
+      scored.push({ i, s: scoreTemplate(ix.g[i], shot, line, len, zone, ctl, bk, phIdx, pr, hand) + Math.min(ix.t[i].length, 100) / 100 });
     }
     return scored;
   };
   let scored = take(pool, used);
   if (scored.length < 8) scored = take(undefined, used);
-  if (scored.length === 0) scored = take(undefined, undefined); // everything used: allow repeats
-  if (scored.length === 0) return null;
+  // Fewer than MIN_UNUSED fresh lines left for this kind of ball (rare class, or the match has used them up): leave it to the
+  // built-in lines rather than repeat a corpus line.
+  if (scored.length < MIN_UNUSED) return null;
   scored.sort((a, c) => c.s - a.s || a.i - c.i);
   const top = scored.slice(0, Math.min(scored.length, 14));
   const best = top[0].s;

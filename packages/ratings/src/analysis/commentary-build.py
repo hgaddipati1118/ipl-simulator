@@ -42,13 +42,13 @@ HANDS = ["unknown", "rhb", "lhb"]
 # ----------------------------------------------------------------------------- filters
 CONTEXT_RE = re.compile(
     r"(\d|%|\bagain\b|\bearlier\b|\bbefore\b|\bprevious(ly)?\b|\blast (ball|over|delivery|one)\b|\bsame\b|\banother\b|"
-    r"\bsecond\b(?! slip)|\bthird\b(?! (man|slip))|\bfourth\b(?! stump)|\bfifth\b(?! stump)|\bfirst\b(?! slip)|\bback[- ]to[- ]back\b|\bconsecutive\b|\bsuccessive\b|\bin a row\b|"
+    r"\b(second|third|fourth|fifth|first|sixth|seventh) (time|ball|delivery|over|wicket|boundary|four|six|run|straight|successive|consecutive|in a row|of the|on the trot|dismissal)\b|\bback[- ]to[- ]back\b|\bconsecutive\b|\bsuccessive\b|\bin a row\b|"
     r"\bso far\b|\balready\b|\byet\b|\bfinally\b|\bat last\b|\btoday\b|\btonight\b|\bthis (over|innings|match|game|season|tournament|series|year)\b|"
     r"\bnext (ball|over|delivery)\b|\bfifty\b|\bhalf[- ]?century\b|\bcentury\b|\bhundred\b|\bton\b|\bmaiden\b|\bduck\b|\bhat[- ]?trick\b|"
     r"\bmilestone\b|\bpartnership\b|\bneeds?\b|\brequired\b|\btarget\b|\bequation\b|\boverseas\b|\bdebut\b|\bcareer\b|"
     r"\bdrs\b|\breview(s|ed)?\b|\bumpire('s)?\b|\bthird[- ]umpire\b|\breplay(s)?\b|\bultra[- ]?edge\b|\bsnicko\b|\bhawk[- ]?eye\b|\bsoft signal\b|"
     r"\bsuper over\b|\bplayer of the\b|\bimpact (player|sub)\b|\bsubstitute\b|\bsub\b|\bbreak\b|\btimeout\b|\bstrategic\b|\binjur|\bphysio\b|\brain\b|\bcovers\b on\b|"
-    r"\bnew (batter|batsman|man|ball|bowler)\b|\bopen(er|ers|ing)\b|\b(two|three|four|five|six|seven|eight|nine|ten|double|triple) (wickets?|overs?|balls? in a|boundaries|sixes|fours|in the over|in an over)\b|\bbrace\b|\b\w+-fer\b|\bwicket[- ]maiden\b|\bhat[- ]trick\b|\b(left|right)[- ]hand(ed|er|ers)?\b|\bleft[- ]arm(er)?\b|\bright[- ]arm(er)?\b|\blefty\b|\brighty\b|\bsouthpaw\b|\bnow\b|\bthis time\b|\bmore\b|\bwelcomes?\b|\bfollow(ing|ed|s)\b|\bsuch a\b|\bwhat a\b|\bhere comes\b|\bover to\b|\bcomes? (on|into) (the )?attack\b|\bintroduc|\bbrings? (on|himself|herself|up)\b|\bwelcome\b|\bcheers?\b|\bhello\b|"
+    r"\bnew (batter|batsman|man|ball|bowler)\b|\bopen(er|ers|ing)\b|\b(two|three|four|five|six|seven|eight|nine|ten|double|triple) (wickets?|overs?|balls? in a|boundaries|sixes|fours|in the over|in an over)\b|\bbrace\b|\b\w+-fer\b|\bwicket[- ]maiden\b|\bhat[- ]trick\b|\b(left|right)[- ]hand(ed|er|ers)?\b|\bleft[- ]arm(er)?\b|\bright[- ]arm(er)?\b|\blefty\b|\brighty\b|\bsouthpaw\b|\bcontinu\w*|\bkeeps?\b|\bgetting\b|\bdo(es)? it\b|\bfirst up\b|\bbigger and bigger\b|\bnow\b|\bfinal\b|\blast\b|\bstarts? off\b|\bopens?\b|\b(his|her) (first|second|third|fourth|fifth)\b|\bbonus\b|\bthis time\b|\b(one|two|three|four|six|yet|any) more\b|\bmore of (the same|that)\b|\bwelcomes?\b|\bfollow(ing|ed|s)\b|\bsuch a\b|\bwhat a\b|\bhere comes\b|\bover to\b|\bcomes? (on|into) (the )?attack\b|\bintroduc|\bbrings? (on|himself|herself|up)\b|\bwelcome\b|\bcheers?\b|\bhello\b|"
     r"\bipl\b|\bwpl\b|\bt20\b|\bseason\b|\bcrowd\b|\bstadium\b|\bgrandstand\b|\bsponsor|\bcamera\b|\btv\b|\bbroadcast|\bcommentat|\blive\b|"
     r"\bwe\b|\bour\b|\bus\b|\bi\b|\bi'm\b|\bi'd\b|\byou\b|\byour\b|[?]|[@#]|https?:|\bwww\b|\(|\)|\[|\]|\bquote\b|\"|“|”|;)",
     re.I,
@@ -70,11 +70,11 @@ KIND_WORDS = {
     "stumped": re.compile(r"\b(caught|lbw|run[- ]out|bowled him|clean bowled|catch\w*|edge\w*|nick\w*|castle\w*|plumb|pads?|trapped)\b", re.I),
 }
 KIND_REQUIRE = {  # a wicket line should actually describe how the batter went
-    "bowled": re.compile(r"\b(stumps?|bails?|timber|castle\w*|cartwheel\w*|rattle\w*|knocked|bowled|uprooted|beats?|through|off stump|middle stump|leg stump|top of|clips?|hits?|kiss\w*|shatter\w*|dislodg\w*|trimm?\w*|gate)\b", re.I),
-    "caught": re.compile(r"\b(caught|catch\w*|taken|pouch\w*|holes? out|takes? it|snaffl\w*|gobbl\w*|hangs? on|holds?|grabs?|swallow\w*|safe|pick\w*|edge\w*|nick\w*|top[- ]edge\w*|skie\w*|balloon\w*|lofts?|finds?|steer\w*|gloves?|aerial|in the air|up in the air|straight to|to the fielder|to (deep|long|short|mid|cover|point|third|fine|square|slip|gully|backward|extra)|runs? (back|round|in|across|around)|dives?|sprint\w*)\b", re.I),
-    "lbw": re.compile(r"\b(lbw|pads?|front|trapped|plumb|pinned|finger|appeal|in line|stump\w*|thigh|knee|boot|foot|toe|dead|umpire)\b", re.I),
-    "run_out": re.compile(r"\b(run[- ]out|run|direct hit|hit|throw\w*|short|crease|mix[- ]?up|stump\w*|bails?|ground|dive\w*|dives?|backing up|sent back|send|wrong|sprint\w*|collect\w*|picks?|scramble\w*)\b", re.I),
-    "stumped": re.compile(r"\b(stump\w*|bails?|keeper|crease|down the (track|pitch)|dragged|out of (his|her) (ground|crease)|beaten|whips?|gather\w*|collect\w*|shuffle\w*|leaves? the crease|off the crease|advanc\w*|step\w*)\b", re.I),
+    "bowled": re.compile(r"\b(stumps?|bails?|timber|castle\w*|cartwheel\w*|rattle\w*|knocked|bowled|uprooted|off stump|middle stump|leg stump|top of|kiss\w*|shatter\w*|dislodg\w*|trimm?\w*|gate|flatten\w*|crash\w*|splatter\w*|disturb\w*|clean)\b", re.I),
+    "caught": re.compile(r"\b(caught|catch\w*|taken|pouch\w*|holes? out|takes? it|snaffl\w*|gobbl\w*|hangs? on|grabs?|swallow\w*|edge\w*|nick\w*|top[- ]edge\w*|skie\w*|balloon\w*|in the air|up in the air|straight to|miscue\w*|spoons?|holed|holing|gloved?|gloves)\b", re.I),
+    "lbw": re.compile(r"\b(lbw|pads?|in front|trapped|plumb|pinned|finger|rapped|thigh|knee|boot|dead)\b", re.I),
+    "run_out": re.compile(r"\b(run[- ]out|direct hit|hit the stumps|throw\w*|crease|mix[- ]?up|stump\w*|bails?|backing up|sent back|scramble\w*|short of)\b", re.I),
+    "stumped": re.compile(r"\b(stump\w*|bails?|keeper|crease|down the (track|pitch)|dragged|out of (his|her) (ground|crease)|whips?|off the crease|leaves? the crease|advanc\w*)\b", re.I),
 }
 LOW_MID_ONLY = re.compile(r"\b(he'd|she'd|he's|she's|he'll|she'll)\b", re.I)
 LEADING_CONJ = re.compile(r"^(and|but|so|then|also|plus|anyway|because|although|though|however|meanwhile|instead|otherwise|or|yet|still|even|just|only|too|either|neither|both|that one|this one)\b", re.I)
@@ -174,6 +174,10 @@ def slot_text(text: str, row: dict, lex: Lexicon, reasons: Counter):
         base = re.sub(r"['’]s$", "", tok)
         if base in ALLOW_CAPS:
             continue
+        if base.isupper() and len(base) >= 2:
+            reasons["unknown_proper_noun"] += 1   # initials / nicknames in capitals: "SKY", "DDP", "KL"
+            LEAK_TOKENS["unknown_proper_noun"][base] += 1
+            return None
         pre = stripped[: m.start()].rstrip()
         sentence_start = (pre == "") or pre.endswith((".", "!", "?", ":", "—", "-")) or pre.endswith('"')
         if base in lex.leak or base.lower() in lex.leak_lower:
@@ -238,46 +242,28 @@ _LOWER = {}
 
 def has_rare_word(text: str, lex) -> bool:
     """typos and one-off words ("bolwer", nicknames): a lowercase word the whole corpus uses fewer than RARE_BELOW times"""
-    for w in WORD_RE.findall(re.sub(r"\{\w+\}", " ", text.lower())):
+    low = re.sub(r"\{\w+\}", " ", text.lower())
+    if re.search(r"(?<![\w'’-])[b-hj-z](?![\w'’-])", low):   # a stray letter: "it's s four", "a  b"
+        return True
+    for w in WORD_RE.findall(low):
         if lex.lower.get(w, 0) < RARE_BELOW:
             return True
     return False
 
 
-def make_template(row, lex, max_len, reasons):
-    text = row["text"]
-    if not text or len(text) < 14:
-        reasons["too_short"] += 1
-        return None
-    if CONTEXT_RE.search(text):
+def clean_sentence(sent: str, row, lex, reasons):
+    """one sentence -> slotted text, or None when it cannot be reused"""
+    if CONTEXT_RE.search(sent):
         reasons["context"] += 1
         return None
-    t = slot_text(text, row, lex, reasons)
+    t = slot_text(sent, row, lex, reasons)
     if t is None:
-        return None
-    # strip echoes of the outcome that the engine prefix already says
-    for _ in range(2):
-        t2 = ECHO_LEAD.sub("", t, count=1) if re.match(r"^\s*(four|six|out|wide|no[- ]ball|dot ball|no run|leg[- ]?byes?|byes?|free[- ]hit|wicket)\b", t, re.I) else t
-        if t2 == t:
-            break
-        t = t2
-    t = t.strip(" -—:")
-    if LEADING_CONJ.match(t):
-        reasons["leading_conjunction"] += 1
-        return None
-    if t and t[0].islower():
-        t = t[0].upper() + t[1:]
-    t = trim_sentences(t, max_len)
-    if len(t) < 14:
-        reasons["too_short_after_trim"] += 1
         return None
     p = slot_pronouns(t, row.get("g") == "F")
     if p is None:
         reasons["her"] += 1
         return None
-    t = p
-    # leftover capitals that are not slots/words were checked above; strip stray double spaces and odd symbols
-    t = re.sub(r"\s+", " ", t).strip()
+    t = re.sub(r"\s+", " ", p).strip()
     if re.search(r"[^\x20-\x7e’‘—–…]", t):
         reasons["odd_chars"] += 1
         return None
@@ -285,6 +271,55 @@ def make_template(row, lex, max_len, reasons):
         reasons["rare_word_or_typo"] += 1
         return None
     return t
+
+
+def make_templates(row, lex, max_len, reasons):
+    """A ball's commentary -> 0..n templates. Sentences that cannot be reused (a name, a score, "again") are cut out; every
+    maximal run of clean sentences becomes one or more templates of at most max_len characters."""
+    text = row["text"]
+    if not text or len(text) < 14:
+        reasons["too_short"] += 1
+        return []
+    if text[0].islower():
+        text = text[0].upper() + text[1:]
+    sents = [x.strip() for x in SENT_SPLIT.split(text) if x.strip()]
+    cleaned = [clean_sentence(x, row, lex, reasons) for x in sents]
+    out = []
+    run = []
+    for c in cleaned + [None]:
+        if c is not None:
+            run.append(c)
+            continue
+        cur = ""
+        for sent in run:
+            if len(sent) > max_len:
+                cur = ""
+                continue
+            cand = (cur + " " + sent).strip()
+            if len(cand) > max_len:
+                out.append(cur)
+                cand = sent
+            cur = cand
+        if cur:
+            out.append(cur)
+        run = []
+    res = []
+    for t in out:
+        # strip echoes of the outcome that the engine prefix already says
+        for _ in range(2):
+            if re.match(r"^\s*(four|six|out|wide|no[- ]ball|dot ball|no run|leg[- ]?byes?|byes?|free[- ]hit|wicket)\b", t, re.I):
+                t = ECHO_LEAD.sub("", t, count=1)
+        t = t.strip(" -—:")
+        if t and t[0].islower():
+            t = t[0].upper() + t[1:]
+        if LEADING_CONJ.match(t):
+            reasons["leading_conjunction"] += 1
+            continue
+        if len(t) < 14:
+            reasons["too_short_after_trim"] += 1
+            continue
+        res.append(t)
+    return res
 
 
 SPIN_VOCAB = re.compile(r"\b(googly|googlies|doosra|carrom|flight(ed|y)?|flighting|spinner|spinners|spin(s|ning)?|leggie|offie|arm ball|drift(s|ed|ing)?|dip(s|ped)?|loop(s|ed|y|ing)?|tossed|toss(es)? it up|turn(s|ed|ing)?|bite(s)?|gripped|gripping|wrist|slider|topspinner|chinaman)\b", re.I)
@@ -441,24 +476,22 @@ def main():
         if not ck or not r["text"]:
             continue
         n_text += 1
-        t = make_template(r, lex, args.max_len, reasons)
-        if t is None:
-            continue
-        if not ck.startswith("W:") and NONWICKET_CONTEXT.search(t):
-            reasons["nonwicket_event_word"] += 1
-            continue
-        if not bowler_vocab_ok(t, r["bk"]):
-            reasons["bowler_kind_vocab"] += 1
-            continue
-        if not consistent(t, "wicket" if ck.startswith("W:") else ck, ck[2:] if ck.startswith("W:") else None):
-            reasons["inconsistent_with_outcome"] += 1
-            continue
-        key = normalise_key(t)
-        slot = by_class[ck].get(key)
-        if slot:
-            slot[2] += 1
-            continue
-        by_class[ck][key] = [t, pack(r), 1]
+        for t in make_templates(r, lex, args.max_len, reasons):
+            if not ck.startswith("W:") and NONWICKET_CONTEXT.search(t):
+                reasons["nonwicket_event_word"] += 1
+                continue
+            if not bowler_vocab_ok(t, r["bk"]):
+                reasons["bowler_kind_vocab"] += 1
+                continue
+            if not consistent(t, "wicket" if ck.startswith("W:") else ck, ck[2:] if ck.startswith("W:") else None):
+                reasons["inconsistent_with_outcome"] += 1
+                continue
+            key = normalise_key(t)
+            slot = by_class[ck].get(key)
+            if slot:
+                slot[2] += 1
+                continue
+            by_class[ck][key] = [t, pack(r), 1]
     reasons["rows_with_text_in_known_class"] = n_text
     print("template candidates per class:", {k: len(v) for k, v in by_class.items()})
 
