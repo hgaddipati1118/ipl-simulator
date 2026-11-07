@@ -32,6 +32,9 @@ import {
   type TrainingIntensity,
   generateYouthProspects,
   type YouthProspect,
+  createRNG, deriveSeed, randomSeed as engineRandomSeed,
+  generatePlayer, generatePlayers, roleClassOfPlayer,
+  retirementProbability, retirementRole,
   calculateFantasyPoints,
   accumulateFantasyPoints,
   enrichFantasyNames,
@@ -175,6 +178,9 @@ export interface GameState {
 
   // Hall of Fame — retired legends with career summaries
   hallOfFame?: HallOfFameEntry[];
+
+  /** Seed for the seeded generation and progression between seasons (saves from before it derive one from the teams) */
+  worldSeed?: number;
 }
 
 export interface SeasonDraftRecord {
@@ -465,6 +471,7 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES): GameState {
     youthProspects: [],
     fantasyLeaderboard: [],
     contractsResolved: true,
+    worldSeed: engineRandomSeed() >>> 0,
   };
 }
 
@@ -1055,12 +1062,18 @@ export function finalizeSeason(state: GameState): GameState {
 
 // ── End match-by-match progression ─────────────────────────────────
 
+/** Seasons of rating history kept for players in the free-agent pool (rostered players keep the engine's full history) */
+const POOL_HISTORY_SEASONS = 8;
+
 /** Progress players, run retention, enter trade window */
 export function nextSeason(state: GameState): GameState {
   const trainingReport: TrainingReportEntry[] = [];
 
   // Progress all players (age, ratings). Women's leagues use the women's age curves; men's and combined use men's
   const curveGender = (state.rules.league === "wpl" || state.rules.gender === "women") ? "female" : "male";
+  // Every random step between seasons draws from streams derived from the world seed, so a seed reproduces a career
+  const worldSeed = state.worldSeed ?? deriveSeed(...state.teams.flatMap(t => [...t.id].map(c => c.charCodeAt(0))));
+  const progressRng = createRNG(deriveSeed(worldSeed, state.seasonNumber, 1));
   for (const team of state.teams) {
     for (const player of team.roster) {
       const progress = player.progress({
@@ -1068,6 +1081,7 @@ export function nextSeason(state: GameState): GameState {
         intensity: team.trainingIntensity,
         seasonNumber: state.seasonNumber,
         gender: curveGender,
+        rng: progressRng,
       });
       trainingReport.push({
         playerId: player.id,
@@ -1083,41 +1097,29 @@ export function nextSeason(state: GameState): GameState {
     }
   }
 
-  // RNG-based retirement — probability increases with age
-  // Mirrors real cricket: some players retire at 33, most by 38, rare exceptions past 40
-  function shouldRetire(p: Player): boolean {
-    const age = p.age;
-    if (age < 30) return false;
-    // Retirement probability starts at 30, max 40%
-    // Real IPL: Dhoni played till 42, Gayle 43 — legends can play long
-    let prob = 0;
-    if (age === 30) prob = 0.01;       // 1% — very rare
-    else if (age === 31) prob = 0.02;  // 2%
-    else if (age === 32) prob = 0.03;  // 3%
-    else if (age === 33) prob = 0.05;  // 5%
-    else if (age === 34) prob = 0.08;  // 8%
-    else if (age === 35) prob = 0.12;  // 12%
-    else if (age === 36) prob = 0.18;  // 18%
-    else if (age === 37) prob = 0.25;  // 25%
-    else if (age === 38) prob = 0.30;  // 30%
-    else if (age === 39) prob = 0.35;  // 35%
-    else prob = 0.40;                  // 40% cap at 40+ (legends can still play)
-
-    // Low-rated older players more likely to retire (no demand from teams)
-    if (p.overall < 50 && age >= 34) prob = Math.min(0.40, prob * 1.5);
-
-    return Math.random() < prob;
+  // Retirement from the fitted hazard of real careers (age, level, role, gender; see progression.ts). `seasonAge` is
+  // the age during the season just played. Under 30 the real hazard also counts losing a place, which the auction
+  // already models here, so it is halved.
+  const retireRng = createRNG(deriveSeed(worldSeed, state.seasonNumber, 2));
+  function shouldRetire(p: Player, seasonAge: number): boolean {
+    let prob = retirementProbability({
+      age: seasonAge, overall: p.overall, gender: curveGender, role: retirementRole(p.bowlingStyle, p.role),
+    });
+    if (seasonAge < 30) prob *= 0.5;
+    return retireRng() < prob;
   }
 
   // Retire from pool (silently — pool players don't get Hall of Fame)
-  const poolRetirees = state.playerPool.filter(p => shouldRetire(p));
-  const prunedPool = state.playerPool.filter(p => !shouldRetire(p));
+  const poolRetirees: Player[] = [];
+  const prunedPool: Player[] = [];
+  for (const p of state.playerPool) (shouldRetire(p, p.age) ? poolRetirees : prunedPool).push(p);
 
   // Retire from CPU rosters (user team players never auto-retire)
   const retiredFromTeams: Player[] = [];
   for (const team of state.teams) {
     if (team.id === state.userTeamId) continue;
-    const retiring = team.roster.filter(p => shouldRetire(p));
+    // rostered players have just progressed (aged one year)
+    const retiring = team.roster.filter(p => shouldRetire(p, p.age - 1));
     for (const p of retiring) {
       const removed = team.removePlayer(p.id);
       if (removed) retiredFromTeams.push(removed);
@@ -1144,18 +1146,29 @@ export function nextSeason(state: GameState): GameState {
     }
   }
 
-  // Age pool players by 1 year
+  // Pool players grow up and age too (progress() ages them by a year): regens and prospects who have not been signed
+  // yet still develop. Their history is kept shorter than a rostered player's to keep saves small.
+  const poolRng = createRNG(deriveSeed(worldSeed, state.seasonNumber, 4));
   for (const p of prunedPool) {
-    p.age++;
+    p.progress({ seasonNumber: state.seasonNumber, gender: curveGender, rng: poolRng, historyLimit: POOL_HISTORY_SEASONS });
   }
 
-  // Add new young players to pool (replaces retired players + fresh talent)
-  const newPlayers = generatePlayerPool(30 + retiredFromTeams.length);
+  // Regens replace each retiree (same role, nationality and gender) as young players from the real joint
+  // distribution of ratings, plus some fill-in squad players and youth academy prospects. Seeded.
+  const genRng = createRNG(deriveSeed(worldSeed, state.seasonNumber, 3));
+  const idBase = `g${worldSeed.toString(36)}s${state.seasonNumber}`;
+  const regens = [...poolRetirees, ...retiredFromTeams].map((r, i) => generatePlayer(genRng, {
+    kind: "regen", gender: curveGender, country: r.country, roleClass: roleClassOfPlayer(r), id: `${idBase}_r${i + 1}`,
+  }));
+  const fillIns = generatePlayers(15, genRng, { kind: "fill", gender: curveGender }, `${idBase}_f`);
+  const newPlayers = [...regens, ...fillIns];
 
   // Generate youth academy prospects — they enter the auction pool (IPL: all signings via auction)
   const youthProspects: YouthProspect[] = generateYouthProspects(
     state.userTeamId ?? state.teams[0]?.id ?? "pool",
-    2 + Math.floor(Math.random() * 3),
+    2 + Math.floor(genRng() * 3),
+    genRng,
+    { gender: curveGender, idPrefix: `${idBase}_y` },
   );
   // Add youth prospect players to the pool so they're available at next auction
   const youthPoolPlayers = youthProspects.map(y => y.player);

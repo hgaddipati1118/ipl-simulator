@@ -120,17 +120,24 @@ export function buildDraftMatchPool(id: DraftMatchPoolId, nations?: [string, str
  * Make sure a pool can give every side a keeper and five bowling options (plus spares):
  * thin pools (a small nation pair, generated fallbacks) are topped up with generated players.
  */
-export function ensurePoolCoverage(players: Player[], sides: number): Player[] {
+export function ensurePoolCoverage(players: Player[], sides: number, maxOverseasInXI = 11): Player[] {
   const out = [...players];
   const wk = () => out.filter(p => p.isWicketKeeper).length;
   const bowl = () => out.filter(p => !p.isWicketKeeper && (p.role === "bowler" || p.role === "all-rounder")).length;
-  let guard = 20;
-  while ((wk() < sides * 2 || bowl() < sides * 7 || out.length < sides * 16) && guard-- > 0) {
+  // With an overseas cap in the XI a side may need its keeper and bowlers to be domestic, so cover those too
+  const capped = maxOverseasInXI < 11;
+  const domWk = () => out.filter(p => p.isWicketKeeper && !p.isInternational).length;
+  const domBowl = () => out.filter(p => !p.isInternational && !p.isWicketKeeper && (p.role === "bowler" || p.role === "all-rounder")).length;
+  let guard = 40;
+  while ((wk() < sides * 2 || bowl() < sides * 7 || out.length < sides * 16
+    || (capped && (domWk() < sides * 2 || domBowl() < sides * 5))) && guard-- > 0) {
     for (const p of generatePlayerPool(20)) {
       const needWK = wk() < sides * 2;
       const needBowl = bowl() < sides * 7;
       const isBowl = !p.isWicketKeeper && (p.role === "bowler" || p.role === "all-rounder");
-      if ((needWK && p.isWicketKeeper) || (needBowl && isBowl) || out.length < sides * 16) out.push(p);
+      const needDomWK = capped && domWk() < sides * 2 && p.isWicketKeeper && !p.isInternational;
+      const needDomBowl = capped && domBowl() < sides * 5 && isBowl && !p.isInternational;
+      if ((needWK && p.isWicketKeeper) || (needBowl && isBowl) || needDomWK || needDomBowl || out.length < sides * 16) out.push(p);
     }
   }
   return out;

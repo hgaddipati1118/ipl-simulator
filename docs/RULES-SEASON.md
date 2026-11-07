@@ -190,40 +190,65 @@ Player progression
 
 ---
 
-## 7. Player Retirement Model
+## 7. Player Progression and Retirement Model
 
-### Probability per Season
+### Progression (every off-season, `Player.progress()`)
+Each player ages one year and each discipline's overall (batting, bowling) moves by an expected change plus luck, both
+fitted on real careers (CricketArchive per-year T20 ratings, men and women; see `docs/RATINGS-PIPELINE.md`, "Progression
+model"):
+
 ```
-if (age <= 35) retirementProb = 0.01;
-else if (age <= 37) retirementProb = 0.05;
-else if (age <= 39) retirementProb = 0.15;
-else if (age <= 41) retirementProb = 0.30;
-else retirementProb = 0.50;
-
-// Adjustment for high-performers
-if (overall >= 80) retirementProb *= 0.5;
-// Stars play longer
-
-// Adjustment for international players (may retire from IPL earlier)
-if (isInternational) retirementProb *= 1.2;
+change = mean(age, level, last season's change, seasons of evidence, kind) + sd(age, seasons of evidence) * z
 ```
+- **Regression to the mean**: players well above ~65 tend to slip (about -0.07 points a season per point above 65),
+  weak ones climb; a jump is partly given back the next year.
+- **Age**: young players rise, prime years are flat, decline is gentle until the mid-30s (retirement does most of the
+  work). New players (little data behind their rating) swing by 3.9 points a season, veterans by 2.5.
+- **Luck** (`z`) is drawn from the real, fat-tailed distribution of season-to-season changes: breakouts of +8 or more happen
+  to 2.5% of regulars in a season, collapses of -8 to 0.7%.
+- **Potential** (youth, regens): a drawn talent (sd 3.5 points) realised evenly up to age 27 on top of the typical path.
+- Training focus and intensity still add their bias and volatility; women's leagues use the women's fit.
+- The change is spread over the discipline's attributes so the discipline overall moves by the drawn amount, with a little
+  individual noise per attribute. Each player's `ratingHistory` keeps one entry per season (overall, batting, bowling, age;
+  25 seasons) for the "ratings over time" chart.
+- All draws come from an RNG derived from `GameState.worldSeed` and the season number, so a seed reproduces a career.
 
-### Retirement Processing
-- Retired players removed from all pools (team rosters and auction pool)
-- Their stats are preserved in season history
-- Not available for future auctions
+### Retirement probability per season
+Fitted hazard of a real regular never playing T20 again, by the age during the season just played (halved below 30, where
+the real hazard also counts losing a place, which the auction models here), the player's overall, role and gender:
+
+```
+logit(p) = ageEffect(age) + level * (overall - 65) / 10 + role + (female ? women : 0)
+```
+At 65 overall a batter retires with about 4% (under 23), 6.5% (29-31), 14% (34-35), 26% (38-39), 31% (42+); a 45-overall
+player roughly three times as often, an 85 about a third as often; all-rounders are retained longer. Median last regular season by
+role in real data and in the simulation: batters 33, pace bowlers 31, spinners 32-33, all-rounders 35.
+
+### Retirement processing
+- Retired players are removed from all pools (team rosters and auction pool); the user's players never auto-retire.
+- Their stats are preserved in season history; notable CPU retirees go to the Hall of Fame.
+- Not available for future auctions.
 
 ---
 
 ## 8. New Player Generation (Per Season)
 
-### Each year, generate:
-- **15-20 new Indian domestic players** (age 18-22, uncapped)
-- **5-10 new international players** (age 20-25, from various countries)
-- These enter the auction pool
+Generated players are sampled from the real joint distribution of the game's ratings (`docs/RATINGS-PIPELINE.md`,
+"Generated players"), seeded from the world seed and season:
+
+- **A regen for every retiree** (pool and CPU rosters): same role class (batter, keeper, all-rounder, pace, spin), nationality
+  and gender, aged 18-23, with a potential. Pool size stays level.
+- **15 fill-in squad players** (age 22-34, any nationality by the usual T20 mix).
+- **2-4 youth academy prospects** (Indian, aged 17-20) with a potential and a scouting grade (Diamond 78+, Gold 71+,
+  Silver 64+, Bronze); they enter the auction pool.
+- Names are drawn from real first and last names of the player's region and gender, mixed so that no generated player shares
+  a real person's full name.
+
+A 20-season simulation of this loop keeps the league's average overall, its top-150 average and its spread level (see the
+tests in `packages/engine/src/__tests__/progression.test.ts`).
 
 ### Additionally:
-- Some existing players from the 3,255 master pool who weren't previously registered can "enter" the IPL system
+- Some existing players from the master pool who weren't previously registered can "enter" the IPL system
 - This simulates real-world scenarios where new talents emerge
 
 ---

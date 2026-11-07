@@ -582,6 +582,8 @@ export class Player implements PlayerData {
     /** Which league's fit to use; defaults to men's */
     gender?: ProgressionGender;
     rng?: RNG;
+    /** Seasons of rating history to keep (default RATING_HISTORY_MAX) */
+    historyLimit?: number;
   }): PlayerProgressReport {
     const rng = input?.rng ?? Math.random;
     const gender = input?.gender ?? "male";
@@ -597,7 +599,8 @@ export class Player implements PlayerData {
       bowling: this.bowlingOvr,
       age: this.age,
     });
-    if (this.ratingHistory.length > RATING_HISTORY_MAX) this.ratingHistory = this.ratingHistory.slice(-RATING_HISTORY_MAX);
+    const keep = input?.historyLimit ?? RATING_HISTORY_MAX;
+    if (this.ratingHistory.length > keep) this.ratingHistory = this.ratingHistory.slice(-keep);
 
     this.age++;
     this.experience = experience + 1;

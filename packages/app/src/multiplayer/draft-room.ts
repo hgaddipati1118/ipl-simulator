@@ -253,7 +253,7 @@ export class DraftRoomHost {
 
   private startMatchDraft(newSeries: boolean) {
     const built = this.deps.buildMatchPool(this.settings);
-    const pool = { ...built, players: ensurePoolCoverage(built.players, this.seats.length) };
+    const pool = { ...built, players: ensurePoolCoverage(built.players, this.seats.length, built.maxOverseasInXI) };
     this.players = new Map(pool.players.map(p => [p.id, p]));
     this.poolLabel = pool.label;
     this.maxOverseasInXI = pool.maxOverseasInXI;
