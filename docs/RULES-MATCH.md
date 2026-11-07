@@ -411,7 +411,21 @@ the data adds 3.8 runs (+2.9%); the running-runs trim takes that to +1.4%. The d
 stumped 3.8% (lbw twice the data, caught 9 points low, no c&b); after: caught 61.4%, c&b 3.0%, bowled 19.1%, lbw 7.1%, run out 6.8%, stumped 2.5%, hit wicket
 0.11%, against 61.4 / 3.0 / 19.2 / 7.1 / 6.7 / 2.4 / 0.10 in Cricsheet men's T20 since 2019.
 
-@@LIVE@@
+The **live engine** (5,000 CPU-vs-CPU live matches each, 10,000 innings, sampling noise about 0.3% on the runs) before and after:
+
+| per innings | before | after |
+|---|---|---|
+| runs | 241.25 | 242.17 (+0.4%) |
+| wickets | 6.018 | 6.087 (+1.1%) |
+| fours | 25.88 | 25.72 (-0.6%) |
+| sixes | 14.77 | 14.82 (+0.3%) |
+| extras | 4.18 | 7.89 |
+| wides / no-balls / byes (balls) | 2.49 / 0.40 / 1.29 | 3.81 / 0.63 / 1.89 |
+| chasing side wins | 62.5% | 62.8% |
+
+The live engine's scoring level (241 an innings with fours 25.9 and sixes 14.8, against 174-186 in the IPL since 2023) is its own pre-existing calibration (an
+"IPL 2025 scoring era" boost on top of the base model, a chase win rate of 62%); that was left alone, the rules change moves it by +0.4%. Its extras were just as
+low (4.2) and are now at the data (7.9). Its dismissal mix after the change matches the instant engine's.
 
 ### 12.5 Verified in the live viewer
 
