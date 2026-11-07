@@ -22,10 +22,13 @@ describe("league squads use the extended pool", () => {
     const before = sources(league);
     await prepareLeaguePool(league, loader);
     const after = sources(league);
-    console.log(league, before, after);
     expect(after.pool).toBe(before.pool);
     expect(after["ca-pool"] ?? 0).toBeGreaterThan(0);
     expect(after.fallback ?? 0).toBeLessThan(before.fallback ?? 0);
+    // every squad keeps a wicketkeeper
+    const keepers: Record<string, number> = {};
+    for (const p of getLeaguePlayers(league)) keepers[p.teamId] = (keepers[p.teamId] ?? 0) + (p.isWicketKeeper ? 1 : 0);
+    expect(Object.entries(keepers).filter(([, n]) => n === 0)).toEqual([]);
     const ids = getLeaguePlayers(league).map(p => p.id);
     expect(new Set(ids).size).toBe(ids.length);
   });

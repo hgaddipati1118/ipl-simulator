@@ -1,0 +1,11 @@
+import { chromium } from "playwright";
+const base = "http://localhost:3861", SP = process.env.SP;
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage({ viewport: { width: 1300, height: 900 } });
+const errs = []; page.on("console", m => { if (m.type() === "error") errs.push(m.text().slice(0,160)); });
+await page.goto(base + "/", { waitUntil: "networkidle" });
+await page.screenshot({ path: `${SP}/5-home.png`, fullPage: false });
+const texts = await page.$$eval("button", bs => bs.map(b => b.innerText.trim().replace(/\s+/g," ")).slice(0, 40));
+console.log(JSON.stringify(texts));
+console.log("errors:", errs.length ? errs.join(" | ") : "none");
+await browser.close();

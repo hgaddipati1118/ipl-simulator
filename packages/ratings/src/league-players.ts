@@ -148,7 +148,12 @@ export function getLeaguePlayers(leagueId: string): LeaguePlayerData[] {
       }
       const extra = caSource?.({ ca: rp.ca, espn: rp.espn, gender });
       if (extra) {
-        out.push({ ...extra, id: extra.id ?? `ca_${rp.ca}`, teamId: team.teamId, source: "ca-pool", caId: rp.ca, espnId: rp.espn });
+        // The squad's own scorecards say who kept wicket this season; keep that even if the CA record's
+        // career-level flag doesn't (otherwise a squad can lose its only keeper)
+        out.push({
+          ...extra, id: extra.id ?? `ca_${rp.ca}`, isWicketKeeper: extra.isWicketKeeper || rp.keeper || undefined,
+          teamId: team.teamId, source: "ca-pool", caId: rp.ca, espnId: rp.espn,
+        });
         continue;
       }
       const [battingIQ, timing, power, running, wicketTaking, economy, accuracy, clutch] = rp.fb ?? [45, 45, 45, 45, 20, 20, 20, 45];

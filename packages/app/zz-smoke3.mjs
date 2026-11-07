@@ -1,0 +1,17 @@
+import { chromium } from "playwright";
+const base = "http://localhost:3861", SP = process.env.SP;
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage({ viewport: { width: 1300, height: 900 } });
+const errs = []; page.on("console", m => { if (m.type() === "error") errs.push(m.text().slice(0,160)); });
+await page.goto(base + "/ratings", { waitUntil: "networkidle" });
+const href = await (await page.$("a[href^='/player/']")).getAttribute("href");
+await page.goto(base + href, { waitUntil: "networkidle" }); await page.waitForTimeout(2000);
+const chart = await page.$("[data-testid='career-history'], svg path");
+const card = await page.locator("text=/rating projection/i").first();
+if (await card.count()) await card.scrollIntoViewIfNeeded();
+const el = page.locator("svg").filter({ has: page.locator("[data-testid=career-history], path") }).last(); const box = await page.locator("text=/over time/i").first().boundingBox().catch(()=>null); console.log("over-time heading:", !!box); await page.screenshot({ path: `${SP}/4-chart.png`, fullPage: true });
+await page.goto(base + "/", { waitUntil: "networkidle" });
+const btns = await page.$$eval("button", bs => bs.map(b => b.innerText.trim()).filter(t => /BBL|Big Bash|League|PSL|Hundred/i.test(t)).slice(0, 15));
+console.log("league buttons:", JSON.stringify(btns));
+console.log("errors:", errs.length ? errs.join(" | ") : "none");
+await browser.close();

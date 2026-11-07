@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { GameState } from "../game-state";
 import { ovrBgClass, roleLabel, teamLabelColor, bowlingStyleLabel, battingHandLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
@@ -230,10 +230,13 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
     }, withBowl[0]);
   }, [matchLog]);
 
+  // Scout once per player viewed. The callback is a fresh closure on every App render, and scouting updates the
+  // game state, so depending on it re-ran this effect after every update ("Maximum update depth exceeded")
+  const scoutRef = useRef(onScoutPlayer);
+  scoutRef.current = onScoutPlayer;
   useEffect(() => {
-    if (!playerId || !onScoutPlayer) return;
-    onScoutPlayer(playerId);
-  }, [playerId, onScoutPlayer]);
+    if (playerId) scoutRef.current?.(playerId);
+  }, [playerId]);
 
   if (!player) {
     return (
