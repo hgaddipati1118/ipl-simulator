@@ -288,11 +288,12 @@ describe("extras", () => {
     });
   });
 
-  it("extras fitted to Cricsheet: about 8 extras an innings", () => {
+  it("extras fitted to Cricsheet: about 8-9 extras an innings", () => {
     const inns = all();
     const mean = inns.reduce((s, i) => s + i.extras, 0) / inns.length;
+    // the IPL's shape (RULES-MATCH.md 12.8) takes its extras from the real IPL since 2024: 8.9 an innings
     expect(mean).toBeGreaterThan(7.2);
-    expect(mean).toBeLessThan(9.0);
+    expect(mean).toBeLessThan(10.0);
   });
 });
 
@@ -660,10 +661,12 @@ describe("retired hurt and retired out", () => {
       for (const r of play(120, { seed: 19 })) {
         for (const inn of r.innings) {
           const hurt = (inn.offBall ?? []).filter(x => x.kind === "retired_hurt").length;
+          // a tactical retirement (retired out) is not a wicket either
+          const retiredOut = (inn.offBall ?? []).filter(x => x.kind === "retired_out").length;
           if (inn.totalBalls < 120 && inn.wickets < 10 && hurt > 0 && inn.runs < (inn === r.innings[1] ? r.innings[0].runs + 1 : 1e9)) {
             // all out short of ten: the retired batters are the missing ones
             short++;
-            expect(inn.wickets + hurt).toBeGreaterThanOrEqual(10);
+            expect(inn.wickets + hurt + retiredOut).toBeGreaterThanOrEqual(10);
           }
         }
       }

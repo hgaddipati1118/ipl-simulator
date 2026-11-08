@@ -38,6 +38,11 @@ PHASES = [("powerplay", 0, 5), ("middle", 6, 14), ("death", 15, 19)]
 # league id -> (Cricsheet event, The Hundred?)
 LEAGUES = {"wpl": ("Women's Premier League", False), "wbbl": ("Women's Big Bash League", False),
            "hundred-w": ("The Hundred Women's Competition", True)}
+# the men's leagues' phase shapes, fitted at the engine's own scoring level (RULES-MATCH.md 12.8)
+MENS_LEAGUES = {"ipl": ("Indian Premier League", False), "bbl": ("Big Bash League", False), "psl": ("Pakistan Super League", False),
+                "sa20": ("SA20", False), "cpl": ("Caribbean Premier League", False), "ilt20": ("International League T20", False),
+                "mlc": ("Major League Cricket", False), "bpl": ("Bangladesh Premier League", False), "lpl": ("Lanka Premier League", False),
+                "hundred-m": ("The Hundred Men's Competition", True)}
 
 
 TMP = Path(tempfile.mkdtemp())
@@ -127,6 +132,12 @@ def main() -> None:
         lg = res["women"]
         lg.pop("fixtures", None)
         leagues[lid] = lg
+    mens = {}
+    for lid, (event, hundred) in MENS_LEAGUES.items():
+        quoted = event.replace("'", "''")
+        lg = measures(f"m.event = '{quoted}' AND m.date >= DATE '2024-01-01'", hundred)["men"]
+        lg.pop("fixtures", None)
+        mens[lid] = lg
     doc = {
         "source": "Cricsheet ball-by-ball (data/analysis/deliveries.parquet, matches.parquet); packages/ratings/src/analysis/t20i-level.py",
         "generated": date.today().isoformat(),
@@ -134,12 +145,16 @@ def main() -> None:
         "classes": CLASSES,
         "t20i": t20i,
         "womensLeagues2024": leagues,
+        "mensLeagues2024": mens,
     }
     OUT.write_text(json.dumps(doc, indent=1) + "\n")
     for g, v in t20i.items():
         f = v["firstInnings"]
         print(f"T20I {g}: {v['matches']} matches; 1st inns {f['runs']} (sd {f['sd']}), {f['wickets']} wkts, all out {f['allOut']}%, RR {f['runRate']}, extras {f['extras']}")
     for lid, v in leagues.items():
+        f = v["firstInnings"]
+        print(f"{lid}: {v['matches']} matches; 1st inns {f['runs']}, {f['wickets']} wkts, all out {f['allOut']}%, RR {f['runRate']}, all-innings {v['allInnings']['runs']}")
+    for lid, v in mens.items():
         f = v["firstInnings"]
         print(f"{lid}: {v['matches']} matches; 1st inns {f['runs']}, {f['wickets']} wkts, all out {f['allOut']}%, RR {f['runRate']}, all-innings {v['allInnings']['runs']}")
     print(f"wrote {OUT}")

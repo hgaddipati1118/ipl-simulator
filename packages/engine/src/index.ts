@@ -318,3 +318,8 @@ export { scoringContextFor, applyScoringContext } from "./scoring-context.js";
 export type { T20Context, ScoringContextId } from "./scoring-context.js";
 export { T20I_CONTEXT } from "./t20i-context-data.js";
 export { WOMENS_LEAGUE_CONTEXT } from "./womens-league-context-data.js";
+export { MENS_LEAGUE_CONTEXT } from "./mens-league-context-data.js";
+export { drawMatchConditions, applyMatchConditions, conditionsShapeFor } from "./match-conditions.js";
+export type { MatchConditions } from "./match-conditions.js";
+export { MATCH_CONDITIONS } from "./match-conditions-data.js";
+export type { ConditionsShape } from "./match-conditions-data.js";

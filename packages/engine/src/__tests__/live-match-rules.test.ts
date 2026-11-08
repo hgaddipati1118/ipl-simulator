@@ -267,7 +267,7 @@ describe("live: a Mankad, retirements, an incomplete over", () => {
   it("an over the bowler cannot finish is completed by another who sits out the next over", () => {
     withOverrides({ bowlerLeavesPerOver: 0.05 }, () => {
       let split = 0, same = 0;
-      for (let seed = 100; seed < 106; seed++) {
+      for (let seed = 100; seed < 112; seed++) {
         for (const log of rawLogs(playOut(seed))) {
           const bowlersOf = new Map<number, string[]>();
           for (const e of log) {

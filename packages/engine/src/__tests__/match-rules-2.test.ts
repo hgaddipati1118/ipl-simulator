@@ -147,7 +147,9 @@ describe("rain, DLS and no result in the instant sim", () => {
 
   it("a shortened match is played over the reduced overs with a DLS target", () => {
     withOverrides({ rainNoResult: 0, rainReduced: 1 }, () => {
-      const rs = play(60, { rain: true, seed: 3 });
+      // every match draws a cut; it is recorded unless the innings it falls in was over before the stoppage
+      const rs = play(60, { rain: true, seed: 3 }).filter(r => r.rain);
+      expect(rs.length).toBeGreaterThanOrEqual(45);
       const kinds = new Set<string>();
       for (const r of rs) {
         expect(r.rain?.kind).toBe("reduced");
@@ -306,8 +308,9 @@ describe("no-balls, beamers and the slow over rate", () => {
   });
 
   it("the over-rate restriction is drawn per innings and raises the boundary rate", () => {
-    const control = withOverrides({ overRatePenaltyPerInnings: 0 }, () => play(150, { seed: 41 }));
-    const pen = withOverrides({ overRatePenaltyPerInnings: 1 }, () => play(150, { seed: 41 }));
+    // 400 matches a side: a last over's boundary rate is noisy (a few percent at 150 matches, against a 10% effect)
+    const control = withOverrides({ overRatePenaltyPerInnings: 0 }, () => play(400, { seed: 41 }));
+    const pen = withOverrides({ overRatePenaltyPerInnings: 1 }, () => play(400, { seed: 41 }));
     for (const inn of innings(pen)) expect(inn.overRatePenaltyFrom).toBeDefined();
     const lastOver = (rs: MatchResult[], pick: (inn: InningsScore) => boolean) => {
       let b = 0, n = 0;

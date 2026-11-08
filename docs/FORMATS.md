@@ -186,7 +186,7 @@ within the noise of the instant engine (one replay: about 2.5 runs on the men's 
 (Before the live CPU captain bowled his best bowlers, the T20 phase plan bowled about two points of bowling rating weaker per
 ball and a live ODI scored 8-10 runs more than an instant one.)
 
-**T20 and The Hundred unchanged**: `npx tsx packages/engine/src/__tests__/fingerprint-matches.ts 300` hashes every ball of 300
+**Fingerprint**: `npx tsx packages/engine/src/__tests__/fingerprint-matches.ts 300` hashes every ball of 300
 instant T20 matches (men, men with rain, women), 300 Hundred matches with rain, and 100 live T20 matches each CPU v CPU and with
 a user side. The ODI work left every line as it was. Since then, on purpose:
 
@@ -195,6 +195,7 @@ a user side. The ODI work left every line as it was. Since then, on purpose:
 | before the ODI work | `81d0471a218f9e03` / `886e09f301bed9f4` / `44cb21795e248267` / `c21a7f5308560ea1` | `7976b1a6fb569b50` / `c52cfbcc19c0d6ce` | `90919c560ce4405b` |
 | live engine on the instant engine's ball (RULES-MATCH.md 12.4) | unchanged | `5fb19cfd90456037` / `8701f337d6b4e5fc` | `657e769a9f784f1c` |
 | women's league contexts (RULES-MATCH.md 12.7): the women's line only | women `7d214ad967890a1c` | unchanged | `c83288e1be6891af` |
+| the IPL's shape and match conditions (RULES-MATCH.md 12.8): all but the women's line | `48ec01dbb07dbc66` / `a4b19bc607589f48` / women unchanged / `35656ed4f9692502` | `c6092d833b2d11a6` / `b8cea85a7ee08af0` | `efa2366c3cb4e486` |
 
 ### Refitting
 
