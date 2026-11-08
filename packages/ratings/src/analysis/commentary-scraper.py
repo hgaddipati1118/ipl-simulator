@@ -233,6 +233,13 @@ def wait_responses(col, timeout=14):
 def inn_of(u):
     m = re.search(r'inningNumber=(\d+)', u); return int(m.group(1)) if m else None
 
+def wheel_down(n=14, dy=250):
+    """real mouse-wheel scrolling (compositor level). Some lists end in a tall editorial blurb and the page only
+    fires its next load on genuine wheel scrolls, not on programmatic scrollIntoView/scrollTo"""
+    js("window.scrollBy(0,-1500)"); time.sleep(0.8)
+    for _ in range(n):
+        cdp("Input.dispatchMouseEvent", type="mouseWheel", x=600, y=400, deltaX=0, deltaY=dy); time.sleep(0.25)
+
 def drain_innings(col, store, nextover, inn):
     """Scroll the end of the commentary list into view until the page's own loads reach the start of the innings."""
     idle = 0; loads = 0
@@ -240,8 +247,9 @@ def drain_innings(col, store, nextover, inn):
     while nextover not in (None, 0) or idle == 0 and loads == 0:
         got = []
         # normal trigger first; if the page does not react, try the other ways of bringing the list end into view, then jiggle
-        for k, trig in enumerate(variants + ["window.scrollBy(0,-500)"] + variants):
-            js(trig)
+        for k, trig in enumerate(variants + [wheel_down, "window.scrollBy(0,-500)"] + variants):
+            if callable(trig): trig()
+            else: js(trig)
             got = [g for g in wait_responses(col, 9 if k < len(variants) else 6) if inn_of(g['u']) == inn]
             if got: break
         if not got:
