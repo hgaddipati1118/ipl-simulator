@@ -139,7 +139,7 @@ FROM raw WINDOW w AS (PARTITION BY match_id, innings ORDER BY seq ROWS BETWEEN U
 CREATE TABLE b AS
 SELECT b0.*,
   over AS f_over,
-  least(wk_before, 8) * 10 + {bucket_sql('over', OVER_BUCKETS)} AS f_wk,
+  (least(wk_before, 8) * 10 + {bucket_sql('over', OVER_BUCKETS)})::INT AS f_wk,
   {edges_sql('sb', SET_EDGES)} AS f_set,
   CASE WHEN innings=1 THEN -1 ELSE
     {bucket_sql('over', STAGES)} * 100 + {edges_sql('6.0*(inn_target_runs-score_before)/greatest(300-legal_before,1)', RRR_EDGES)} END AS f_chase,
@@ -351,7 +351,8 @@ def vec(v):
 
 
 def table(ctx, f, levels):
-    return [ctx[f].get(lv, [1.0] * K) for lv in levels]
+    # levels are ints; a fit whose level column came back as text (HUGEINT) has string keys
+    return [ctx[f].get(lv, ctx[f].get(str(lv), [1.0] * K)) for lv in levels]
 
 
 lines = []

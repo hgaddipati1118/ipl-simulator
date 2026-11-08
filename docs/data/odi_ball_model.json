@@ -1,0 +1,310 @@
+{
+ "generated": "2026-11-07",
+ "sample": [
+  {
+   "gender": "female",
+   "deliveries": 284146,
+   "matches": 522,
+   "deliveries_2019": 194769.0
+  },
+  {
+   "gender": "male",
+   "deliveries": 764919,
+   "matches": 1389,
+   "deliveries_2019": 420075.0
+  }
+ ],
+ "classes": [
+  "dot",
+  "1",
+  "2",
+  "3",
+  "4",
+  "6",
+  "wicket",
+  "wide",
+  "noball",
+  "legbye"
+ ],
+ "male": {
+  "observed2019": [
+   0.49131,
+   0.30046,
+   0.04831,
+   0.00493,
+   0.07415,
+   0.01749,
+   0.0279,
+   0.02304,
+   0.00226,
+   0.01014
+  ],
+  "base": [
+   0.48714,
+   0.29252,
+   0.04702,
+   0.00481,
+   0.07468,
+   0.01701,
+   0.02806,
+   0.02396,
+   0.00227,
+   0.01011
+  ],
+  "playerSpread": {
+   "batter": {
+    "dot": {
+     "sd": 0.081,
+     "players": 211
+    },
+    "1": {
+     "sd": 0.1,
+     "players": 211
+    },
+    "2": {
+     "sd": 0.131,
+     "players": 211
+    },
+    "3": {
+     "sd": 0.13,
+     "players": 172
+    },
+    "4": {
+     "sd": 0.147,
+     "players": 211
+    },
+    "6": {
+     "sd": 0.278,
+     "players": 205
+    },
+    "wicket": {
+     "sd": 0.153,
+     "players": 211
+    },
+    "wide": {
+     "sd": 0.135,
+     "players": 210
+    },
+    "noball": {
+     "sd": 0.067,
+     "players": 102
+    },
+    "legbye": {
+     "sd": 0.163,
+     "players": 207
+    }
+   },
+   "bowler": {
+    "dot": {
+     "sd": 0.057,
+     "players": 221
+    },
+    "1": {
+     "sd": 0.077,
+     "players": 221
+    },
+    "2": {
+     "sd": 0.114,
+     "players": 221
+    },
+    "3": {
+     "sd": 0.088,
+     "players": 188
+    },
+    "4": {
+     "sd": 0.138,
+     "players": 221
+    },
+    "6": {
+     "sd": 0.145,
+     "players": 221
+    },
+    "wicket": {
+     "sd": 0.111,
+     "players": 221
+    },
+    "wide": {
+     "sd": 0.247,
+     "players": 219
+    },
+    "noball": {
+     "sd": 0.116,
+     "players": 92
+    },
+    "legbye": {
+     "sd": 0.127,
+     "players": 216
+    }
+   }
+  }
+ },
+ "female": {
+  "observed2019": [
+   0.5216,
+   0.28197,
+   0.04503,
+   0.00355,
+   0.07485,
+   0.00492,
+   0.02768,
+   0.02999,
+   0.00221,
+   0.00818
+  ],
+  "base": [
+   0.52486,
+   0.27026,
+   0.04492,
+   0.00356,
+   0.07136,
+   0.00444,
+   0.02831,
+   0.0326,
+   0.00224,
+   0.00827
+  ],
+  "playerSpread": {
+   "batter": {
+    "dot": {
+     "sd": 0.102,
+     "players": 95
+    },
+    "1": {
+     "sd": 0.128,
+     "players": 95
+    },
+    "2": {
+     "sd": 0.14,
+     "players": 95
+    },
+    "3": {
+     "sd": 0.1,
+     "players": 74
+    },
+    "4": {
+     "sd": 0.191,
+     "players": 95
+    },
+    "6": {
+     "sd": 0.243,
+     "players": 57
+    },
+    "wicket": {
+     "sd": 0.152,
+     "players": 95
+    },
+    "wide": {
+     "sd": 0.164,
+     "players": 95
+    },
+    "noball": {
+     "sd": 0.073,
+     "players": 50
+    },
+    "legbye": {
+     "sd": 0.139,
+     "players": 91
+    }
+   },
+   "bowler": {
+    "dot": {
+     "sd": 0.065,
+     "players": 101
+    },
+    "1": {
+     "sd": 0.089,
+     "players": 101
+    },
+    "2": {
+     "sd": 0.11,
+     "players": 101
+    },
+    "3": {
+     "sd": 0.074,
+     "players": 75
+    },
+    "4": {
+     "sd": 0.107,
+     "players": 101
+    },
+    "6": {
+     "sd": 0.105,
+     "players": 80
+    },
+    "wicket": {
+     "sd": 0.104,
+     "players": 101
+    },
+    "wide": {
+     "sd": 0.227,
+     "players": 101
+    },
+    "noball": {
+     "sd": 0.112,
+     "players": 35
+    },
+    "legbye": {
+     "sd": 0.089,
+     "players": 93
+    }
+   }
+  }
+ },
+ "rain": {
+  "source": "Cricsheet ODIs 2012+: no result = result 'no result'; reduced = a result with D/L or a chase of under 50 overs; when as in match-rules-extra.py; oversPerSide = the chase's overs in 5-over bands (20 = 20-24 ...)",
+  "male": {
+   "matches": 1622,
+   "pNoResult": 0.0364,
+   "pReduced": 0.1134,
+   "when": {
+    "preMatch": 0.4645,
+    "firstInnings": 0.1475,
+    "secondInnings": 0.388
+   },
+   "oversPerSide": {
+    "20": 0.1257,
+    "25": 0.1257,
+    "30": 0.1639,
+    "35": 0.1093,
+    "40": 0.2623,
+    "45": 0.2131
+   },
+   "reducedN": 183
+  },
+  "female": {
+   "matches": 606,
+   "pNoResult": 0.0314,
+   "pReduced": 0.1122,
+   "when": {
+    "preMatch": 0.5373,
+    "firstInnings": 0.1493,
+    "secondInnings": 0.3134
+   },
+   "oversPerSide": {
+    "20": 0.194,
+    "25": 0.1343,
+    "30": 0.194,
+    "35": 0.1045,
+    "40": 0.209,
+    "45": 0.1642
+   },
+   "reducedN": 67
+  }
+ },
+ "toss": {
+  "fieldShare2019": {
+   "male": {
+    "fieldShare": 0.602,
+    "n": 886
+   },
+   "female": {
+    "fieldShare": 0.565,
+    "n": 430
+   }
+  },
+  "chaseAdvantage": {
+   "female": 0.0281,
+   "male": 0.0259
+  }
+ }
+}

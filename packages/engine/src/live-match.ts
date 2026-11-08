@@ -3625,10 +3625,18 @@ export function autoResolveDecision(state: MatchState): MatchState {
     }
 
     case 'choose_bowler': {
-      // Pick the bowler with highest bowling OVR
-      let bestId = pending.options[0];
+      // Pick the bowler with highest bowling OVR (an ODI: among those an ODI captain would bowl now, odi-model.ts)
+      let options = pending.options;
+      if (state._internal.rules.matchFormat === "odi" && !pending.reason) {
+        const ni0 = state._internal;
+        const opt = (id: string) => ({ id, overs: ni0.bowlerOvers[id] ?? 0, rating: pm[id]?.bowlingOvr ?? 0 });
+        const attack = [...new Set(ni0.bowlingOrderIds)].filter(id => !(ni0.unavailableBowlers ?? []).includes(id)).map(opt);
+        const keep = odiBowlerChoices(options.map(opt), attack, state.overs, state.maxOvers, ni0.maxOversPerBowler).map(o => o.id);
+        if (keep.length > 0) options = keep;
+      }
+      let bestId = options[0];
       let bestOvr = pm[bestId]?.bowlingOvr ?? 0;
-      for (const id of pending.options) {
+      for (const id of options) {
         const ovr = pm[id]?.bowlingOvr ?? 0;
         if (ovr > bestOvr) { bestOvr = ovr; bestId = id; }
       }
