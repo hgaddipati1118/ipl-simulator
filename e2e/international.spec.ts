@@ -1,38 +1,11 @@
-import { test, expect, type Page } from "@playwright/test";
-
-async function waitForAppReady(page: Page) {
-  await page.waitForLoadState("networkidle");
-  await page.waitForSelector("nav", { timeout: 15000 });
-}
-
-/** Answer whatever the live page asks the user (toss, bowler, batter, review) with its first option, or bowl one ball */
-async function stepLive(page: Page, balls: number) {
-  for (let i = 0; i < balls * 4 && balls > 0; i++) {
-    // a decision modal (toss, bowler, batter, review) has buttons; an overlay without one (a DRS verdict) clears itself
-    const choice = page.locator("div.fixed.inset-0 button:visible").first();
-    if (await choice.count() > 0) {
-      const batFirst = page.getByText("Bat First", { exact: true }).first();
-      if (await batFirst.isVisible().catch(() => false)) await batFirst.click();
-      else await choice.click({ timeout: 2000 }).catch(() => {});
-      await page.waitForTimeout(300);
-      continue;
-    }
-    const step = page.getByRole("button", { name: "Step", exact: true });
-    if (await step.isEnabled().catch(() => false)) {
-      await step.click();
-      balls--;
-    }
-    await page.waitForTimeout(150);
-  }
-}
+import { test, expect } from "@playwright/test";
+import { seedRandom, waitForAppReady } from "./helpers";
+import { startLiveMatch, stepLive } from "./live-helpers";
 
 test.describe("International series and ODIs in the app", () => {
   test.beforeEach(async ({ page }) => {
     // Seeded Math.random: the series / draft seeds, tosses and CPU picks are the same every run
-    await page.addInitScript(() => {
-      let s = 20261107;
-      Math.random = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
-    });
+    await seedRandom(page);
     await page.goto("/");
     await page.evaluate(() => localStorage.removeItem("ipl-sim-intl-series-v1"));
     await page.reload();
@@ -67,12 +40,7 @@ test.describe("International series and ODIs in the app", () => {
     const startBtn = page.getByRole("button", { name: "Start Match" }).first();
     const batFirst = page.getByText("Bat First", { exact: true }).first();
     await expect(startBtn.or(batFirst)).toBeVisible({ timeout: 15000 });
-    for (let i = 0; i < 6; i++) {
-      if (await batFirst.isVisible()) await batFirst.click().catch(() => {});
-      else if (await startBtn.isVisible()) await startBtn.click().catch(() => {});
-      await page.waitForTimeout(600);
-      if (!(await startBtn.isVisible()) && !(await batFirst.isVisible())) break;
-    }
+    await startLiveMatch(page);
     await stepLive(page, 8);
     // 50 overs a side (fewer when rain cut the match before the start)
     await expect(page.getByText(/Inn [12]: \d+\.\d \/ (50|[1-4]\d)$/)).toBeVisible();
@@ -114,12 +82,7 @@ test.describe("International series and ODIs in the app", () => {
     await expect(startBtn.or(batFirst)).toBeVisible({ timeout: 15000 });
     // the pre-match screen (when the CPU won the toss) names the format
     if (await startBtn.isVisible()) await expect(page.getByText("50 overs a side")).toBeVisible();
-    for (let i = 0; i < 6; i++) {
-      if (await batFirst.isVisible()) await batFirst.click().catch(() => {});
-      else if (await startBtn.isVisible()) await startBtn.click().catch(() => {});
-      await page.waitForTimeout(600);
-      if (!(await startBtn.isVisible()) && !(await batFirst.isVisible())) break;
-    }
+    await startLiveMatch(page);
     await stepLive(page, 3);
     await expect(page.getByText(/\/ 50$/)).toBeVisible();
     await page.getByText("Sim Rest").first().click({ timeout: 15000 });

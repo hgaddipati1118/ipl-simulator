@@ -1,19 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-
-async function clearGameState(page: Page) {
-  await page.evaluate(async () => {
-    localStorage.clear();
-    const dbs = await indexedDB.databases();
-    for (const db of dbs) {
-      if (db.name) indexedDB.deleteDatabase(db.name);
-    }
-  });
-}
-
-async function waitForAppReady(page: Page) {
-  await page.waitForLoadState("networkidle");
-  await page.waitForSelector("nav", { timeout: 15000 });
-}
+import { freshGame } from "./helpers";
 
 /**
  * Switch to "CPU Generated" player source so the auction actually runs
@@ -34,10 +20,7 @@ async function setupCustomLeagueWithAuction(page: Page) {
 
 test.describe("Auction Realism", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
-    await clearGameState(page);
-    await page.reload();
-    await waitForAppReady(page);
+    await freshGame(page);
   });
 
   test("skip auction when teams have full real-player rosters", async ({ page }) => {
@@ -96,17 +79,11 @@ test.describe("Auction Realism", () => {
     await teamButton.click({ timeout: 15000 });
     await page.waitForURL("**/auction-live", { timeout: 30000 });
 
-    // The bid button should show an amount with 2 decimal places
-    // e.g. "Bid 0.35 Cr" or "Bid 2.20 Cr"
-    const bidButton = page.locator("button").filter({ hasText: /^Bid \d+\.\d{2} Cr$/ });
-    // It may not be visible if user already highest bidder or passed
-    // but at the start the user should be able to bid
-    const visible = await bidButton.isVisible({ timeout: 5000 }).catch(() => false);
-    if (visible) {
-      const text = await bidButton.textContent();
-      // Verify format is "Bid X.XX Cr"
-      expect(text).toMatch(/^Bid \d+\.\d{2} Cr$/);
-    }
+    // At the start the user (empty squad, full purse) can bid: the button shows the next amount with 2 decimal
+    // places, e.g. "Bid 0.35 Cr" or "Bid 2.20 Cr"
+    const bidButton = page.getByRole("button", { name: /^Bid \d+\.\d{2} Cr$/ });
+    await expect(bidButton).toBeVisible({ timeout: 10000 });
+    await expect(bidButton).toHaveText(/^Bid \d+\.\d{2} Cr$/);
   });
 
   test("sim remaining auction completes with generated players", async ({ page }) => {

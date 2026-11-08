@@ -43,7 +43,7 @@ export function RadarChart({ attributes, teamColor = "#FF822A", size = 220 }: Ra
   const pointsToPath = (pts: number[][]) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0]},${p[1]}`).join(" ") + "Z";
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block" data-testid="radar-chart">
       {/* Grid rings */}
       {rings.map((pct) => (
         <polygon

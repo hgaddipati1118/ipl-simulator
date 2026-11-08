@@ -1,26 +1,9 @@
-import { test, expect, type Page } from "@playwright/test";
-
-async function clearGameState(page: Page) {
-  await page.evaluate(async () => {
-    localStorage.clear();
-    const dbs = await indexedDB.databases();
-    for (const db of dbs) {
-      if (db.name) indexedDB.deleteDatabase(db.name);
-    }
-  });
-}
-
-async function waitForAppReady(page: Page) {
-  await page.waitForLoadState("networkidle");
-  await page.waitForSelector("nav", { timeout: 15000 });
-}
+import { test, expect } from "@playwright/test";
+import { freshGame, waitForAppReady } from "./helpers";
 
 test.describe("Multiplayer flow", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
-    await clearGameState(page);
-    await page.reload();
-    await waitForAppReady(page);
+    await freshGame(page);
   });
 
   test("Multiplayer button is visible on setup page", async ({ page }) => {

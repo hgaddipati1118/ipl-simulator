@@ -1,157 +1,9 @@
-import { test, expect, type Page } from "@playwright/test";
-import { finishLiveMatch } from "./live-helpers";
-
-async function clearGameState(page: Page) {
-  await page.evaluate(async () => {
-    localStorage.clear();
-    const dbs = await indexedDB.databases();
-    for (const db of dbs) {
-      if (db.name) indexedDB.deleteDatabase(db.name);
-    }
-  });
-}
-
-async function waitForAppReady(page: Page) {
-  await page.waitForLoadState("networkidle");
-  await page.waitForSelector("nav", { timeout: 15000 });
-}
-
-async function handleLiveMatch(page: Page) {
-  if (!page.url().includes("/live-match")) return;
-  await finishLiveMatch(page);
-  await page.waitForTimeout(500);
-}
-
-async function handleLineup(page: Page) {
-  if (!page.url().includes("/lineup")) return;
-
-  const lockBtn = page.getByText("Lock In Lineup");
-  const isEnabled = await lockBtn.isEnabled({ timeout: 3000 }).catch(() => false);
-
-  if (isEnabled) {
-    await lockBtn.click();
-    await page.waitForURL("**/live-match/**", { timeout: 15000 });
-    await handleLiveMatch(page);
-  } else {
-    await page.getByText("Cancel").click();
-    await page.waitForURL("**/season", { timeout: 10000 });
-  }
-}
-
-async function pickTeamAndAuction(page: Page, teamIndex = 0) {
-  const teamButton = page.locator("button").filter({ hasText: /PWR \d+/ }).nth(teamIndex);
-  await teamButton.click({ timeout: 15000 });
-
-  await page.waitForURL("**/auction-live", { timeout: 30000 });
-
-  await page.getByText("Sim Remaining Auction").click({ timeout: 15000 });
-
-  await page.getByText(/Start Season/i).first().waitFor({ timeout: 60000 });
-  await page.getByText(/Start Season/i).first().click();
-
-  await Promise.race([
-    page.waitForURL("**/season", { timeout: 30000 }),
-    page.waitForURL("**/lineup", { timeout: 30000 }),
-  ]);
-
-  if (page.url().includes("/lineup")) {
-    await handleLineup(page);
-  }
-}
-
-async function simulateSeason(page: Page) {
-  let needsPlayNextMatch = false;
-  const maxIterations = 200;
-
-  for (let i = 0; i < maxIterations; i++) {
-    const url = page.url();
-
-    if (url.includes("/results")) return;
-
-    if (url.includes("/live-match")) {
-      await handleLiveMatch(page);
-      needsPlayNextMatch = false;
-      continue;
-    }
-
-    if (url.includes("/lineup")) {
-      const lockBtn = page.getByText("Lock In Lineup");
-      const isEnabled = await lockBtn.isEnabled({ timeout: 3000 }).catch(() => false);
-      if (isEnabled) {
-        await lockBtn.click();
-        await page.waitForURL("**/live-match/**", { timeout: 15000 });
-        await handleLiveMatch(page);
-        needsPlayNextMatch = false;
-      } else {
-        await page.getByText("Cancel").click();
-        await page.waitForURL("**/season", { timeout: 10000 });
-        needsPlayNextMatch = true;
-      }
-      continue;
-    }
-
-    if (!url.includes("/season")) {
-      await page.goto("/season");
-      await waitForAppReady(page);
-    }
-
-    const viewResultsBtn = page.getByText("View Results");
-    if (await viewResultsBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await viewResultsBtn.click();
-      await page.waitForURL("**/results", { timeout: 30000 });
-      return;
-    }
-
-    const simSeasonBtn = page.getByText("Simulate Season");
-    if (await simSeasonBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await simSeasonBtn.click();
-      await page.waitForURL("**/results", { timeout: 120000 });
-      return;
-    }
-
-    if (needsPlayNextMatch) {
-      const playBtn = page.getByText("Play Next Match");
-      if (await playBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-        await playBtn.click();
-        await page.waitForURL("**/live-match/**", { timeout: 15000 });
-        await handleLiveMatch(page);
-        needsPlayNextMatch = false;
-        continue;
-      }
-    }
-
-    const simToPlayoffsBtn = page.getByText("Sim to Playoffs");
-    if (await simToPlayoffsBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await simToPlayoffsBtn.click();
-      await page.waitForTimeout(300);
-      continue;
-    }
-
-    const simNext5Btn = page.getByText("Sim Next 5");
-    if (await simNext5Btn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await simNext5Btn.click();
-      await page.waitForTimeout(300);
-      continue;
-    }
-
-    const playNextMatchBtn = page.getByText("Play Next Match");
-    if (await playNextMatchBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await playNextMatchBtn.click();
-      await page.waitForURL("**/live-match/**", { timeout: 15000 });
-      await handleLiveMatch(page);
-      continue;
-    }
-
-    await page.waitForTimeout(500);
-  }
-}
+import { test, expect } from "@playwright/test";
+import { freshGame, pickTeam, simulateSeason } from "./helpers";
 
 test.describe("Custom League", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
-    await clearGameState(page);
-    await page.reload();
-    await waitForAppReady(page);
+    await freshGame(page);
   });
 
   test("Custom button is visible on setup page", async ({ page }) => {
@@ -227,7 +79,7 @@ test.describe("Custom League", () => {
 
     await page.getByText("Apply Custom Rules").click();
 
-    await pickTeamAndAuction(page);
+    await pickTeam(page);
 
     await expect(page.getByText("Season 1").first()).toBeVisible();
 
@@ -242,7 +94,7 @@ test.describe("Custom League", () => {
     await page.getByText("No Playoffs").click();
     await page.getByText("Apply Custom Rules").click();
 
-    await pickTeamAndAuction(page);
+    await pickTeam(page);
 
     await simulateSeason(page);
     await expect(page.getByText("Season 1 Champions")).toBeVisible({ timeout: 10000 });

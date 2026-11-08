@@ -2013,7 +2013,15 @@ export function liveAuctionSimRemaining(state: GameState): GameState {
     maxRosterSize: state.rules.maxSquadSize,
     maxInternational: state.rules.maxOverseasInSquad,
   };
-  const next = engineSimRemainingAuction(state.auctionLiveState, state.teams, auctionConfig);
+  // The engine stops a sim after 10,000 steps (about two per player) as a safety net. From season 2 the pool holds
+  // every free agent (5,000+ players), so one pass ended mid-auction with no way to start the season: keep going
+  // while each pass gets further through the list.
+  let next = engineSimRemainingAuction(state.auctionLiveState, state.teams, auctionConfig);
+  for (let pass = 0; pass < 100 && next.phase !== "complete"; pass++) {
+    const reached = next.currentPlayerIndex;
+    next = engineSimRemainingAuction(next, state.teams, auctionConfig);
+    if (next.currentPlayerIndex === reached && next.phase !== "complete") break;
+  }
   return { ...state, auctionLiveState: next };
 }
 

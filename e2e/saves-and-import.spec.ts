@@ -1,157 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
-import { finishLiveMatch } from "./live-helpers";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function clearGameState(page: Page) {
-  await page.evaluate(async () => {
-    localStorage.clear();
-    const dbs = await indexedDB.databases();
-    for (const db of dbs) {
-      if (db.name) indexedDB.deleteDatabase(db.name);
-    }
-  });
-}
-
-async function waitForAppReady(page: Page) {
-  await page.waitForLoadState("networkidle");
-  await page.waitForSelector("nav", { timeout: 15000 });
-}
-
-async function handleLiveMatch(page: Page) {
-  if (!page.url().includes("/live-match")) return;
-  await finishLiveMatch(page);
-  await page.waitForTimeout(500);
-}
-
-async function handleLineup(page: Page) {
-  if (!page.url().includes("/lineup")) return;
-
-  const lockBtn = page.getByText("Lock In Lineup");
-  const isEnabled = await lockBtn.isEnabled({ timeout: 3000 }).catch(() => false);
-
-  if (isEnabled) {
-    await lockBtn.click();
-    await page.waitForURL("**/live-match/**", { timeout: 15000 });
-    await handleLiveMatch(page);
-  } else {
-    await page.getByText("Cancel").click();
-    await page.waitForURL("**/season", { timeout: 10000 });
-  }
-}
-
-async function pickTeam(page: Page, index = 0) {
-  const teamButton = page
-    .locator("button")
-    .filter({ hasText: /PWR \d+/ })
-    .nth(index);
-  await teamButton.click({ timeout: 15000 });
-
-  await page.waitForURL("**/auction-live", { timeout: 30000 });
-
-  await page.getByText("Sim Remaining Auction").click({ timeout: 15000 });
-
-  await page.getByText(/Start Season/i).first().waitFor({ timeout: 60000 });
-  await page.getByText(/Start Season/i).first().click();
-
-  await Promise.race([
-    page.waitForURL("**/season", { timeout: 30000 }),
-    page.waitForURL("**/lineup", { timeout: 30000 }),
-  ]);
-
-  if (page.url().includes("/lineup")) {
-    await handleLineup(page);
-  }
-}
-
-async function simulateSeason(page: Page) {
-  let needsPlayNextMatch = false;
-  const maxIterations = 200;
-
-  for (let i = 0; i < maxIterations; i++) {
-    const url = page.url();
-
-    if (url.includes("/results")) return;
-
-    if (url.includes("/live-match")) {
-      await handleLiveMatch(page);
-      needsPlayNextMatch = false;
-      continue;
-    }
-
-    if (url.includes("/lineup")) {
-      const lockBtn = page.getByText("Lock In Lineup");
-      const isEnabled = await lockBtn.isEnabled({ timeout: 3000 }).catch(() => false);
-      if (isEnabled) {
-        await lockBtn.click();
-        await page.waitForURL("**/live-match/**", { timeout: 15000 });
-        await handleLiveMatch(page);
-        needsPlayNextMatch = false;
-      } else {
-        await page.getByText("Cancel").click();
-        await page.waitForURL("**/season", { timeout: 10000 });
-        needsPlayNextMatch = true;
-      }
-      continue;
-    }
-
-    if (!url.includes("/season")) {
-      await page.goto("/season");
-      await waitForAppReady(page);
-    }
-
-    const viewResultsBtn = page.getByText("View Results");
-    if (await viewResultsBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await viewResultsBtn.click();
-      await page.waitForURL("**/results", { timeout: 30000 });
-      return;
-    }
-
-    const simSeasonBtn = page.getByText("Simulate Season");
-    if (await simSeasonBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await simSeasonBtn.click();
-      await page.waitForURL("**/results", { timeout: 120000 });
-      return;
-    }
-
-    if (needsPlayNextMatch) {
-      const playBtn = page.getByText("Play Next Match");
-      if (await playBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-        await playBtn.click();
-        await page.waitForURL("**/live-match/**", { timeout: 15000 });
-        await handleLiveMatch(page);
-        needsPlayNextMatch = false;
-        continue;
-      }
-    }
-
-    const simToPlayoffsBtn = page.getByText("Sim to Playoffs");
-    if (await simToPlayoffsBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await simToPlayoffsBtn.click();
-      await page.waitForTimeout(300);
-      continue;
-    }
-
-    const simNext5Btn = page.getByText("Sim Next 5");
-    if (await simNext5Btn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await simNext5Btn.click();
-      await page.waitForTimeout(300);
-      continue;
-    }
-
-    const playNextMatchBtn = page.getByText("Play Next Match");
-    if (await playNextMatchBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await playNextMatchBtn.click();
-      await page.waitForURL("**/live-match/**", { timeout: 15000 });
-      await handleLiveMatch(page);
-      continue;
-    }
-
-    await page.waitForTimeout(500);
-  }
-}
+import { test, expect } from "@playwright/test";
+import { freshGame, waitForAppReady, pickTeam, simulateSeason } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -159,10 +7,7 @@ async function simulateSeason(page: Page) {
 
 test.describe("Saves page", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
-    await clearGameState(page);
-    await page.reload();
-    await waitForAppReady(page);
+    await freshGame(page);
   });
 
   test("saves page is accessible from nav", async ({ page }) => {
@@ -268,10 +113,7 @@ test.describe("Setup page saved games", () => {
   test("shows saved games on setup page for quick-load", async ({ page }) => {
     test.setTimeout(600_000);
 
-    await page.goto("/");
-    await clearGameState(page);
-    await page.reload();
-    await waitForAppReady(page);
+    await freshGame(page);
 
     await pickTeam(page);
     await simulateSeason(page);
@@ -287,10 +129,7 @@ test.describe("Import custom players", () => {
   test("import player ratings file adds players to pool", async ({ page }) => {
     test.setTimeout(120_000);
 
-    await page.goto("/");
-    await clearGameState(page);
-    await page.reload();
-    await waitForAppReady(page);
+    await freshGame(page);
 
     await pickTeam(page);
 
@@ -334,17 +173,15 @@ test.describe("Import custom players", () => {
 
     const fileInput = page.locator('input[type="file"]');
 
+    // The app reports the import in an alert: listen before choosing the file so the dialog can't be missed
+    const dialog = page.waitForEvent("dialog");
     await fileInput.setInputFiles({
       name: "custom-players.json",
       mimeType: "application/json",
       buffer: Buffer.from(playerRatingsJson),
     });
-
-    page.once("dialog", async dialog => {
-      expect(dialog.message()).toContain("Imported 2 players");
-      await dialog.accept();
-    });
-
-    await page.waitForTimeout(1000);
+    const alert = await dialog;
+    expect(alert.message()).toContain("Imported 2 players");
+    await alert.accept();
   });
 });
