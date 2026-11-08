@@ -18,6 +18,7 @@
 import type { BowlingStyle, PitchType, BoundarySize, DewFactor } from "./matchups.js";
 import { VENUE_DATA } from "./venue-data.js";
 import { LEAGUE_DEFS } from "./league-defs.js";
+import { ODI_CONDITIONS, ODI_GROUNDS } from "./odi-venue-data.js";
 
 export interface VenueTypeEdge {
   /** Wickets per 100 balls vs the same bowlers elsewhere */
@@ -67,6 +68,9 @@ export interface VenueProfile {
   /** P(chasing side wins) - 0.5 for equal teams at this ground */
   chaseAdvantage: number;
   source: string;
+  /** Format calibration of applyVenueProfile (absent = the T20 values VENUE_RUN_GAIN, SIX_RUN_SHARE) */
+  runGain?: number;
+  sixRunShare?: number;
 }
 
 /**
@@ -292,10 +296,12 @@ type Probs = Record<string, number>;
 
 /** Apply a measured ground's run, six, wicket and bowler-type effects to one ball's outcome weights. */
 export function applyVenueProfile(probs: Probs, profile: VenueProfile, bowlingStyle: BowlingStyle | undefined): void {
-  const run = Math.pow(profile.runMult, VENUE_RUN_GAIN);
-  const six = Math.pow(profile.sixMult, VENUE_RUN_GAIN);
+  const gain = profile.runGain ?? VENUE_RUN_GAIN;
+  const sixShare = profile.sixRunShare ?? SIX_RUN_SHARE;
+  const run = Math.pow(profile.runMult, gain);
+  const six = Math.pow(profile.sixMult, gain);
   // Non-six scoring absorbs the rest of the run factor so total runs track runMult
-  const other = clamp((run - SIX_RUN_SHARE * six) / (1 - SIX_RUN_SHARE), 0.8, 1.25);
+  const other = clamp((run - sixShare * six) / (1 - sixShare), 0.8, 1.25);
   const type = getVenueTypeModifier(profile, bowlingStyle);
   for (const k of ["1", "2", "3", "4"]) {
     if (probs[k] !== undefined) probs[k] *= other * type.runMod;
@@ -313,4 +319,37 @@ export function applyChaseEdge(probs: Probs, chaseAdvantage: number): void {
     if (probs[k] !== undefined) probs[k] *= 1 + e;
   }
   if (probs.wicket !== undefined) probs.wicket *= 1 - e;
+}
+
+// ── ODI grounds (odi-venue-data.ts) ──
+
+/** Gain on an ODI ground's run factor (benchmark-odi.ts: simulated first-innings totals move one-for-one with it) */
+export const ODI_VENUE_RUN_GAIN = 1.6;
+/** Share of ODI runs that come from sixes (Cricsheet men's ODIs 2019+: ~12%) */
+const ODI_SIX_RUN_SHARE = 0.12;
+
+const groundKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Measured ODI conditions for a ground, by name (the venue analysis' canonical names, e.g. "Melbourne Cricket Ground"):
+ * its ODI run / six / wicket factors (wickets shrunk like the T20 grounds'), the ODI chase advantage. Null when the ground
+ * has fewer than ten ODIs of that gender in the data.
+ */
+export function getOdiVenueProfile(name: string | undefined, gender: "male" | "female" = "male"): VenueProfile | null {
+  if (!name) return null;
+  const key = groundKey(name);
+  const rec = ODI_GROUNDS.find(g => g.gender === gender && groundKey(g.name) === key)
+    ?? ODI_GROUNDS.find(g => g.gender === gender && (key.startsWith(groundKey(g.name)) || groundKey(g.name).startsWith(key)));
+  if (!rec) return null;
+  return {
+    groundName: rec.name,
+    runMult: rec.runFactor / 100,
+    sixMult: (rec.sixFactor ?? 100) / 100,
+    wicketMult: 1 + (rec.wicketFactor / 100 - 1) * WICKET_FACTOR_WEIGHT,
+    edges: {},
+    chaseAdvantage: ODI_CONDITIONS.chaseAdvantage[gender],
+    source: `${gender} ODI ground (${rec.matches} matches)`,
+    runGain: ODI_VENUE_RUN_GAIN,
+    sixRunShare: ODI_SIX_RUN_SHARE,
+  };
 }

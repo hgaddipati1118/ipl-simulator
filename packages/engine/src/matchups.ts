@@ -336,6 +336,8 @@ export function getMatchupModifiers(params: {
   isSecondInnings?: boolean;
   /** Measured venue profile in use: skip the hand-set pitch / dew / boundary-size multipliers */
   measuredVenue?: boolean;
+  /** The format's own model already has the bowler type's phase profile (the ODI): skip the T20 phase modifier */
+  noPhase?: boolean;
 }): {
   wicketMod: number;
   fourMod: number;
@@ -352,7 +354,7 @@ export function getMatchupModifiers(params: {
 
   const phase = getMatchPhase(over);
   const hand = getHandMatchupModifier(bowlingStyle, battingHand);
-  const phaseM = getPhaseModifier(bowlingStyle, phase);
+  const phaseM = params.noPhase ? { wicketMod: 1, economyMod: 1 } : getPhaseModifier(bowlingStyle, phase);
   const pitchM = params.measuredVenue
     ? { wicketMod: 1, boundaryMod: 1 }
     : getPitchModifier(bowlingStyle, pitchType, dewFactor, isSecondInnings);

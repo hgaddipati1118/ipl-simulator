@@ -37,7 +37,7 @@ export type {
 export { Team, IPL_TEAMS, WPL_TEAMS, LEGACY_STADIUM_BOWLING_RATINGS, xiSelectionValue, keeperSelectionValue } from "./team.js";
 export {
   getVenueProfileForTeam, getLeagueChaseAdvantage, deriveStadiumBowlingRating,
-  derivePitchType, deriveBoundarySize, deriveDewFactor,
+  derivePitchType, deriveBoundarySize, deriveDewFactor, getOdiVenueProfile,
 } from "./venues.js";
 export type { VenueProfile } from "./venues.js";
 
@@ -47,7 +47,7 @@ export { getMatchupModifiers, getMatchPhase, isPaceBowler, isFastBowler, isSpinB
 export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";
 
 export { calculateWinProbability } from "./win-probability.js";
-export { getDLSResource, calculateDLSTarget, checkRainInterruption, canProduceResult, getRainDelayNarrative, resources50, resourcesPct, inningsResources, dlsTarget, dlsPar, DLS_G_T20 } from "./dls.js";
+export { getDLSResource, calculateDLSTarget, checkRainInterruption, canProduceResult, getRainDelayNarrative, resources50, resourcesPct, inningsResources, dlsTarget, dlsPar, DLS_G_T20, DLS_G_ODI, dlsGFor, odiRevisedTarget } from "./dls.js";
 export { DRS_REVIEWS_PER_INNINGS, drsAtDismissal, drsAtDot, drsKindOf, drsText, reviewLost } from "./drs.js";
 export type { DrsReview, DrsKind, DrsResult, DrsSide } from "./drs.js";
 export {
@@ -83,7 +83,7 @@ export type {
 export type {
   BallOutcome, BallEvent, InningsScore, MatchResult, MatchInjuryEvent,
   DetailedMatchResult, DetailedBallEvent, BatterInnings,
-  BowlerFigures, InningsScorecard, MVPPlayerPoints,
+  BowlerFigures, InningsScorecard, MVPPlayerPoints, MatchOptions,
 } from "./match.js";
 
 export {
@@ -135,15 +135,21 @@ export { generateRandomPlayer, generatePlayerPool, createPlayerFromData, nextPla
 
 export { randomNormal, clamp, weightedRandom, shuffle, normSInv, displayOversToReal } from "./math.js";
 
-export { RULE_PRESETS, DEFAULT_RULES, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_IDS, ALL_TEAM_IDS, getAuctionType, getMaxRetentions, getSeasonSalaryCap, getScaledRetentions, getAuctionPoolSize } from "./rules.js";
+export { RULE_PRESETS, DEFAULT_RULES, odiRules, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_IDS, ALL_TEAM_IDS, getAuctionType, getMaxRetentions, getSeasonSalaryCap, getScaledRetentions, getAuctionPoolSize } from "./rules.js";
 export type { RuleSet, LeagueType, ExtraLeagueId, PlayoffFormat, MatchFormatId, GenderOption, PlayerSource, AuctionType } from "./rules.js";
 export {
   ALL_LEAGUES, EXTRA_LEAGUES, LEAGUE_RULE_PRESETS, LEAGUE_SCORING_MULTIPLIER,
   getLeague, getExtraLeagueTeams, isExtraLeague, isWomenLeague, isOverseasIn, teamGender, playerGender,
 } from "./leagues.js";
 export type { LeagueDef, LeagueDefData } from "./leagues.js";
-export { T20_FORMAT, HUNDRED_FORMAT, matchFormatFor, phaseOver } from "./format.js";
+export { T20_FORMAT, HUNDRED_FORMAT, ODI_FORMAT, matchFormatFor, phaseOver, hasOwnBallModel, maxFieldersOutside, ballAgeOvers } from "./format.js";
 export type { MatchFormatSpec } from "./format.js";
+export {
+  ODI_OUTCOMES, ODI_REF, ODI_RATING_SLOPES, ODI_CAL, ODI_TAIL_WEIGHT, ODI_RATING_SCALE, odiBallProbabilities, odiContextWeights, odiRatingMultipliers, odiTables, odiBowlerChoices,
+} from "./odi-model.js";
+export type { OdiModelTables, OdiBallContext, OdiPlayerLike, OdiRainRates } from "./odi-model.js";
+export { ODI_MODEL_DATA, ODI_RAIN } from "./odi-model-data.js";
+export { ODI_GROUNDS, ODI_CONDITIONS } from "./odi-venue-data.js";
 
 export {
   evaluateTradeAI, executeTrade, createTradeOffer,
@@ -179,8 +185,10 @@ export {
   setAggression,
   setFieldSetting,
   playLiveSuperOvers,
+  liveMatchFormat,
 } from "./live-match.js";
 export type {
+  LiveMatchOptions,
   MatchState,
   LiveBatterStats,
   LiveBowlerStats,

@@ -35,8 +35,10 @@ import {
   applyVenueProfile,
   applyChaseEdge,
   deriveStadiumBowlingRating,
+  getOdiVenueProfile,
   type VenueProfile,
 } from "./venues.js";
+import { ODI_CONDITIONS } from "./odi-venue-data.js";
 import { LEGACY_STADIUM_BOWLING_RATINGS } from "./team.js";
 import { describeDelivery, retiredHurtLine, retiredOutLine, timedOutLine } from "./delivery-text.js";
 import {
@@ -51,7 +53,9 @@ import {
   type FieldingUnit,
   type WicketKind,
 } from "./fielding.js";
-import { T20_FORMAT, matchFormatFor, phaseOver, type MatchFormatSpec } from "./format.js";
+import { T20_FORMAT, hasOwnBallModel, matchFormatFor, phaseOver, type MatchFormatSpec } from "./format.js";
+import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
+import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
   EXTRAS_RATE_CAL,
   trimRunningRuns,
@@ -79,7 +83,7 @@ import {
   specialPlayText,
 } from "./special-plays.js";
 import { DRS_REVIEWS_PER_INNINGS, drsAtDismissal, drsAtDot, drsKindOf, drsText, reviewLost, type DrsReview } from "./drs.js";
-import { DLS_G_T20, dlsTarget, inningsResources, resourcesPct } from "./dls.js";
+import { DLS_G_T20, dlsGFor, dlsTarget, inningsResources, resourcesPct } from "./dls.js";
 import { MATCH_RULES_EXTRA } from "./match-rules-extra-data.js";
 
 export type BallOutcome = "dot" | "1" | "2" | "3" | "4" | "6" | "wicket" | "wide" | "noball" | "legbye";
@@ -343,6 +347,9 @@ export interface MatchOptions {
   neutralVenue?: boolean;
   countTowardStandings?: boolean;
   venueName?: string;
+  /** Settle a tie with super overs. Default: yes in T20 and The Hundred; no in an ODI, where a tie stands (bilateral
+   *  series, group stages). Pass true for an ODI knockout whose competition plays one (ICC event semi-finals, finals). */
+  superOver?: boolean;
 }
 
 /** Phase multipliers for outcome probabilities (aligned with live-match.ts)
@@ -427,9 +434,12 @@ interface BallRules {
   drs?: { batting: number; fielding: number };
   /** The slow over-rate restriction is on */
   overRatePenalty?: boolean;
+  /** Formats with their own ball model (the ODI): the striker's balls faced so far, the overs the innings is scheduled for */
+  batterBalls?: number;
+  scheduledOvers?: number;
 }
 
-/** Simulate a single ball */
+/** Simulate a single ball. `over` is the over of the innings on the T20 timeline (phaseOver); in an ODI, the over itself */
 function simulateBall(
   batter: Player,
   bowler: Player,
@@ -446,17 +456,30 @@ function simulateBall(
   rules: BallRules = { freeHit: false, fmt: T20_FORMAT, gender: "male" },
   nonStriker?: Player,
 ): BallEvent {
-  let probs = baseOutcomeProbabilities(batter, bowler);
-  // Women's cricket has its own wide / no-ball / bye rates
-  applyGenderExtras(probs, rules.gender);
+  // The ODI has its own fitted model (odi-model.ts): over, wickets in hand, set batter, chase, bowler type, ratings, per gender.
+  // It stands in for the T20 base matrix, phase multipliers, chase adjustment and ball-change rule below.
+  const own = hasOwnBallModel(rules.fmt);
+  let probs: Record<BallOutcome, number>;
+  if (own) {
+    probs = odiBallProbabilities(batter, bowler, {
+      over, wicketsDown, batterBalls: rules.batterBalls ?? 0, gender: rules.gender, scheduledOvers: rules.scheduledOvers,
+      chase: isSecondInnings ? { runsNeeded: target - currentScore, ballsLeft: ballsRemaining } : undefined,
+    });
+  } else {
+    probs = baseOutcomeProbabilities(batter, bowler);
+    // Women's cricket has its own wide / no-ball / bye rates
+    applyGenderExtras(probs, rules.gender);
+  }
   const nbf = ruleOverrides().noBallRateFactor;
   if (nbf !== undefined) probs.noball *= nbf;
 
   // Phase adjustment
-  const phase = getMatchPhase(over);
-  const phaseMult = PHASE_MULTIPLIERS[phase];
-  for (const key of Object.keys(probs) as BallOutcome[]) {
-    probs[key] *= phaseMult[key] ?? 1;
+  if (!own) {
+    const phase = getMatchPhase(over);
+    const phaseMult = PHASE_MULTIPLIERS[phase];
+    for (const key of Object.keys(probs) as BallOutcome[]) {
+      probs[key] *= phaseMult[key] ?? 1;
+    }
   }
 
   // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel.
@@ -467,7 +490,7 @@ function simulateBall(
 
   // Measured ground: run / six / wicket factors and bowler-type edges
   if (venue.profile) applyVenueProfile(probs, venue.profile, bowler.bowlingStyle);
-  if (isSecondInnings) applyChaseEdge(probs, venue.chaseAdvantage);
+  if (isSecondInnings && !own) applyChaseEdge(probs, venue.chaseAdvantage);
 
   // Style, handedness, and venue context
   const matchupMods = getMatchupModifiers({
@@ -479,6 +502,7 @@ function simulateBall(
     dewFactor: venue.dewFactor,
     isSecondInnings,
     measuredVenue: venue.profile !== null,
+    ...(own ? { noPhase: true } : {}),
   });
   probs.wicket *= matchupMods.wicketMod;
   probs["4"] *= matchupMods.fourMod;
@@ -486,7 +510,7 @@ function simulateBall(
   probs.dot *= matchupMods.dotMod;
 
   // Ball change rule (IPL 2026): after over 10 in 2nd innings, drier ball helps pace
-  if (isSecondInnings && over >= 10) {
+  if (isSecondInnings && over >= 10 && !own) {
     const bowlStyle = bowler.bowlingStyle;
     if (bowlStyle && isPaceBowler(bowlStyle)) {
       probs.wicket *= 1.08;
@@ -496,7 +520,7 @@ function simulateBall(
   }
 
   // Chase context
-  if (isSecondInnings && ballsRemaining > 0) {
+  if (isSecondInnings && ballsRemaining > 0 && !own) {
     const requiredRate = ((target - currentScore) / ballsRemaining) * 6;
     const currentRate = ballsRemaining < inningsBalls
       ? (currentScore / (inningsBalls - ballsRemaining)) * 6
@@ -505,7 +529,7 @@ function simulateBall(
   }
 
   // Clutch factor for last 3 overs in close games
-  if (over >= 17 && isSecondInnings) {
+  if (isSecondInnings && (own ? over >= (rules.scheduledOvers ?? rules.fmt.overs) - 3 : over >= 17)) {
     const runsNeeded = target - currentScore;
     if (runsNeeded > 0 && runsNeeded <= 30) {
       const clutchBalance = (batter.ratings.clutch * getClutchMoraleModifier(batter) - bowler.ratings.clutch * getClutchMoraleModifier(bowler)) / 100;
@@ -531,8 +555,10 @@ function simulateBall(
   // A free hit: boundaries come easier and only the run-out family can dismiss
   if (rules.freeHit) applyFreeHitToProbs(probs);
 
-  // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down)
-  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle, rules.gender);
+  // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down).
+  // An ODI has its own dismissal mix (more bowled and lbw than a T20)
+  const mix = own ? ODI_DISMISSAL_MIX[rules.gender] : undefined;
+  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle, rules.gender, mix);
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
@@ -543,7 +569,7 @@ function simulateBall(
   let resolution: ReturnType<typeof resolveWicketChance> | undefined;
   if (outcome === "wicket") {
     resolution = resolveWicketChance(fieldingUnit, bowler.id, bowler.bowlingStyle, probs, rng, {
-      gender: rules.gender, freeHit: rules.freeHit, bench: rules.bench,
+      gender: rules.gender, freeHit: rules.freeHit, bench: rules.bench, ...(mix ? { mix } : {}),
     });
     if (resolution.outcome !== "wicket") outcome = resolution.outcome;
   }
@@ -815,7 +841,22 @@ function getVenueContext(
   homeTeam: Team,
   rules: RuleSet,
   options?: MatchOptions,
+  fmt: MatchFormatSpec = T20_FORMAT,
 ): VenueContext {
+  if (hasOwnBallModel(fmt)) {
+    // An ODI: the ground's measured ODI conditions where the venue analysis has them (by name), never the T20 league levels
+    const gender = genderOf(rules);
+    const profile = options?.neutralVenue ? null : getOdiVenueProfile(options?.venueName ?? homeTeam.config.stadiumName, gender);
+    return {
+      stadiumBowlRating: 1.0 * (2 - rules.scoringMultiplier),
+      pitchType: options?.neutralVenue ? "balanced" : homeTeam.config.pitchType ?? "balanced",
+      boundarySize: options?.neutralVenue ? "medium" : homeTeam.config.boundarySize ?? "medium",
+      dewFactor: "none",
+      profile,
+      chaseAdvantage: profile?.chaseAdvantage ?? ODI_CONDITIONS.chaseAdvantage[gender],
+      gender,
+    };
+  }
   const leagueChase = getLeagueChaseAdvantage(rules.league, rules.gender);
   if (options?.neutralVenue) {
     return {
@@ -971,6 +1012,7 @@ function simulateInnings(
   const fieldXI = so ? [...so.fieldXI] : [...bowlingXI];
   let fieldingUnit = buildFieldingUnit(fieldXI);
   const gender = venue.gender ?? "male";
+  const own = hasOwnBallModel(fmt); // the ODI: its own ball model and captaincy
   const maxWickets = so ? 2 : 10;
   const rp = retireParams();
   // DRS: reviews per side this innings (one each in a super over); slow over rate restriction drawn for the innings
@@ -981,7 +1023,7 @@ function simulateInnings(
   const beamers = new Map<string, number>();
   let pendingNote: string | undefined; // a line about something between balls, added to the next ball
   if (extra.timeouts && !so) innings.timeouts = [];
-  const bench: Player[] = bowlingTeam.roster.filter(p => !fieldXI.includes(p) && !p.injured);
+  const bench: Player[] = bowlingTeam.roster.filter(p => !fieldXI.some(f => f.id === p.id) && !p.injured);
   if (so) {
     innings.superOver = { batters: battingOrder.map(p => p.id), bowler: bowlers[0]?.id ?? "" };
   }
@@ -1006,8 +1048,9 @@ function simulateInnings(
   const offBall: OffBallDismissal[] = [];
   innings.offBall = offBall;
 
-  // Bowling allocation: each bowler can bowl max 4 overs (or 1 in super over)
-  const maxOversPerBowler = maxOvers === 1 ? 1 : fmt.maxOversPerBowler;
+  // Bowling allocation: each bowler can bowl max 4 overs (or 1 in super over). An ODI cut short by rain: a fifth of the overs
+  const odiCap = (o: number) => Math.min(fmt.maxOversPerBowler, Math.ceil(o / 5));
+  let maxOversPerBowler = maxOvers === 1 ? 1 : own ? odiCap(maxOvers) : fmt.maxOversPerBowler;
   let consecutiveOvers = 0; // overs in a row by the current bowler (The Hundred allows two sets in a row)
   const bowlerOvers = new Map<string, number>();
   for (const b of bowlers) bowlerOvers.set(b.id, 0);
@@ -1053,6 +1096,7 @@ function simulateInnings(
     if (extra.revise && over === extra.revise.atOver) {
       maxOvers = Math.max(over, extra.revise.newOvers);
       innings.scheduledOvers = maxOvers;
+      if (own) maxOversPerBowler = odiCap(maxOvers); // a bowler already past the new cap bowls no more
       if (extra.revise.target) {
         target = extra.revise.target(innings.wickets, innings.runs);
         innings.dlsTarget = target;
@@ -1142,9 +1186,14 @@ function simulateInnings(
       );
     }
 
-    let bowler = eligibleBowlers.sort((a, b) => b.effectiveBowlingOvr - a.effectiveBowlingOvr)[
-      Math.floor(rng() * Math.min(3, eligibleBowlers.length))
-    ];
+    let pool = eligibleBowlers.sort((a, b) => b.effectiveBowlingOvr - a.effectiveBowlingOvr);
+    if (own) {
+      // 50 overs, ten each: keep the quotas finishable and the best two's last overs for the death (odi-model.ts)
+      const opt = (b: Player) => ({ id: b.id, overs: bowlerOvers.get(b.id) ?? 0, rating: b.effectiveBowlingOvr });
+      const keep = new Set(odiBowlerChoices(pool.map(opt), bowlers.filter(b => !unavailable.has(b.id)).map(opt), over, maxOvers, maxOversPerBowler).map(o => o.id));
+      pool = pool.filter(b => keep.has(b.id));
+    }
+    let bowler = pool[Math.floor(rng() * Math.min(3, pool.length))];
 
     const streakBefore = consecutiveOvers; // how many overs in a row the last over's bowler had bowled
     consecutiveOvers = bowler.id === lastBowlerId ? consecutiveOvers + 1 : 1;
@@ -1200,7 +1249,7 @@ function simulateInnings(
       const event = simulateBall(
         striker,
         bowler,
-        phaseOver(over, fmt),
+        own ? over : phaseOver(over, fmt),
         isSecondInnings,
         target,
         innings.runs,
@@ -1210,7 +1259,10 @@ function simulateInnings(
         rng,
         fieldingUnit,
         fmt.totalBalls,
-        { freeHit, fmt, gender, bench, superOver: !!so, drs, overRatePenalty: overRateFrom >= 0 && over >= overRateFrom },
+        {
+          freeHit, fmt, gender, bench, superOver: !!so, drs, overRatePenalty: overRateFrom >= 0 && over >= overRateFrom,
+          ...(own ? { batterBalls: innings.batterStats.get(striker.id)!.balls, scheduledOvers: maxOvers } : {}),
+        },
         nonStriker,
       );
       event.over = over;
@@ -1317,8 +1369,8 @@ function simulateInnings(
     // Ends change at the end of an over; in The Hundred every ten balls (two sets), not every set
     if (fmt.id !== "hundred" || (over + 1) % 2 === 0) [strikerIdx, nonStrikerIdx] = [nonStrikerIdx, strikerIdx];
 
-    // ── Retired out (a tactical retirement in the death overs; not a wicket, cannot return) ──
-    if (!so && over >= 13 && over < maxOvers - 1 && nextIdx < battingOrder.length && rng() < rp.retiredOutPerInning / 6) {
+    // ── Retired out (a tactical retirement in the T20 death overs; not a wicket, cannot return; not an ODI tactic) ──
+    if (!so && !own && over >= 13 && over < maxOvers - 1 && nextIdx < battingOrder.length && rng() < rp.retiredOutPerInning / 6) {
       const sIdx = strikerIdx;
       const goIdx = (innings.batterStats.get(battingOrder[sIdx].id)!.balls >= innings.batterStats.get(battingOrder[nonStrikerIdx].id)!.balls) ? sIdx : nonStrikerIdx;
       const st = innings.batterStats.get(battingOrder[goIdx].id)!;
@@ -1800,8 +1852,8 @@ function buildDetailedResult(
 let matchCounter = 0;
 
 /** Simulate a full T20 match between two teams */
-/** Rain for one match, drawn from the league's fitted rates (match-rules-extra-data.ts `rain`, RULES-MATCH.md 13.3) */
-interface RainPlan {
+/** Rain for one match, drawn from the league's fitted rates (match-rules-extra-data.ts `rain`, RULES-MATCH.md 13.3; ODIs: odi-model-data.ts ODI_RAIN) */
+export interface RainPlan {
   kind: "reduced" | "no_result";
   when: "preMatch" | "firstInnings" | "secondInnings";
   /** Overs (sets) per side after the cut */
@@ -1810,32 +1862,37 @@ interface RainPlan {
   stopAt: number;
 }
 
-function planRain(rules: RuleSet, rng: RNG, fmt: MatchFormatSpec): RainPlan | null {
+export function planRain(rules: RuleSet, rng: RNG, fmt: MatchFormatSpec): RainPlan | null {
   const R = MATCH_RULES_EXTRA.rain;
   const o = ruleOverrides();
-  const lg = R.byLeague[rules.league] ?? R.default;
+  // ODIs have their own fitted rates (odi-model-data.ts ODI_RAIN); T20 leagues theirs
+  const odi = fmt.id === "odi" ? ODI_RAIN[genderOf(rules) === "female" ? "women" : "men"] : undefined;
+  const lg = odi ?? R.byLeague[rules.league] ?? R.default;
   const pNR = o.rainNoResult ?? lg.pNoResult;
   const pRed = o.rainReduced ?? lg.pReduced;
   const u = rng();
   if (u >= pNR + pRed) return null;
   const full = fmt.overs;
-  const minOvers = Math.ceil((5 * 6) / fmt.ballsPerOver); // five overs (30 balls; The Hundred 25 balls = 5 sets) for a result
+  // five overs (30 balls; The Hundred 25 balls = 5 sets) for a result; twenty in an ODI
+  const minOvers = fmt.minOversForResult ?? Math.ceil((5 * 6) / fmt.ballsPerOver);
   if (u < pNR) {
     // Abandoned: in the first innings, or in the chase before it reached the five overs a result needs
     const inFirst = rng() < 0.5;
     const stopAt = inFirst ? 1 + Math.floor(rng() * (full - 1)) : Math.floor(rng() * minOvers);
     return { kind: "no_result", when: inFirst ? "firstInnings" : "secondInnings", overs: stopAt, stopAt };
   }
-  const w = R.when;
+  const w = odi?.when ?? R.when;
   const x = rng() * (w.preMatch + w.firstInnings + w.secondInnings);
   const when: RainPlan["when"] = x < w.preMatch ? "preMatch" : x < w.preMatch + w.firstInnings ? "firstInnings" : "secondInnings";
-  // overs per side after the cut (data in T20 overs; The Hundred scales them to sets)
+  // overs per side after the cut (data in T20 overs; The Hundred scales them to sets; ODI data in 5-over bands)
   let y = rng(); let t20 = 10;
-  const tab = R.oversPerSide as Record<string, number>;
+  const tab = (odi?.oversPerSide ?? R.oversPerSide) as Record<string, number>;
   const tot = Object.values(tab).reduce((a, b) => a + b, 0);
   y *= tot;
   for (const [k, v] of Object.entries(tab)) { y -= v; if (y <= 0) { t20 = Number(k); break; } }
-  const overs = Math.max(minOvers, Math.min(full - 1, Math.round((t20 * full) / 20)));
+  const overs = odi
+    ? Math.max(minOvers, Math.min(full - 1, t20 + Math.floor(rng() * 5)))
+    : Math.max(minOvers, Math.min(full - 1, Math.round((t20 * full) / 20)));
   const stopAt = when === "preMatch" ? 0 : Math.max(1, Math.floor(rng() * overs));
   return { kind: "reduced", when, overs, stopAt };
 }
@@ -1858,22 +1915,30 @@ export function simulateMatch(
   const matchId = `match_${++matchCounter}`;
 
   const fmt = matchFormatFor(rules);
-  const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
-  const awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI);
+  const own = hasOwnBallModel(fmt); // the ODI
+  // The XIs as they play this format: ODI ratings where a player has them (Player.forFormat); injuries and stats go to
+  // the players themselves (realXI)
+  const realHomeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
+  const realAwayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI);
+  const homeXI = own ? realHomeXI.map(p => p.forFormat("odi")) : realHomeXI;
+  const awayXI = own ? realAwayXI.map(p => p.forFormat("odi")) : realAwayXI;
 
-  // Impact player subs (empty arrays if rule is off)
-  const homeSubs = rules.impactPlayer ? homeTeam.getImpactSubs(homeXI) : [];
-  const awaySubs = rules.impactPlayer ? awayTeam.getImpactSubs(awayXI) : [];
+  // Impact player subs (empty arrays if rule is off; never in an ODI)
+  const homeSubs = rules.impactPlayer && !own ? homeTeam.getImpactSubs(homeXI) : [];
+  const awaySubs = rules.impactPlayer && !own ? awayTeam.getImpactSubs(awayXI) : [];
 
   // Toss
   const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
-  const venue = getVenueContext(homeTeam, rules, options);
-  // Measured grounds: follow the chase record. Unmapped (custom) venues keep the dew/pitch heuristic.
-  const tossDecision = decideTossChoice({
-    ...venue,
-    chaseAdvantage: venue.profile ? venue.chaseAdvantage : undefined,
-    rng,
-  });
+  const venue = getVenueContext(homeTeam, rules, options, fmt);
+  // Measured grounds: follow the chase record. Unmapped (custom) venues keep the dew/pitch heuristic. ODI captains field
+  // first as often as the real ones have since 2019.
+  const tossDecision = own
+    ? (rng() < ODI_CONDITIONS.tossFieldShare[venue.gender ?? "male"] ? "bowl" : "bat")
+    : decideTossChoice({
+      ...venue,
+      chaseAdvantage: venue.profile ? venue.chaseAdvantage : undefined,
+      rng,
+    });
 
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
   const bowlingFirst = battingFirst === homeTeam ? awayTeam : homeTeam;
@@ -1886,8 +1951,8 @@ export function simulateMatch(
 
   // Rain (fitted per league): a full match, a shortened one with a DLS target, or no result
   const plan = options?.rain ? planRain(rules, rng, fmt) : null;
-  const ipl = rules.league === "ipl";
-  const G = DLS_G_T20 * (rules.scoringMultiplier ?? 1) * (fmt.totalBalls / 120);
+  const ipl = rules.league === "ipl" && !own; // strategic timeouts: IPL T20s only
+  const G = own ? dlsGFor(fmt, genderOf(rules)) : DLS_G_T20 * (rules.scoringMultiplier ?? 1) * (fmt.totalBalls / 120);
   const fullOvers = fmt.overs;
   const oversFull = fmt.totalBalls / 6; // the DLS table counts 6-ball overs (The Hundred: 100 balls = 16.7 overs)
   const toDls = (sets: number) => (sets * fmt.ballsPerOver) / 6;
@@ -1976,6 +2041,9 @@ export function simulateMatch(
   let margin: string;
   let superOverRounds: [InningsScore, InningsScore][] | undefined;
   const dlsTag = rainInfo?.kind === "reduced" && rainInfo.when !== "preMatch" ? " (DLS method)" : "";
+  // A tie stands in an ODI unless the competition settles it with a super over
+  const superOverOnTie = options?.superOver ?? !own;
+  let tied = false;
 
   if (noResult) {
     // No result: a point each in the league. A knockout cannot end that way: the higher-placed side (the home side
@@ -1988,6 +2056,9 @@ export function simulateMatch(
   } else if (innings2.runs < par) {
     winnerId = battingFirst.id;
     margin = `${par - innings2.runs} runs${dlsTag}`;
+  } else if (!superOverOnTie) {
+    tied = true;
+    margin = "Tie";
   } else {
     // Tie -> Super Over(s): one over each, two wickets end it, three nominated batters and one bowler, the side that
     // batted second in the match bats first. Further super overs follow while it stays tied (repeated-super-over), and
@@ -2011,9 +2082,10 @@ export function simulateMatch(
         return { batters, bowler, fieldXI: xiOf(bowl) };
       };
       const n1 = nominate(first, second);
-      const so1 = simulateInnings(first, second, xiOf(first), xiOf(second), false, 0, venue, 1, [], [], rng, fmt, { superOver: n1 });
+      const soFmt = own ? T20_FORMAT : fmt; // an ODI's super over is the same six balls as a T20's
+      const so1 = simulateInnings(first, second, xiOf(first), xiOf(second), false, 0, venue, 1, [], [], rng, soFmt, { superOver: n1 });
       const n2 = nominate(second, first);
-      const so2 = simulateInnings(second, first, xiOf(second), xiOf(first), true, so1.runs + 1, venue, 1, [], [], rng, fmt, { superOver: n2 });
+      const so2 = simulateInnings(second, first, xiOf(second), xiOf(first), true, so1.runs + 1, venue, 1, [], [], rng, soFmt, { superOver: n2 });
       rounds.push([so1, so2]);
       if (so1.runs !== so2.runs) {
         winnerId = so2.runs > so1.runs ? second.id : first.id;
@@ -2049,11 +2121,16 @@ export function simulateMatch(
     homeTeam.ties++;
     awayTeam.ties++;
   } else if (options?.countTowardStandings ?? true) {
-    const winner = winnerId === homeTeam.id ? homeTeam : awayTeam;
-    const loser = winner === homeTeam ? awayTeam : homeTeam;
-
-    winner.wins++;
-    loser.losses++;
+    if (tied) {
+      // A tie that stands (ODI): a point each; the match counts in the net run rate
+      homeTeam.ties++;
+      awayTeam.ties++;
+    } else {
+      const winner = winnerId === homeTeam.id ? homeTeam : awayTeam;
+      const loser = winner === homeTeam ? awayTeam : homeTeam;
+      winner.wins++;
+      loser.losses++;
+    }
 
     // Group-stage standings use official NRR treatment: a bowled-out side is charged the full quota. In a match
     // shortened by rain each side is charged the overs it had; when DLS revised the target, the side batting first is
@@ -2092,7 +2169,7 @@ export function simulateMatch(
   // Run injury checks using the injury system (WT3)
   const injuries: MatchInjuryEvent[] = [];
   const injuriesEnabled = rules.injuriesEnabled ?? true;
-  const homeInjuries = runPostMatchInjuryChecks(homeXI, injuriesEnabled, { gender: rules.gender });
+  const homeInjuries = runPostMatchInjuryChecks(realHomeXI, injuriesEnabled, { gender: rules.gender });
   for (const { player, injury } of homeInjuries) {
     injuries.push({
       playerId: player.id,
@@ -2101,7 +2178,7 @@ export function simulateMatch(
       injury,
     });
   }
-  const awayInjuries = runPostMatchInjuryChecks(awayXI, injuriesEnabled, { gender: rules.gender });
+  const awayInjuries = runPostMatchInjuryChecks(realAwayXI, injuriesEnabled, { gender: rules.gender });
   for (const { player, injury } of awayInjuries) {
     injuries.push({
       playerId: player.id,

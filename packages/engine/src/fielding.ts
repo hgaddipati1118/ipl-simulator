@@ -184,9 +184,12 @@ function isPaceStyle(style: BowlingStyle | undefined): boolean {
 
 const NO_CONVERSION: readonly WicketKind[] = ["bowled", "lbw", "hit_wicket", "obstructing_the_field", "handled_the_ball", "hit_the_ball_twice"];
 
+/** A format's own dismissal mix (shares by kind; the ODI's: odi-model-data.ts). Absent = the fitted T20 mix */
+export type DismissalMix = Readonly<Record<string, number>>;
+
 /** Shares of dismissals (sum 1) by kind for a bowler type, before any conversion */
-function kindShares(style: BowlingStyle | undefined, gender: Gender): Record<WicketKind, number> {
-  const mix = D.dismissalMix[gender] as Record<string, number>;
+function kindShares(style: BowlingStyle | undefined, gender: Gender, formatMix?: DismissalMix): Record<WicketKind, number> {
+  const mix = (formatMix ?? D.dismissalMix[gender]) as Record<string, number>;
   const ratio = isSpinStyle(style) ? STUMPED_RATIO.spin : isPaceStyle(style) ? STUMPED_RATIO.pace : STUMPED_RATIO.other;
   const stumped = Math.min(0.5, mix.stumped * ratio * STUMPED_ENGINE_SCALE);
   const rest = (1 - stumped) / (1 - mix.stumped);
@@ -196,8 +199,8 @@ function kindShares(style: BowlingStyle | undefined, gender: Gender): Record<Wic
 }
 
 /** Relative weight of each dismissal kind given the bowler, with chances inflated by 1/conversion */
-function kindWeights(style: BowlingStyle | undefined, gender: Gender): Record<WicketKind, number> {
-  const sh = kindShares(style, gender);
+function kindWeights(style: BowlingStyle | undefined, gender: Gender, formatMix?: DismissalMix): Record<WicketKind, number> {
+  const sh = kindShares(style, gender, formatMix);
   const out = {} as Record<WicketKind, number>;
   for (const k of Object.keys(sh) as WicketKind[]) {
     const c = k === "caught" || k === "caught_and_bowled" ? CONV.catch.base : k === "stumped" ? CONV.stump.base : k === "run_out" ? CONV.runOut.base : 1;
@@ -207,9 +210,9 @@ function kindWeights(style: BowlingStyle | undefined, gender: Gender): Record<Wi
 }
 
 /** Factor on the base wicket probability so that chances, after average conversion, give the base rate */
-export function chanceInflation(style: BowlingStyle | undefined, gender: Gender = "male"): number {
+export function chanceInflation(style: BowlingStyle | undefined, gender: Gender = "male", formatMix?: DismissalMix): number {
   let t = 0;
-  for (const v of Object.values(kindWeights(style, gender))) t += v;
+  for (const v of Object.values(kindWeights(style, gender, formatMix))) t += v;
   return t;
 }
 
@@ -221,6 +224,7 @@ export function applyFieldingToProbs(
   unit: FieldingUnit | undefined,
   bowlerStyle: BowlingStyle | undefined,
   gender: Gender = "male",
+  formatMix?: DismissalMix,
 ): void {
   if (unit) {
     const q = unit.quality;
@@ -241,7 +245,7 @@ export function applyFieldingToProbs(
     // mass p*(W-1) of chances put down at average conversion comes back as scoring outcomes (resolveWicketChance
     // resamples them in proportion to the scoring weights), so the scoring weights give up exactly that much.
     // The total weight is unchanged, so nothing else needs rescaling.
-    const W = chanceInflation(bowlerStyle, gender);
+    const W = chanceInflation(bowlerStyle, gender, formatMix);
     let total = 0;
     for (const v of Object.values(probs)) total += v;
     let scoring = 0;
@@ -284,6 +288,8 @@ export interface ResolveOptions {
   freeHit?: boolean;
   /** Players off the field who can field as substitutes */
   bench?: readonly FielderLike[];
+  /** The format's dismissal mix (the ODI's); absent = the T20 mix */
+  mix?: DismissalMix;
 }
 
 /**
@@ -302,7 +308,7 @@ export function resolveWicketChance(
   const gender = opts.gender ?? "male";
   const freeHit = !!opts.freeHit;
   const o = ruleOverrides();
-  let w: Record<string, number> = kindWeights(bowlerStyle, gender);
+  let w: Record<string, number> = kindWeights(bowlerStyle, gender, opts.mix);
   if (freeHit) w = { ...D.freeHit.kinds };
   const kinds = Object.keys(w).filter(k => canDismiss(k as WicketKind, "legal", freeHit)) as WicketKind[];
   let kind: WicketKind;
