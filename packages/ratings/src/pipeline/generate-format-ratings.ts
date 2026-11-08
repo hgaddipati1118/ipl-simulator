@@ -34,14 +34,13 @@
  */
 
 import { execFileSync } from "child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { gunzipSync, gzipSync } from "zlib";
 import { join } from "path";
 import {
   createPlayerFromData, normalizeRatingsForRole, calculateBattingOverall, calculateBowlingOverall, calculateOverallRating,
   type PlayerRatings, type PlayerRole,
 } from "@ipl-sim/engine";
-import { ALL_PLAYERS } from "../all-players.js";
 import { WPL_PLAYERS } from "../wpl-players.js";
 import { getRealPlayers, getPoolPlayers } from "../real-players.js";
 import { getLeaguePlayers, EXTRA_LEAGUE_IDS } from "../league-players.js";
@@ -50,7 +49,7 @@ import { CORE_KEYS, encodeSet, FORMAT_RATINGS_VERSION, type EncodedSet, type For
 import { shiftTo, type GameRatings } from "./model-ratings.js";
 import {
   buildContext, caParams, doesSide, estimateFormat, fitLine, fitTranslations, linkCurve, loadCaFormats, percentile, quantile, RANK_CONSERVATISM, readCurve, REGULAR_BALLS,
-  type CaFormat, type CaPlayerFormats, type EstimateContext, type FormatScore, type Gender, type Side, SIDES,
+  type CaPlayerFormats, type EstimateContext, type FormatScore, type Gender, type Side, SIDES,
 } from "./format-model.js";
 import { validate, type FormatValidation } from "./format-validation.js";
 
@@ -615,7 +614,6 @@ function main(): void {
     const total = poolData.manifest.shards.reduce((s, x) => s + x.bytes, 0);
     console.log(`pool shards rewritten with format sets: ${poolData.manifest.shards.length} files, ${(total / 1024).toFixed(0)} KB`);
   }
-  void readdirSync;
 }
 
 main();

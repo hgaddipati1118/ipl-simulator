@@ -26,7 +26,12 @@ interface PlayerDiag {
   id: string; name: string; country: string; age: number; group: "espn" | "league" | "extended"; tier: string | null; caId: number | null; role: string;
   t20: { batOvr: number; bowlOvr: number; overall: number; ratings: Record<string, number> }; odi: FmtDiag; test: FmtDiag;
 }
-interface GenderDiag { summary: Record<string, any>; players: PlayerDiag[] }
+type Quantiles = number[];
+interface SideSummary {
+  regulars: number; linkPlayers: number; t20Regulars: number;
+  distribution: { format: Quantiles; t20: Quantiles; formatAttrs: Record<string, Quantiles>; t20Attrs: Record<string, Quantiles> };
+}
+interface GenderDiag { summary: Record<string, SideSummary> & { sources?: unknown }; players: PlayerDiag[] }
 
 const diag = JSON.parse(readFileSync(`${DIR}format_ratings.json`, "utf-8")) as Record<"male" | "female", GenderDiag>;
 const validation = JSON.parse(readFileSync(`${DIR}format_ratings_validation.json`, "utf-8").replace(/\bNaN\b/g, "null")) as Record<string, FormatValidation>;
@@ -43,7 +48,6 @@ const table = (head: string[], rows: (string | number)[][]) => {
 };
 const FMT_NAME: Record<Fmt, string> = { odi: "ODI", test: "Test" };
 const CA_NAME: Record<string, Fmt> = { ListA: "odi", FC: "test" };
-const quant = (xs: number[], q: number) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.round(q * (s.length - 1))] : NaN; };
 const ovrOf = (p: PlayerDiag, f: Fmt | "t20", side: Side) => (f === "t20" ? (side === "bat" ? p.t20.batOvr : p.t20.bowlOvr) : (side === "bat" ? p[f].batOvr : p[f].bowlOvr));
 
 // ── 1. validation ─────────────────────────────────────────────────────
