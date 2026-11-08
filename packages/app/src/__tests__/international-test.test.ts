@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   advanceTest, autoResolveTestDecision, isTestOpener, pickTestXI, setTestAutoCaptain, testBattingSlot, testKeeperOf, testPlayerOf,
   type TestMatchState,
@@ -19,6 +19,7 @@ import {
 } from "../international";
 import { testAutoLineup, testFixture, testLineupProblems } from "../test-match/test-series";
 import { readableTeamColor } from "../test-match/test-view";
+import { createPoolLoader, type ExtendedPlayer } from "../extended-pool";
 
 const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "public");
 const FILE = JSON.parse(readFileSync(join(PUBLIC, "data", "format-ratings.json"), "utf-8")) as FormatRatingsFile;
@@ -111,17 +112,45 @@ describe("the auto Test XI against the real ones (fixtures/test-recent-xis.json:
   };
   const SUB = new Set(["IND", "PAK", "SL", "BDESH", "UAE"]);
   const MAJORS = ["India", "England", "Australia", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies"];
-  const xiFor = (team: string, host: string | null) =>
-    pickTestXI(buildNationSquad(team, "men", "test", FILE, undefined, activity), host && SUB.has(host) ? "sub" : "other");
+  // the extended pool's senior men, read off disk (the app fetches the same shards)
+  let extended: ExtendedPlayer[] = [];
+  beforeAll(async () => {
+    const loader = createPoolLoader(async f => new Uint8Array(readFileSync(join(PUBLIC, "pool", f))));
+    extended = await loader.players("men", ["senior"]);
+  }, 60_000);
+  const squadOf = (team: string) => buildNationSquad(team, "men", "test", FILE, undefined, activity, extended);
+  // a real player is "espn_<id>|ca_<id>" (whichever ids he has)
+  const inXI = (xi: string[], id: string) => xi.some(x => x.split("|").includes(id));
 
   it("shares 8 or more of 11 with the real XIs of the major sides, on average", () => {
     const means = MAJORS.map(team => {
       const c = real.countries.find(x => x.team === team && x.gender === "male")!;
-      const shared = c.tests.map(t => xiFor(team, t.host).filter(p => t.xi.includes(p.id)).length);
+      const squad = squadOf(team);
+      const shared = c.tests.map(t => pickTestXI(squad, t.host && SUB.has(t.host) ? "sub" : "other").filter(p => inXI(t.xi, p.id)).length);
       return shared.reduce((a, b) => a + b, 0) / shared.length;
     });
-    expect(means.reduce((a, b) => a + b, 0) / means.length).toBeGreaterThanOrEqual(8);
-    for (const m of means) expect(m).toBeGreaterThanOrEqual(6.5);
+    expect(means.reduce((a, b) => a + b, 0) / means.length).toBeGreaterThanOrEqual(8.3);
+    for (const m of means) expect(m).toBeGreaterThanOrEqual(7.5);
+  });
+
+  it("the extended pool's Test regulars make their squads and XIs (Pakistan, West Indies)", () => {
+    const pak = squadOf("Pakistan");
+    expect(pak.map(p => p.name)).toEqual(expect.arrayContaining(["Azan Awais", "Mohammad Abbas", "Ali Usman"]));
+    expect(pickTestXI(pak, "sub").map(p => p.id)).toContain("ca_2439559");   // Azan Awais
+    const wi = squadOf("West Indies");
+    expect(wi.map(p => p.name)).toEqual(expect.arrayContaining(["Kemar Roach", "Kavem Hodge", "Tagenarine Chanderpaul"]));
+    expect(wi.find(p => p.name === "Kemar Roach")!.formatRatings?.test).toBeDefined();
+    // without the extended pool (the sync path) they are not candidates
+    expect(buildNationSquad("Pakistan", "men", "test", FILE, undefined, activity).map(p => p.name)).not.toContain("Azan Awais");
+  });
+
+  it("every format picks from the extended pool, and a saved series rebuilds its ca_ players", () => {
+    const odi = createSeries({ format: "odi", gender: "men", nations: ["Pakistan", "West Indies"], length: 3, host: "a", userSide: 0, seed: 5 }, FILE, activity, extended);
+    const caIds = odi.sides.flatMap(s => s.squad).filter(id => id.startsWith("ca_"));
+    expect(caIds.length).toBeGreaterThan(0);
+    const rebuilt = seriesSquads(odi, FILE, extended);
+    expect(rebuilt.map(s => s.length)).toEqual(odi.sides.map(s => s.squad.length));
+    expect(rebuilt.flat().filter(p => p.id.startsWith("ca_")).every(p => p.formatRatings?.odi)).toBe(true);
   });
 
   it("one designated keeper, on the keeping record: the squad's keepers are those who keep", () => {

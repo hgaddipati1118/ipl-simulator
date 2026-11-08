@@ -29,6 +29,18 @@ import { ovrColorClass, roleLabel, oversLabel } from "../ui-utils";
 import { SeriesLiveTest, SeriesTestScorecard } from "../test-match/SeriesTestViews";
 import { seriesTestColors, testStoreKey } from "../test-match/test-series";
 import { clearLiveTest, clearLiveTests } from "../test-match/test-db";
+import { poolLoader, type ExtendedPlayer } from "../extended-pool";
+
+/** A gender's extended-pool senior players (fetched once per session; null when the pool cannot be loaded) */
+const extendedByGender = new Map<SeriesGender, Promise<ExtendedPlayer[] | null>>();
+function loadExtendedSenior(gender: SeriesGender): Promise<ExtendedPlayer[] | null> {
+  let p = extendedByGender.get(gender);
+  if (!p) {
+    p = poolLoader.players(gender, ["senior"]).catch(() => null);
+    extendedByGender.set(gender, p);
+  }
+  return p;
+}
 
 type View =
   | { kind: "setup" }
@@ -65,11 +77,25 @@ export function InternationalPage() {
     void Promise.all([loadFormatRatings(), loadPlayerActivity()]).then(([f, a]) => { setActivity(a ?? null); setFile(f ?? null); });
   }, []);
 
-  const update = (s: IntlSeries | null) => { setSeries(s); saveSeries(s); };
-  const squads = useMemo(() => (series && file !== undefined ? seriesSquads(series, file) : null), [series?.id, file]);
+  // the extended pool's senior players of the series' gender: squads pick from them too (their ids are `ca_<id>`)
+  const [extended, setExtended] = useState<Partial<Record<SeriesGender, ExtendedPlayer[] | null>>>({});
+  useEffect(() => {
+    if (!series || extended[series.gender] !== undefined) return;
+    const g = series.gender;
+    void loadExtendedSenior(g).then(players => setExtended(e => ({ ...e, [g]: players })));
+  }, [series?.gender]);
+  const seriesExtended = series ? extended[series.gender] : undefined;
 
-  if (file === undefined) {
-    return <div className="max-w-md mx-auto px-4 py-20 text-center text-th-muted font-display animate-pulse">Loading ratings...</div>;
+  const update = (s: IntlSeries | null) => { setSeries(s); saveSeries(s); };
+  const squads = useMemo(
+    () => (series && file !== undefined && seriesExtended !== undefined ? seriesSquads(series, file, seriesExtended) : null),
+    [series?.id, file, seriesExtended],
+  );
+
+  if (file === undefined || (series && view.kind !== "setup" && seriesExtended === undefined)) {
+    return <div className="max-w-md mx-auto px-4 py-20 text-center text-th-muted font-display animate-pulse" data-testid="series-loading">
+      {file === undefined ? "Loading ratings..." : "Loading players..."}
+    </div>;
   }
 
   if (view.kind === "setup" || !series || !squads) {
@@ -79,6 +105,7 @@ export function InternationalPage() {
         activity={activity ?? null}
         existing={series}
         onResume={() => setView({ kind: "hub" })}
+        loadPlayers={async g => { const players = await loadExtendedSenior(g); setExtended(e => ({ ...e, [g]: players })); return players; }}
         onStart={async s => { await clearSeriesLiveSaves(); update(s); setView({ kind: "hub" }); }}
         onBack={() => navigate("/")}
       />
@@ -189,10 +216,12 @@ export function InternationalPage() {
 
 // ── Setup ───────────────────────────────────────────────────────────────
 
-function SeriesSetup({ file, activity, existing, onStart, onResume, onBack }: {
+function SeriesSetup({ file, activity, existing, loadPlayers, onStart, onResume, onBack }: {
   file: FormatRatingsFile | null;
   activity: PlayerActivityFile | null;
   existing: IntlSeries | null;
+  /** The extended pool's senior players of a gender (squads pick from them too); null when unavailable */
+  loadPlayers: (gender: SeriesGender) => Promise<ExtendedPlayer[] | null>;
   onStart: (s: IntlSeries) => void;
   onResume: () => void;
   onBack: () => void;
@@ -217,14 +246,13 @@ function SeriesSetup({ file, activity, existing, onStart, onResume, onBack }: {
   useEffect(() => { if (!def.lengths.includes(length)) setLength(def.lengths[0]); }, [def, length]);
 
   const groundsA = homeGrounds(a).length, groundsB = homeGrounds(b).length;
-  const start = () => {
+  const start = async () => {
     if (a === b) return;
     setBusy(true);
-    // building squads and the first match is quick, but let the button repaint first
-    setTimeout(() => {
-      onStart(createSeries({ format, gender, nations: [a, b], length, host, userSide: role === "watch" ? null : role === "a" ? 0 : 1 }, file, activity));
-      setBusy(false);
-    }, 0);
+    // the nations' senior players from the extended pool (fetched once), then the squads
+    const extended = await loadPlayers(gender);
+    onStart(createSeries({ format, gender, nations: [a, b], length, host, userSide: role === "watch" ? null : role === "a" ? 0 : 1 }, file, activity, extended));
+    setBusy(false);
   };
 
   const chip = (on: boolean) => `px-3 py-2 rounded-xl border text-sm font-display font-semibold transition-colors ${on ? "border-orange-500/40 bg-orange-500/[0.08] text-orange-300" : "border-th bg-th-surface text-th-secondary hover:bg-th-hover"}`;
@@ -302,7 +330,7 @@ function SeriesSetup({ file, activity, existing, onStart, onResume, onBack }: {
         </Section>
 
         <div className="grid sm:grid-cols-2 gap-3">
-          <button onClick={start} disabled={busy || a === b} data-testid="series-start"
+          <button onClick={() => void start()} disabled={busy || a === b} data-testid="series-start"
             className="px-5 py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-50 text-white font-display font-semibold rounded-xl shadow-lg shadow-orange-500/20">
             {busy ? "Picking squads..." : `Start the ${length === 1 ? "match" : "series"}`}
           </button>

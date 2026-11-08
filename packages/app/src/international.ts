@@ -19,6 +19,7 @@ import { attachFormatRatings, type FormatRatingsFile } from "@ipl-sim/ratings/di
 import { playerActivity, squadTier, type ActivityFormat, type PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { WPL_PLAYERS } from "@ipl-sim/ratings/dist/wpl-players.js";
+import type { ExtendedPlayer } from "@ipl-sim/ratings/dist/extended-pool.js";
 import { markTestKeepers, pickTestSquad, testSeriesFormat } from "./test-match/test-series";
 
 // ── Formats ────────────────────────────────────────────────────────────
@@ -181,15 +182,27 @@ const MAX_AGE = 40;
  * last three only (fills gaps), 3 = inactive three seasons or more (never picked). Without activity data, or for a player
  * it has no record of, the age rule stands in: 40 or under counts as 2, older as 3.
  */
-function availability(p: Pick<PlayerData, "id" | "sourceId" | "age">, format: ActivityFormat, activity: PlayerActivityFile | null | undefined): 0 | 1 | 2 | 3 {
+function availability(p: Pick<PlayerData, "id" | "sourceId" | "age"> & { lastYear?: number }, format: ActivityFormat, activity: PlayerActivityFile | null | undefined): 0 | 1 | 2 | 3 {
   const tier = activity ? squadTier(playerActivity(activity, p.sourceId ?? p.id), format, activity.asOf) : null;
   if (tier !== null) return tier;
+  // an extended-pool player without a record: his last season, as the activity data would read it
+  if (typeof p.lastYear === "number") {
+    const asOf = activity?.asOf ?? new Date().getFullYear();
+    return p.lastYear >= asOf - 1 ? 1 : p.lastYear >= asOf - 2 ? 2 : 3;
+  }
   return p.age <= MAX_AGE ? 2 : 3;
 }
 
-/** A nation's name as the player data spells it, without the women's suffix some records carry */
+/** Cricket West Indies' territories: their players play for West Indies */
+const WI_TERRITORIES = new Set([
+  "Jamaica", "Barbados", "Guyana", "Trinidad", "Trinidad and Tobago", "Tobago", "Antigua", "St Kitts", "Nevis", "Montserrat",
+  "Anguilla", "St Vincent", "St Lucia", "Grenada", "Dominica", "St Maarten", "British Virgin Islands",
+]);
+
+/** A nation's name as the player data spells it, without the women's suffix some records carry (a West Indian territory: West Indies) */
 export function nationOf(country: string): string {
-  return country.replace(/ Women$/, "").trim();
+  const c = country.replace(/ Women$/, "").trim();
+  return WI_TERRITORIES.has(c) ? "West Indies" : c;
 }
 
 let menCache: PlayerData[] | null = null;
@@ -223,6 +236,28 @@ function shippedPlayers(gender: SeriesGender): PlayerData[] {
 
 export interface NationOption { country: string; short: string; players: number }
 
+const extendedCache = new WeakMap<readonly ExtendedPlayer[], (PlayerData & { lastYear: number })[]>();
+
+/**
+ * The extended pool's senior players (app: extended-pool.ts poolLoader, the CricketArchive players the shipped pool lacks)
+ * as engine PlayerData: ids `ca_<id>`, the record's country, his own ODI / Test sets, and his last season (availability)
+ */
+function extendedSenior(extended: readonly ExtendedPlayer[] | null | undefined, gender: SeriesGender): (PlayerData & { lastYear: number })[] {
+  if (!extended) return [];
+  let out = extendedCache.get(extended);
+  if (!out) {
+    out = extended.filter(p => p.gender === gender && p.tier === "senior").map(p => {
+      const { gender: _g, tier: _t, ...data } = p;
+      return {
+        ...data, sourceId: p.id, country: nationOf(p.country), isInternational: false, injured: false, injuryGamesLeft: 0,
+        ...(gender === "women" ? { isFemale: true } : {}),
+      } as PlayerData & { lastYear: number };
+    });
+    extendedCache.set(extended, out);
+  }
+  return out;
+}
+
 /** Nations of a gender with enough players for a squad (a keeper or someone to keep, five bowling options) */
 export function seriesNations(gender: SeriesGender, activity?: PlayerActivityFile | null): NationOption[] {
   const by = new Map<string, PlayerData[]>();
@@ -240,7 +275,9 @@ export function seriesNations(gender: SeriesGender, activity?: PlayerActivityFil
 
 /**
  * A nation's squad for a format: the country's active players on that format's ratings (`ratings` is the format set, so
- * selection, orders and the UI all read it), 16 of them with at least a keeper and six bowling options. Players who
+ * selection, orders and the UI all read it), 16 of them with at least a keeper and six bowling options. The candidates are
+ * the shipped players and, when given, the nation's senior players from the extended pool (`extended`: the CricketArchive
+ * players without an ESPN profile, e.g. Pakistan's Azan Awais, West Indies' Kemar Roach). Players who
  * played the format internationally in the last two seasons come first, then players active at senior level in the last
  * two, then (only to fill gaps) those active in the last three; nobody inactive for three seasons or more
  * (`availability`). Within a tier, by XI value. Player ids are the stable record ids. Without a designated keeper the best
@@ -248,11 +285,11 @@ export function seriesNations(gender: SeriesGender, activity?: PlayerActivityFil
  */
 export function buildNationSquad(
   country: string, gender: SeriesGender, ratingFormat: "t20" | LongFormat, file: FormatRatingsFile | null, ids?: string[],
-  activity?: PlayerActivityFile | null,
+  activity?: PlayerActivityFile | null, extended?: readonly ExtendedPlayer[] | null,
 ): Player[] {
   const fmt: ActivityFormat = ratingFormat;
   const tierOf = new Map<string, number>();
-  const all = shippedPlayers(gender).filter(p => {
+  const all = [...shippedPlayers(gender), ...extendedSenior(extended, gender)].filter(p => {
     if (p.country !== country) return false;
     if (ids && ids.length > 0) return ids.includes(p.id);
     const t = availability(p, fmt, activity);
@@ -402,11 +439,14 @@ export interface NewSeriesOptions {
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-export function createSeries(opts: NewSeriesOptions, file: FormatRatingsFile | null, activity?: PlayerActivityFile | null): IntlSeries {
+/** A new series; `extended` adds the extended pool's senior players of the gender to the squads' candidates */
+export function createSeries(
+  opts: NewSeriesOptions, file: FormatRatingsFile | null, activity?: PlayerActivityFile | null, extended?: readonly ExtendedPlayer[] | null,
+): IntlSeries {
   const def = seriesFormat(opts.format);
   const sides = opts.nations.map((country, i) => {
     const info = NATION_INFO[country];
-    const squad = buildNationSquad(country, opts.gender, def.ratingFormat, file, undefined, activity);
+    const squad = buildNationSquad(country, opts.gender, def.ratingFormat, file, undefined, activity, extended);
     return {
       id: `${slug(country)}-${i}`, country, name: opts.gender === "women" ? `${country} Women` : country,
       shortName: info?.short ?? country.slice(0, 3).toUpperCase(),
@@ -424,10 +464,10 @@ export function createSeries(opts: NewSeriesOptions, file: FormatRatingsFile | n
   };
 }
 
-/** The squads of a series, rebuilt from the shipped players (on the format's ratings) */
-export function seriesSquads(series: IntlSeries, file: FormatRatingsFile | null): [Player[], Player[]] {
+/** The squads of a series, rebuilt from their saved ids on the format's ratings (`extended` is needed for its `ca_<id>` players) */
+export function seriesSquads(series: IntlSeries, file: FormatRatingsFile | null, extended?: readonly ExtendedPlayer[] | null): [Player[], Player[]] {
   const def = seriesFormat(series.format);
-  return series.sides.map(s => buildNationSquad(s.country, series.gender, def.ratingFormat, file, s.squad)) as [Player[], Player[]];
+  return series.sides.map(s => buildNationSquad(s.country, series.gender, def.ratingFormat, file, s.squad, undefined, extended)) as [Player[], Player[]];
 }
 
 /** The ground of match n: the host's grounds in turn (alternating hosts when neither side is the host is not offered) */
