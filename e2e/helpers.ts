@@ -10,7 +10,8 @@ export { finishLiveMatch, startLiveMatch };
  * sim button are all handled.
  */
 
-const DEFAULT_SEED = 20261107;
+/** E2E_SEED runs the suite on another seed (other tosses and results), to check the helpers' other branches */
+const DEFAULT_SEED = Number(process.env.E2E_SEED ?? 20261107);
 
 /**
  * Seed Math.random on every page load (the same LCG as international.spec.ts), so tosses, match results, auctions and
