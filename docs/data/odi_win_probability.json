@@ -1,0 +1,949 @@
+{
+ "generated": "2026-11-07",
+ "from": 2015,
+ "source": "Cricsheet ODIs, full 50-over matches with a result, every delivery a state",
+ "men": {
+  "g": 265.1,
+  "sd": 64.8,
+  "chase": {
+   "stages": [
+    0,
+    2,
+    5,
+    10,
+    20,
+    35
+   ],
+   "a": [
+    0.393,
+    0.5423,
+    0.4812,
+    0.324,
+    0.137,
+    0.0389
+   ],
+   "b": [
+    4.4112,
+    2.5665,
+    1.3903,
+    0.867,
+    0.5961,
+    0.4505
+   ],
+   "c": 100
+  },
+  "first": {
+   "a": 0.0458,
+   "b": 1.3384
+  },
+  "matches": 1109,
+  "calibrationChaseByStage": {
+   "0-2 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.009,
+     "actual": 0.014,
+     "states": 1207
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.151,
+     "actual": 0.133,
+     "states": 98
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.25,
+     "actual": 0.269,
+     "states": 78
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.353,
+     "actual": 0.356,
+     "states": 45
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.457,
+     "actual": 0.288,
+     "states": 66
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.551,
+     "actual": 0.468,
+     "states": 47
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.657,
+     "actual": 0.685,
+     "states": 54
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.752,
+     "actual": 0.75,
+     "states": 72
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.855,
+     "actual": 0.913,
+     "states": 103
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.972,
+     "actual": 0.977,
+     "states": 428
+    }
+   ],
+   "2-5 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.014,
+     "actual": 0.017,
+     "states": 3246
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.145,
+     "actual": 0.107,
+     "states": 291
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.244,
+     "actual": 0.253,
+     "states": 233
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.35,
+     "actual": 0.356,
+     "states": 222
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.452,
+     "actual": 0.435,
+     "states": 177
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.548,
+     "actual": 0.47,
+     "states": 217
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.649,
+     "actual": 0.569,
+     "states": 232
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.748,
+     "actual": 0.773,
+     "states": 255
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.856,
+     "actual": 0.91,
+     "states": 457
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.975,
+     "actual": 0.977,
+     "states": 2589
+    }
+   ],
+   "5-10 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.017,
+     "actual": 0.027,
+     "states": 7057
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.146,
+     "actual": 0.137,
+     "states": 1253
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.248,
+     "actual": 0.224,
+     "states": 798
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.346,
+     "actual": 0.266,
+     "states": 702
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.452,
+     "actual": 0.348,
+     "states": 561
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.553,
+     "actual": 0.482,
+     "states": 651
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.651,
+     "actual": 0.676,
+     "states": 737
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.752,
+     "actual": 0.803,
+     "states": 932
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.854,
+     "actual": 0.86,
+     "states": 1569
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.971,
+     "actual": 0.978,
+     "states": 5716
+    }
+   ],
+   "10-20 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.024,
+     "actual": 0.03,
+     "states": 16291
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.146,
+     "actual": 0.162,
+     "states": 3975
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.249,
+     "actual": 0.226,
+     "states": 2554
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.35,
+     "actual": 0.265,
+     "states": 2192
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.451,
+     "actual": 0.457,
+     "states": 2404
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.55,
+     "actual": 0.597,
+     "states": 2339
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.651,
+     "actual": 0.629,
+     "states": 2737
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.753,
+     "actual": 0.708,
+     "states": 3245
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.851,
+     "actual": 0.854,
+     "states": 4283
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.97,
+     "actual": 0.982,
+     "states": 13621
+    }
+   ],
+   "20-35 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.035,
+     "actual": 0.037,
+     "states": 19743
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.147,
+     "actual": 0.181,
+     "states": 8744
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.246,
+     "actual": 0.242,
+     "states": 6432
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.349,
+     "actual": 0.335,
+     "states": 5950
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.451,
+     "actual": 0.467,
+     "states": 6437
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.552,
+     "actual": 0.513,
+     "states": 6505
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.652,
+     "actual": 0.624,
+     "states": 6959
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.751,
+     "actual": 0.742,
+     "states": 6883
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.856,
+     "actual": 0.846,
+     "states": 7637
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.962,
+     "actual": 0.975,
+     "states": 20553
+    }
+   ],
+   "35-51 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.049,
+     "actual": 0.054,
+     "states": 9515
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.15,
+     "actual": 0.17,
+     "states": 10157
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.249,
+     "actual": 0.252,
+     "states": 10407
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.349,
+     "actual": 0.383,
+     "states": 10214
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.449,
+     "actual": 0.444,
+     "states": 10048
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.55,
+     "actual": 0.507,
+     "states": 9940
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.65,
+     "actual": 0.619,
+     "states": 8885
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.75,
+     "actual": 0.685,
+     "states": 8959
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.851,
+     "actual": 0.89,
+     "states": 10916
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.954,
+     "actual": 0.974,
+     "states": 14399
+    }
+   ]
+  },
+  "calibrationFirst": [
+   {
+    "bin": "0-10%",
+    "predicted": 0.068,
+    "actual": 0.061,
+    "states": 6113
+   },
+   {
+    "bin": "10-20%",
+    "predicted": 0.155,
+    "actual": 0.143,
+    "states": 15221
+   },
+   {
+    "bin": "20-30%",
+    "predicted": 0.255,
+    "actual": 0.266,
+    "states": 26850
+   },
+   {
+    "bin": "30-40%",
+    "predicted": 0.354,
+    "actual": 0.371,
+    "states": 40085
+   },
+   {
+    "bin": "40-50%",
+    "predicted": 0.452,
+    "actual": 0.455,
+    "states": 59026
+   },
+   {
+    "bin": "50-60%",
+    "predicted": 0.544,
+    "actual": 0.532,
+    "states": 83638
+   },
+   {
+    "bin": "60-70%",
+    "predicted": 0.645,
+    "actual": 0.63,
+    "states": 51225
+   },
+   {
+    "bin": "70-80%",
+    "predicted": 0.745,
+    "actual": 0.777,
+    "states": 27906
+   },
+   {
+    "bin": "80-90%",
+    "predicted": 0.841,
+    "actual": 0.832,
+    "states": 12114
+   },
+   {
+    "bin": "90-100%",
+    "predicted": 0.928,
+    "actual": 0.929,
+    "states": 3131
+   }
+  ]
+ },
+ "women": {
+  "g": 235.0,
+  "sd": 64.2,
+  "chase": {
+   "stages": [
+    0,
+    2,
+    5,
+    10,
+    20,
+    35
+   ],
+   "a": [
+    1.1997,
+    0.5203,
+    0.4771,
+    0.1718,
+    -0.0046,
+    -0.0555
+   ],
+   "b": [
+    3.1161,
+    1.1277,
+    0.8886,
+    0.7419,
+    0.5837,
+    0.4768
+   ],
+   "c": 25
+  },
+  "first": {
+   "a": -0.0241,
+   "b": 2.0105
+  },
+  "matches": 474,
+  "calibrationChaseByStage": {
+   "0-2 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.007,
+     "actual": 0.014,
+     "states": 626
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.145,
+     "actual": 0.114,
+     "states": 35
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.238,
+     "actual": 0.148,
+     "states": 27
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.336,
+     "actual": 0.438,
+     "states": 16
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.448,
+     "actual": 0.267,
+     "states": 15
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.56,
+     "actual": 0.545,
+     "states": 22
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.655,
+     "actual": 0.579,
+     "states": 19
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.747,
+     "actual": 0.588,
+     "states": 17
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.859,
+     "actual": 0.955,
+     "states": 44
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.969,
+     "actual": 0.972,
+     "states": 176
+    }
+   ],
+   "2-5 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.007,
+     "actual": 0.004,
+     "states": 1344
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.148,
+     "actual": 0.222,
+     "states": 99
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.253,
+     "actual": 0.326,
+     "states": 135
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.35,
+     "actual": 0.304,
+     "states": 112
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.45,
+     "actual": 0.393,
+     "states": 107
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.547,
+     "actual": 0.517,
+     "states": 118
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.652,
+     "actual": 0.735,
+     "states": 151
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.751,
+     "actual": 0.748,
+     "states": 163
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.856,
+     "actual": 0.771,
+     "states": 236
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.959,
+     "actual": 0.978,
+     "states": 490
+    }
+   ],
+   "5-10 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.01,
+     "actual": 0.004,
+     "states": 3259
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.142,
+     "actual": 0.233,
+     "states": 433
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.249,
+     "actual": 0.226,
+     "states": 248
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.348,
+     "actual": 0.267,
+     "states": 266
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.453,
+     "actual": 0.562,
+     "states": 185
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.544,
+     "actual": 0.58,
+     "states": 138
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.656,
+     "actual": 0.599,
+     "states": 299
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.753,
+     "actual": 0.823,
+     "states": 368
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.853,
+     "actual": 0.8,
+     "states": 480
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.968,
+     "actual": 0.967,
+     "states": 1686
+    }
+   ],
+   "10-20 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.016,
+     "actual": 0.019,
+     "states": 8348
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.144,
+     "actual": 0.113,
+     "states": 1107
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.248,
+     "actual": 0.37,
+     "states": 809
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.349,
+     "actual": 0.407,
+     "states": 482
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.455,
+     "actual": 0.4,
+     "states": 532
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.549,
+     "actual": 0.584,
+     "states": 657
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.656,
+     "actual": 0.559,
+     "states": 808
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.753,
+     "actual": 0.675,
+     "states": 1174
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.858,
+     "actual": 0.865,
+     "states": 1645
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.973,
+     "actual": 0.982,
+     "states": 5452
+    }
+   ],
+   "20-35 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.025,
+     "actual": 0.033,
+     "states": 11327
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.149,
+     "actual": 0.115,
+     "states": 2696
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.247,
+     "actual": 0.265,
+     "states": 2285
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.347,
+     "actual": 0.377,
+     "states": 2035
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.452,
+     "actual": 0.412,
+     "states": 1601
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.555,
+     "actual": 0.51,
+     "states": 2177
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.65,
+     "actual": 0.659,
+     "states": 2383
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.748,
+     "actual": 0.757,
+     "states": 2286
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.852,
+     "actual": 0.857,
+     "states": 2407
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.972,
+     "actual": 0.973,
+     "states": 10908
+    }
+   ],
+   "35-51 overs left": [
+    {
+     "bin": "0-10%",
+     "predicted": 0.04,
+     "actual": 0.04,
+     "states": 7082
+    },
+    {
+     "bin": "10-20%",
+     "predicted": 0.149,
+     "actual": 0.116,
+     "states": 3464
+    },
+    {
+     "bin": "20-30%",
+     "predicted": 0.249,
+     "actual": 0.299,
+     "states": 3463
+    },
+    {
+     "bin": "30-40%",
+     "predicted": 0.35,
+     "actual": 0.392,
+     "states": 3582
+    },
+    {
+     "bin": "40-50%",
+     "predicted": 0.449,
+     "actual": 0.456,
+     "states": 3559
+    },
+    {
+     "bin": "50-60%",
+     "predicted": 0.553,
+     "actual": 0.535,
+     "states": 3451
+    },
+    {
+     "bin": "60-70%",
+     "predicted": 0.647,
+     "actual": 0.583,
+     "states": 3561
+    },
+    {
+     "bin": "70-80%",
+     "predicted": 0.749,
+     "actual": 0.706,
+     "states": 2938
+    },
+    {
+     "bin": "80-90%",
+     "predicted": 0.856,
+     "actual": 0.919,
+     "states": 4152
+    },
+    {
+     "bin": "90-100%",
+     "predicted": 0.957,
+     "actual": 0.949,
+     "states": 9376
+    }
+   ]
+  },
+  "calibrationFirst": [
+   {
+    "bin": "0-10%",
+    "predicted": 0.052,
+    "actual": 0.075,
+    "states": 7283
+   },
+   {
+    "bin": "10-20%",
+    "predicted": 0.153,
+    "actual": 0.145,
+    "states": 10447
+   },
+   {
+    "bin": "20-30%",
+    "predicted": 0.253,
+    "actual": 0.282,
+    "states": 12684
+   },
+   {
+    "bin": "30-40%",
+    "predicted": 0.355,
+    "actual": 0.347,
+    "states": 16488
+   },
+   {
+    "bin": "40-50%",
+    "predicted": 0.458,
+    "actual": 0.444,
+    "states": 23296
+   },
+   {
+    "bin": "50-60%",
+    "predicted": 0.548,
+    "actual": 0.522,
+    "states": 25238
+   },
+   {
+    "bin": "60-70%",
+    "predicted": 0.647,
+    "actual": 0.661,
+    "states": 17520
+   },
+   {
+    "bin": "70-80%",
+    "predicted": 0.749,
+    "actual": 0.751,
+    "states": 12222
+   },
+   {
+    "bin": "80-90%",
+    "predicted": 0.848,
+    "actual": 0.905,
+    "states": 9029
+   },
+   {
+    "bin": "90-100%",
+    "predicted": 0.944,
+    "actual": 0.924,
+    "states": 5438
+   }
+  ]
+ }
+}

@@ -28,6 +28,8 @@ export type { WPLRosterPlayer, WPLRoster } from "./wpl-rosters.js";
 export { POOL_VERSION, encodeShard, decodeShard, searchPlayers, overallsOf, toRealPlayerData, topActive } from "./extended-pool.js";
 export type { PoolRow, PoolShard, PoolManifest, PoolShardInfo, PoolGender, ExtendedPlayer } from "./extended-pool.js";
 export { FORMAT_RATINGS_VERSION, LONG_FORMATS, encodeSet, decodeSet, decodeFormatSets, formatRatingsFor, attachFormatRatings } from "./format-ratings.js";
+export { PLAYER_ACTIVITY_VERSION, playerActivity, squadTier } from "./player-activity.js";
+export type { PlayerActivityFile, PlayerActivity, ActivityFormat } from "./player-activity.js";
 export type { FormatRatingsFile, EncodedSet, AttachablePlayer } from "./format-ratings.js";
 export {
   getLeaguePlayers, getLeagueMatchStats, getLeagueSeason, getLeagueRosteredIds, getPoolPlayersForLeague,
