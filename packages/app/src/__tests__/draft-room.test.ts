@@ -290,5 +290,5 @@ describe("Draft Match playing side", () => {
       expect(done.status).toBe("completed");
       host.destroy();
     }
-  }, 30_000);
+  });
 });
