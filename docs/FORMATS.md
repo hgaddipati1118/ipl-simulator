@@ -106,9 +106,11 @@ of `(battingOvr + timing) / 2` and `(bowlingOvr + accuracy) / 2`, timing for fou
 accuracy for wides and no-balls), measured from `ODI_REF`, the involvement-weighted mean of the replayed national XIs on their
 ODI ratings (balls faced, balls bowled). The slopes started from the T20 model's sensitivities and were set so the simulated
 spread of batters' rates is near the real one (real sd of log batter effects among 2019+ regulars: wickets 0.15, fours 0.15,
-sixes 0.28; simulated 0.20 / 0.17 / 0.35 on the ODI ratings); a batter's shortfall below the reference counts half
-(`ODI_TAIL_WEIGHT`: on full weight a number ten scores at half the real tail's rate). `ODI_RATING_SCALE` (men 0.9, women 1.25)
-sets the team spread: women's ODI sides are further apart than men's.
+sixes 0.28; simulated on the round-2 ODI sets: men 0.18 / 0.15 / 0.31, women 0.30 / 0.26 / 0.52 against 0.15 / 0.19 / 0.24);
+a batter's shortfall below the reference counts half (`ODI_TAIL_WEIGHT`: on full weight a number ten scores at half the real
+tail's rate). `ODI_RATING_SCALE` (men 0.9, women 1.45; 1.25 on the round-1 sets) sets the team spread: women's ODI sides are
+further apart than men's. The women's batters are already too far apart one by one while their sides are not far enough
+apart (the ratings' order of the sides is off: correlation 0.69), so the scale trades one for the other.
 
 **Calibration** (`ODI_CAL`, per gender x phase x outcome): the full engine adds layers the fit does not see (hand matchups,
 fielding, free hits) and the game's ratings put different players in different states than the real ones (a better top order
@@ -122,53 +124,64 @@ x0.58, 11-40 x0.77; women's x0.39 / x0.65) and death-over wickets (x0.82): the r
 (men 886 fixtures between 21 national sides, women 430 between 17) with national pools built from the game's players
 (`ALL_PLAYERS` / `WPL_PLAYERS` by Cricinfo id: everyone who batted or bowled for the side, the squad its 20 most involved,
 the XI the engine's own pick) on their ODI ratings, neutral venues, rain off, every match seeded. Real: Cricsheet ODIs
-2019+, full matches. Instant engine, two replays of each fixture:
+2019+, full matches. Instant engine, two replays of each fixture, on the round-2 ODI sets (docs/FORMAT-RATINGS-REPORT.md:
+format roles from List A workload, the level carried by battingIQ / wicketTaking, timing from the four rate, power from the
+six rate) with `ODI_REF`, `ODI_CAL` and the women's `ODI_RATING_SCALE` (1.45) recalibrated on them:
 
 | | men sim | men real | women sim | women real |
 |---|---|---|---|---|
-| 1st-innings total: mean (sd) | 251.9 (74.9) | 253.1 (71.0) | 226.8 (69.2) | 227.4 (69.1) |
-| 10 / 25 / 50 / 75 / 90th percentile | 147 / 205 / 260 / 307 / 345 | 157 / 206 / 258 / 299 / 342 | 132 / 179 / 230 / 276 / 317 | 139 / 180 / 225 / 272 / 320 |
-| 300+ / 350+ / under 200 | 28.4% / 8.0% / 23.0% | 24.8% / 8.2% / 22.2% | 15.6% / 2.9% / 34.7% | 15.6% / 3.6% / 35.0% |
-| run rate overs 1-10 / 11-40 / 41-50 (1st inns) | 4.68 / 5.01 / 7.66 | 4.60 / 4.91 / 7.67 | 4.23 / 4.60 / 6.60 | 4.17 / 4.53 / 6.52 |
-| 1st inns: wickets / all out | 8.08 / 44.0% | 8.35 / 41.1% | 8.14 / 49.0% | 8.32 / 45.3% |
-| 2nd inns: runs / wickets / all out | 209.5 / 6.66 / 39.0% | 217.8 / 6.93 / 38.5% | 179.7 / 6.52 / 41.9% | 186.9 / 6.69 / 36.1% |
-| batting first wins / ties | 47.6% / 0.8% | 47.6% / 1.2% | 50.6% / 1.0% | 46.9% / 1.4% |
-| 100s / 50s per match | 0.68 / 2.10 | 0.63 / 2.30 | 0.47 / 1.82 | 0.44 / 1.87 |
-| extras / fours / sixes (1st inns) | 13.0 / 21.2 / 5.4 | 13.2 / 21.2 / 5.2 | 14.4 / 22.2 / 1.5 | 14.7 / 21.8 / 1.6 |
-| caught / bowled / lbw / run out / c&b / stumped | 58.0 / 20.1 / 11.1 / 5.5 / 3.2 / 2.0% | 57.8 / 19.9 / 11.8 / 5.5 / 3.0 / 1.9% | 48.3 / 21.9 / 12.5 / 8.4 / 4.1 / 4.7% | 49.0 / 21.6 / 13.1 / 8.2 / 4.3 / 3.8% |
+| 1st-innings total: mean (sd) | 252.0 (70.3) | 253.1 (71.0) | 224.3 (72.2) | 227.4 (69.1) |
+| 10 / 25 / 50 / 75 / 90th percentile | 150 / 206 / 260 / 302 / 337 | 157 / 206 / 258 / 299 / 342 | 123 / 174 / 229 / 277 / 311 | 139 / 180 / 225 / 272 / 320 |
+| 300+ / 350+ / under 200 | 26.3% / 6.7% / 23.1% | 24.8% / 8.2% / 22.2% | 15.3% / 3.6% / 35.2% | 15.6% / 3.6% / 35.0% |
+| run rate overs 1-10 / 11-40 / 41-50 (1st inns) | 4.73 / 4.95 / 7.70 | 4.60 / 4.91 / 7.67 | 4.22 / 4.58 / 6.62 | 4.17 / 4.53 / 6.52 |
+| 1st inns: wickets / all out | 8.16 / 44.1% | 8.35 / 41.1% | 8.15 / 46.9% | 8.32 / 45.3% |
+| 2nd inns: runs / wickets / all out | 209.3 / 6.84 / 40.6% | 217.8 / 6.93 / 38.5% | 177.2 / 6.51 / 40.3% | 186.9 / 6.69 / 36.1% |
+| batting first wins / ties | 49.0% / 0.3% | 47.6% / 1.2% | 49.2% / 0.4% | 46.9% / 1.4% |
+| 100s / 50s per match | 0.60 / 2.14 | 0.63 / 2.30 | 0.46 / 1.77 | 0.44 / 1.87 |
+| extras / fours / sixes (1st inns) | 13.1 / 21.3 / 5.4 | 13.2 / 21.2 / 5.2 | 14.1 / 21.8 / 1.5 | 14.7 / 21.8 / 1.6 |
+| caught / bowled / lbw / run out / c&b / stumped | 57.5 / 20.2 / 11.6 / 5.6 / 3.0 / 1.9% | 57.8 / 19.9 / 11.8 / 5.5 / 3.0 / 1.9% | 48.9 / 21.2 / 12.1 / 8.6 / 4.4 / 4.8% | 49.0 / 21.6 / 13.1 / 8.2 / 4.3 / 3.8% |
 
-Batting position averages / strike rates (men, sim | real): openers 36-41 / 88-89 | 33-34 / 84-86; 3-4: 38-40 / 85-87 |
-37-38 / 82-83; 5-7: 21-32 / 78-82 | 24-35 / 86-87; 8-11: 9-16 / 62-75 | 7-19 / 54-86. The top order is a little too
+Before the recalibration (round-2 sets on the round-1 constants): men 240.4 (sd 71.3), 300+ 20.6%, run rates 4.44 / 4.85 /
+7.48, all out 47.3%, 100s 0.53 a match; women 227.3 (63.6), 300+ 12.5%, leading four v the other full members 75.0%. On the
+round-1 sets the constants had given men 251.9 (74.9) and women 226.8 (69.2).
+
+Batting position averages / strike rates (men, sim | real): openers 37-38 / 88 | 33-34 / 84-86; 3-4: 36-38 / 83-85 |
+37-38 / 82-83; 5-7: 21-34 / 78-84 | 24-35 / 86-87; 8-11: 10-16 / 67-75 | 7-19 / 54-86. The openers are a little too
 productive and the lower middle order (6-8) scores a little slower than the real one.
 
 **Strong against weak** (the same fixtures; "net" removes the binomial noise of a win share over n matches):
 
 | | men sim | men real | women sim | women real |
 |---|---|---|---|---|
-| sides' win shares: sd (net of noise) | 0.16 (0.15) | 0.12 (0.10) | 0.17 (0.16) | 0.19 (0.17) |
-| correlation of each side's win share, sim with real | 0.76 | | 0.81 | |
-| full members v associates: the full member wins | 71.1% | 77.9% (70 matches) | 65.8% | 66.7% (30) |
-| leading sides v the other full members (men: Ind, Aus, SA, NZ, Eng, Pak; women: Aus, Eng, Ind, SA) | 63.6% | 71.4% (199) | 81.8% | 84.2% (184) |
+| sides' win shares: sd (net of noise) | 0.12 (0.11) | 0.12 (0.10) | 0.17 (0.16) | 0.19 (0.17) |
+| correlation of each side's win share, sim with real | 0.73 | | 0.69 | |
+| full members v associates: the full member wins | 68.2% | 77.9% (70 matches) | 75.0% | 66.7% (30) |
+| leading sides v the other full members (men: Ind, Aus, SA, NZ, Eng, Pak; women: Aus, Eng, Ind, SA) | 67.3% | 71.4% (199) | 81.4% | 84.2% (184) |
 
-The correlation is the ratings' as much as the engine's: on the T20 ratings it was 0.55 (men) and 0.82 (women). Misses that
-are the ratings': Scotland (real 66% over these fixtures, sim 51%), Australia women (92% / 70%), the United States (57% / 72%).
+(Round-1 sets: sd 0.16 (0.15) / 0.17 (0.16), correlation 0.76 / 0.81, leading sides 63.6% / 81.8%.) The correlation is the
+ratings' as much as the engine's: on the T20 ratings it was 0.55 (men) and 0.82 (women). Misses that are the ratings':
+Scotland (real 66% over these fixtures, sim 51%), the United States (57% / 71%), Pakistan (54% / 41%); women Australia (92% /
+76%), Thailand (65% / 29%), the Netherlands (29% / 57%). The women's correlation fell from 0.81 to 0.69 with the round-2 sets
+(the same constants give 0.67); the recalibration does not recover it.
 
-**On T20 ratings** (`FORMAT_RATINGS=none`, the fallback for players without an ODI set): men 239.7 (sd 68.7), 300+ 20.0%,
-all out 48.3%, top six v other full members 61.9%; women 221.8 (64.8), 300+ 10.4%, all out 48.8%, top four 78.3%. Scoring is
-about 5% (men) / 2.5% (women) lower and the spread a little narrower, because the T20 composites sit above the ODI reference.
+**On T20 ratings** (`FORMAT_RATINGS=none`, the fallback for players without an ODI set): men 253.1 (sd 70.1), 300+ 27.0%,
+all out 43.8%, top six v other full members 66.0%, team win-share correlation 0.43; women 221.4 (71.7), 300+ 14.9%, all out
+50.6%, top four 80.2%, correlation 0.75. With the round-2 reference (lower batting composites) the T20 sets now score at the
+real level for the men (they were 5% low on the round-1 constants) and 1.3% under the ODI sets for the women; the men's side
+order is much worse on T20 ratings (0.43 against 0.73).
 
-**Live engine** (`ENGINE=live`, CPU v CPU, one replay of each fixture, ODI ratings): the same model and captaincy, so within
-the noise of the instant engine:
+**Live engine** (`ENGINE=live`, CPU v CPU, one replay of each fixture, ODI ratings): the same ball chain and captaincy, so
+within the noise of the instant engine (one replay: about 2.5 runs on the men's mean, 3.5 on the women's):
 
 | | men live | men instant | women live | women instant |
 |---|---|---|---|---|
-| 1st-innings total: mean (sd) | 251.9 (74.9) | 251.9 (74.9) | 228.0 (67.1) | 226.8 (69.2) |
-| 300+ | 28.8% | 28.4% | 15.7% | 15.6% |
-| run rate overs 1-10 / 11-40 / 41-50 | 4.72 / 5.03 / 7.62 | 4.68 / 5.01 / 7.66 | 4.15 / 4.63 / 6.51 | 4.23 / 4.60 / 6.60 |
-| 1st inns: wickets / all out | 8.10 / 46.0% | 8.08 / 44.0% | 8.11 / 46.7% | 8.14 / 49.0% |
-| batting first wins | 49.8% | 47.6% | 49.5% | 50.6% |
-| 100s per match | 0.65 | 0.68 | 0.46 | 0.47 |
-| leading sides v the other full members | 60.6% | 63.6% | 85.9% | 81.8% |
+| 1st-innings total: mean (sd) | 252.6 (73.4) | 252.0 (70.3) | 222.9 (70.2) | 224.3 (72.2) |
+| 300+ | 28.4% | 26.3% | 14.5% | 15.3% |
+| run rate overs 1-10 / 11-40 / 41-50 | 4.73 / 4.98 / 7.86 | 4.73 / 4.95 / 7.70 | 4.15 / 4.60 / 6.41 | 4.22 / 4.58 / 6.62 |
+| 1st inns: wickets / all out | 8.07 / 41.6% | 8.16 / 44.1% | 8.29 / 52.3% | 8.15 / 46.9% |
+| batting first wins | 48.6% | 49.0% | 44.1% | 49.2% |
+| 100s per match | 0.63 | 0.60 | 0.42 | 0.46 |
+| leading sides v the other full members | 67.8% | 67.3% | 76.6% | 81.4% |
 
 (Before the live CPU captain bowled his best bowlers, the T20 phase plan bowled about two points of bowling rating weaker per
 ball and a live ODI scored 8-10 runs more than an instant one.)
@@ -188,7 +201,9 @@ ball (RULES-MATCH.md 12.4): CPU v CPU `5fb19cfd90456037` (was `7976b1a6fb569b50`
 2. `CALIBRATE=1 npx tsx packages/engine/src/__tests__/benchmark-odi.ts 2 both`: prints the involvement-weighted composites
    (new `ODI_REF`), the per-phase rates against the real ones and a suggested `ODI_CAL`. Try values with
    `ODI_TUNE='{"cal":{"male":[[...],[...],[...]]},"scale":{"female":1.25}}'` and repeat until the suggestion stops moving (three
-   or four rounds), then write them into `odi-model.ts`. Refit after the ratings change.
+   or four rounds), then write them into `odi-model.ts`. Refit after the ratings change. Hold `ODI_REF` once the composites
+   settle (they move a little with the simulation, and a moving reference chases the calibration): the round-2 refit set the
+   composites and `ODI_CAL` together once, then `ODI_CAL` alone for three rounds.
 3. `npx vitest run packages/engine/src/__tests__/odi.test.ts` and the fingerprint script.
 
 ### Not done / limits
