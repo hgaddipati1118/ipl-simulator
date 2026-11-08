@@ -83,7 +83,10 @@ the dedicated Chrome (`BU_NAME=cricinfo-comm BU_CDP_URL=http://127.0.0.1:9224`) 
 `ensure_daemon` heals the daemon. Matches that failed with a lost connection can be retried by resetting their `n` in
 `out/state.json` `failed`. Some matches end in a tall editorial blurb and the page then ignores programmatic scrolling;
 `wheel_down()` (real mouse-wheel events) keeps the infinite scroll going. Known gap: ties decided by a super over come back
-with only a few balls (the innings dropdown does not cope with the super-over innings).
+with only a few balls. Probed 2026-11-08 on IPL 2025 DC v RR (1473469): the page has a "Super Over 1" button and no team
+dropdown (the team abbreviations only appear as header links), `__NEXT_DATA__` holds 13 balls of innings 2 with
+`nextInningOver` 18, and neither the scroll triggers nor real wheel events fire any `/match/comments` request; the
+page's own paging for these matches has not been found yet (screenshots timed out on oldmac with its display asleep).
 
 Akamai: a challenge page or "Access Denied" raises `Blocked`; the scraper backs off 1, 2, 5, 10, 20 minutes and gives up
 (writes `STOPPED_BLOCKED`) if it has been blocked continuously for an hour.
