@@ -1357,7 +1357,8 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     }
   } else if ((result.outcome === "wide" || result.outcome === "noball") && canOfferNonLbwReview && simpleExtra(result.detail)) {
     const reviewKind = result.outcome;
-    const reviewWindowOpens = rng() < (reviewKind === "wide" ? 0.10 : 0.06);
+    // (drsRateFactor scales every review chance, as in drs.ts; 0 = none)
+    const reviewWindowOpens = rng() < (reviewKind === "wide" ? 0.10 : 0.06) * (ruleOverrides().drsRateFactor ?? 1);
 
     if (reviewWindowOpens) {
       // Variable overturn rate: wides on the line = 30%, clearly wide = 10%; noball close = 20%, clear = 8%
@@ -1411,7 +1412,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     const battingTeamIsHome = newState.battingTeamId === newState.homeTeam.id;
     const isUserBatting = ni.userTeamId !== null && newState.battingTeamId === ni.userTeamId;
     const battingDrsAvailable = battingTeamIsHome ? newState.drsRemaining.home : newState.drsRemaining.away;
-    const missedExtraReviewWindowOpens = canOfferNonLbwReview && battingDrsAvailable > 0 && rng() < 0.035;
+    const missedExtraReviewWindowOpens = canOfferNonLbwReview && battingDrsAvailable > 0 && rng() < 0.035 * (ruleOverrides().drsRateFactor ?? 1);
 
     if (missedExtraReviewWindowOpens) {
       const reviewKind: DrsReviewKind = rng() < 0.65 ? "wide" : "noball";
