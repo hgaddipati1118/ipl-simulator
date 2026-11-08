@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { startLiveMatch } from "./live-helpers";
 
 type Page = import("@playwright/test").Page;
 
@@ -33,12 +34,7 @@ test.describe("Draft modes", () => {
     const startBtn = page.getByRole("button", { name: "Start Match" }).first();
     const batFirst = page.getByText("Bat First", { exact: true }).first();
     await expect(startBtn.or(batFirst)).toBeVisible({ timeout: 15000 });
-    for (let i = 0; i < 6; i++) {
-      if (await batFirst.isVisible()) await batFirst.click().catch(() => {});
-      else if (await startBtn.isVisible()) await startBtn.click().catch(() => {});
-      await page.waitForTimeout(700);
-      if (!(await startBtn.isVisible()) && !(await batFirst.isVisible())) break;
-    }
+    await startLiveMatch(page);
     await page.getByText("Sim Rest").first().click({ timeout: 15000 });
     await page.getByTestId("draft-match-continue").click({ timeout: 30000 });
 
