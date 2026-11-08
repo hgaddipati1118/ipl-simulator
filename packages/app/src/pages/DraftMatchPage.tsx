@@ -1,7 +1,8 @@
 /**
  * Draft Match: a quick head-to-head mode that needs no league.
  * You and an opponent alternate picks from one pool to build an XI each (ABBA snake by default),
- * set a batting order and captain, then play the match straight away. Best of 3: loser picks first.
+ * set a batting order and captain, then play the match straight away. Best of 3: loser picks first. T20 or ODI: an ODI
+ * draft plays 50-over matches and the pool shows (and plays on) the players' ODI ratings.
  * Playing a friend goes through the multiplayer lobby (same draft engine and protocol).
  */
 
@@ -13,9 +14,10 @@ import {
 } from "@ipl-sim/engine";
 import {
   DRAFT_MATCH_POOLS, buildDraftMatchPool, draftMatchCountries, draftMatchVenues, draftPoolVenues, draftPoolLeague, ensurePoolCoverage,
-  autoLineup, buildDraftMatchTeam, summarizeMatch, shareableResult,
-  type DraftMatchPoolId, type DraftMatchLineup, type DraftMatchResultSummary,
+  autoLineup, buildDraftMatchTeam, summarizeMatch, shareableResult, toOdiPool, draftPoolIsWomen,
+  type DraftMatchPoolId, type DraftMatchLineup, type DraftMatchResultSummary, type DraftMatchFormat,
 } from "../draft-pools";
+import { loadFormatRatings } from "../format-ratings";
 import { DraftBoard } from "../components/DraftBoard";
 import { LineupEditor, DraftMatchViewer, MatchResultCard } from "../components/DraftMatchParts";
 import type { DraftMatchStart } from "../multiplayer/protocol";
@@ -32,6 +34,8 @@ export function DraftMatchPage() {
   const navigate = useNavigate();
   const [phase, setPhase] = useState<Phase>("setup");
   const [poolId, setPoolId] = useState<DraftMatchPoolId>("ipl-current");
+  const [format, setFormat] = useState<DraftMatchFormat>("t20");
+  const [loadingPool, setLoadingPool] = useState(false);
   const [nations, setNations] = useState<[string, string]>(["India", "Australia"]);
   const [draftType, setDraftType] = useState<DraftType>("snake");
   const [pickSeconds, setPickSeconds] = useState(30);
@@ -52,12 +56,18 @@ export function DraftMatchPage() {
   const venues = useMemo(() => draftMatchVenues(), []);
 
   // ── Start a draft (new series or next game) ──
-  const beginGame = (nextSeries: Series) => {
+  const beginGame = async (nextSeries: Series) => {
     const built = buildDraftMatchPool(poolId, nations);
-    const pool = ensurePoolCoverage(built.players, 2, built.maxOverseasInXI);
+    let pool = ensurePoolCoverage(built.players, 2, built.maxOverseasInXI);
+    if (format === "odi") {
+      // the pool on ODI ratings (the file is fetched once; without it everyone keeps his T20 ratings)
+      setLoadingPool(true);
+      pool = toOdiPool(pool, await loadFormatRatings());
+      setLoadingPool(false);
+    }
     setPlayers(new Map(pool.map(p => [p.id, p])));
     setMaxOs(built.maxOverseasInXI);
-    setPoolLabel(built.label);
+    setPoolLabel(format === "odi" ? `${built.label} · ODI ratings` : built.label);
     const seed = Math.floor(Math.random() * 2 ** 31);
     const first = nextSeries.nextFirst ?? (Math.random() < 0.5 ? YOU : CPU); // coin toss for game 1
     const seats = [
@@ -144,6 +154,7 @@ export function DraftMatchPage() {
       seed: Math.floor(Math.random() * 2 ** 31),
       venueTeamId: venue,
       maxOverseasInXI: maxOs,
+      ...(format === "odi" ? { format, women: draftPoolIsWomen(poolId) } : {}),
       sides: sides as unknown as DraftMatchStart["sides"],
     });
     setPhase("match");
@@ -202,6 +213,18 @@ export function DraftMatchPage() {
             )}
           </Section>
 
+          <Section title="Format">
+            <div className="grid grid-cols-2 gap-2">
+              {([["t20", "T20", "20 overs a side, on T20 ratings"], ["odi", "ODI", "50 overs a side, on ODI ratings"]] as const).map(([id, label, desc]) => (
+                <button key={id} onClick={() => setFormat(id)} data-testid={`draft-match-format-${id}`}
+                  className={`text-left p-3 rounded-xl border transition-colors ${format === id ? "border-orange-500/40 bg-orange-500/[0.07]" : "border-th bg-th-surface hover:bg-th-hover"}`}>
+                  <div className="text-sm font-display font-semibold text-th-primary">{label}</div>
+                  <div className="text-[11px] text-th-muted">{desc}</div>
+                </button>
+              ))}
+            </div>
+          </Section>
+
           <Section title="Draft">
             <div className="flex flex-wrap gap-4 text-xs font-display text-th-muted">
               <label className="flex items-center gap-2">Pick order
@@ -226,9 +249,9 @@ export function DraftMatchPage() {
           </Section>
 
           <div className="grid sm:grid-cols-2 gap-3">
-            <button onClick={() => beginGame(NEW_SERIES)} data-testid="draft-match-start"
-              className="px-5 py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-display font-semibold rounded-xl shadow-lg shadow-orange-500/20">
-              Play vs CPU
+            <button onClick={() => void beginGame(NEW_SERIES)} data-testid="draft-match-start" disabled={loadingPool}
+              className="px-5 py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-60 text-white font-display font-semibold rounded-xl shadow-lg shadow-orange-500/20">
+              {loadingPool ? "Loading ODI ratings..." : `Play vs CPU${format === "odi" ? " (ODI)" : ""}`}
             </button>
             <button onClick={() => navigate("/multiplayer", { state: { mode: "draft-match" } })}
               className="px-5 py-4 bg-th-surface border border-th hover:bg-th-hover text-th-primary font-display font-semibold rounded-xl">
@@ -305,12 +328,12 @@ export function DraftMatchPage() {
           series={{ bestOf: 3, game: series.game, wins: series.wins, winnerSeatId: series.winner ?? undefined }} seatNames={names} />
         <div className="flex flex-wrap gap-3">
           {!series.winner ? (
-            <button onClick={() => beginGame(series)} data-testid="draft-match-rematch"
+            <button onClick={() => void beginGame(series)} data-testid="draft-match-rematch"
               className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-display font-semibold rounded-xl">
               Game {series.game + 1}: {series.nextFirst === YOU ? "you pick first" : "CPU picks first"}
             </button>
           ) : (
-            <button onClick={() => beginGame(NEW_SERIES)} className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-display font-semibold rounded-xl">
+            <button onClick={() => void beginGame(NEW_SERIES)} className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-display font-semibold rounded-xl">
               New best-of-3
             </button>
           )}

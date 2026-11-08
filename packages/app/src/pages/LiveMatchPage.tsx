@@ -19,6 +19,9 @@ import {
   setFieldSetting,
   calculateWinProbability,
   battingLives,
+  liveMatchFormat,
+  maxFieldersOutside,
+  type MatchFormatSpec,
   type NarrativeEvent,
 } from "@ipl-sim/engine";
 import {
@@ -83,6 +86,11 @@ interface Props {
   userTeamId: string | null;
   teams?: import("@ipl-sim/engine").Team[];
   previousResults?: FeedMatchResult[];
+  /** Replaces the "Match N -- Season S" line of the pre-match screen (series and one-off matches) */
+  headerLabel?: string;
+  /** The match-complete panel's buttons: given, they replace the season's scorecard / season navigation */
+  onContinue?: () => void;
+  onViewScorecard?: () => void;
 }
 
 function getStadiumLabel(rating: number): string {
@@ -93,10 +101,22 @@ function getStadiumLabel(rating: number): string {
   return "Bowling Paradise";
 }
 
-function getMatchPhaseLabel(overs: number): string {
+function getMatchPhaseLabel(overs: number, fmt?: MatchFormatSpec): string {
+  if (fmt?.id === "odi") {
+    const p = odiPowerplay(overs, fmt);
+    return `Powerplay ${p}`;
+  }
   if (overs < 6) return "Powerplay";
   if (overs < 15) return "Middle Overs";
   return "Death Overs";
+}
+
+/** ODI fielding-restriction phase of an over (0-based): 1 = overs 1-10, 2 = 11-40, 3 = 41-50 */
+function odiPowerplay(overs: number, fmt: MatchFormatSpec): number {
+  const fr = fmt.fieldingRestrictions ?? [];
+  let p = 1;
+  fr.forEach((r, i) => { if (overs >= r.from) p = i + 1; });
+  return p;
 }
 
 function getDrsFeedClasses(verdict: DrsVerdict | null) {
@@ -197,6 +217,9 @@ export function LiveMatchPage({
   userTeamId,
   teams,
   previousResults = [],
+  headerLabel,
+  onContinue,
+  onViewScorecard,
 }: Props) {
   const navigate = useNavigate();
   const params = useParams<{ matchIndex: string }>();
@@ -339,6 +362,16 @@ export function LiveMatchPage({
       window.removeEventListener("beforeunload", handleUnload);
     };
   }, [activeSlotId, seasonNumber, matchIndex, lsKey, saveToLS]);
+
+  // Leaving the page for another route (the season, a series hub): keep the match where it is
+  useEffect(() => () => {
+    const st = stateRef.current;
+    if (st && matchIndex >= 0 && st.status !== "completed") {
+      const serialized = serializeMatchState(st);
+      void saveInProgressMatch(activeSlotId, seasonNumber, matchIndex, serialized);
+      try { localStorage.setItem(lsKey, JSON.stringify(serialized)); } catch { /* quota: IndexedDB has it */ }
+    }
+  }, [activeSlotId, seasonNumber, matchIndex, lsKey]);
 
   // Scroll ball feed to bottom
   useEffect(() => {
@@ -739,6 +772,12 @@ export function LiveMatchPage({
 
   const battingTeam = state.battingTeamId === state.homeTeam.id ? state.homeTeam : state.awayTeam;
   const bowlingTeam = state.bowlingTeamId === state.homeTeam.id ? state.homeTeam : state.awayTeam;
+  // The format being played (T20 or ODI): overs a side, ODI powerplays
+  const fmt = liveMatchFormat(state._internal.rules);
+  const fullOvers = fmt.overs;
+  const isOdi = fmt.id === "odi";
+  // A chase whose target is not the first innings + 1 had it revised (rain, DLS)
+  const dlsRevised = state.innings === 2 && state.target !== undefined && state.innings1Score !== undefined && state.target !== state.innings1Score + 1;
 
   const oversDisplay = state.balls > 0 ? `${state.overs}.${state.balls}` : `${state.overs}.0`;
   const currentRunRate = state.overs > 0 || state.balls > 0
@@ -758,8 +797,8 @@ export function LiveMatchPage({
 
   const totalBallsInMatch = state.innings === 1
     ? state.overs * 6 + state.balls
-    : 120 + state.overs * 6 + state.balls;
-  const progressPercent = (totalBallsInMatch / 240) * 100;
+    : fullOvers * 6 + state.overs * 6 + state.balls;
+  const progressPercent = (totalBallsInMatch / (fullOvers * 12)) * 100;
 
   // Build "yet to bat" list
   const battedIds = new Set(state.batterStats.map(b => b.playerId));
@@ -814,9 +853,9 @@ export function LiveMatchPage({
             {/* Match header */}
             <div className="text-center mb-6">
               <div className="text-[10px] text-th-muted uppercase tracking-widest font-display mb-1">
-                Match {matchIndex + 1} -- Season {seasonNumber}
+                {headerLabel ?? `Match ${matchIndex + 1} -- Season ${seasonNumber}`}
               </div>
-              <div className="text-xs text-th-faint font-display">IPL {new Date().getFullYear()}</div>
+              <div className="text-xs text-th-faint font-display">{headerLabel ? `${fullOvers} overs a side` : `IPL ${new Date().getFullYear()}`}</div>
             </div>
 
             {/* Team vs Team */}
@@ -1020,6 +1059,18 @@ export function LiveMatchPage({
                 <span className="text-base text-th-muted font-display">
                   ({oversDisplay})
                 </span>
+                {isOdi && state.status !== "completed" && (() => {
+                  // a shortened innings has its powerplays in proportion (overs 1-10 of 50 = 1-5 of 25)
+                  const over50 = Math.floor((state.overs * fullOvers) / Math.max(1, state.maxOvers));
+                  const p = odiPowerplay(over50, fmt);
+                  const out = maxFieldersOutside(over50, fmt);
+                  return (
+                    <span data-testid="odi-powerplay" title={`Powerplay ${p}: at most ${out} fielders outside the circle`}
+                      className="self-center rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-display font-semibold text-sky-300">
+                      P{p} <span className="font-normal text-sky-300/70">{out} out</span>
+                    </span>
+                  );
+                })()}
               </div>
 
               {state.innings === 2 && state.innings1Score !== undefined && (
@@ -1031,6 +1082,9 @@ export function LiveMatchPage({
               {state.innings === 2 && state.target && runsNeeded > 0 && (
                 <div className="text-sm font-display font-semibold text-amber-400 mt-1">
                   Need {runsNeeded} from {ballsLeft} balls
+                  {dlsRevised && (
+                    <span data-testid="dls-target" className="ml-2 text-xs font-medium text-sky-300">DLS target {state.target} in {state.maxOvers} overs</span>
+                  )}
                 </div>
               )}
               {/* Win probability bar */}
@@ -1046,6 +1100,7 @@ export function LiveMatchPage({
                   target: state.target,
                   battingTeamPower: 80,
                   bowlingTeamPower: 80,
+                  totalOvers: fullOvers,
                 });
                 const battingProb = state.innings === 1 ? winProb : winProb;
                 const fieldingProb = 100 - battingProb;
@@ -1095,9 +1150,9 @@ export function LiveMatchPage({
               <span className="text-xs text-blue-300 font-display font-semibold">RAIN DELAY</span>
               <span className="text-xs text-th-muted font-display">{state.rainDelay.narrative}</span>
               {state.rainDelay.revisedTarget && (
-                <span className="text-xs text-amber-400 font-display font-semibold ml-auto">Target: {state.rainDelay.revisedTarget}</span>
+                <span className="text-xs text-amber-400 font-display font-semibold ml-auto">{isOdi ? "DLS target" : "Target"}: {state.rainDelay.revisedTarget}</span>
               )}
-              {state.maxOvers < 20 && (
+              {state.maxOvers < fullOvers && (
                 <span className="text-[10px] text-th-faint font-display ml-auto">{state.maxOvers} ov match</span>
               )}
             </div>
@@ -1537,9 +1592,10 @@ export function LiveMatchPage({
               return (
                 <WormChart
                   innings1BallLog={state.innings1BallLog}
-                  innings2BallLog={state.innings === 2 ? state.ballLog : []}
+                  innings2BallLog={state.innings === 2 ? state.innings2BallLog : []}
                   battingFirstTeam={{ id: bfTeam.id, shortName: bfTeam.shortName, primaryColor: bfTeam.primaryColor }}
                   bowlingFirstTeam={{ id: bwTeam.id, shortName: bwTeam.shortName, primaryColor: bwTeam.primaryColor }}
+                  totalOvers={fullOvers}
                   compact
                 />
               );
@@ -1619,7 +1675,9 @@ export function LiveMatchPage({
                         )}
                       </div>
                       <div className="flex gap-3 mt-0.5 text-xs text-th-muted font-mono">
-                        {opt.oversBowled !== undefined && <span>{opt.oversBowled}-{opt.oversRemaining} ov left</span>}
+                        {opt.oversBowled !== undefined && (
+                          <span data-testid="bowler-overs">{opt.oversBowled}/{opt.oversBowled + (opt.oversRemaining ?? 0)} ov · {opt.oversRemaining} left</span>
+                        )}
                         {opt.wicketsTaken !== undefined && opt.runsConceded !== undefined && <span>{opt.wicketsTaken}/{opt.runsConceded}</span>}
                         {opt.economy !== undefined && opt.economy > 0 && <span>Econ: {opt.economy}</span>}
                       </div>
@@ -1929,7 +1987,8 @@ export function LiveMatchPage({
         const currentBowlerData = currentBowlerStats ? state._internal.playerDataMap[currentBowlerStats.playerId] : null;
         const nextBatterId = state._internal.battingOrderIds[state.nextBatterIdx];
         const nextBatter = nextBatterId ? state._internal.playerDataMap[nextBatterId] : null;
-        const phaseLabel = getMatchPhaseLabel(state.overs);
+        const phaseFmt = liveMatchFormat(state._internal.rules);
+        const phaseLabel = getMatchPhaseLabel(Math.floor((state.overs * phaseFmt.overs) / Math.max(1, state.maxOvers)), phaseFmt);
         const legalBallsUsed = state.overs * 6 + state.balls;
         const ballsLeft = Math.max(0, state.maxOvers * 6 - legalBallsUsed);
         const runsNeeded = state.innings === 2 && state.target ? Math.max(0, state.target - state.score) : 0;
@@ -2554,13 +2613,14 @@ export function LiveMatchPage({
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
-                onClick={() => navigate(`/match/${matchIndex}`)}
+                onClick={() => (onViewScorecard ? onViewScorecard() : navigate(`/match/${matchIndex}`))}
                 className="px-5 py-2.5 bg-th-hover text-th-primary font-display font-semibold rounded-xl border border-th text-sm transition-colors hover:bg-th-body"
               >
                 View Full Scorecard
               </button>
               <button
-                onClick={() => navigate("/season")}
+                onClick={() => (onContinue ? onContinue() : navigate("/season"))}
+                data-testid="live-match-continue"
                 className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-display font-semibold rounded-xl transition-all text-sm"
               >
                 Continue
@@ -2721,7 +2781,7 @@ export function LiveMatchPage({
           </button>
 
           <span className="hidden sm:inline text-xs text-th-faint font-mono">
-            {state.innings === 2 ? `Inn 2: ${oversDisplay}` : `Inn 1: ${oversDisplay}`} / 20
+            {state.innings === 2 ? `Inn 2: ${oversDisplay}` : `Inn 1: ${oversDisplay}`} / {state.maxOvers}
           </span>
         </div>
       </div>

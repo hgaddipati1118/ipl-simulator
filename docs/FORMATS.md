@@ -199,3 +199,64 @@ a user side. The hashes on this branch equal the ones before the ODI work and on
 - Strategic decisions a real ODI captain makes (powerplay field choices, holding a bowler for a matchup) are not modelled.
 - `ODI_CAL` and the rating slopes are tuned on the national pools in this game; other XIs (franchise sides playing an ODI,
   generated players) are not validated.
+
+## In the app
+
+### International series (`/international`)
+
+Reached from the Setup page ("International") and the top navigation. `packages/app/src/international.ts` holds the logic
+(pure TypeScript, unit-tested in `src/__tests__/international.test.ts`); `src/pages/InternationalPage.tsx` the screens.
+
+- **Setup**: men or women; two nations (every nation with 14+ shipped players aged 40 or under and six bowling options:
+  `ALL_PLAYERS` for men, `WPL_PLAYERS` for women); the format; 1, 3 or 5 matches; the venue (the host's grounds in turn,
+  most used first, from the ODI venue analysis; or neutral); captain one side or watch.
+- **Squads**: the nation's 16 best by XI value on the format's ratings (a player's `ratings` is his ODI set for an ODI,
+  attached from `public/data/format-ratings.json` like the rest of the app; T20 ratings for a T20I), with a keeper (the best
+  gloveman if the data flags none) and six bowling options. Ids are the record ids (`espn_<id>`), so a saved series rebuilds
+  the same squads.
+- **Before each match** the captain can pick his XI from the squad and set the batting order (the Draft Match lineup editor);
+  the CPU side gets the engine's own XI and order. A saved lineup carries over to the next match.
+- **Each match** is played live (`LiveMatchPage`, with the user's decisions for his side) or simulated instantly; rain is on
+  (the fitted rates, DLS). "Simulate the rest" plays out the series; a series decided early skips its dead rubbers.
+- **Series view**: the score ("India lead 2-1", "Series drawn 1-1"), each match's result, innings totals, player of the match
+  and mode, a scorecard per match (batting and bowling cards, extras, fall of wickets, worm), series stats (most runs with
+  innings, high score, average, strike rate, 100s/50s; most wickets with overs, average, economy, best) and player of the
+  series (runs plus 20 a wicket).
+- **Persistence**: one localStorage key, `ipl-sim-intl-series-v1` (a match record keeps the scorecards and the over-by-over
+  worm, not the ball log). A live match in progress is saved by the live page under its own namespace (season -2, Draft Match
+  uses -1) and resumes after a reload. Career saves, presets and multiplayer are untouched.
+
+**Adding a format.** `SERIES_FORMATS` is a list of `SeriesFormatDef`: its label, the ratings it plays on (`ratingFormat`),
+the series lengths it offers, `simulate(ctx)` returning a `SeriesMatchRecord` (any number of innings scorecards, a winner
+or none), and optionally `live` (`viewer`, `create`, `finish`). Results, the series score (draws and ties count as shared)
+and the stats only read records, so a Test entry (`simulateTestMatch`, four innings over days, draws, its own live screen
+under a new `viewer` id) needs its entry plus a branch for its viewer in `InternationalPage`; `registerSeriesFormat` adds one
+at run time.
+
+### Draft Match
+
+The setup has a T20 / ODI choice. An ODI draft plays 50-over matches (`draftMatchRules(maxOs, "odi", women)`, the women's
+model for a women's pool) and its pool is on ODI ratings (`toOdiPool`), so the draft board, the lineups and the match read
+the ODI sets; players without one keep their T20 ratings. Multiplayer Draft Match stays T20 (`DraftMatchStart.format` is
+optional, absent = T20).
+
+### Live ODI (`LiveMatchPage`)
+
+The page reads the format from the match's rules (`liveMatchFormat`): the overs counter shows `/ 50` (or the overs left
+after rain), run rate, required rate, progress and win probability (the T20 model on a stretched par, `totalOvers`) work for
+50 overs, the worm spans the innings, and a chip shows the fielding-restriction phase (P1 / P2 / P3 with the fielders allowed
+out, in proportion in a shortened innings). The bowler picker lists only bowlers under their cap who did not bowl the last
+over, with "3/10 ov · 7 left". After rain the chase shows "DLS target 306 in 48 overs" and the rain banner the revised
+target. No Impact Player or strategic-timeout prompts appear (the engine raises none in an ODI). A live match is now also
+saved when the page is left for another route.
+
+### Checked
+
+`npx vitest run packages/app packages/engine` (the series logic, Draft Match ODI), `npm run build`, and
+`E2E_PORT=3893 npx playwright test e2e/international.spec.ts` (start an ODI series, simulate a match, play live balls, pick the
+XI, open the scorecard, reload and resume; a Draft Match ODI to its result; `Math.random` is seeded in the page so the runs
+repeat). `E2E_PORT` runs the app on another port when several checkouts share the machine.
+
+Not done: the T20I is the franchise-calibrated T20 engine (T20I scoring is not separately validated); live win probability in
+an ODI uses the T20 model on a stretched par, which reads generous to the chasing side; no multiplayer series; the series
+does not feed career stats.

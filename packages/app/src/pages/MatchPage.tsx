@@ -429,7 +429,8 @@ function MatchHeader({
   );
 }
 
-function BattingCard({ innings }: { innings: InningsScorecard }) {
+/** `plain`: names without links (players who are not in the career, e.g. an international series) */
+export function BattingCard({ innings, plain }: { innings: InningsScorecard; plain?: boolean }) {
   const topScorer = innings.batters.reduce(
     (best, b) => (b.runs > best.runs ? b : best),
     { runs: -1 } as BatterInnings
@@ -466,9 +467,11 @@ function BattingCard({ innings }: { innings: InningsScorecard }) {
                   } ${isTop ? "bg-yellow-500/5" : ""}`}
                 >
                   <td className="px-4 py-2">
-                    <PlayerLink playerId={b.playerId} className={`font-medium ${isTop ? "text-yellow-400" : "text-th-primary"}`}>
+                    {plain
+                      ? <span className={`font-medium ${isTop ? "text-yellow-400" : "text-th-primary"}`}>{b.playerName}</span>
+                      : <PlayerLink playerId={b.playerId} className={`font-medium ${isTop ? "text-yellow-400" : "text-th-primary"}`}>
                       {b.playerName}
-                    </PlayerLink>
+                    </PlayerLink>}
                     {isTop && <span className="text-yellow-500 text-xs ml-1">*</span>}
                   </td>
                   <td className="px-4 py-2 text-th-secondary text-xs">
@@ -507,7 +510,7 @@ function BattingCard({ innings }: { innings: InningsScorecard }) {
   );
 }
 
-function BowlingCard({ innings }: { innings: InningsScorecard }) {
+export function BowlingCard({ innings, plain }: { innings: InningsScorecard; plain?: boolean }) {
   const bestBowler = innings.bowlers.reduce(
     (best, b) => {
       if (b.wickets > best.wickets) return b;
@@ -548,9 +551,11 @@ function BowlingCard({ innings }: { innings: InningsScorecard }) {
                   } ${isBest ? "bg-green-500/5" : ""}`}
                 >
                   <td className="px-4 py-2">
-                    <PlayerLink playerId={b.playerId} className={`font-medium ${isBest ? "text-green-400" : "text-th-primary"}`}>
+                    {plain
+                      ? <span className={`font-medium ${isBest ? "text-green-400" : "text-th-primary"}`}>{b.playerName}</span>
+                      : <PlayerLink playerId={b.playerId} className={`font-medium ${isBest ? "text-green-400" : "text-th-primary"}`}>
                       {b.playerName}
-                    </PlayerLink>
+                    </PlayerLink>}
                     {isBest && <span className="text-green-500 text-xs ml-1">*</span>}
                   </td>
                   <td className="text-center px-2 py-2 text-th-secondary">{b.overs}</td>

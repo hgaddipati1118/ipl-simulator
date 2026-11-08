@@ -29,6 +29,7 @@ import { LobbyPage } from "./pages/LobbyPage";
 import { MultiAuctionPage } from "./pages/MultiAuctionPage";
 import { DraftPage } from "./pages/DraftPage";
 import { DraftMatchPage } from "./pages/DraftMatchPage";
+import { InternationalPage } from "./pages/InternationalPage";
 import { getTeamLogo } from "./team-logos";
 import { useTheme } from "./hooks/useTheme";
 import {
@@ -185,6 +186,8 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
 
         {/* Desktop actions */}
         <div className="hidden md:flex items-center gap-1">
+          {navLink("/international", "International")}
+          <span className="w-3" />
           {navLink("/saves", "Saves")}
           <ThemeToggle resolved={themeResolved} toggle={themeToggle} />
           <button onClick={onNewGame} className="text-red-400/70 hover:text-red-400 text-xs px-2.5 py-1.5 rounded-md hover:bg-red-500/10 transition-colors ml-2">New Game</button>
@@ -221,6 +224,7 @@ function MobileNav({ state, navigate, onNewGame, themeResolved, themeToggle }: {
           )}
           <div className="border-t border-th mt-2 pt-2 flex flex-col gap-1">
             <span className="text-th-faint text-xs font-mono">Season {state.seasonNumber}</span>
+            {navLink("/international", "International series")}
             {navLink("/saves", "Saves & Data")}
             <button onClick={() => { themeToggle(); }} className="text-th-muted hover:text-th-primary text-sm text-left py-1.5 flex items-center gap-2">
               {themeResolved === "dark" ? "Light Mode" : "Dark Mode"}
@@ -856,6 +860,7 @@ export default function App() {
           />
         } />
         <Route path="/draft-match" element={<DraftMatchPage />} />
+        <Route path="/international" element={<InternationalPage />} />
         <Route path="/team/:teamId" element={
           <TeamView
             teams={state.teams}

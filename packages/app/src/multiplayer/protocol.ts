@@ -179,6 +179,10 @@ export interface DraftMatchStart {
   seed: number;
   venueTeamId: string;
   maxOverseasInXI?: number;
+  /** "odi": a 50-over match on ODI ratings (absent = T20) */
+  format?: "t20" | "odi";
+  /** The pool's players are women (the women's rates) */
+  women?: boolean;
   sides: [DraftMatchStartSide, DraftMatchStartSide];
 }
 

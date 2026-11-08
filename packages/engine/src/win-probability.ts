@@ -7,8 +7,12 @@
  * - Run rate vs required rate (2nd innings)
  * - Team power ratings
  *
- * Returns probability 0-100 for the batting team.
+ * Returns probability 0-100 for the batting team. A 50-over innings (`totalOvers: 50`) reads its over on the T20 par
+ * table stretched to 50 overs, with the ODI's slower scoring (rates scaled by ODI_RATE_SCALE).
  */
+
+/** Typical run rate of a T20 over that of an ODI (IPL ~8.5, men's ODIs 2019+ ~5.1, docs/FORMATS.md) */
+const ODI_RATE_SCALE = 8.5 / 5.1;
 
 /** T20 par scores by over (cumulative, 1st innings, average ~165) */
 const PAR_SCORES_1ST = [
@@ -45,8 +49,25 @@ export function calculateWinProbability(params: {
   target?: number;       // 2nd innings target
   battingTeamPower: number;  // 0-100
   bowlingTeamPower: number;  // 0-100
+  /** Overs in a full innings (default 20) */
+  totalOvers?: number;
 }): number {
   const { score, wickets, overs, balls, innings, target, battingTeamPower, bowlingTeamPower } = params;
+  const full = params.totalOvers ?? 20;
+
+  if (full !== 20) {
+    // Put the longer innings on the T20 scale: overs stretched to 20, runs scaled to T20 scoring
+    const k = full / 20;
+    const rs = full >= 50 ? ODI_RATE_SCALE : 1;
+    const legal = overs * 6 + balls;
+    const t20Balls = Math.round(legal / k);
+    const scale = (runs: number) => Math.round((runs * rs) / k);
+    return calculateWinProbability({
+      ...params, totalOvers: undefined,
+      score: scale(score), overs: Math.floor(t20Balls / 6), balls: t20Balls % 6,
+      ...(target !== undefined ? { target: scale(target) } : {}),
+    });
+  }
 
   const totalBalls = overs * 6 + balls;
   const oversDecimal = totalBalls / 6;

@@ -9,8 +9,9 @@ import {
   Player as PlayerClass, Team, IPL_TEAMS, WPL_TEAMS, RULE_PRESETS, EXTRA_LEAGUES, isOverseasIn, isWomenLeague,
   type ExtraLeagueId,
   createPlayerFromData, generatePlayerPool, toDraftPlayer, isDraftBowlingOption,
-  createMatchState, simulateRemaining, buildDetailedResultFromState,
+  createMatchState, simulateRemaining, buildDetailedResultFromState, odiRules,
 } from "@ipl-sim/engine";
+import { attachFormatRatings, type FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
 import { getLeaguePlayers } from "@ipl-sim/ratings/dist/league-players.js";
@@ -274,7 +275,12 @@ export function buildDraftMatchTeam(
   return team;
 }
 
-export function draftMatchRules(maxOverseasInXI?: number): RuleSet {
+export type DraftMatchFormat = "t20" | "odi";
+
+export function draftMatchRules(maxOverseasInXI?: number, format: DraftMatchFormat = "t20", women = false): RuleSet {
+  if (format === "odi") {
+    return { ...odiRules(women ? "women" : "men"), name: "Draft Match ODI", injuriesEnabled: false, maxOverseasInXI: maxOverseasInXI ?? 11 };
+  }
   return {
     ...RULE_PRESETS.modern2026,
     name: "Draft Match",
@@ -282,6 +288,24 @@ export function draftMatchRules(maxOverseasInXI?: number): RuleSet {
     injuriesEnabled: false,
     maxOverseasInXI: maxOverseasInXI ?? 11,
   };
+}
+
+/** A women's pool (WPL, the women's leagues): its ODI plays on the women's ODI model */
+export function draftPoolIsWomen(id: DraftMatchPoolId): boolean {
+  return id === "wpl-current" || draftPoolLeague(id)?.gender === "women";
+}
+
+/**
+ * The pool as an ODI pool: each player on his ODI ratings (`ratings` becomes the ODI set, so the draft board, lineups and
+ * the match all read it). Players without an ODI set keep their T20 ratings. `file` = the format ratings file.
+ */
+export function toOdiPool(players: Player[], file: FormatRatingsFile | null): Player[] {
+  attachFormatRatings(players, file);
+  for (const p of players) {
+    const set = p.formatRatings?.odi;
+    if (set) p.ratings = { ...set.ratings };
+  }
+  return players;
 }
 
 export interface DraftMatchResultSummary {

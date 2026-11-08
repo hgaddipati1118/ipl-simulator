@@ -358,6 +358,13 @@ export function SetupPage({ teams, rules, onRulesChange, onSelectTeam, slots, on
         >
           Draft Match
         </button>
+        <button
+          onClick={() => navigate("/international")}
+          data-testid="international-quick"
+          className="w-full rounded-lg border border-sky-500/30 bg-sky-500/[0.06] px-4 py-2.5 text-sm font-display font-semibold text-sky-400 transition-all duration-200 hover:bg-sky-500/[0.12]"
+        >
+          International
+        </button>
       </fieldset>
 
       {/* More leagues: BBL, WBBL, PSL, SA20, The Hundred, CPL, ILT20, MLC, BPL, LPL */}
