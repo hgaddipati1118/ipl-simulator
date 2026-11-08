@@ -61,6 +61,9 @@ def jsave(p, obj):
 
 class Blocked(Exception): pass
 class Stop(Exception): pass
+class CdpLost(Exception):
+    """the daemon's CDP connection to Chrome is gone; only a fresh browser-harness run (ensure_daemon) heals it"""
+def cdp_lost(e): return 'cdp_disconnected' in repr(e) or 'WebSocket connection closed' in repr(e)
 
 def nap(a, b=None):
     time.sleep(random.uniform(a, b if b else a * 1.5))
@@ -417,6 +420,7 @@ def main():
             try: sm = guarded(series_matches, sr)
             except Stop: raise
             except Exception as e:
+                if cdp_lost(e): raise CdpLost() from e
                 log('series fail', sr['id'], sr['name'], repr(e)); continue
             todo = [m for m in sm['matches'] if eligible(m)]
             known_total += len(todo)
@@ -431,6 +435,7 @@ def main():
                     rec = guarded(scrape_match, mm, sr)
                 except Stop: raise
                 except Exception as e:
+                    if cdp_lost(e): raise CdpLost() from e
                     f = state['failed'].setdefault(key, {'n': 0}); f['n'] += 1; f['err'] = repr(e)[:300]; f['series'] = sr['id']
                     log('FAIL', key, mm['slug'], repr(e)); log(traceback.format_exc()[-600:]); jsave(STATE_F, state)
                     try: my_tab()
@@ -454,6 +459,9 @@ def main():
         log('queue exhausted')
     except Stop:
         log('stopped by STOP file / block limit')
+    except CdpLost:
+        log('CDP connection lost -> exiting so run.sh restarts with a healed daemon')
+        open(ROOT + '/RESTART', 'w').write(now())
     except Exception as e:
         log('FATAL', repr(e)); log(traceback.format_exc())
     log('=== scraper exit')
