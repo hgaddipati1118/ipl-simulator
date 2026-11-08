@@ -4,6 +4,8 @@ import { GameState } from "../game-state";
 import { ovrBgClass, roleLabel, teamLabelColor, bowlingStyleLabel, battingHandLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { RadarChart } from "../components/RadarChart";
+import { FormatSwitch } from "../components/FormatSwitch";
+import { useFormatRatings, type RatingFormat } from "../format-ratings";
 import { PlayerAvatar } from "../components/PlayerAvatar";
 import { getPlayerScoutingView, getScoutingAssignment, MAX_SCOUTING_ASSIGNMENTS } from "../scouting";
 import { getRecruitmentTag } from "../recruitment";
@@ -58,6 +60,11 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
     }
     return { player: null, team: null, fromPool: false };
   }, [state.teams, state.playerPool, playerId]);
+
+  // T20 / ODI / Test view of the Attributes card (format ratings are fetched once and attached to the player)
+  const [ratingFormat, setRatingFormat] = useState<RatingFormat>("t20");
+  const formatPlayers = useMemo(() => (player ? [player] : []), [player]);
+  useFormatRatings(formatPlayers);
 
   // Get prev/next player within same team
   const { prevPlayer, nextPlayer } = useMemo(() => {
@@ -259,15 +266,22 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
   const playerAssignment = getScoutingAssignment(state.scoutingAssignments, "player", player.id);
   const scoutingCapacityFull = state.scoutingAssignments.length >= MAX_SCOUTING_ASSIGNMENTS;
 
+  const attrView = ratingFormat === "t20" ? scoutingView : getPlayerScoutingView(player.forFormat(ratingFormat), team?.id, state.scouting, state.userTeamId);
+  const formatSet = ratingFormat === "t20" ? undefined : player.formatRatings?.[ratingFormat];
+  const formatLabel = ratingFormat === "odi" ? "ODI" : "Test";
+  const formatNote = ratingFormat === "t20" ? null
+    : !formatSet ? `No ${formatLabel} ratings for this player: ${formatLabel}s are played on his T20 ratings.`
+    : formatSet.source === "derived" ? `Estimated: too little ${ratingFormat === "odi" ? "List A / ODI" : "first-class / Test"} cricket to rate, so translated from his other formats.`
+    : null;
   const attrs = [
-    { key: "battingIQ", label: "Batting IQ", view: scoutingView.attributes.battingIQ, group: "bat" },
-    { key: "timing", label: "Timing", view: scoutingView.attributes.timing, group: "bat" },
-    { key: "power", label: "Power", view: scoutingView.attributes.power, group: "bat" },
-    { key: "running", label: "Running", view: scoutingView.attributes.running, group: "bat" },
-    { key: "wicketTaking", label: "Wicket Taking", view: scoutingView.attributes.wicketTaking, group: "bowl" },
-    { key: "economy", label: "Economy", view: scoutingView.attributes.economy, group: "bowl" },
-    { key: "accuracy", label: "Accuracy", view: scoutingView.attributes.accuracy, group: "bowl" },
-    { key: "clutch", label: "Clutch", view: scoutingView.attributes.clutch, group: "clutch" },
+    { key: "battingIQ", label: "Batting IQ", view: attrView.attributes.battingIQ, group: "bat" },
+    { key: "timing", label: "Timing", view: attrView.attributes.timing, group: "bat" },
+    { key: "power", label: "Power", view: attrView.attributes.power, group: "bat" },
+    { key: "running", label: "Running", view: attrView.attributes.running, group: "bat" },
+    { key: "wicketTaking", label: "Wicket Taking", view: attrView.attributes.wicketTaking, group: "bowl" },
+    { key: "economy", label: "Economy", view: attrView.attributes.economy, group: "bowl" },
+    { key: "accuracy", label: "Accuracy", view: attrView.attributes.accuracy, group: "bowl" },
+    { key: "clutch", label: "Clutch", view: attrView.attributes.clutch, group: "clutch" },
   ];
 
   return (
@@ -527,8 +541,11 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-display font-semibold text-th-secondary uppercase tracking-wider">Attributes</h3>
             <div className="flex gap-3">
-              <span className="text-orange-300/70 text-xs font-display">BAT <span className="stat-num font-bold">{scoutingView.batting.display}</span></span>
-              <span className="text-purple-300/70 text-xs font-display">BWL <span className="stat-num font-bold">{scoutingView.bowling.display}</span></span>
+              {ratingFormat !== "t20" && (
+                <span className="text-th-secondary text-xs font-display">{formatLabel} OVR <span className="stat-num font-bold">{attrView.overall.display}</span></span>
+              )}
+              <span className="text-orange-300/70 text-xs font-display">BAT <span className="stat-num font-bold">{attrView.batting.display}</span></span>
+              <span className="text-purple-300/70 text-xs font-display">BWL <span className="stat-num font-bold">{attrView.bowling.display}</span></span>
               {scoutingView.keeping && player.isWicketKeeper && (
                 <span className="text-cyan-300/80 text-xs font-display" title="Wicketkeeping rating">KPG <span className="stat-num font-bold">{scoutingView.keeping.display}</span></span>
               )}
@@ -537,6 +554,10 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
               )}
             </div>
           </div>
+          <FormatSwitch value={ratingFormat} onChange={setRatingFormat} className="mb-3" />
+          {formatNote && (
+            <div className="mb-4 rounded-xl border border-th bg-th-raised px-3 py-2 text-xs text-th-muted font-display">{formatNote}</div>
+          )}
           {!scoutingView.exactRatings && (
             <div className="mb-4 rounded-xl border border-th bg-th-raised px-3 py-2 text-xs text-th-muted font-display">
               This card is built from scouting estimates, not internal player data.
@@ -548,11 +569,11 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
               <div className="text-[10px] text-th-muted uppercase tracking-wider font-display mb-1">Batting</div>
               <RadarChart
                 attributes={[
-                  { label: "IQ", value: scoutingView.attributes.battingIQ.barValue },
-                  { label: "TIM", value: scoutingView.attributes.timing.barValue },
-                  { label: "PWR", value: scoutingView.attributes.power.barValue },
-                  { label: "RUN", value: scoutingView.attributes.running.barValue },
-                  { label: "CLT", value: scoutingView.attributes.clutch.barValue },
+                  { label: "IQ", value: attrView.attributes.battingIQ.barValue },
+                  { label: "TIM", value: attrView.attributes.timing.barValue },
+                  { label: "PWR", value: attrView.attributes.power.barValue },
+                  { label: "RUN", value: attrView.attributes.running.barValue },
+                  { label: "CLT", value: attrView.attributes.clutch.barValue },
                 ]}
                 teamColor={team?.config.primaryColor ?? "#f59e0b"}
                 size={150}
@@ -562,10 +583,10 @@ export function PlayerPage({ state, onScoutPlayer, onToggleScoutAssignment, onTo
               <div className="text-[10px] text-th-muted uppercase tracking-wider font-display mb-1">Bowling</div>
               <RadarChart
                 attributes={[
-                  { label: "WKT", value: scoutingView.attributes.wicketTaking.barValue },
-                  { label: "ECN", value: scoutingView.attributes.economy.barValue },
-                  { label: "ACC", value: scoutingView.attributes.accuracy.barValue },
-                  { label: "CLT", value: scoutingView.attributes.clutch.barValue },
+                  { label: "WKT", value: attrView.attributes.wicketTaking.barValue },
+                  { label: "ECN", value: attrView.attributes.economy.barValue },
+                  { label: "ACC", value: attrView.attributes.accuracy.barValue },
+                  { label: "CLT", value: attrView.attributes.clutch.barValue },
                 ]}
                 teamColor="#a78bfa"
                 size={150}

@@ -106,6 +106,40 @@ describe("extended pool: shards and manifest", () => {
   });
 });
 
+describe("extended pool: ODI / Test sets (shard version 2)", () => {
+  it("every row carries both sets, and they reach the game player", () => {
+    expect(manifest.version).toBe(2);
+    for (const p of all) {
+      expect(p.formatRatings?.odi, p.id).toBeDefined();
+      expect(p.formatRatings?.test, p.id).toBeDefined();
+    }
+    const best = [...group("men", "senior")].sort((a, b) => ovr(b) - ovr(a))[0];
+    const player = createPlayerFromData(toRealPlayerData(best));
+    expect(player.formatRatings).toEqual(best.formatRatings);
+    expect(player.forFormat("test").ratings).toEqual(best.formatRatings!.test!.ratings);
+  });
+
+  it("lower-level players are mostly derived and never out-rate the senior extended pool's best", () => {
+    const share = (list: ExtendedPlayer[], k: "odi" | "test") => list.filter(p => p.formatRatings![k]!.source === "data").length / list.length;
+    expect(share(group("men", "senior"), "test")).toBeGreaterThan(share(group("men", "tier2"), "test"));
+    const top = (list: ExtendedPlayer[], k: "odi" | "test") => Math.max(...list.map(p => overallsOf({ ratings: p.formatRatings![k]!.ratings }).overall));
+    for (const k of ["odi", "test"] as const) expect(top(group("men", "tier2"), k)).toBeLessThanOrEqual(top(group("men", "senior"), k));
+  });
+
+  it("version 1 rows (no format sets) still decode", () => {
+    const row: PoolRow = { id: 9, name: "E F", age: 28, country: "Kenya", role: "batsman", ratings: [50, 50, 50, 50, 20, 20, 20, 40], bowlingStyle: "unknown", battingHand: "right", isWicketKeeper: false, matches: 3, runs: 60, average: 20, strikeRate: 90, wickets: 0, economy: 0, lastYear: 2020 };
+    const shard = { ...encodeShard("men", "tier2", [row]), v: 1 };
+    const [p] = decodeShard(JSON.parse(JSON.stringify(shard)));
+    expect(p.formatRatings).toBeUndefined();
+    expect(createPlayerFromData(toRealPlayerData(p)).formatRatings).toBeUndefined();
+    const withSets = decodeShard(encodeShard("men", "tier2", [{ ...row, formats: [[60, 60, 40, 50, 20, 20, 20, 40, 1], [55, 58, 35, 45, 20, 20, 20, 40, 0]] }]))[0];
+    expect(withSets.formatRatings).toEqual({
+      odi: { ratings: { battingIQ: 60, timing: 60, power: 40, running: 50, wicketTaking: 20, economy: 20, accuracy: 20, clutch: 40 }, source: "data" },
+      test: { ratings: { battingIQ: 55, timing: 58, power: 35, running: 45, wicketTaking: 20, economy: 20, accuracy: 20, clutch: 40 }, source: "derived" },
+    });
+  });
+});
+
 describe("extended pool: sanity of the ratings", () => {
   const espnOvr = (g: "men" | "women") => (g === "men" ? ALL_PLAYERS : WPL_PLAYERS).map(p => overallsOf(p).overall);
 
