@@ -1145,7 +1145,7 @@ def main():
         rmap["test"] = rating_map(model, load_game_players("test", test_sets))
     dx = dismissals_extras()
     pol = policies()
-    real = {"male": real_targets("male", VALID_FROM), "male2023": real_targets("male", 2023), "female": real_targets("female", 2006)}
+    real = {"male": real_targets("male", VALID_FROM), "male2023": real_targets("male", 2023), "female": real_targets("female", 2014)}
     spread = match_spread(model)
     wbase = women_base(model)
     write(model, rmap, dx, pol, real, spread, wbase)
