@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { EXTRA_LEAGUES, RULE_PRESETS, getAuctionType, generatePlayerPool, type RuleSet } from "@ipl-sim/engine";
+import { EXTRA_LEAGUES, RULE_PRESETS, getAuctionType, getScaledRetentions, generatePlayerPool, MINI_KEEP_FLOOR_SHARE, type RuleSet } from "@ipl-sim/engine";
 import {
   createGameState, initSeason, nextSeason, finishTrades, runCPURetentions, finishRetention,
   initLiveAuction, liveAuctionSimRemaining, finalizeLiveAuction, addPlayersToPool, buildAuctionPoolFor,
-  auctionConfigFor, type GameState,
+  auctionConfigFor, togglePlayerRetention, miniRetentionShortfall, type GameState,
 } from "../game-state";
 
 /**
@@ -47,21 +47,43 @@ function toAuction(s: GameState): GameState {
   return initLiveAuction(s);
 }
 
+/** To the retention page of the next off-season (mini years go through the trade window first) */
+function toRetention(s: GameState): GameState {
+  s = nextSeason(s);
+  return s.phase === "trade" ? finishTrades(s) : s;
+}
+
 describe("auction pool through a career, every league", () => {
-  it.each(LEAGUES)("%s: realistic pools, legal squads, one-click sims, free agents kept", (id, rules) => {
+  it.each(LEAGUES)("%s: mini and mega years, realistic pools, legal squads, one-click sims, free agents kept", (id, rules) => {
     let s = startCareer(rules);
     const places = s.teams.length * rules.maxSquadSize;
-    for (let k = 0; k < 3; k++) {
-      s = toAuction(s);
+    for (let k = 0; k < 4; k++) {
+      // the off-season's retention: a mini year keeps most of each squad, a mega year retains up to the limit
+      s = toRetention(s);
       const type = getAuctionType(s.seasonNumber, s.rules);
       const label = `${id} S${s.seasonNumber} ${type}`;
+      expect(s.retentionState?.mode, label).toBe(type);
+      s = runCPURetentions(s);
+      const cpu = s.teams.filter(t => t.id !== s.userTeamId);
+      if (type === "mini") {
+        for (const t of cpu) expect(t.roster.length, `${label} ${t.id} kept`).toBeGreaterThanOrEqual(Math.min(11, Math.round(MINI_KEEP_FLOOR_SHARE * rules.maxSquadSize)));
+      } else {
+        for (const t of cpu) expect(t.roster.length, `${label} ${t.id} retained`).toBeLessThanOrEqual(getScaledRetentions(s.seasonNumber, rules));
+      }
+      s = initLiveAuction(finishRetention(s));
+      const plan = buildAuctionPoolFor({ ...s, auctionLiveState: undefined });
       const freeAgents = s.playerPool.length;
       const auctioned = s.auctionLiveState!.players.length;
 
-      // A shortlist: no more than the must-includes and the role cover call for beyond a mega auction's size
-      expect(auctioned, label).toBeLessThanOrEqual(Math.max(freeAgents, 0));
-      expect(auctioned, label).toBeLessThanOrEqual(Math.round(2.8 * places));
+      // A shortlist the size of a real auction for the league (the must-includes and role cover can add a little)
+      expect(auctioned, label).toBeLessThanOrEqual(freeAgents);
+      expect(auctioned, label).toBeLessThanOrEqual(Math.max(Math.ceil(1.25 * plan.target), plan.mustIncluded));
       if (freeAgents > 3 * places) expect(auctioned, label).toBeLessThan(freeAgents / 4);
+      if (id === "ipl") {
+        // the IPL's real shortlists: about 350 for a mini auction, 575 for a mega
+        if (type === "mini") { expect(auctioned, label).toBeGreaterThanOrEqual(300); expect(auctioned, label).toBeLessThanOrEqual(400); }
+        else { expect(auctioned, label).toBeGreaterThanOrEqual(500); expect(auctioned, label).toBeLessThanOrEqual(650); }
+      }
       // enough for every team's open places
       const open = s.teams.reduce((n, t) => n + Math.max(0, rules.maxSquadSize - t.roster.length), 0);
       expect(auctioned, label).toBeGreaterThanOrEqual(Math.min(freeAgents, open));
@@ -80,12 +102,61 @@ describe("auction pool through a career, every league", () => {
   });
 });
 
+describe("the user's retention", () => {
+  it("a mini year keeps the squad on its contracts by default; a release frees the contract for the auction purse", () => {
+    let s = toRetention(startCareer(RULE_PRESETS.modern2026)); // season 2: a mini auction
+    const user = s.teams.find(t => t.id === s.userTeamId)!;
+    const r = s.retentionState!;
+    expect(r.mode).toBe("mini");
+    expect(r.retained).toHaveLength(user.roster.length);
+    const contracts = user.roster.reduce((n, p) => n + p.bid, 0);
+    expect(r.budget).toBeCloseTo(user.salaryCap - contracts, 1);
+
+    // release the most expensive player: the purse grows by his contract; the kept keep theirs
+    const priciest = [...user.roster].sort((a, b) => b.bid - a.bid)[0];
+    const bid = priciest.bid;
+    const keptBids = new Map(user.roster.filter(p => p !== priciest).map(p => [p.id, p.bid]));
+    s = togglePlayerRetention(s, priciest.id);
+    expect(s.retentionState!.budget).toBeCloseTo(r.budget + bid, 1);
+    s = finishRetention(runCPURetentions(s));
+    const after = s.teams.find(t => t.id === s.userTeamId)!;
+    expect(after.roster.some(p => p.id === priciest.id)).toBe(false);
+    for (const p of after.roster) expect(p.bid).toBe(keptBids.get(p.id));
+    expect(s.playerPool.some(p => p.id === priciest.id)).toBe(true);
+    expect(s.auctionEntrantIds).toContain(priciest.id);
+  });
+
+  it("a mega year retains up to the league's limit on the slabs", () => {
+    let s = startCareer(RULE_PRESETS.modern2026);
+    for (let k = 0; k < 3; k++) {
+      s = toRetention(s);
+      if (s.retentionState!.mode === "mega") break;
+      s = initSeason({ ...finalizeLiveAuction(liveAuctionSimRemaining(initLiveAuction(finishRetention(runCPURetentions(s))))), phase: "season" });
+    }
+    expect(s.seasonNumber).toBe(4);
+    expect(s.retentionState!.mode).toBe("mega");
+    expect(s.retentionState!.retained).toHaveLength(0);
+  });
+
+  it("a mini-year choice whose purse can't fill the squad to the minimum doesn't start the auction", () => {
+    let s = toRetention(startCareer(RULE_PRESETS.modern2026));
+    // keep only the eight cheapest: ten places to the minimum, but no purse left for them
+    const user = s.teams.find(t => t.id === s.userTeamId)!;
+    const keep = new Set([...user.roster].sort((a, b) => a.bid - b.bid).slice(0, 8).map(p => p.id));
+    for (const p of user.roster) if (!keep.has(p.id)) s = togglePlayerRetention(s, p.id);
+    s = { ...s, retentionState: { ...s.retentionState!, budget: 1 } }; // as if the kept were paid nearly the whole purse
+    expect(miniRetentionShortfall(s)).toBeGreaterThan(0);
+    expect(finishRetention(runCPURetentions(s)).phase).toBe("retention");
+  });
+});
+
 describe("who is in the auction", () => {
-  it("released players and the unsold of the last auction are always in; unsold twice, back to the market", () => {
+  it("released players are always in; the last auction's unsold come first after them; unsold twice, back to the market", () => {
     let s = startCareer(RULE_PRESETS.modern2026);
     s = toAuction(s);
     const released = s.auctionEntrantIds ?? [];
-    expect(released.length).toBeGreaterThan(100);
+    // a mini year: each CPU team lets a few go (about 70% of the squad stays)
+    expect(released.length).toBeGreaterThan(20);
     const inAuction = new Set(s.auctionLiveState!.players.map(p => p.id));
     for (const pid of released) expect(inAuction.has(pid)).toBe(true);
 
@@ -94,13 +165,13 @@ describe("who is in the auction", () => {
     expect(s.lastAuctionUnsoldIds).toEqual(unsold);
     expect(s.auctionEntrantIds).toEqual([]);
 
-    // next auction: last time's unsold re-enter (those still free agents and not retired)
+    // next auction: last time's unsold re-register (those still free agents and not retired) and fill the places
+    // after the must-includes and the role cover
     s = toAuction(initSeason({ ...s, phase: "season" }));
     const pool = new Set(s.playerPool.map(p => p.id));
     const next = new Set(s.auctionLiveState!.players.map(p => p.id));
-    const reEntering = unsold.filter(pid => pool.has(pid));
+    const reEntering = unsold.filter(pid => pool.has(pid) && next.has(pid));
     expect(reEntering.length).toBeGreaterThan(0);
-    for (const pid of reEntering) expect(next.has(pid)).toBe(true);
 
     // unsold again: an ordinary free agent for the auction after (no longer a must-include)
     s = finalizeLiveAuction(liveAuctionSimRemaining(s));

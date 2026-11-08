@@ -1,8 +1,9 @@
 import {
   evaluateRetentionSelection,
+  MINI_KEEP_SHARE,
   type Player,
 } from "@ipl-sim/engine";
-import { GameState, retentionTerms } from "../game-state";
+import { GameState, retentionTerms, miniRetentionShortfall } from "../game-state";
 import { ovrColorClass, roleLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 
@@ -19,12 +20,15 @@ function PlayerRetentionRow({
   isRetained,
   disabled,
   onToggle,
+  mini = false,
 }: {
   player: Player;
   cost: number | null;
   isRetained: boolean;
   disabled: boolean;
   onToggle: () => void;
+  /** A mini year: the cost is the player's current contract, and the choice is keep or release */
+  mini?: boolean;
 }) {
   return (
     <div
@@ -50,7 +54,7 @@ function PlayerRetentionRow({
           <span>Age {player.age}</span>
           <span>{player.country}</span>
           <span className={`font-semibold ${cost === null ? "text-th-faint" : "text-amber-400/80"}`}>
-            {cost === null ? "No slot" : `${cost.toFixed(1)} Cr`}
+            {cost === null ? "No slot" : mini ? `Contract ${cost.toFixed(2)} Cr` : `${cost.toFixed(1)} Cr`}
           </span>
         </div>
       </div>
@@ -66,7 +70,7 @@ function PlayerRetentionRow({
               : "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20"
         }`}
       >
-        {isRetained ? "Release" : "Retain"}
+        {isRetained ? "Release" : mini ? "Keep" : "Retain"}
       </button>
     </div>
   );
@@ -84,8 +88,12 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
     );
   }
 
-  // the IPL's slabs, scaled to this league's purse
-  const terms = retentionTerms(state.rules);
+  // mega year: the IPL's slabs, scaled to this league's purse; mini year: current contracts
+  const terms = retentionTerms(state.rules, state.seasonNumber);
+  const mini = retention.mode === "mini";
+  const minSquad = state.rules.minSquadSize ?? (state.rules.maxSquadSize >= 18 ? 18 : 11);
+  // a mini-year choice whose purse can't fill the squad to the minimum at 30 lakh a place can't go to the auction
+  const shortfall = miniRetentionShortfall(state);
   const retainedSet = new Set(retention.retained);
   const sortedRoster = [...userTeam.roster].sort((a, b) => b.overall - a.overall);
   const retainedPlayers = retention.retained
@@ -94,8 +102,8 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
   const projectedCostByPlayerId = new Map<string, number | null>();
 
   for (const player of sortedRoster) {
-    if (retainedSet.has(player.id)) {
-      projectedCostByPlayerId.set(player.id, retention.costs[player.id] ?? null);
+    if (mini || retainedSet.has(player.id)) {
+      projectedCostByPlayerId.set(player.id, retention.costs[player.id] ?? (mini ? player.bid : null));
       continue;
     }
 
@@ -120,13 +128,17 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
           <h2 className="text-2xl font-display font-bold text-th-primary tracking-tight">
             Player Retention
           </h2>
-          <p className="text-th-muted mt-1 font-display">
-            Season <span className="stat-num">{state.seasonNumber}</span> — Choose up to {terms.max} players using {terms.costScale < 1 ? "the IPL's fixed retention slabs, scaled to this league's purse" : "IPL fixed retention slabs"}
+          <p className="text-th-muted mt-1 font-display" data-testid="retention-mode">
+            {mini ? (
+              <>Season <span className="stat-num">{state.seasonNumber}</span> — Mini auction year: keep your squad on its current contracts, release who you don't want</>
+            ) : (
+              <>Season <span className="stat-num">{state.seasonNumber}</span> — Mega auction year: choose up to {terms.max} players using {terms.costScale < 1 ? "the IPL's fixed retention slabs, scaled to this league's purse" : "IPL fixed retention slabs"}</>
+            )}
           </p>
         </div>
         <button
           onClick={onFinishRetention}
-          disabled={!retention.cpuDone}
+          disabled={!retention.cpuDone || shortfall > 0}
           className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-40 text-white font-display font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-orange-500/20 disabled:shadow-none w-full sm:w-auto"
         >
           Finish Retentions & Start Auction
@@ -136,22 +148,42 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
       {/* Budget + Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="rounded-2xl border border-th bg-th-surface p-4 text-center">
-          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Budget</div>
-          <div className="text-2xl font-display font-bold text-th-primary stat-num">
-            {retention.budget.toFixed(1)} <span className="text-sm text-th-muted font-normal">/ {terms.budget} Cr</span>
+          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">{mini ? "Purse for the Auction" : "Budget"}</div>
+          <div className="text-2xl font-display font-bold text-th-primary stat-num" data-testid="retention-budget">
+            {retention.budget.toFixed(1)} <span className="text-sm text-th-muted font-normal">/ {mini ? userTeam.salaryCap : terms.budget} Cr</span>
           </div>
         </div>
 
         <div className="rounded-2xl border border-th bg-th-surface p-4 text-center">
-          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Spent</div>
+          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">{mini ? "Kept Contracts" : "Spent"}</div>
           <div className="text-2xl font-display font-bold text-amber-400 stat-num">{retention.totalCost.toFixed(1)}</div>
         </div>
 
         <div className="rounded-2xl border border-th bg-th-surface p-4 text-center">
-          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Retained / Released</div>
+          <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">{mini ? "Kept / Released" : "Retained / Released"}</div>
           <div className="text-2xl font-display font-bold text-th-primary stat-num">{retainedCount} / {releasedCount}</div>
         </div>
       </div>
+
+      {/* What a mini year changes */}
+      {mini && (
+        <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] px-4 py-3 mb-6 text-sm text-th-secondary font-display leading-6" data-testid="mini-retention-note">
+          Between mega auctions there are no retention slabs and no limit: everyone you keep stays on the contract they
+          signed, and releasing a player frees his contract for the auction purse. The CPU teams keep about{" "}
+          {Math.round(MINI_KEEP_SHARE * state.rules.maxSquadSize)} of {state.rules.maxSquadSize} and release their most overpaid
+          and oldest players. Released players go into the auction.
+          {retainedCount < minSquad && (
+            <span className="block mt-1 text-amber-300">
+              You are keeping {retainedCount}: the auction must fill {minSquad - retainedCount} more places to the {minSquad}-player minimum.
+            </span>
+          )}
+          {shortfall > 0 && (
+            <span className="block mt-1 text-red-300" data-testid="retention-shortfall">
+              The purse left can't fill those places (30 lakh each): release players worth {shortfall.toFixed(2)} Cr more to start the auction.
+            </span>
+          )}
+        </div>
+      )}
 
       {/* CPU Retentions button */}
       {!retention.cpuDone && (
@@ -192,8 +224,9 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
               player={player}
               cost={projectedCostByPlayerId.get(player.id) ?? null}
               isRetained={retainedSet.has(player.id)}
-              disabled={!retainedSet.has(player.id) && projectedCostByPlayerId.get(player.id) === null}
+              disabled={!mini && !retainedSet.has(player.id) && projectedCostByPlayerId.get(player.id) === null}
               onToggle={() => onToggleRetention(player.id)}
+              mini={mini}
             />
           ))}
         </div>

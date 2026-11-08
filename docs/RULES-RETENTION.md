@@ -221,12 +221,65 @@ interface RetentionResult {
 
 ---
 
+## 7. As implemented in the game
+
+The season's auction type follows the league's cycle (`getAuctionType`: mega in season 1 and every `megaAuctionCycle`
+seasons, 3 by default, so seasons 4, 7, 10...; mini in between). The retention page and the CPU teams use the mode
+of the coming auction (`retentionTerms(rules, seasonNumber)` in `packages/app/src/game-state.ts`,
+`RetentionState.mode`).
+
+### Mega auction years
+
+- Up to the league's retention limit: `getScaledRetentions(season, rules)`, which is `rules.maxRetentions` (6 for the
+  IPL; 5 for leagues with squads under 18, from `leagues.ts`) plus one every third mega auction, at most 8. It used to
+  be 6 in every league and every season.
+- At most 5 capped and 2 uncapped, on the fixed slabs (section 1) and the 75 Cr budget, both scaled to a league's purse
+  when it is under the IPL's 120 Cr (`retentionCostScale`; the WPL's 12 Cr: 1.8 / 1.4 / 1.1 / 1.8 / 1.4 Cr, uncapped
+  0.4, of 7.5 Cr). Everyone not retained is released. CPU teams retain with `retainPlayers` (highest `valueOverall`
+  first). The page starts with nobody retained.
+
+### Mini auction years (section 2)
+
+- **The user** starts with the whole squad kept, each player on the contract (bid) he signed, and releases whoever he
+  chooses: no slabs and no limit. The purse for the auction is the season's cap less the kept contracts; releasing a
+  player adds his contract to it. The page says so (a mini-year header, "Purse for the Auction", "Kept Contracts",
+  Keep / Release). A choice that leaves less than 30 lakh for each place still needed to the minimum squad can't
+  start the auction (the page says how much more to release; `miniRetentionShortfall`).
+- **CPU teams** (`cpuMiniReleases`, `packages/engine/src/auction.ts`) keep 70% of the maximum squad (`MINI_KEEP_SHARE`;
+  IPL 25: 18; The Hundred 16: 11). The IPL's 2024 and 2026 mini auctions had 77 places across ten 25-man squads, so
+  teams kept about 17-18. The release order is the section 4 "overpaid" priority: contract / market value, x1.5 at 34+
+  and x1.2 at 32-33, highest first. A player paid at least twice his value also goes while the squad stays at 60%
+  (`MINI_KEEP_FLOOR_SHARE`; IPL: 15). If the purse couldn't refill the squad to its auction target at 30 lakh a place,
+  more players are released in the same order. The three most valuable players and the best wicketkeeper are never
+  released. Kept players keep their contracts.
+- Contracts can only be carried over if they fit the purse. Some shipped squads came paid over it: SA20 squads about
+  180 Cr of 85, the WPL's about 50 of 12, the 2026 IPL squads in the classic era's 90. So when a game is created, a
+  team over its purse has all its contracts scaled down by the same factor to fit (`fitContractsToPurse`). The
+  modern IPL squads (112-126 Cr of 125) are hardly touched.
+
+### The purse between seasons
+
+`getSeasonSalaryCap`: the IPL keeps its real pattern, +5 Cr a year and +20 Cr at a mega auction (125 -> 130 -> 135 ->
+155 for IPL 2026), rounded to 5 Cr. Every other league grows by the same share of its own purse: 5/120 of it a year,
+20/120 at a mega auction, rounded to 0.5 Cr. The WPL goes 12 -> 12.5 -> 13 -> 15 and The Hundred 80 -> 83.5 -> 87 -> 100. A
+flat +5 / +20 Cr had taken the WPL's purse from 12 Cr to 42 Cr by season 4.
+
+### What the auctions look like (ten careers per league, six off-seasons each; RULES-AUCTION.md section 10)
+
+| | mini auction pool | sold | mega auction pool | sold |
+|---|---|---|---|---|
+| IPL (10 x 25) | 350 | 52-62 (real: 72-77) | 575 | 175-178 |
+| BBL (8 x 20) | 224 | 31-42 | 368 | 108-120 |
+| The Hundred (8 x 16) | 179 | 28-36 | 294 | 85-86 |
+| WPL (5 x 18) | 87-126 | 20 | 172-207 | 70 |
+
 ## Unit Tests Required
 
 See TESTING-STRATEGY.md Phase 2B for complete test specifications.
 
 ### Key Invariants
-1. Retained count never exceeds maxRetentions
+(`packages/engine/src/__tests__/auction-pool.test.ts`, `packages/app/src/__tests__/auction-pool-career.test.ts`)
+1. Retained count never exceeds maxRetentions (mega years; a mini year keeps any of the squad)
 2. Capped retained count never exceeds maxCapped
 3. Uncapped retained count never exceeds maxUncapped
 4. Total retention cost matches sum of tier costs
