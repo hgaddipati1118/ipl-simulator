@@ -83,7 +83,7 @@ export type {
 export type {
   BallOutcome, BallEvent, InningsScore, MatchResult, MatchInjuryEvent,
   DetailedMatchResult, DetailedBallEvent, BatterInnings,
-  BowlerFigures, InningsScorecard, MVPPlayerPoints,
+  BowlerFigures, InningsScorecard, MVPPlayerPoints, MatchOptions,
 } from "./match.js";
 
 export {
@@ -185,8 +185,10 @@ export {
   setAggression,
   setFieldSetting,
   playLiveSuperOvers,
+  liveMatchFormat,
 } from "./live-match.js";
 export type {
+  LiveMatchOptions,
   MatchState,
   LiveBatterStats,
   LiveBowlerStats,

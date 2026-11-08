@@ -14,6 +14,11 @@ packages/
 Match rules (every dismissal kind, extras, free hits, strike after a wicket, retirements, super overs) are fitted from Cricsheet and documented in
 `docs/RULES-MATCH.md` section 12 (`delivery-rules.ts`, `match-rules-data.ts`, built by `packages/ratings/src/analysis/match-rules.py`); rain / DLS / no result, DRS, fielding errors (drops, misfields), short runs, beamers, the over-rate restriction and the other rare plays in section 13 (`dls.ts`, `drs.ts`, `special-plays.ts`, `match-rules-extra-data.ts` from `match-rules-extra.py`).
 
+Formats: T20, The Hundred and the ODI (`format.ts`; `odiRules()` starts an ODI in `simulateMatch` or `createMatchState`). An ODI ball comes
+from its own model fitted on Cricsheet ODIs, in both engines (`odi-model.ts`; generated `odi-model-data.ts` / `odi-venue-data.ts` from
+`packages/ratings/src/analysis/odi-ball-model.py`; players on their ODI ratings via `Player.forFormat("odi")`); rules, model, validation
+(`__tests__/benchmark-odi.ts`) and refitting: `docs/FORMATS.md`. `__tests__/fingerprint-matches.ts` shows an engine change leaves T20 / Hundred play unchanged.
+
 Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ball text (scraper, templates, engine API: `docs/COMMENTARY.md`;
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).
 
