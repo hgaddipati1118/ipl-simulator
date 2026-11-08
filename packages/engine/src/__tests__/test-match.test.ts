@@ -8,7 +8,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   TEST_MATCH_HOOKS, createTestMatch, currentInnings, declarationHazard, followOnMargin, followOnProbability, runTestToEnd,
   simulateTestMatch, stepTestBall, testBallProbs, testTarget, type TestMatchResult, type TestMatchState,
-  isTestOpener, pickTestXI, testBattingSlot, testPlayerOf, testProfileOf,
+  isTestOpener, pickTestXI, testBattingSlot, testDropped, testKeeperOf, testKeeps, testPlayerOf, testProfileOf, testRecency,
 } from "../test-match.js";
 import { Player } from "../player.js";
 import { TEST_MODEL } from "../test-model-data.js";
@@ -355,5 +355,31 @@ describe("Test profiles: the order and the attack from the first-class record (s
     expect(testProfileOf(p)).toBeUndefined();
     expect(testBattingSlot(p)).toBe(1.5);
     expect(isTestOpener(p)).toBe(true);
+  });
+});
+
+describe("Test profiles: who plays (the Cricsheet line-ups) and who keeps (the first-class keeping record)", () => {
+  const named = (team: string, name: string) => testTeam(team).roster.find(p => p.name === name)!;
+
+  it("regulars of the country's recent Tests are picked; a player who has stopped playing Tests is not", () => {
+    const kohli = named("India", "Virat Kohli");
+    expect(testDropped(kohli)).toBe(true);
+    expect(testRecency(named("India", "Jasprit Bumrah"))).toBeGreaterThan(0.3);
+    const xi = pickTestXI(testTeam("India").roster, "sub").map(p => p.name);
+    expect(xi).not.toContain("Virat Kohli");
+    expect(xi).toContain("Shubman Gill");
+  });
+
+  it("one keeper per XI, on the keeping record, not the T20 flag", () => {
+    const rahul = named("India", "KL Rahul");
+    expect(rahul.isWicketKeeper).toBe(true);          // the T20 flag
+    expect(testKeeps(rahul)).toBe(false);             // 6 of 220 first-class matches keeping
+    expect(testKeeps(named("India", "Rishabh Pant"))).toBe(true);
+    const nz = pickTestXI(testTeam("New Zealand").roster);
+    expect(testKeeperOf(nz).name).toBe("Tom Blundell");
+    expect(testKeeps(named("New Zealand", "Tom Latham"))).toBe(false);
+    const st = createTestMatch(testTeam("New Zealand"), testTeam("India"), { seed: 3 });
+    const nzId = st.teamOrder[0];
+    expect(st.players[st.teams[nzId].keeperId].name).toBe("Tom Blundell");
   });
 });
