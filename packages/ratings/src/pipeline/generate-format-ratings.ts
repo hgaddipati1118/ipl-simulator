@@ -49,7 +49,7 @@ import { decodeShard, encodeShard, POOL_VERSION, type PoolManifest, type PoolRow
 import { CORE_KEYS, encodeSet, FORMAT_RATINGS_VERSION, type EncodedSet, type FormatRatingsFile } from "../format-ratings.js";
 import { shiftTo, type GameRatings } from "./model-ratings.js";
 import {
-  buildContext, caParams, doesSide, estimateFormat, fitLine, fitTranslations, loadCaFormats, RANK_CONSERVATISM, REGULAR_BALLS,
+  buildContext, caParams, doesSide, estimateFormat, fitLine, fitTranslations, linkCurve, loadCaFormats, percentile, quantile, RANK_CONSERVATISM, readCurve, REGULAR_BALLS,
   type CaFormat, type CaPlayerFormats, type EstimateContext, type FormatScore, type Gender, type Side, SIDES,
 } from "./format-model.js";
 import { validate, type FormatValidation } from "./format-validation.js";
@@ -335,44 +335,6 @@ function blend(f: Features, m: Moments, weights: [string, number][]): number {
     w += wt;
   }
   return w > 0 ? s / w : 0;
-}
-
-/** Value at quantile q (0..1) of a sorted list */
-const quantile = (sorted: number[], q: number) => sorted[Math.max(0, Math.min(sorted.length - 1, Math.round(q * (sorted.length - 1))))];
-/** Share of a sorted list below x (mid-rank for ties) */
-function percentile(sorted: number[], x: number): number {
-  let lo = 0, hi = sorted.length;
-  while (lo < hi) { const mid = (lo + hi) >> 1; if (sorted[mid] < x) lo = mid + 1; else hi = mid; }
-  let hi2 = lo;
-  while (hi2 < sorted.length && sorted[hi2] === x) hi2++;
-  return sorted.length > 1 ? ((lo + hi2 - 1) / 2) / (sorted.length - 1) : 0.5;
-}
-
-/** Monotone score -> overall curve, linear between points and flat beyond the ends */
-export function readCurve(curve: { x: number; y: number }[], x: number): number {
-  if (curve.length === 0) return 50;
-  if (x <= curve[0].x) return curve[0].y;
-  if (x >= curve[curve.length - 1].x) return curve[curve.length - 1].y;
-  let lo = 0, hi = curve.length - 1;
-  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (curve[mid].x <= x) lo = mid; else hi = mid; }
-  const t = (x - curve[lo].x) / Math.max(1e-9, curve[hi].x - curve[lo].x);
-  return curve[lo].y + t * (curve[hi].y - curve[lo].y);
-}
-
-/**
- * Equipercentile link: the i-th lowest score of `players` gets the i-th lowest of `values` at the same quantile.
- * Ties in score are averaged so the curve is a function.
- */
-export function linkCurve(scores: number[], values: number[]): { x: number; y: number }[] {
-  const xs = [...scores].sort((a, b) => a - b), ys = [...values].sort((a, b) => a - b);
-  const pts = xs.map((x, i) => ({ x, y: quantile(ys, xs.length > 1 ? i / (xs.length - 1) : 0.5) }));
-  const out: { x: number; y: number }[] = [];
-  for (const p of pts) {
-    const last = out[out.length - 1];
-    if (last && Math.abs(last.x - p.x) < 1e-9) { last.y = (last.y + p.y) / 2; continue; }
-    out.push({ ...p });
-  }
-  return out;
 }
 
 // ── the generator ─────────────────────────────────────────────────────

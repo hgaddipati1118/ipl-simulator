@@ -16,8 +16,9 @@
  *   - both: inverse-variance blend (`dataWeight` = the record's share);
  *   - prior only ("derived"): shrunk toward a below-average prior (the 35th percentile of the format's regulars).
  * A side the player barely does (< 6 balls a match in the format) has no data, the same rule as ca-model.ts.
- * The side is "data" when it is measured in the format: half a regular's balls (DATA_BALLS) and a rating from the last
- * DATA_MAX_AGE seasons; else "derived" (the blend still uses whatever record there is).
+ * The side is "data" when it is measured in the format: half a regular's balls (DATA_BALLS) and a rating no more than
+ * DATA_MAX_AGE seasons older than the player's last season in any format (lastSeason: a retired player is rated as he
+ * stopped); else "derived" (the blend still uses whatever record there is).
  */
 
 import { execFileSync } from "child_process";
@@ -83,7 +84,11 @@ export interface SideRating {
  * economy) carries over to List A and, more so, to first-class cricket less than one earned by staying in (or by wickets).
  */
 export type T20Style = Partial<Record<Side, [number, number]>>;
-export type CaPlayerFormats = Partial<Record<CaFormat, Partial<Record<Side, SideRating>>>> & { style?: T20Style };
+export type CaPlayerFormats = Partial<Record<CaFormat, Partial<Record<Side, SideRating>>>> & {
+  style?: T20Style;
+  /** Last rated season in senior cricket (lower-level cricket only if he has no senior record): see lastSeason */
+  last?: number;
+};
 
 interface Params { half_life: number; K: number }
 
@@ -152,6 +157,7 @@ export function loadCaFormats(gender: Gender, asOf: number, opts: { lower?: bool
     LEFT JOIN car b ON b.player_id = l.player_id AND b.format = l.format AND b.side = 'bat'
     LEFT JOIN car w ON w.player_id = l.player_id AND w.format = l.format AND w.side = 'bowl'`;
   const out = toFormats(duck<Row>(sql));
+  for (const p of out.values()) p.last = lastRated(p);
   for (const r of loadT20Style(gender, asOf)) {
     const p = out.get(Number(r.player_id));
     if (p) (p.style ??= {})[r.side] = [r.z1, r.z2];
@@ -171,6 +177,7 @@ export function loadCaFormats(gender: Gender, asOf: number, opts: { lower?: bool
       WHERE l.gender = '${gender}'`;
     const lower = duck<Row>(lsql).filter(r => !opts.ids || opts.ids.has(Number(r.player_id)));
     toFormats(lower, out);
+    for (const p of out.values()) p.last ??= lastRated(p);
   }
   return out;
 }
@@ -322,9 +329,25 @@ export interface EstimateContext {
  */
 const MAX_STALE_SEASONS = 2;
 
-/** Variance of a rating, widened for the years since it was last updated (the CA model's half-life) */
-function staleVar(r: SideRating, fmt: CaFormat, side: Side, ctx: EstimateContext): number {
-  const gap = Math.min(MAX_STALE_SEASONS, Math.max(0, ctx.asOf - r.year));
+function lastRated(p: CaPlayerFormats): number | undefined {
+  let last = 0;
+  for (const f of CA_FORMATS) for (const s of SIDES) last = Math.max(last, p[f]?.[s]?.year ?? 0);
+  return last > 0 ? last : undefined;
+}
+
+/**
+ * The season a player's ratings are as of: his last season of senior cricket in any format (up to asOf). A retired
+ * player is rated as he was when he stopped, like the T20 extended pool rates him, and staleness counts from there;
+ * veterans' and legends' matches (lower-level cards) don't make him current again.
+ */
+export function lastSeason(p: CaPlayerFormats, asOf: number): number {
+  const last = p.last ?? lastRated(p);
+  return last ? Math.min(asOf, last) : asOf;
+}
+
+/** Variance of a rating, widened for the seasons since it was last updated (the CA model's half-life) */
+function staleVar(r: SideRating, fmt: CaFormat, side: Side, ctx: EstimateContext, last: number): number {
+  const gap = Math.min(MAX_STALE_SEASONS, Math.max(0, last - r.year));
   return r.sd ** 2 * 2 ** (gap / ctx.params[`${side}/${fmt}`].half_life);
 }
 
@@ -336,7 +359,7 @@ export function translatedPrior(p: CaPlayerFormats, target: CaFormat, side: Side
     const r = p[from]?.[side];
     const t = ctx.translations[`${side}/${from}>${target}`];
     if (!doesSide(r) || !t || t.n < 30) continue;
-    const v = t.b ** 2 * staleVar(r, from, side, ctx) + t.residVar;
+    const v = t.b ** 2 * staleVar(r, from, side, ctx, lastSeason(p, ctx.asOf)) + t.residVar;
     const st = t.c && p.style?.[side];
     const cand = { mean: t.a + t.b * r.rating + (st ? t.c![0] * st[0] + t.c![1] * st[1] : 0), var: v, from };
     if (!best || cand.var < best.var) best = cand;
@@ -351,8 +374,9 @@ export function estimateFormat(p: CaPlayerFormats, target: CaFormat, side: Side,
   const prior = translatedPrior(p, target, side, ctx);
   const balls = own?.balls ?? 0;
   if (data) {
-    const vD = staleVar(data, target, side, ctx) * ctx.dataVar;
-    const source = data.balls >= ctx.dataBalls && ctx.asOf - data.year <= DATA_MAX_AGE ? "data" : "derived";
+    const last = lastSeason(p, ctx.asOf);
+    const vD = staleVar(data, target, side, ctx, last) * ctx.dataVar;
+    const source = data.balls >= ctx.dataBalls && last - data.year <= DATA_MAX_AGE ? "data" : "derived";
     if (!prior || !Number.isFinite(prior.var)) return { mean: data.rating, sd: Math.sqrt(vD), dataWeight: 1, source, balls };
     const wD = 1 / Math.max(1e-6, vD), wP = 1 / prior.var;
     const mean = (data.rating * wD + prior.mean * wP) / (wD + wP);
@@ -390,4 +414,46 @@ export function buildContext(players: Map<number, CaPlayerFormats>, target: CaFo
     params: caParams(gender),
     prior: regularsPrior(players.values(), target, gender, asOf),
   };
+}
+
+// ── score -> game overall ─────────────────────────────────────────────
+
+/** Value at quantile q (0..1) of a sorted list */
+export const quantile = (sorted: number[], q: number): number => sorted[Math.max(0, Math.min(sorted.length - 1, Math.round(q * (sorted.length - 1))))];
+/** Where x falls in a sorted list, 0..1 (mid-rank for ties, halfway between neighbours otherwise) */
+export function percentile(sorted: number[], x: number): number {
+  if (sorted.length < 2) return 0.5;
+  let lo = 0, hi = sorted.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (sorted[mid] < x) lo = mid + 1; else hi = mid; }
+  let end = lo;
+  while (end < sorted.length && sorted[end] === x) end++;
+  const rank = end > lo ? (lo + end - 1) / 2 : lo - 0.5;
+  return Math.max(0, Math.min(1, rank / (sorted.length - 1)));
+}
+
+/** Monotone score -> overall curve, linear between points and flat beyond the ends */
+export function readCurve(curve: { x: number; y: number }[], x: number): number {
+  if (curve.length === 0) return 50;
+  if (x <= curve[0].x) return curve[0].y;
+  if (x >= curve[curve.length - 1].x) return curve[curve.length - 1].y;
+  let lo = 0, hi = curve.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (curve[mid].x <= x) lo = mid; else hi = mid; }
+  const t = (x - curve[lo].x) / Math.max(1e-9, curve[hi].x - curve[lo].x);
+  return curve[lo].y + t * (curve[hi].y - curve[lo].y);
+}
+
+/**
+ * Equipercentile link: the i-th lowest score of `players` gets the i-th lowest of `values` at the same quantile.
+ * Ties in score are averaged so the curve is a function.
+ */
+export function linkCurve(scores: number[], values: number[]): { x: number; y: number }[] {
+  const xs = [...scores].sort((a, b) => a - b), ys = [...values].sort((a, b) => a - b);
+  const pts = xs.map((x, i) => ({ x, y: quantile(ys, xs.length > 1 ? i / (xs.length - 1) : 0.5) }));
+  const out: { x: number; y: number }[] = [];
+  for (const p of pts) {
+    const last = out[out.length - 1];
+    if (last && Math.abs(last.x - p.x) < 1e-9) { last.y = (last.y + p.y) / 2; continue; }
+    out.push({ ...p });
+  }
+  return out;
 }
