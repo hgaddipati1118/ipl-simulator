@@ -257,9 +257,12 @@ describe("The Hundred: 100-ball innings", () => {
   it("a Hundred tie goes to a 5-ball super over", () => {
     // force ties by simulating many matches and checking any super over innings
     const teams = buildTeams(league);
+    // injuries off: these squads are reused for 400 matches with nobody healing, so a side could end up with only a
+    // handful of fit players and run out of bowlers
+    const rules: RuleSet = { ...league.rules, injuriesEnabled: false };
     let checked = 0;
     for (let i = 0; i < 400 && checked < 1; i++) {
-      const r = simulateMatch(teams[i % 8], teams[(i + 2) % 8], league.rules);
+      const r = simulateMatch(teams[i % 8], teams[(i + 2) % 8], rules);
       if (r.margin === "Super Over") checked++;
     }
     // ties are rare (~1%); the assertion is that nothing throws and winners are always decided
