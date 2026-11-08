@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { calculateBattingOverall, calculateBowlingOverall, createPlayerFromData, Player } from "@ipl-sim/engine";
+import { calculateBattingOverall, calculateBowlingOverall, createPlayerFromData, Player, testProfileOf } from "@ipl-sim/engine";
 import { ALL_PLAYERS } from "../all-players.js";
 import { WPL_PLAYERS } from "../wpl-players.js";
 import { getRealPlayers } from "../real-players.js";
@@ -98,13 +98,36 @@ describe("format ratings: the shipped file", () => {
       const t20 = bowl(createPlayerFromData({ ...p, ...p.ratings, role: p.role }).ratings);
       for (const k of ["odi", "test"] as const) expect(bowl(sets(p.id)[k]!.ratings), `${name} ${k}`).toBeLessThanOrEqual(t20 + 2);
     }
-    // specialist batsmen as a group: format bowling sits where their T20 bowling does
-    const batsmen = ALL_PLAYERS.filter(p => p.role === "batsman").map(p => ({ p, t20: bowl(createPlayerFromData({ ...p, ...p.ratings, role: p.role }).ratings) }));
+    // Specialist batsmen as a group (T20 batsmen who are not front-line Test bowlers on the Test profile): format bowling
+    // sits where their T20 bowling does, and part-timers no higher than the batsman's secondary ceiling
+    const batsmen = ALL_PLAYERS.filter(p => p.role === "batsman" && testProfileOf({ id: p.id, sourceId: p.id })?.bowl !== 2)
+      .map(p => ({ p, t20: bowl(createPlayerFromData({ ...p, ...p.ratings, role: p.role }).ratings) }));
     const q = (xs: number[], f: number) => [...xs].sort((a, b) => a - b)[Math.round(f * (xs.length - 1))];
     for (const k of ["odi", "test"] as const) {
       const fmt = batsmen.map(x => bowl(sets(x.p.id)[k]!.ratings));
-      for (const f of [0.5, 0.75, 0.9]) expect(q(fmt, f), `${k} p${f * 100}`).toBeLessThanOrEqual(q(batsmen.map(x => x.t20), f) + 2);
+      expect(q(fmt, 0.5), `${k} median`).toBeLessThanOrEqual(q(batsmen.map(x => x.t20), 0.5) + 2);
+      expect(q(fmt, 0.9), `${k} p90`).toBeLessThanOrEqual(47);
     }
+  });
+
+  it("a player is rated by his role in the format: regular Test bowlers are bowlers whatever their T20 role", () => {
+    const set = (id: string) => sets(id).test!.ratings;
+    const bashir = set("espn_1334872"), stokes = set("espn_311158"), leach = set("espn_455524");
+    // Shoaib Bashir, a T20 "batsman", is England's Test spinner: a bowler's set, if a weaker one than Leach's
+    expect(bowl(bashir)).toBeGreaterThanOrEqual(50);
+    expect(bashir.wicketTaking).toBeGreaterThanOrEqual(50);
+    expect(bowl(leach)).toBeGreaterThan(bowl(bashir));
+    // Ben Stokes, a T20 "batsman", bowls in Tests: an all-rounder's set
+    expect(bowl(stokes)).toBeGreaterThanOrEqual(70);
+    expect(bat(stokes)).toBeGreaterThanOrEqual(75);
+    // Joe Root and Travis Head are part-timers: no higher than the batsman's ceiling
+    for (const id of ["espn_303669", "espn_530011"]) expect(bowl(set(id))).toBeLessThanOrEqual(47);
+  });
+
+  it("battingIQ carries the Test level: Gill above Padikkal and Sai Sudharsan", () => {
+    const iq = (id: string) => sets(id).test!.ratings.battingIQ;
+    expect(iq("espn_1070173")).toBeGreaterThan(iq("espn_1119026"));
+    expect(iq("espn_1070173")).toBeGreaterThan(iq("espn_1151288"));
   });
 
   it("the best ODI and Test bowlers and batters are the established internationals", () => {

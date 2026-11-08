@@ -23,6 +23,7 @@
 
 import { execFileSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
+import { testProfileOf, type PlayerRole } from "@ipl-sim/engine";
 
 const DIR = new URL("../../data/analysis/", import.meta.url).pathname;
 const CA_FILE = `${DIR}ca_ratings_by_year.parquet`;
@@ -79,6 +80,27 @@ export interface SideRating {
   matches: number;
   /** Balls a match in the side over the player's last RECENT_SEASONS seasons in the format (senior cells), see doesSideNow */
   recentPerMatch?: number;
+  /**
+   * List A / first-class only (loadIntlEvidence): his record in internationals against full members (ODIs / Tests), balls
+   * decayed with the CA half-life and the ball-weighted adjusted value per 100 balls, and the decayed share of his balls in
+   * the format by domestic country (dom_IND ...). See IntlAdjust.
+   */
+  intlBalls?: number;
+  intlAdj?: number;
+  domShare?: Record<string, number>;
+  /** Batting only: his ball-weighted mean batting position in the format, over his last RECENT_SEASONS seasons of it (4+ innings), else career */
+  meanPos?: number;
+}
+
+/** Bowling workload (balls an innings in the field) from which a player is a front-line bowler in a format: six overs */
+export const FRONT_LINE_BALLS = 36;
+/** Batting position up to which a player bats in the order (and so is a batter, or an all-rounder if he also bowls) */
+export const TOP_ORDER_POS = 7.5;
+
+/** Balls he bowls an innings in the field in the format, recent seasons first (the Test profile's workload, from the CA cells) */
+export function bowlingWorkload(r: SideRating | undefined): number | undefined {
+  if (!r || r.matches <= 0) return undefined;
+  return r.recentPerMatch ?? r.balls / r.matches;
 }
 /**
  * T20 style of a player, as z-scores against T20 regulars (500+ balls): batting [strike rate, log balls per dismissal],
@@ -168,6 +190,10 @@ export function loadCaFormats(gender: Gender, asOf: number, opts: { lower?: bool
     const p = out.get(Number(r.player_id));
     if (p) (p.style ??= {})[r.side] = [r.z1, r.z2];
   }
+  for (const r of loadBattingPositions(gender, asOf)) {
+    const side = out.get(Number(r.player_id))?.[r.format]?.bat;
+    if (side) side.meanPos = r.pos;
+  }
   if (opts.lower && existsSync(LOWER_FILE) && existsSync(LOWER_CELLS_FILE)) {
     const lsql = `
       WITH car AS (
@@ -194,6 +220,50 @@ export function loadCaFormats(gender: Gender, asOf: number, opts: { lower?: bool
  * batting one (0.31 -> 0.30 ODI, 0.24 -> 0.19 Test): in 2024-25 the hitters who were picked for Tests did well.
  */
 const STYLE_SIDES: Side[] = ["bowl"];
+/** Domestic countries with their own term in IntlAdjust; the rest share "other" */
+export const DOM_COUNTRIES = ["IND", "ENG", "AUS", "RSA", "NZ", "PAK", "SL", "WI", "BDESH"] as const;
+
+/**
+ * International evidence for the long formats (see SideRating.intlBalls): per player and side, from the CA cells up to
+ * asOf, decayed with the CA model's half-life for the side and format. Internationals are the cells against full members
+ * outside the weak tier, valued as the CA model values them (the cell's value plus the opponent's fitted strength).
+ */
+export function loadIntlEvidence(players: Map<number, CaPlayerFormats>, gender: Gender, asOf: number): void {
+  const params = caParams(gender);
+  for (const format of ["ListA", "FC"] as const) {
+    const rows = duck<{ player_id: number; side: Side; cls: string; year: number; balls: number; val: number }>(`
+      WITH s AS (SELECT side, format, gender, comp, strength, weak_tier FROM read_csv('${DIR}ca_comp_strength.csv'))
+      SELECT c.player_id, c.side,
+             CASE WHEN c.comp_class = 'intl_full' AND NOT coalesce(s.weak_tier, false) THEN 'intl' ELSE c.comp_class END AS cls,
+             c.year, sum(c.balls) AS balls, sum(c.value_ms + c.balls * coalesce(s.strength, 0) / 100) AS val
+      FROM '${CELLS_FILE}' c LEFT JOIN s USING (side, format, gender, comp)
+      WHERE c.gender = '${gender}' AND c.format = '${format}' AND c.year <= ${asOf} AND c.balls > 0
+      GROUP BY ALL`);
+    const acc = new Map<string, { intlB: number; intlV: number; all: number; dom: Record<string, number> }>();
+    for (const r of rows) {
+      const h = params[`${r.side}/${format}`].half_life;
+      const w = 0.5 ** ((asOf - Number(r.year)) / h);
+      const key = `${r.player_id}/${r.side}`;
+      const a = acc.get(key) ?? { intlB: 0, intlV: 0, all: 0, dom: {} };
+      a.all += w * r.balls;
+      if (r.cls === "intl") { a.intlB += w * r.balls; a.intlV += w * r.val; }
+      else if (r.cls.startsWith("dom_")) {
+        const c = (DOM_COUNTRIES as readonly string[]).includes(r.cls.slice(4)) ? r.cls.slice(4) : "other";
+        a.dom[c] = (a.dom[c] ?? 0) + w * r.balls;
+      }
+      acc.set(key, a);
+    }
+    for (const [key, a] of acc) {
+      const [id, side] = key.split("/") as [string, Side];
+      const sr = players.get(Number(id))?.[format]?.[side];
+      if (!sr || a.all <= 0) continue;
+      sr.intlBalls = a.intlB;
+      sr.intlAdj = a.intlB > 0 ? (100 * a.intlV) / a.intlB : undefined;
+      sr.domShare = Object.fromEntries(Object.entries(a.dom).map(([c, b]) => [c, b / a.all]));
+    }
+  }
+}
+
 /** Seasons of a format, counted back from the player's last one, that say whether he still does a side in it */
 export const RECENT_SEASONS = 3;
 
@@ -210,6 +280,41 @@ function loadRecentUse(gender: Gender, asOf: number): { player_id: number; forma
     FROM m CROSS JOIN (VALUES ('bat'), ('bowl')) s(side)
     LEFT JOIN (SELECT c.* FROM c JOIN recent USING (player_id, format, year)) c ON c.player_id = m.player_id AND c.format = m.format AND c.side = s.side
     GROUP BY ALL`);
+}
+
+/** Mean batting position per player and format: the last RECENT_SEASONS seasons of it with 4+ innings, else his career */
+function loadBattingPositions(gender: Gender, asOf: number): { player_id: number; format: CaFormat; pos: number }[] {
+  return duck(`
+    WITH c AS (SELECT player_id, format, year, sum(inns) AS inns, sum(balls) AS balls, sum(mean_position * balls) AS pb FROM '${CELLS_FILE}'
+               WHERE gender = '${gender}' AND side = 'bat' AND year <= ${asOf} AND balls > 0 AND mean_position IS NOT NULL GROUP BY ALL),
+    k AS (SELECT *, row_number() OVER (PARTITION BY player_id, format ORDER BY year DESC) AS k FROM c),
+    agg AS (SELECT player_id, format, sum(inns) FILTER (WHERE k <= ${RECENT_SEASONS}) AS ri, sum(pb) FILTER (WHERE k <= ${RECENT_SEASONS}) AS rpb,
+                   sum(balls) FILTER (WHERE k <= ${RECENT_SEASONS}) AS rb, sum(pb) AS cpb, sum(balls) AS cb FROM k GROUP BY ALL)
+    SELECT player_id, format, CASE WHEN ri >= 4 THEN rpb / rb ELSE cpb / cb END AS pos FROM agg`);
+}
+
+/** Career rates relative to the competition-season average (1 = average), per player, long format and side (loadRelativeRates) */
+export interface RelativeRates { runs: number; outs: number }
+
+/**
+ * Career rates in List A / first-class cricket relative to the average of the competition-seasons he played in: runs and
+ * dismissals per ball (batting), runs and wickets per ball (bowling). Free of conditions and era (a Ranji Trophy seamer's
+ * economy is measured against Ranji scoring, a Test bowler's against Tests); the level of the competition is the CA rating's job.
+ */
+export function loadRelativeRates(gender: Gender): Record<"ListA" | "FC", Map<number, Partial<Record<Side, RelativeRates & { balls: number }>>>> {
+  const rows = duck<{ player_id: number; format: "ListA" | "FC"; side: Side; balls: number; runs: number; outs: number; xruns: number; xouts: number }>(`
+    SELECT c.player_id, c.format, c.side, sum(c.balls) AS balls, sum(c.runs) AS runs, sum(c.outs) AS outs,
+           sum(c.balls * b.rpb) AS xruns, sum(c.balls * b.opb) AS xouts
+    FROM '${CELLS_FILE}' c JOIN '${DIR}ca_comp_seasons.parquet' b USING (side, format, gender, year, comp)
+    WHERE c.gender = '${gender}' AND c.format IN ('ListA', 'FC') AND c.balls > 0 GROUP BY ALL`);
+  const out = { ListA: new Map(), FC: new Map() } as ReturnType<typeof loadRelativeRates>;
+  for (const r of rows) {
+    const m = out[r.format];
+    const e = m.get(Number(r.player_id)) ?? {};
+    e[r.side] = { balls: r.balls, runs: r.xruns > 0 ? r.runs / r.xruns : 1, outs: r.xouts > 0 ? r.outs / r.xouts : 1 };
+    m.set(Number(r.player_id), e);
+  }
+  return out;
 }
 
 /** Pseudo-balls of the T20 average added to a player's T20 rates before they are turned into style z-scores */
@@ -230,6 +335,31 @@ function loadT20Style(gender: Gender, asOf: number): { player_id: number; side: 
           FROM c JOIN pop p USING (side)),
     m AS (SELECT side, avg(s1) AS m1, stddev_pop(s1) AS d1, avg(s2) AS m2, stddev_pop(s2) AS d2 FROM f WHERE balls >= ${STYLE_REGULAR_BALLS} GROUP BY ALL)
     SELECT f.player_id, f.side, (s1 - m1) / d1 AS z1, (s2 - m2) / d2 AS z2 FROM f JOIN m USING (side) WHERE f.balls >= ${STYLE_MIN_BALLS}`);
+}
+
+// ── role in a format ──────────────────────────────────────────────────
+
+const PART_TIME_BALLS = 6;
+
+/**
+ * A player's role in a long format, from what he does in it: front-line if he bowls six overs an innings in the field
+ * (Tests: the Test profile's workload, test-profile-data.ts, else his first-class record; ODIs: his List A record, recent
+ * seasons first), a batter if he bats in the top seven. Front-line and top seven: all-rounder; front-line only: bowler;
+ * otherwise batsman (keepers too). A player with no record in the format keeps his T20 role.
+ */
+export function formatRole(
+  p: { id: string; role: PlayerRole; isWicketKeeper?: boolean }, format: "odi" | "test", rec: Partial<Record<Side, SideRating>> | undefined,
+): PlayerRole {
+  const profile = format === "test" ? testProfileOf({ id: p.id, sourceId: p.id }) : undefined;
+  const workload = profile?.bowl !== undefined
+    ? [0, PART_TIME_BALLS, FRONT_LINE_BALLS][profile.bowl]
+    : rec?.bowl ? bowlingWorkload(rec.bowl) : rec?.bat ? 0 : undefined;
+  const pos = profile?.pos ?? rec?.bat?.meanPos;
+  if (workload === undefined && pos === undefined) return p.role;
+  if (p.isWicketKeeper) return "batsman";
+  const front = (workload ?? 0) >= FRONT_LINE_BALLS;
+  const bats = pos !== undefined ? pos <= TOP_ORDER_POS : p.role !== "bowler";
+  return front ? (bats ? "all-rounder" : "bowler") : "batsman";
 }
 
 // ── translations between formats ──────────────────────────────────────
