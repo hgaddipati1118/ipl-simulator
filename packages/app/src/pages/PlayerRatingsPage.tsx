@@ -13,6 +13,8 @@ import { getRecruitmentCounts, getRecruitmentTag, type RecruitmentState } from "
 import { RecruitmentActions, RecruitmentBadge } from "../components/RecruitmentControls";
 import { DatabaseSearch } from "../components/DatabaseSearch";
 import type { ExtendedPlayer } from "../extended-pool";
+import { useFormatRatings, type RatingFormat } from "../format-ratings";
+import { FormatSwitch, FormatSourceMark } from "../components/FormatSwitch";
 
 interface Props {
   teams: Team[];
@@ -53,6 +55,9 @@ export function PlayerRatingsPage({
   const [filterRecruitment, setFilterRecruitment] = useState<RecruitmentFilter>("all");
   const [hideOwned, setHideOwned] = useState(false);
   const [search, setSearch] = useState("");
+  const [format, setFormat] = useState<RatingFormat>("t20");
+  const everyone = useMemo(() => [...teams.flatMap(t => t.roster), ...playerPool], [teams, playerPool]);
+  const formatsReady = useFormatRatings(everyone);
   const recruitmentCounts = useMemo(() => getRecruitmentCounts(recruitment), [recruitment]);
   const shortlistAssignment = useMemo(() => getScoutingAssignment(scoutingAssignments, "shortlist"), [scoutingAssignments]);
   const marketAssignment = useMemo(() => getScoutingAssignment(scoutingAssignments, "market"), [scoutingAssignments]);
@@ -65,7 +70,7 @@ export function PlayerRatingsPage({
         team,
         teamKey: team.id,
         teamLabel: team.shortName,
-        scoutingView: getPlayerScoutingView(player, team.id, scouting, userTeamId),
+        scoutingView: getPlayerScoutingView(player.forFormat(format), team.id, scouting, userTeamId),
         recruitmentTag: getRecruitmentTag(recruitment, player.id),
       }))),
       ...playerPool.map(player => ({
@@ -73,7 +78,7 @@ export function PlayerRatingsPage({
         team: null,
         teamKey: "free-agents",
         teamLabel: "FA",
-        scoutingView: getPlayerScoutingView(player, undefined, scouting, userTeamId),
+        scoutingView: getPlayerScoutingView(player.forFormat(format), undefined, scouting, userTeamId),
         recruitmentTag: getRecruitmentTag(recruitment, player.id),
       })),
     ];
@@ -101,7 +106,7 @@ export function PlayerRatingsPage({
       }
     });
     return result;
-  }, [teams, playerPool, scouting, userTeamId, recruitment, sortBy, filterRole, filterTeam, filterRecruitment, hideOwned, search]);
+  }, [teams, playerPool, scouting, userTeamId, recruitment, sortBy, filterRole, filterTeam, filterRecruitment, hideOwned, search, format, formatsReady]);
 
   const activeAssignments = useMemo(
     () => scoutingAssignments
@@ -204,6 +209,7 @@ export function PlayerRatingsPage({
 
       {/* Filters */}
       <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+        <FormatSwitch value={format} onChange={setFormat} />
         <div className="relative w-full sm:max-w-xs">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-th-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -391,6 +397,7 @@ export function PlayerRatingsPage({
                   </td>
                   <td className="text-center px-2 py-2.5">
                     <span className={`ovr-badge text-sm inline-block min-w-[28px] rounded-md px-1 py-0.5 ${ovrBgClass(scoutingView.overall.sortValue)}`}>{scoutingView.overall.compactDisplay}</span>
+                    <FormatSourceMark player={p} format={format} />
                   </td>
                   <td className="text-center px-2 py-2.5 stat-num text-orange-300/60 text-sm hidden md:table-cell">{scoutingView.batting.compactDisplay}</td>
                   <td className="text-center px-2 py-2.5 stat-num text-purple-300/60 text-sm hidden md:table-cell">{scoutingView.bowling.compactDisplay}</td>

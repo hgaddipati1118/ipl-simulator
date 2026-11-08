@@ -95,6 +95,7 @@ import {
 import { saveState, loadState, clearState } from "./storage";
 import { poolLoader, prepareLeaguePool, type ExtendedPlayer } from "./extended-pool";
 import { saveMatchDetail } from "./match-db";
+import { ensureFormatRatings } from "./format-ratings";
 
 function ThemeToggle({ resolved, toggle }: { resolved: "light" | "dark"; toggle: () => void }) {
   return (
@@ -302,6 +303,11 @@ export default function App() {
     setState(newState);
     saveState(newState).then(() => refreshSlots()); // async, fire-and-forget
   }, [refreshSlots]);
+
+  // ODI / Test ratings (fetched once, outside the bundle): attach them to every player the game holds
+  useEffect(() => {
+    if (state) void ensureFormatRatings(state);
+  }, [state]);
 
   // ── Live match state (must be before early return to maintain hook order) ──
   const [liveMatchState, setLiveMatchState] = useState<MatchState | null>(null);
