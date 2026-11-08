@@ -447,7 +447,8 @@ BAT_MIX = {"1": {"battingIQ": 1, "timing": 1, "running": 1}, "2": {"battingIQ": 
 BOWL_MIX = {k: {"economy": -1, "accuracy": -1, "wicketTaking": -1} for k in ["1", "2", "3", "4", "6"]}
 BOWL_MIX.update({"W": {"wicketTaking": 1, "economy": 1, "accuracy": 1}, "wide": {"accuracy": -1}, "nb": {"accuracy": -1}})
 MIN_BALLS_MAP = 300
-DAMPED = {"wide", "nb"}
+CURVE_MIN_BALLS = 30
+CURVE_BINS = 10
 RIDGE = 0.05
 
 
@@ -465,49 +466,99 @@ def solve(A, b):
     return [M[i][n] / M[i][i] if M[i][i] else 0.0 for i in range(n)]
 
 
-def load_game_players():
-    """The game's players by espn id, men only (the Test fit is men's). A player's Test ratings are used when the file has
-    them (formatRatings.test, filled by the ratings pipeline), else the T20 ratings."""
+FORMAT_RATINGS = Path(os.environ.get("FORMAT_RATINGS", str(REPO / "packages" / "app" / "public" / "data" / "format-ratings.json")))
+CORE_KEYS = ["battingIQ", "timing", "power", "running", "wicketTaking", "economy", "accuracy", "clutch"]
+
+
+def load_test_sets():
+    """The players' Test ratings (packages/app/public/data/format-ratings.json from the ratings pipeline: sourceId -> [odi, test],
+    each set the eight attributes then 1 = measured / 0 = derived), or {} when the file is not there."""
+    if not FORMAT_RATINGS.exists():
+        log("no format ratings at", FORMAT_RATINGS, "- Test players are rated on their T20 ratings only")
+        return {}
+    f = json.load(open(FORMAT_RATINGS))
+    out = {}
+    for sid, sets in (f.get("players") or {}).items():
+        t = sets[1] if len(sets) > 1 else None
+        if t and len(t) >= 9:
+            out[sid] = {"ratings": dict(zip(CORE_KEYS, t[:8])), "source": "data" if t[8] == 1 else "derived"}
+    log(f"format ratings: {len(out)} Test sets from {FORMAT_RATINGS}")
+    return out
+
+
+def load_game_players(kind, test_sets):
+    """The game's players by espn id, men only (the Test fit is men's), rated on their T20 ratings (kind "t20") or on their Test
+    ratings (kind "test": only players who have a Test set)."""
     out = {}
     for p in json.load(open(DATA / "game_players.json")):
         if p.get("g", "male") != "male":
             continue
-        fr = ((p.get("formatRatings") or {}).get("test") or {}).get("ratings")
-        out[p["id"]] = {**p, "r": fr or p["r"], "rsrc": "test" if fr else "t20"}
+        if kind == "test":
+            t = test_sets.get(p["id"])
+            if t:
+                out[p["id"]] = {**p, "r": t["ratings"]}
+        else:
+            out[p["id"]] = p
     return out
 
 
+def pav(xs, ws, increasing):
+    """Pool-adjacent-violators: the weighted monotone (non-decreasing or non-increasing) fit to xs"""
+    blocks = [[x if increasing else -x, w, 1] for x, w in zip(xs, ws)]
+    out = []
+    for b in blocks:
+        out.append(b)
+        while len(out) > 1 and out[-2][0] > out[-1][0]:
+            v2, w2, n2 = out.pop()
+            v1, w1, n1 = out.pop()
+            out.append([(v1 * w1 + v2 * w2) / (w1 + w2), w1 + w2, n1 + n2])
+    res = []
+    for v, w, n in out:
+        res += [v if increasing else -v] * n
+    return res
+
+
 def rating_map(model, gp):
-    """For each player term: the attribute weights (on z-scored attributes) and intercept. The mix is a sign-constrained
-    ridge regression of the player's raw observed / expected ratio on his ratings (precision weighted); its scale is set by
-    reduced major axis, so the spread of log terms the ratings produce equals the true spread (raw spread less Poisson noise)."""
+    """For each player term: an attribute mix and a calibration curve from it to the term.
+    The mix is a sign-constrained ridge regression of the player's raw observed / expected ratio on his z-scored ratings
+    (precision weighted, players with 300+ balls since 2015). The curve maps the mix onto the term empirically: players with
+    30+ balls (tail-enders included) in CURVE_BINS bins of equal expected events, each bin's pooled observed / expected
+    ratio, made monotone, then centred so the ball-weighted mean over the pool is 1. So a rating means what the real players
+    with that rating did: steep at the ends (a number eleven, the very best batters), flat where ratings barely tell players
+    apart. Bowlers' attributes are standardised within pace / spin, as their fitted terms are."""
     res = {"bat": {}, "bowl": {}, "pool": {}}
     for f, attrs, mixes in (("bat", BAT_ATTRS, BAT_MIX), ("bowl", BOWL_ATTRS, BOWL_MIX)):
-        pool = {}
+        pools = {}
         for k in mixes:
             rows = []
             for cs, v in model[k][f].items():
                 ci, spin, n, nref, l, o, e = v
-                if nref < MIN_BALLS_MAP or not ci:
+                if nref < CURVE_MIN_BALLS or not ci:
                     continue
                 p = gp.get(f"espn_{int(ci)}")
                 if p:
-                    rows.append((p, nref, math.log((o + 0.5) / (e + 0.5)), 1 / (e + 0.5)))
-            N = len(rows)
-            mu = {a: sum(x[0]["r"][a] for x in rows) / N for a in attrs}
-            sd = {a: math.sqrt(sum((x[0]["r"][a] - mu[a]) ** 2 for x in rows) / N) or 1 for a in attrs}
-            if not pool:
-                pool = {"n": N, "mean": {a: r(mu[a], 2) for a in attrs}, "sd": {a: r(sd[a], 2) for a in attrs}}
-            mr = sum(x[2] for x in rows) / N
-            tau2 = max(1e-4, sum((x[2] - mr) ** 2 for x in rows) / N - sum(x[3] for x in rows) / N)
+                    g = ("spin" if spin else "pace") if f == "bowl" else "all"
+                    rows.append((p, nref, math.log((o + 0.5) / (e + 0.5)), 1 / (e + 0.5), g, o, e))
+            reg = [x for x in rows if x[1] >= MIN_BALLS_MAP]
+            if not pools:
+                for g in sorted(set(x[4] for x in reg)):
+                    xs = [x for x in reg if x[4] == g]
+                    mu = {a: sum(x[0]["r"][a] for x in xs) / len(xs) for a in attrs}
+                    sd = {a: math.sqrt(sum((x[0]["r"][a] - mu[a]) ** 2 for x in xs) / len(xs)) or 1 for a in attrs}
+                    pools[g] = {"n": len(xs), "mean": {a: r(mu[a], 2) for a in attrs}, "sd": {a: r(sd[a], 2) for a in attrs}}
+            zof = lambda x, a: (x[0]["r"][a] - pools[x[4]]["mean"][a]) / pools[x[4]]["sd"][a]
+            N = len(reg)
+            mr = {g: sum(x[2] for x in reg if x[4] == g) / max(1, sum(1 for x in reg if x[4] == g)) for g in pools}
+            dev = [x[2] - mr[x[4]] for x in reg]
+            tau2 = max(1e-4, sum(d_ * d_ for d_ in dev) / N - sum(x[3] for x in reg) / N)
             use = dict(mixes[k])
+            beta = []
             for _ in range(len(use) + 1):
                 names = list(use)
-                Z = [[(x[0]["r"][a] - pool["mean"][a]) / pool["sd"][a] for a in names] for x in rows]
-                w = [1 / (tau2 + x[3]) for x in rows]
-                y = [x[2] - mr for x in rows]
+                Z = [[zof(x, a) for a in names] for x in reg]
+                w = [1 / (tau2 + x[3]) for x in reg]
                 A = [[sum(w[i] * Z[i][p_] * Z[i][q] for i in range(N)) + (RIDGE * sum(w) if p_ == q else 0) for q in range(len(names))] for p_ in range(len(names))]
-                beta = solve(A, [sum(w[i] * Z[i][p_] * y[i] for i in range(N)) for p_ in range(len(names))])
+                beta = solve(A, [sum(w[i] * Z[i][p_] * dev[i] for i in range(N)) for p_ in range(len(names))])
                 wrong = [a for a, b_ in zip(names, beta) if b_ * use[a] < 0]
                 if not wrong:
                     break
@@ -516,24 +567,43 @@ def rating_map(model, gp):
                 if not use:
                     break
             if not use:
-                res[f][k] = {"weights": {}, "tau": r(math.sqrt(tau2)), "r": 0}
+                res[f][k] = {"weights": {}, "knots": [[0, 0]], "c": 0 if f == "bat" else {g: 0 for g in pools}, "tau": r(math.sqrt(tau2)), "r": 0, "n": N}
                 continue
-            comp = [sum(b_ * z for b_, z in zip(beta, zz)) for zz in Z]
-            mc = sum(comp) / N
-            sc = math.sqrt(sum((c - mc) ** 2 for c in comp) / N) or 1
-            sy = math.sqrt(sum((v - sum(y) / N) ** 2 for v in y) / N)
-            corr = sum((c - mc) * (v - sum(y) / N) for c, v in zip(comp, y)) / N / sc / sy
-            tau = math.sqrt(tau2)
-            gamma = {a: b_ * tau / sc for a, b_ in zip(names, beta)}
-            # the extras (wides, no-balls) barely follow any rating: full reduced-major-axis spread would be noise, so the
-            # slope is damped towards ordinary regression (x r / 0.3 below r = 0.3)
-            if k in DAMPED:
-                gamma = {a: g_ * min(1.0, corr / 0.3) for a, g_ in gamma.items()}
-            # intercept: ball-weighted mean of the term over the pool is 1
-            tot = sum(x[1] for x in rows)
-            mean_m = sum(x[1] * math.exp(sum(gamma[a] * (x[0]["r"][a] - pool["mean"][a]) / pool["sd"][a] for a in names)) for x in rows) / tot
-            res[f][k] = {"weights": {a: r(g_) for a, g_ in gamma.items()}, "c": r(-math.log(mean_m)), "tau": r(tau), "r": r(corr, 3), "n": N}
-        res["pool"][f] = pool
+            names = list(use)
+            # the mix in "z units": weights normalised to sum to 1 in absolute value, sign kept
+            norm_ = sum(abs(b_) for b_ in beta)
+            wts = {a: b_ / norm_ for a, b_ in zip(names, beta)}
+            comp = lambda x: sum(wts[a] * zof(x, a) for a in names)
+            pts = sorted(((comp(x), x) for x in rows), key=lambda t: t[0])
+            tot_e = sum(x[6] for _, x in pts)
+            bins, cur, acc = [], [], 0.0
+            for c_, x in pts:
+                cur.append((c_, x))
+                acc += x[6]
+                if acc >= tot_e / CURVE_BINS and len(bins) < CURVE_BINS - 1:
+                    bins.append(cur); cur, acc = [], 0.0
+            if cur:
+                bins.append(cur)
+            kx = [sum(c_ * x[6] for c_, x in b) / sum(x[6] for _, x in b) for b in bins]
+            ky = [math.log((sum(x[5] for _, x in b) + 0.5) / (sum(x[6] for _, x in b) + 0.5)) for b in bins]
+            kw = [sum(x[6] for _, x in b) for b in bins]
+            ky = pav(ky, kw, increasing=True)  # the mix is oriented so a higher value means a higher rate
+            curve = lambda c_: ky[0] if c_ <= kx[0] else ky[-1] if c_ >= kx[-1] else next(
+                ky[i] + (ky[i + 1] - ky[i]) * (c_ - kx[i]) / (kx[i + 1] - kx[i]) for i in range(len(kx) - 1) if kx[i] <= c_ <= kx[i + 1])
+            cs_ = {}
+            for g in pools:
+                xs = [x for _, x in pts if x[4] == g]
+                tot = sum(x[1] for x in xs)
+                cs_[g] = r(-math.log(sum(x[1] * math.exp(curve(comp(x))) for x in xs) / tot))
+            pred = [curve(comp(x)) for x in reg]
+            mp = sum(pred) / N
+            my = sum(dev) / N
+            sp = math.sqrt(sum((v - mp) ** 2 for v in pred) / N) or 1
+            sy = math.sqrt(sum((v - my) ** 2 for v in dev) / N)
+            corr = sum((a_ - mp) * (b_ - my) for a_, b_ in zip(pred, dev)) / N / sp / sy
+            res[f][k] = {"weights": {a: r(w_) for a, w_ in wts.items()}, "knots": [[r(a_, 3), r(b_)] for a_, b_ in zip(kx, ky)],
+                         "c": cs_["all"] if f == "bat" else cs_, "tau": r(math.sqrt(tau2)), "spread": r(sp), "r": r(corr, 3), "n": len(rows)}
+        res["pool"][f] = pools["all"] if f == "bat" else pools
     return res
 
 
@@ -693,9 +763,11 @@ SELECT CASE WHEN bt = 'spin' THEN 'spin' ELSE 'pace' END bt, least(len, 20) len,
         spells.setdefault(x["bt"], {})[int(x["len"])] = x["n"]
     out["spellLength"] = {t: {k_: r(v_ / sum(d_.values()), 4) for k_, v_ in sorted(d_.items())} for t, d_ in spells.items()}
     rows = duck(f"""WITH s AS (SELECT o.mid, o.inn, o.bowl, o.spell_id, min(o.ov) first_ov, max(o.ov) last_ov, any_value(dy) dy FROM bov4 o JOIN m ON m.mid = o.mid WHERE {W} GROUP BY ALL),
-g AS (SELECT first_ov - lag(last_ov) OVER (PARTITION BY mid, inn, bowl ORDER BY spell_id) gap, dy = lag(dy) OVER (PARTITION BY mid, inn, bowl ORDER BY spell_id) same_day FROM s)
-SELECT quantile_cont(gap, [0.1, 0.25, 0.5]) q FROM g WHERE gap IS NOT NULL AND same_day""")
-    out["restOvers"] = [r(v, 1) for v in rows[0]["q"]]
+g AS (SELECT bowl, first_ov - lag(last_ov) OVER (PARTITION BY mid, inn, bowl ORDER BY spell_id) gap, dy = lag(dy) OVER (PARTITION BY mid, inn, bowl ORDER BY spell_id) same_day FROM s)
+SELECT CASE WHEN t.btype = 'spin' THEN 'spin' ELSE 'pace' END bt, quantile_cont(gap, [0.1, 0.25, 0.5]) q FROM g JOIN (SELECT DISTINCT bowl, btype FROM tb) t ON t.bowl = g.bowl
+WHERE gap IS NOT NULL AND same_day GROUP BY 1""")
+    # innings overs between the end of a bowler's spell and the start of his next (same day): 10th, 25th, 50th percentile
+    out["restOvers"] = {x["bt"]: [r(v, 1) for v in x["q"]] for x in rows}
     rows = duck(f"""WITH b AS (SELECT o.mid, o.inn, o.bowl, count(*) ov, any_value(t.btype) bt FROM bov4 o JOIN m ON m.mid = o.mid JOIN (SELECT DISTINCT bowl, btype FROM tb) t ON t.bowl = o.bowl
   WHERE {W} GROUP BY ALL), d AS (SELECT o.mid, o.inn, o.bowl, o.dy, count(*) ov, any_value(t.btype) bt FROM bov2 o JOIN m ON m.mid = o.mid JOIN (SELECT DISTINCT bowl, btype FROM tb) t ON t.bowl = o.bowl
   WHERE {W} GROUP BY ALL)
@@ -810,6 +882,17 @@ SELECT (SELECT count(*) FROM bt WHERE runs >= 100) c100, (SELECT count(*) FROM b
     rows = duck(f"""SELECT least(dy, 5) dy, avg(CASE WHEN btype = 'spin' THEN 1.0 ELSE 0 END) p, count(*) n FROM tb JOIN m ON m.mid = tb.mid
 WHERE {W} AND is_wicket = 1 AND wk IN ('bowled', 'caught', 'lbw', 'stumped', 'caught and bowled', 'hit wicket') AND btype <> 'unknown' GROUP BY 1 ORDER BY 1""")
     out["spinWicketShareByDay"] = [r(x["p"], 3) for x in rows]
+    rows = duck(f"""SELECT least(dy, 5) dy, avg(CASE WHEN btype = 'spin' THEN 1.0 ELSE 0 END) p FROM tb JOIN m ON m.mid = tb.mid
+WHERE {W} AND legal = 1 AND btype <> 'unknown' GROUP BY 1 ORDER BY 1""")
+    out["spinOverShareByDay"] = [r(x["p"], 3) for x in rows]
+    # how the bowling is shared: overs and wickets of an innings' bowlers ranked by overs (innings of 50+ overs)
+    rows = duck(f"""WITH b AS (SELECT tb.mid, inn, bowl, sum(legal) balls, sum(CASE WHEN is_wicket = 1 AND wk IN ('bowled', 'caught', 'lbw', 'stumped', 'caught and bowled', 'hit wicket') THEN 1 ELSE 0 END) w
+  FROM tb JOIN m ON m.mid = tb.mid WHERE {W} GROUP BY ALL),
+  q AS (SELECT *, row_number() OVER (PARTITION BY mid, inn ORDER BY balls DESC) rk, sum(balls) OVER (PARTITION BY mid, inn) tot, sum(w) OVER (PARTITION BY mid, inn) totw FROM b)
+SELECT rk, sum(balls) / sum(tot) so, sum(w) / sum(totw) sw FROM q WHERE tot >= 300 AND rk <= 6 GROUP BY 1 ORDER BY 1""")
+    out["oversShareByRank"] = [r(x["so"], 3) for x in rows]
+    out["wicketShareByRank"] = [r(x["sw"], 3) for x in rows]
+    out["inningsWins"] = r(duck(f"SELECT avg(CASE WHEN by_innings = 1 THEN 1.0 ELSE 0 END) p FROM m WHERE {W}")[0]["p"], 3)
     x = duck(f"""SELECT sum((SELECT sum(legal) FROM inn WHERE inn.match_id = m.mid) / 6.0) / sum(n_dates - 1 + CASE WHEN result = 'draw' THEN 1.0 ELSE 0.5 END) opd FROM m WHERE {W}""")[0]
     out["oversPerDayUsed"] = r(x["opd"], 1)
     if gender == "male":
@@ -834,7 +917,7 @@ FROM m WHERE {W} GROUP BY 1""")
 
 # ── 8. Squads for the engine benchmark ─────────────────────────────────────────────────────────────────────────────
 
-def squads(gp_all):
+def squads(gp_all, test_sets):
     teams = {"male": list(TEAM_COUNTRY), "female": ["India", "England", "Australia", "South Africa"]}
     out = []
     for g, since in (("male", 2023), ("female", 2021)):
@@ -851,7 +934,8 @@ SELECT team, ci, count(*) n FROM a WHERE ci IS NOT NULL GROUP BY 1, 2 ORDER BY 1
                     continue
                 picked.append({"id": p["id"], "name": p["name"], "age": p.get("age", 28), "country": t, "role": p["role"],
                                "isWicketKeeper": bool(p.get("wk")), "bowlingStyle": p.get("bs", "unknown"), "battingHand": p.get("bh", "right"),
-                               "ratings": p["r"], "tests": int(x["n"]), **({"formatRatings": p["formatRatings"]} if p.get("formatRatings") else {})})
+                               "ratings": p["r"], "tests": int(x["n"]),
+                               **({"formatRatings": {"test": test_sets[p["id"]]}} if p["id"] in test_sets else {})})
                 if len(picked) >= 16:
                     break
             if len(picked) >= 12 and any(q["isWicketKeeper"] for q in picked):
@@ -887,6 +971,19 @@ def match_spread(model):
     vw = sum(x[2] ** 2 for x in pts) / N - sum(x[4] for x in pts) / N
     cov = sum(x[1] * x[2] for x in pts) / N
     return {"run": r(math.sqrt(max(vr, 0))), "wicket": r(math.sqrt(max(vw, 0))), "corr": r(cov / math.sqrt(max(vr, 1e-6) * max(vw, 1e-6)), 3), "matches": N}
+
+
+def innings_spread():
+    """An innings' own scoring conditions beyond everything else (match term included): the spread of the observed / expected
+    runs per innings less its sampling noise (Poisson-like: the expected sum of squared runs), for innings of 60+ expected runs.
+    The same test finds no extra spread in the wicket rate per innings, nor in either rate per match beyond the match term."""
+    x = duck(f"""CREATE OR REPLACE TABLE er AS SELECT f.mid, f.inn, f.yr,
+  exp(a.lm) + 2 * exp(b.lm) + 3 * exp(c.lm) + 4 * exp(d.lm) + 6 * exp(e.lm) mu_r, exp(a.lm) + 4 * exp(b.lm) + 9 * exp(c.lm) + 16 * exp(d.lm) + 36 * exp(e.lm) mu_r2,
+  CASE f.cls WHEN '1' THEN 1 WHEN '2' THEN 2 WHEN '3' THEN 3 WHEN '4' THEN 4 WHEN '6' THEN 6 ELSE 0 END y_r
+FROM fb f JOIN fit_1 a USING(rid) JOIN fit_2 b USING(rid) JOIN fit_3 c USING(rid) JOIN fit_4 d USING(rid) JOIN fit_6 e USING(rid) WHERE f.gender = 'male';
+WITH t AS (SELECT mid, inn, sum(y_r) o, sum(mu_r) e, sum(mu_r2) v FROM er WHERE yr >= 2010 GROUP BY ALL HAVING sum(mu_r) > 60)
+SELECT count(*) n, var_pop(ln(o / e)) raw, avg(v / (e * e)) samp FROM t""")[0]
+    return {"run": r(math.sqrt(max(0, x["raw"] - x["samp"]))), "innings": int(x["n"])}
 
 
 def women_base(model):
@@ -931,6 +1028,7 @@ def write(model, rmap, dx, pol, real, spread, wbase):
         "bins": {"age": AGE_BINS, "set": SET_BINS, "spell": SPELL_MAX, "chaseRate": RR_BINS, "pushOvers": PUSH_OVERS},
         "factors": tables(model),
         "matchSpread": spread,
+        "inningsSpread": innings_spread(),
         "players": rmap,
         **dx,
         "policy": pol,
@@ -962,8 +1060,10 @@ def main():
     build_balls()
     build_fit_table()
     model = fit_all()
-    gp = load_game_players()
-    rmap = rating_map(model, gp)
+    test_sets = load_test_sets()
+    rmap = {"t20": rating_map(model, load_game_players("t20", test_sets))}
+    if test_sets:
+        rmap["test"] = rating_map(model, load_game_players("test", test_sets))
     dx = dismissals_extras()
     pol = policies()
     real = {"male": real_targets("male", VALID_FROM), "male2023": real_targets("male", 2023), "female": real_targets("female", 2006)}
@@ -971,7 +1071,7 @@ def main():
     wbase = women_base(model)
     write(model, rmap, dx, pol, real, spread, wbase)
     gp_all = {p["id"]: p for p in json.load(open(DATA / "game_players.json"))}
-    sq = squads(gp_all)
+    sq = squads(gp_all, test_sets)
     OUT_SQUADS.write_text(json.dumps({"source": "test-match-model.py: most-capped Test players since 2023 (women 2021) in game_players.json", "squads": sq}, indent=1))
     log("squads:", ", ".join(f"{x['team']} ({x['gender']}, {len(x['players'])})" for x in sq))
 

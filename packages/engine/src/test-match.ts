@@ -246,6 +246,10 @@ export interface TestInnings {
   retiredHurt?: string[];
   /** A CPU batting side went into its pre-declaration push at this over */
   pushFrom?: number;
+  /** The innings' own scoring conditions (a multiplier on the scoring classes) */
+  cond?: number;
+  /** Overs of pace / spin bowled in this innings on each day */
+  dayTypeOvers?: [number, number][];
 }
 
 export interface TestTeamState {
@@ -399,16 +403,17 @@ function isSpinStyle(style: string | undefined): boolean {
   return !!style && (style.includes("spin") || style.includes("orthodox") || style.endsWith("-slow"));
 }
 
-type TermMap = Readonly<Record<string, { readonly weights: Readonly<Record<string, number>>; readonly c?: number }>>;
+type TermMap = Readonly<Record<string, { readonly weights: Readonly<Record<string, number>>; readonly c?: number | Readonly<Record<string, number>> }>>;
 type Pool = { readonly mean: Readonly<Record<string, number>>; readonly sd: Readonly<Record<string, number>> };
 
 /**
  * A player's log multiplier on one outcome class from his ratings: the fitted attribute mix (z-scored against the real
- * Test players' ratings) scaled to the real spread of that player term (reduced major axis, test-match-model.py).
+ * Test players' ratings; bowlers against their own type) scaled to the real spread of that player term (reduced major axis,
+ * test-match-model.py).
  */
-function termLog(ratings: PlayerRatings, term: TermMap[string] | undefined, pool: Pool): number {
+function termLog(ratings: PlayerRatings, term: TermMap[string] | undefined, pool: Pool, type?: "pace" | "spin"): number {
   if (!term) return 0;
-  let z = term.c ?? 0;
+  let z = typeof term.c === "number" ? term.c : (type && term.c?.[type]) ?? 0;
   for (const [a, w] of Object.entries(term.weights)) {
     const r = (ratings as unknown as Record<string, number>)[a] ?? pool.mean[a];
     z += w * (r - pool.mean[a]) / (pool.sd[a] || 1);
@@ -416,22 +421,30 @@ function termLog(ratings: PlayerRatings, term: TermMap[string] | undefined, pool
   return Math.max(-2.5, Math.min(2.5, z));
 }
 
-/** The Test view of a player, with his outcome multipliers */
+type RatingMap = { readonly bat: TermMap; readonly bowl: TermMap; readonly pool: { readonly bat: Pool; readonly bowl: Readonly<Record<"pace" | "spin", Pool>> } };
+const MAPS = M.players as unknown as { readonly t20: RatingMap; readonly test?: RatingMap };
+
+/**
+ * The Test view of a player, with his outcome multipliers. A player with Test ratings is mapped with the mix fitted on Test
+ * ratings; one without plays on his T20 ratings through the mix fitted on those (test-match-model.py fits both).
+ */
 export function testPlayerOf(player: Player): TestPlayer {
   const view = player.forFormat("test");
   const ratings = { ...view.ratings };
-  const P = M.players;
-  const batLog = TEST_OUTCOMES.map(k => (BAT_TERMS as readonly string[]).includes(k) ? termLog(ratings, (P.bat as TermMap)[k], P.pool.bat) : 0);
-  const bowlLog = TEST_OUTCOMES.map(k => (BOWL_TERMS as readonly string[]).includes(k) ? termLog(ratings, (P.bowl as TermMap)[k], P.pool.bowl) : 0);
+  const source: TestPlayer["ratingsSource"] = player.formatRatings?.test ? "test" : "t20";
+  const P = (source === "test" && MAPS.test) || MAPS.t20;
   const spin = isSpinStyle(player.bowlingStyle);
+  const type = spin ? "spin" : "pace";
+  const batLog = TEST_OUTCOMES.map(k => (BAT_TERMS as readonly string[]).includes(k) ? termLog(ratings, P.bat[k], P.pool.bat) : 0);
+  const bowlLog = TEST_OUTCOMES.map(k => (BOWL_TERMS as readonly string[]).includes(k) ? termLog(ratings, P.bowl[k], P.pool.bowl[type], type) : 0);
   // quality in log-rate units: surviving and scoring for a batter, taking wickets and not conceding for a bowler
   const batValue = -batLog[IW] + 0.6 * batLog[0] + 0.5 * batLog[3];
   const bowlValue = bowlLog[IW] - 0.6 * bowlLog[0] - 0.6 * bowlLog[3];
-  const bowls = (player.role === "bowler" || player.role === "all-rounder" || view.bowlingOvr >= 55) && !player.isWicketKeeper;
+  // the attack: bowlers and all-rounders, and a batter only if he really bowls; the rest are part-timers
+  const bowls = (player.role === "bowler" || player.role === "all-rounder" || view.bowlingOvr >= 65) && !player.isWicketKeeper;
   return {
     id: player.id, name: player.name, role: player.role, bowlingStyle: player.bowlingStyle, battingHand: player.battingHand,
-    isWicketKeeper: player.isWicketKeeper, spin, bowler: bowls, ratings,
-    ratingsSource: player.formatRatings?.test ? "test" : "t20",
+    isWicketKeeper: player.isWicketKeeper, spin, bowler: bowls, ratings, ratingsSource: source,
     batMul: batLog.map(Math.exp), bowlMul: bowlLog.map(Math.exp), batValue, bowlValue,
   };
 }
@@ -459,8 +472,18 @@ export function pickTestXI(squad: readonly Player[], region: "sub" | "other" = "
   const rest = avail.filter(p => !chosen.includes(p)).sort((a, b) =>
     (val(b).batValue + 0.3 * Math.max(0, val(b).bowlValue)) - (val(a).batValue + 0.3 * Math.max(0, val(a).bowlValue)));
   for (const p of rest) if (chosen.length < 11) take(p);
+  // a fifth bowling option: the best remaining bowler or all-rounder replaces the weakest batter when it costs little batting
+  if (chosen.filter(p => val(p).bowler).length < 5) {
+    const spare = avail.filter(p => !chosen.includes(p) && val(p).bowler).sort((a, b) => val(b).bowlValue - val(a).bowlValue)[0];
+    const batters = chosen.filter(p => !val(p).bowler && !p.isWicketKeeper).sort((a, b) => val(a).batValue - val(b).batValue);
+    const weakest = batters[0];
+    if (spare && weakest && batters.length > 5 && val(weakest).batValue - val(spare).batValue < FIFTH_BOWLER_COST) chosen.splice(chosen.indexOf(weakest), 1, spare);
+  }
   return testBattingOrder(chosen);
 }
+
+/** Batting quality (log-rate units) a side gives up for a fifth bowling option */
+const FIFTH_BOWLER_COST = 0.35;
 
 /** Batting order on Test batting quality: batters and all-rounders by quality, the keeper no higher than five, bowlers last */
 export function testBattingOrder(xi: readonly Player[]): Player[] {
@@ -524,7 +547,8 @@ function drawConditions(rng: RNG): number[] {
   const z2 = normal(rng);
   const ur = s.run * z1;
   const uw = s.wicket * (s.corr * z1 + Math.sqrt(1 - s.corr * s.corr) * z2);
-  return TEST_OUTCOMES.map((_, k) => (SCORING.includes(k) ? Math.exp(ur) : k === IW ? Math.exp(uw) : 1));
+  // centred so the mean multiplier is 1 (the fitted match terms average 1)
+  return TEST_OUTCOMES.map((_, k) => (SCORING.includes(k) ? Math.exp(ur - s.run * s.run / 2) : k === IW ? Math.exp(uw - s.wicket * s.wicket / 2) : 1));
 }
 
 // ── Creating a match ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -633,6 +657,9 @@ function startInnings(st: TestMatchState, battingTeamId: string, followOn: boole
     ends: [null, null], end: 0, overBalls: 0, overRuns: 0,
     ...(followOn ? { followOn: true } : {}),
   };
+  // the innings' own scoring conditions (fitted spread beyond the match's), mean 1
+  const sd = M.inningsSpread.run;
+  inn.cond = Math.exp(sd * normal(rngOf(st)) - sd * sd / 2);
   inn.batters[order[0]] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, arrived: 1 };
   inn.batters[order[1]] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, arrived: 2 };
   st.innings.push(inn);
@@ -787,6 +814,7 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
     let v = base[k] * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
       * bat.batMul[k] * bowl.bowlMul[k] * st.cond[k];
     if (team.bazball) v *= T_BAZ[k];
+    if (k < IW && inn.cond) v *= inn.cond;
     if (k === IW) v *= fat.wkts; else v *= fat.runs;
     p[k] = v;
   }
@@ -1143,7 +1171,11 @@ function applyBall(st: TestMatchState, inn: TestInnings, ev: TestBallEvent): boo
     o.bowlerId = ev.bowler;
     if (ev.fielderId) o.fielderId = ev.fielderId;
     inn.wickets++;
-    if (isBowlerWicket(ev.wicketType)) line.wickets++;
+    if (isBowlerWicket(ev.wicketType)) {
+      line.wickets++;
+      // a captain keeps a bowler on while he is taking wickets
+      line.spellPlan = Math.max(line.spellPlan, line.spellOvers + 1 + WICKET_SPELL_EXTENSION);
+    }
     inn.fow.push({ runs: inn.runs, wickets: inn.wickets, balls: inn.legalBalls, playerId: outId });
     const incoming = nextBatter(inn);
     if (!incoming) ended = true;
@@ -1185,6 +1217,8 @@ function endOver(st: TestMatchState, inn: TestInnings): void {
   line.spellOvers++;
   line.lastOver = Math.floor(inn.legalBalls / 6) - 1;
   (line.dayOvers ??= [])[st.day - 1] = (line.dayOvers[st.day - 1] ?? 0) + 1;
+  const dt = ((inn.dayTypeOvers ??= [])[st.day - 1] ??= [0, 0]);
+  dt[st.players[id].spin ? 1 : 0]++;
   inn.overBalls = 0;
   inn.overRuns = 0;
   [inn.strikerId, inn.nonStrikerId] = [inn.nonStrikerId, inn.strikerId];
@@ -1254,7 +1288,8 @@ const MEAN_SPELL = {
   pace: Object.entries(SPELL.pace).reduce((a, [k, v]) => a + Number(k) * v, 0),
   spin: Object.entries(SPELL.spin).reduce((a, [k, v]) => a + Number(k) * v, 0),
 };
-const REST_OVERS = M.policy.restOvers[0];
+/** Overs a bowler rests between spells: the fitted 10th percentile for his type (a spinner often just changes ends) */
+const REST_OVERS = { pace: M.policy.restOvers.pace[0], spin: M.policy.restOvers.spin[0] };
 
 /** Share of the overs spinners bowl, by region, ball age and day (TEST_MODEL.policy.spinShare) */
 function spinShare(st: TestMatchState, inn: TestInnings): number {
@@ -1288,28 +1323,49 @@ function chooseBowler(st: TestMatchState, inn: TestInnings, rng: RNG): string {
   }
   const xi = st.teams[inn.bowlingTeamId].xi;
   const keeper = st.teams[inn.bowlingTeamId].keeperId;
-  const rested = (id: string) => overs - (inn.bowlers[id]?.lastOver ?? -99) - 1 >= REST_OVERS;
-  let pool = xi.filter(id => st.players[id].bowler && id !== other && id !== cur && rested(id) && today(id) < capOf(id));
-  if (pool.length === 0) pool = xi.filter(id => st.players[id].bowler && id !== other && today(id) < capOf(id));
-  if (pool.length === 0) pool = xi.filter(id => id !== other && id !== keeper && today(id) < capOf(id));
+  const rested = (id: string) => overs - (inn.bowlers[id]?.lastOver ?? -99) - 1 >= REST_OVERS[st.players[id].spin ? "spin" : "pace"] - 1;
+  // every outfielder can be called on; part-timers rarely are (PART_TIMER weight on top of their low quality)
+  let pool = xi.filter(id => id !== keeper && id !== other && id !== cur && rested(id) && today(id) < capOf(id));
+  if (pool.length === 0) pool = xi.filter(id => id !== keeper && id !== other && today(id) < capOf(id));
   if (pool.length === 0) pool = xi.filter(id => id !== other && id !== keeper);
-  // spells of spinners are longer, so the share of spells that are spin is set to give the fitted share of overs
+  // spells of spinners are longer, so the share of spells that are spin is set to give the fitted share of overs; when the
+  // day's overs so far have fallen short of (or run past) that share, the captain leans the other way
   const ps = spinShare(st, inn);
-  const pStart = (ps * MEAN_SPELL.pace) / (ps * MEAN_SPELL.pace + (1 - ps) * MEAN_SPELL.spin);
+  let pStart = (ps * MEAN_SPELL.pace) / (ps * MEAN_SPELL.pace + (1 - ps) * MEAN_SPELL.spin);
+  const day = inn.dayTypeOvers?.[st.day - 1];
+  if (day && day[0] + day[1] >= 6) pStart = Math.max(0, Math.min(1, pStart + SHARE_TRACKING * (ps - day[1] / (day[0] + day[1]))));
   const wantSpin = rng() < pStart;
   const ofType = pool.filter(id => st.players[id].spin === wantSpin);
   const from = ofType.length > 0 ? ofType : pool;
-  const score = (id: string) => {
-    const b = st.players[id];
-    const since = Math.min(20, overs - (inn.bowlers[id]?.lastOver ?? -99) - 1);
-    return b.bowlValue + 0.01 * since - 0.02 * today(id) + 0.15 * rng();
+  // the better the bowler the more he is called on (weight exp(BOWLER_PREFERENCE x quality)), the longer rested the readier
+  const weight = (id: string) => {
+    const since = overs - (inn.bowlers[id]?.lastOver ?? -99) - 1;
+    const form = 1 + WICKET_FORM * (inn.bowlers[id]?.wickets ?? 0);
+    const part = st.players[id].bowler ? 1 : PART_TIMER;
+    return Math.exp(BOWLER_PREFERENCE * st.players[id].bowlValue) * form * part * Math.min(1, 0.25 + since / 12);
   };
-  const best = from.reduce((a, b) => (score(b) > score(a) ? b : a), from[0]);
+  const ws = from.map(weight);
+  let x = rng() * ws.reduce((a, b) => a + b, 0);
+  let best = from[from.length - 1];
+  for (let j = 0; j < from.length; j++) { x -= ws[j]; if (x <= 0) { best = from[j]; break; } }
   const l = bowlerLine(inn, best);
   l.spellOvers = 0;
   l.spellPlan = drawSpell(st, best, rng);
   return best;
 }
+
+/**
+ * Captains' bowling changes, calibrated to real Tests (benchmark-test.ts: overs and wickets of an innings' bowlers by rank,
+ * five-fors): how strongly they favour better bowlers, how much a bowler's wickets in the innings make him the next choice, and
+ * how many overs a wicket adds to his spell. The fitted wicket rate rising along a spell is this behaviour seen from the data.
+ */
+export const BOWLER_PREFERENCE = 6;
+export const WICKET_FORM = 0.35;
+export const WICKET_SPELL_EXTENSION = 2;
+/** A part-timer's weight against a member of the attack of the same quality */
+export const PART_TIMER = 0.5;
+/** How hard the captain steers the day's spin share back to the fitted share */
+export const SHARE_TRACKING = 2;
 
 function drawSpell(st: TestMatchState, id: string, rng: RNG): number {
   return Number(sampleTable(SPELL[st.players[id].spin ? "spin" : "pace"], rng));
