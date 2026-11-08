@@ -8,6 +8,10 @@
 import type { T20Context } from "./t20i-context.js";
 
 export const T20I_CONTEXT: Record<"male" | "female", T20Context> = {
-  male: { powerplay: {}, middle: {}, death: {} },
-  female: { powerplay: {}, middle: {}, death: {} },
+  male: { powerplay: { dot: 1.3111, "1": 0.9713, "2": 1.0134, "3": 0.5786, "4": 0.8331, "6": 0.5281, wicket: 0.7948, wide: 0.8758, noball: 0.9126, legbye: 0.9869 },
+    middle: { dot: 0.6504, "1": 1.6294, "2": 1.4447, "3": 0.2494, "4": 0.7805, "6": 0.9728, wicket: 0.7313, wide: 1.0525, noball: 0.6950, legbye: 0.7669 },
+    death: { dot: 0.7269, "1": 1.4659, "2": 1.5570, "3": 0.2562, "4": 0.6663, "6": 0.8017, wicket: 1.0380, wide: 1.1574, noball: 1.3208, legbye: 1.2009 } },
+  female: { powerplay: { dot: 1.4519, "1": 0.9297, "2": 1.0176, "3": 0.3057, "4": 0.7830, "6": 0.1409, wicket: 0.6859, wide: 1.2149, noball: 1.0907, legbye: 0.7274 },
+    middle: { dot: 0.7634, "1": 1.5996, "2": 1.3891, "3": 0.3493, "4": 0.9751, "6": 0.2769, wicket: 0.6209, wide: 1.0677, noball: 0.7249, legbye: 0.6162 },
+    death: { dot: 0.7482, "1": 1.6658, "2": 1.5784, "3": 0.2261, "4": 0.7615, "6": 0.2758, wicket: 1.0134, wide: 0.7424, noball: 0.8443, legbye: 1.0983 } },
 };

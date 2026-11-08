@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { simulateRemaining } from "@ipl-sim/engine";
+import { RULE_PRESETS, T20I_CONTEXT, T20_FORMAT, scoringContextFor, simulateRemaining, type RuleSet } from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import { playerActivity, squadTier, type PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import {
@@ -171,6 +171,16 @@ describe("a series", () => {
     expect(r.venue).toBe("Neutral venue");
     expect(r.worm[0].length).toBeLessThanOrEqual(20);
     expect(seriesScore(done).done).toBe(true);
+  });
+
+  it("T20Is play at the T20I level (the engine's T20I context); ODIs and leagues carry none", () => {
+    for (const g of ["men", "women"] as const) {
+      const rules = seriesFormat("t20i").rules!(g);
+      expect(rules.scoringContext).toBe("t20i");
+      expect(scoringContextFor(rules, T20_FORMAT)).toBe(T20I_CONTEXT[g === "women" ? "female" : "male"]);
+      expect(seriesFormat("odi").rules!(g).scoringContext).toBeUndefined();
+    }
+    expect((RULE_PRESETS.modern2026 as RuleSet).scoringContext).toBeUndefined();
   });
 
   it("persists under its own key and nothing else", () => {

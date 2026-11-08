@@ -4,7 +4,7 @@ The engine plays three limited-overs formats and Test cricket, which has its own
 
 | Format | Spec (`format.ts`) | Balls | Per bowler | Ball model | Live viewer |
 |---|---|---|---|---|---|
-| T20 | `T20_FORMAT` | 20 overs of 6 | 4 overs, never two in a row | T20 tables (`match.ts`, RULES-MATCH.md 12) | yes |
+| T20 | `T20_FORMAT` | 20 overs of 6 | 4 overs, never two in a row | T20 tables (`match.ts`, RULES-MATCH.md 12); a series' T20Is add the T20I level (section "T20I level") | yes |
 | The Hundred | `HUNDRED_FORMAT` | 20 sets of 5 | 20 balls, up to two sets in a row | T20 tables, phases stretched (`phaseOver`) | no (instant only) |
 | ODI | `ODI_FORMAT` | 50 overs of 6 | 10 overs, never two in a row | its own, fitted on ODIs (`odi-model.ts`) | yes |
 | Test | `test-match.ts` (its own state machine) | two innings a side, up to 5 days of 90 overs | no cap: fitted spells and rest, never two overs in a row | its own, fitted on Tests (`test-model-data.ts`) | yes (`LiveTestPage`) |
@@ -175,7 +175,10 @@ ball and a live ODI scored 8-10 runs more than an instant one.)
 
 **T20 and The Hundred unchanged**: `npx tsx packages/engine/src/__tests__/fingerprint-matches.ts 300` hashes every ball of 300
 instant T20 matches (men, men with rain, women), 300 Hundred matches with rain, and 100 live T20 matches each CPU v CPU and with
-a user side. The hashes on this branch equal the ones before the ODI work and on main (`90919c560ce4405b` combined).
+a user side. The instant lines are the same as before the ODI work: men `81d0471a218f9e03`, men with rain `886e09f301bed9f4`,
+women `44cb21795e248267`, Hundred `c21a7f5308560ea1`. The live lines changed when the live engine moved to the instant engine's
+ball (RULES-MATCH.md 12.4): CPU v CPU `5fb19cfd90456037` (was `7976b1a6fb569b50`), user side `8701f337d6b4e5fc` (was
+`c52cfbcc19c0d6ce`); combined `657e769a9f784f1c` (was `90919c560ce4405b`).
 
 ### Refitting
 
@@ -1087,25 +1090,87 @@ P = sigmoid(a + b (runs + E - g) / sd). Men g 265, sd 65; women g 235, sd 64. Pr
 in every tenth of probability (in sample). 11/1 chasing 306 in 48 overs reads 21% (the T20 model on a stretched par had said
 76%), the start of a chase of 301 31%, of 251 59%. T20 win probability is unchanged.
 
-**T20I check** (the T20 engine as the series plays T20Is: national squads of active players on T20 ratings, neutral venues;
-the real fixtures between full members since 2019 replayed twice; real: Cricsheet T20Is 2019+, both sides full members,
-full 20-over matches):
-
-| | men sim | men real | women sim | women real |
-|---|---|---|---|---|
-| 1st-innings total (sd) | 173.0 (31.5) | 169.5 (37.3) | 163.5 (32.7) | 142.2 (34.6) |
-| 200+ | 18.6% | 19.2% | 11.5% | 5.1% |
-| run rate overs 1-6 / 7-15 / 16-20 | 10.33 / 7.52 / 10.47 | 8.08 / 8.05 / 10.01 | 10.18 / 6.96 / 10.01 | 6.52 / 6.84 / 8.46 |
-| 1st inns: wickets / all out | 7.55 / 30.5% | 6.63 / 11.5% | 7.68 / 31.5% | 6.23 / 9.2% |
-| 2nd inns runs | 154.9 | 150.7 | 145.3 | 123.2 |
-| batting first wins | 50.5% | 49.7% | 46.5% | 48.0% |
-| live engine 1st innings (150 matches) | 251.8 | | 229.6 | |
-
-The instant engine's men's totals land near the real ones, but by a different route: a powerplay two runs an over too fast
-and a third of innings bowled out (real: one in nine). The women's T20Is score 21 runs (15%) too many, with the same
-powerplay. The live engine scores about 250 (its own calibration, RULES-MATCH.md 12.4: about 242 an innings in the IPL), so
-a live T20I in the series plays far above real T20Is. Not fixed: a T20I level would need a new scoring hook in both T20
-engines (the T20 tables and the live engine's calibration are shared by every league), which is more than a clean fix; the
-ODI, on its own model, is unaffected.
+**T20I check**: the T20Is of a series used to play on the league tables (powerplay two runs an over too fast, a third of
+innings bowled out, the women 21 runs an innings too many; the live engine about 250 an innings). They now play at their own
+fitted level: section "T20I level" below.
 
 Not done: no multiplayer series; the series does not feed career stats.
+
+## T20I level
+
+A series' T20Is play at a level fitted on real T20Is, in both engines; every league stays on the league tables (the instant
+fingerprint lines are unchanged).
+
+**Where it hooks in.** `t20iRules` (international.ts) sets `RuleSet.scoringContext: "t20i"`. `scoringContextFor(rules, fmt)`
+(`t20i-context.ts`) returns the gender's table from `t20i-context-data.ts` for a T20 with that field and nothing otherwise
+(leagues, The Hundred, the ODI). The instant engine puts it in the match's `VenueContext`, the live engine in each ball's rules
+context; `ballProbabilities` multiplies it in after the T20 phase multipliers: per phase (overs 1-6, 7-15, 16-20) a
+multiplier on each outcome class (dot, 1, 2, 3, 4, 6, wicket, wide, no-ball, bye / leg bye). A live user's batting approach
+and field setting apply on top, as in a league match.
+
+**Data** (`packages/ratings/src/analysis/t20i-level.py`, `docs/data/t20i_validation.json`): Cricsheet T20Is from 2019 between
+two of the twelve full members, full 20-over matches (no overs lost, no DLS or awarded result): 582 men's and 434 women's. Per
+gender: first-innings totals, run rate by phase, wickets and all-out share, the chase, batting-first wins, extras, fours and
+sixes, each phase's share of deliveries by outcome class, and the fixtures (pairings and counts).
+
+**Fit** (`packages/app/src/__tests__/calibrate-t20i.test.ts`): the real fixtures replayed twice by the instant engine with the
+series' own sides (`createSeries` / `seriesSquads`: national squads of active players on T20 ratings, the extended pool's
+senior players among the candidates; neutral venues, no rain); each round multiplies every class's weight by real share /
+simulated share in its phase (six rounds, half steps after the third). The largest class error after the last round is under
+4% (on the rare threes); the classes that carry the runs are within 1-2%.
+
+| men | 1st inns (sd) | 200+ | RR 1-6 / 7-15 / 16-20 | 1st inns wkts / all out | 2nd inns | bat 1st wins | extras / inn | 4s / 6s per inn |
+|---|---|---|---|---|---|---|---|---|
+| real (582) | 169.5 (37.3) | 19.2% | 8.08 / 8.05 / 10.01 | 6.63 / 11.5% | 150.7 | 49.7% | 8.4 | 12.9 / 6.6 |
+| instant, league tables | 171.5 (34.0) | 20.4% | 10.37 / 7.56 / 10.30 | 7.60 / 31.1% | 153.4 | 47.9% | 8.1 | 15.4 / 8.0 |
+| live, before this round (150 matches) | 251.8 | | | | | | | |
+| live CPU, league tables | 170.7 (32.3) | 17.1% | 10.41 / 7.42 / 10.35 | 7.58 / 31.7% | 153.7 | 46.6% | 8.1 | 15.4 / 7.8 |
+| instant, T20I level | 165.5 (24.3) | 6.6% | 8.00 / 8.06 / 9.77 | 6.63 / 15.6% | 154.2 | 45.9% | 8.4 | 12.9 / 6.6 |
+| live CPU, T20I level | 165.5 (25.1) | 6.7% | 8.01 / 8.07 / 9.76 | 6.63 / 15.8% | 154.4 | 44.8% | 8.4 | 12.7 / 6.7 |
+
+| women | 1st inns (sd) | 200+ | RR 1-6 / 7-15 / 16-20 | 1st inns wkts / all out | 2nd inns | bat 1st wins | extras / inn | 4s / 6s per inn |
+|---|---|---|---|---|---|---|---|---|
+| real (434) | 142.2 (34.6) | 5.1% | 6.52 / 6.84 / 8.46 | 6.23 / 9.2% | 123.2 | 48.0% | 7.6 | 13.9 / 1.8 |
+| instant, league tables | 163.3 (33.1) | 11.6% | 10.17 / 6.92 / 10.03 | 7.72 / 31.8% | 144.8 | 47.1% | 7.2 | 14.8 / 7.3 |
+| live, before this round (150 matches) | 229.6 | | | | | | | |
+| live CPU, league tables | 161.9 (33.9) | 11.3% | 10.12 / 6.97 / 9.85 | 7.71 / 32.0% | 145.0 | 45.6% | 7.2 | 14.9 / 7.1 |
+| instant, T20I level | 138.1 (18.4) | 0.0% | 6.54 / 6.71 / 8.05 | 6.15 / 12.2% | 128.6 | 46.9% | 7.1 | 13.9 / 1.9 |
+| live CPU, T20I level | 138.8 (18.6) | 0.0% | 6.54 / 6.78 / 8.01 | 5.95 / 10.5% | 129.9 | 45.2% | 7.2 | 13.9 / 1.9 |
+
+("League tables" = the same sides with the context off, `CAL_NOCONTEXT=1`; the live engine there already plays the instant
+engine's ball, RULES-MATCH.md 12.4.) The powerplay comes down by about two and a half runs an over (men) and three and a half
+(women), all-out innings from about 31% to 16% / 11-12%, the women's first innings from 163 to 138 and their sixes from 7 an
+innings to 2. The live rows match the instant ones within a run. What the context does not fix:
+
+- First-innings totals sit 4 runs (2-3%) under the real ones, mostly in the death overs (9.8 against 10.0 an over for the
+  men, 8.0 against 8.5 for the women) and from innings bowled out early.
+- The spread: simulated first innings have a standard deviation of 24 (men) and 18 (women) against 37 and 35. The real
+  spread includes grounds and pitches (the fit plays neutral venues) and gaps between sides wider than the ratings give;
+  so the engine has a third as many 200s as real men's T20Is, and no women's 200.
+- All out: 15.6% / 12.2% against 11.5% / 9.2% with the wickets per innings right. A wicket term by wickets down (fitted per
+  phase on the real dismissal rates) left this unchanged and was dropped: with the per-ball rates right, the excess comes
+  from weak batting sides collapsing more than real ones, which is the ratings' spread, not the context.
+- Chasing sides win 2-5 points more often than real (batting first 45-47% against 48-50%).
+
+Refit: `python3 -I src/analysis/t20i-level.py` (from packages/ratings, needs `duckdb`), then
+`CALIBRATE_T20I=1 CAL_ITER=6 CALIBRATE_WRITE=1 npx vitest run packages/app/src/__tests__/calibrate-t20i.test.ts --reporter=verbose`
+(about 15 minutes; `CAL_LIVE=1` adds the live rows; it starts from the current table, `CAL_NOCONTEXT=1` from none), rebuild the
+engine, then `npx vitest run packages/engine/src/__tests__/t20i-context.test.ts`. Refit after the T20 ratings or the national
+squads change.
+
+**The women's leagues** (`CAL_LEAGUES=1` in the same file: the game's own squads, 600 instant matches each, against the
+league's real matches since 2024 in the same measures; not changed this round):
+
+| | 1st inns (sd) | 200+ | RR 1-6 / 7-15 / 16-20 | 1st inns wkts / all out | 2nd inns | bat 1st wins | extras / inn | 4s / 6s per inn |
+|---|---|---|---|---|---|---|---|---|
+| WPL real (66) | 162.0 (29.3) | 9.1% | 7.40 / 7.82 / 9.54 | 6.79 / 12.1% | 153.6 | 43.1% | 7.6 | 18.2 / 4.1 |
+| WPL instant | 172.6 (29.9) | 18.3% | 10.62 / 7.40 / 9.96 | 7.28 / 26.5% | 154.8 | 51.9% | 7.0 | 16.2 / 7.4 |
+| WBBL real (77) | 155.0 (25.5) | 3.9% | 7.03 / 7.55 / 9.09 | 6.92 / 15.6% | 139.9 | 51.4% | 8.2 | 16.2 / 2.5 |
+| WBBL instant | 147.8 (27.6) | 2.0% | 8.73 / 6.06 / 8.88 | 6.33 / 13.5% | 134.4 | 49.9% | 6.6 | 13.7 / 6.6 |
+
+The WPL is off the same way the T20Is were: 10 runs (6.5%) too many first-innings runs, a powerplay three runs an over too
+fast (10.6 against 7.4) with the middle overs a little slow, more than twice the real all-out share and almost twice the
+sixes. The WBBL is 7 runs short overall with the same shape (powerplay 1.7 an over fast, middle overs 1.5 slow, sixes 6.6
+against 2.5). Both leagues' levels come from `LEAGUE_LEVELS` / the WPL multiplier, fitted on runs, wickets and balls per
+innings only (docs/LEAGUES.md, "Calibration"); a context like the T20I's would fit their shape.
+
