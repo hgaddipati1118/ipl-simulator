@@ -1,8 +1,8 @@
 /**
  * A T20 match's own conditions (match-conditions.ts, docs/RULES-MATCH.md 12.8): a run multiplier drawn per match from its
  * league's fitted two-piece shape (the men's default for other men's T20s; none for the women and for leagues fitted with
- * none), shared by both innings, in both engines; none in an ODI. It widens the spread of totals, more above than below,
- * and leaves their mean where it was. Seeded.
+ * none), shared by both innings, in both engines; none in an ODI. It widens the spread of totals and leaves their mean
+ * where it was. Seeded.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyMatchConditions, conditionsShapeFor, drawMatchConditions } from "../match-conditions.js";
@@ -10,6 +10,7 @@ import { MATCH_CONDITIONS } from "../match-conditions-data.js";
 import { simulateMatch, type BallOutcome } from "../match.js";
 import { createMatchState } from "../live-match.js";
 import { RULE_PRESETS, odiRules, type RuleSet } from "../rules.js";
+import { EXTRA_LEAGUES } from "../leagues.js";
 import { Team, IPL_TEAMS } from "../team.js";
 import { createPlayerFromData } from "../create-player.js";
 import { createRNG } from "../rng.js";
@@ -40,7 +41,7 @@ describe("match conditions", () => {
 
   it("draws the two-piece log multiplier: below the centre with probability lo / (lo + hi), each side with its own spread", () => {
     const s = MATCH_CONDITIONS.male.ipl!;
-    expect(s.hi).toBeGreaterThan(s.lo);
+    expect(s.hi).not.toBe(s.lo);
     const rng = createRNG(5);
     const logs = Array.from({ length: 40000 }, () => Math.log(drawMatchConditions("male", "ipl", rng)!.run) - s.center);
     const below = logs.filter(x => x < 0), above = logs.filter(x => x >= 0);
@@ -65,26 +66,24 @@ describe("match conditions", () => {
     expect(createMatchState(a, b, odiRules("men", RULES), null, 11)._internal.conditions).toBeUndefined();
   });
 
-  it("widens the spread of first-innings totals, more above the median than below, and keeps the mean", () => {
+  it("widens the spread of first-innings totals and keeps the mean (SA20 rules: its term is the widest)", () => {
     const N = 1500;
+    const sa20: RuleSet = { ...EXTRA_LEAGUES.find(l => l.id === "sa20")!.rules, injuriesEnabled: false };
     const play = () => {
       const first: number[] = [];
       const t = teams();
       for (let i = 0; i < N; i++) {
         const a = t[i % t.length], b = t[(i * 3 + 1) % t.length === i % t.length ? (i + 1) % t.length : (i * 3 + 1) % t.length];
-        first.push(simulateMatch(a, b, RULES, 4400 + i, { countTowardStandings: false }).innings[0].runs);
+        first.push(simulateMatch(a, b, sa20, 4400 + i, { countTowardStandings: false }).innings[0].runs);
       }
-      const v = [...first].sort((x, y) => x - y);
-      const q = (p: number) => v[Math.floor(p * (v.length - 1))];
       const mean = first.reduce((x, y) => x + y, 0) / N;
       const sd = Math.sqrt(first.reduce((x, y) => x + (y - mean) ** 2, 0) / (N - 1));
-      return { mean, sd, up: q(0.9) - q(0.5), down: q(0.5) - q(0.1) };
+      return { mean, sd };
     };
     const withConditions = play();
     MATCH_CONDITIONS.male = {};
     const without = play();
     expect(withConditions.sd).toBeGreaterThan(without.sd + 2);
     expect(Math.abs(withConditions.mean - without.mean)).toBeLessThan(3);
-    expect(withConditions.up - without.up).toBeGreaterThan(withConditions.down - without.down);
   });
 });

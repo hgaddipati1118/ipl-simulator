@@ -58,6 +58,7 @@ import {
 import { T20_FORMAT, hasOwnBallModel, matchFormatFor, phaseOver, type MatchFormatSpec } from "./format.js";
 import { applyScoringContext, scoringContextFor, type T20Context } from "./scoring-context.js";
 import { applyMatchConditions, drawMatchConditions, type MatchConditions } from "./match-conditions.js";
+import { applyWicketsInHand, wicketsInHandKey as wicketsInHandKeyFor } from "./wickets-in-hand.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
 import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
@@ -237,6 +238,8 @@ export interface VenueContext {
   context?: T20Context;
   /** The match's own conditions (match-conditions.ts): the pitch and weather on the day */
   conditions?: MatchConditions;
+  /** The competition's key for the first innings' wickets-in-hand table (wickets-in-hand.ts) */
+  wicketsInHandKey?: string;
 }
 
 /* ───── Detailed scorecard types (from WT2) ───── */
@@ -510,6 +513,8 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
     if (venue.context) applyScoringContext(probs, venue.context, phase);
     // The match's own conditions, shared by both innings
     if (venue.conditions) applyMatchConditions(probs, venue.conditions);
+    // A first innings by wickets down and overs left (a chase has its own context below; a super over neither)
+    if (venue.wicketsInHandKey && !isSecondInnings && !rules.superOver) applyWicketsInHand(probs, rules.gender, venue.wicketsInHandKey, over, wicketsDown);
   }
 
   // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel.
@@ -913,6 +918,7 @@ function getVenueContext(
   const leagueChase = getLeagueChaseAdvantage(rules.league, rules.gender);
   // A T20I: its own fitted level (scoring-context.ts); league play has none
   const context = scoringContextFor(rules, fmt);
+  const wicketsInHandKey = wicketsInHandKeyFor(rules, genderOf(rules));
   if (options?.neutralVenue) {
     return {
       stadiumBowlRating: 1.0 * (2 - rules.scoringMultiplier),
@@ -923,6 +929,7 @@ function getVenueContext(
       chaseAdvantage: leagueChase,
       gender: genderOf(rules),
       ...(context ? { context } : {}),
+      wicketsInHandKey,
     };
   }
 
@@ -936,6 +943,7 @@ function getVenueContext(
     chaseAdvantage: profile?.chaseAdvantage ?? leagueChase,
     gender: genderOf(rules),
     ...(context ? { context } : {}),
+    wicketsInHandKey,
   };
 }
 

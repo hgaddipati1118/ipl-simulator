@@ -15,6 +15,7 @@ import { getVenueProfileForTeam, getLeagueChaseAdvantage, getNeutralVenueProfile
 import { stadiumRatingFor, planRain, ballProbabilities, type RainPlan, type VenueContext } from "./match.js";
 import { scoringContextFor, type T20Context } from "./scoring-context.js";
 import { drawMatchConditions, type MatchConditions } from "./match-conditions.js";
+import { wicketsInHandKey } from "./wickets-in-hand.js";
 import {
   type BattingHand,
   type BowlingStyle,
@@ -555,6 +556,8 @@ interface LiveRulesCtx {
   context?: T20Context;
   /** The match's own conditions (match-conditions.ts) */
   conditions?: MatchConditions;
+  /** The competition's key for the first innings' wickets-in-hand table (wickets-in-hand.ts) */
+  wicketsInHandKey?: string;
   /** The slow over-rate restriction is on (one fewer fielder outside the circle) */
   overRatePenalty?: boolean;
   /** A super over: wickets come faster (SUPER_OVER_CAL) */
@@ -642,6 +645,7 @@ function runOneBall(
     stadiumBowlRating, pitchType, boundarySize, dewFactor, profile: venueProfile, chaseAdvantage: chaseAdvantage ?? 0, gender: rulesCtx.gender,
     ...(rulesCtx.context ? { context: rulesCtx.context } : {}),
     ...(rulesCtx.conditions ? { conditions: rulesCtx.conditions } : {}),
+    ...(rulesCtx.wicketsInHandKey && !odi ? { wicketsInHandKey: rulesCtx.wicketsInHandKey } : {}),
   };
   const probs = ballProbabilities(batter, bowler, {
     over, isSecondInnings, target, currentScore, ballsRemaining, wicketsDown, venue, inningsBalls: fmt.totalBalls,
@@ -1183,6 +1187,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     {
       freeHit: freeHitNow, gender: rulesGender, bench: benchPool, nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name,
       overRatePenalty: overRateOn, context: scoringContextFor(int.rules, liveMatchFormat(int.rules)), conditions: int.conditions,
+      wicketsInHandKey: wicketsInHandKey(int.rules, rulesGender),
       ...(odi ? {
         odi: {
           over: state.overs, wicketsDown: state.wickets, batterBalls: batterBallsPre, gender: rulesGender, scheduledOvers: maxOvers,

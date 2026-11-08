@@ -335,8 +335,9 @@ describe("women's extras and The Hundred's ends", () => {
     const count = (rs: MatchResult[]) => { let w = 0, d = 0; for (const e of balls(rs)) { d++; if (e.outcome === "wide") w++; } return w / d; };
     const m = count(play(200, { seed: 51 }));
     const w = count(play(200, { seed: 51, rules: women }));
-    expect(w / m).toBeGreaterThan(f.wide - 0.12);
-    expect(w / m).toBeLessThan(f.wide + 0.12);
+    // the women's league contexts (RULES-MATCH.md 12.7) and the first innings' wickets-in-hand factors (12.9) move it a little too
+    expect(w / m).toBeGreaterThan(f.wide - 0.15);
+    expect(w / m).toBeLessThan(f.wide + 0.15);
   });
 
   it("The Hundred: the ends change every ten balls, not after every set of five", () => {

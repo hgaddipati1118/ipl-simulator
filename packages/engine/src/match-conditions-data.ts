@@ -10,17 +10,17 @@ export interface ConditionsShape { lo: number; hi: number; center: number }
 
 export const MATCH_CONDITIONS: Record<"male" | "female", Record<string, ConditionsShape | null>> = {
   male: {
-    ipl: { lo: 0.18, hi: 0.36, center: -0.1377 },
-    bbl: null,
-    psl: { lo: 0.09, hi: 0.18, center: -0.0812 },
-    "sa20": { lo: 0.18, hi: 0.36, center: -0.142 },
-    "hundred-m": { lo: 0.14, hi: 0.28, center: -0.1134 },
-    cpl: { lo: 0.13, hi: 0.26, center: -0.0966 },
-    "ilt20": { lo: 0.06, hi: 0.12, center: -0.0513 },
-    mlc: { lo: 0.1, hi: 0.2, center: -0.0815 },
-    bpl: { lo: 0.11, hi: 0.22, center: -0.092 },
-    lpl: { lo: 0.09, hi: 0.18, center: -0.0802 },
-    default: { lo: 0.11, hi: 0.22, center: -0.092 },
+    ipl: { lo: 0.11, hi: 0.055, center: 0.0324 },
+    bbl: { lo: 0.03, hi: 0.015, center: 0.0131 },
+    psl: { lo: 0.07, hi: 0.035, center: 0.0137 },
+    "sa20": { lo: 0.27, hi: 0.135, center: 0.0955 },
+    "hundred-m": { lo: 0.04, hi: 0.02, center: 0.0044 },
+    cpl: { lo: 0.02, hi: 0.01, center: 0.0036 },
+    "ilt20": { lo: 0.02, hi: 0.01, center: 0.015 },
+    mlc: { lo: 0.06, hi: 0.03, center: 0.0257 },
+    bpl: { lo: 0.04, hi: 0.02, center: 0.007 },
+    lpl: { lo: 0.08, hi: 0.04, center: 0.0348 },
+    default: { lo: 0.06, hi: 0.03, center: 0.0257 },
   },
   female: {},
 };
