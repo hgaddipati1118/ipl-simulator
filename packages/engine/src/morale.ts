@@ -52,7 +52,7 @@ export function updateTeamMorale(
 }
 
 /** Get morale modifier for match probability adjustments (±3% range) */
-export function getMoraleModifier(player: Player): number {
+export function getMoraleModifier(player: Pick<Player, "morale">): number {
   if (player.morale > 80) return 1.03;
   if (player.morale > 60) return 1.01;
   if (player.morale < 30) return 0.93;
@@ -61,7 +61,7 @@ export function getMoraleModifier(player: Player): number {
 }
 
 /** Get clutch rating modifier from morale */
-export function getClutchMoraleModifier(player: Player): number {
+export function getClutchMoraleModifier(player: Pick<Player, "morale">): number {
   if (player.morale > 80) return 1.05;
   if (player.morale < 40) return 0.90;
   return 1.0;
