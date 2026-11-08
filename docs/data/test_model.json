@@ -1198,9 +1198,9 @@
   "male": {
    "spin": {
     "bowled": 0.1686,
-    "caught": 0.427,
+    "caught": 0.4275,
     "caught_and_bowled": 0.0291,
-    "caught_keeper": 0.0927,
+    "caught_keeper": 0.0922,
     "hit_wicket": 0.0002,
     "lbw": 0.203,
     "run_out": 0.0325,
@@ -1208,9 +1208,9 @@
    },
    "pace": {
     "bowled": 0.1817,
-    "caught": 0.389,
+    "caught": 0.3888,
     "caught_and_bowled": 0.0147,
-    "caught_keeper": 0.2524,
+    "caught_keeper": 0.2526,
     "hit_wicket": 0.0007,
     "lbw": 0.1397,
     "other": 0.0001,
@@ -1221,9 +1221,9 @@
   "female": {
    "pace": {
     "bowled": 0.1954,
-    "caught": 0.4051,
+    "caught": 0.405,
     "caught_and_bowled": 0.0104,
-    "caught_keeper": 0.1686,
+    "caught_keeper": 0.1687,
     "hit_wicket": 0.0003,
     "lbw": 0.1956,
     "other": 0.0001,
@@ -1232,9 +1232,9 @@
    },
    "spin": {
     "bowled": 0.2154,
-    "caught": 0.398,
+    "caught": 0.3982,
     "caught_and_bowled": 0.035,
-    "caught_keeper": 0.0587,
+    "caught_keeper": 0.0584,
     "hit_wicket": 0.0001,
     "lbw": 0.2183,
     "run_out": 0.047,
@@ -1280,8 +1280,8 @@
   "legalBallsPerInnings": 466.7,
   "dotShare": 0.6993,
   "wicketsPerInnings": {
-   "lbw": 1.375,
-   "caught": 1.598
+   "caught": 1.6,
+   "lbw": 1.375
   },
   "reviewsPerInnings": 3.362,
   "battingShare": 0.431,
@@ -1306,26 +1306,26 @@
   "toss": {
    "all": 0.681,
    "byCountry": {
-    "IND": 0.886,
-    "ENG": 0.509,
-    "NZ": 0.229,
-    "RSA": 0.698,
-    "WI": 0.544,
+    "AUS": 0.769,
     "BDESH": 0.85,
     "PAK": 0.806,
-    "SL": 0.889,
-    "AUS": 0.769,
-    "ZIM": 0.786,
     "UAE": 0.861,
-    "IRELAND": 0.524
+    "IRELAND": 0.524,
+    "ENG": 0.509,
+    "IND": 0.886,
+    "NZ": 0.229,
+    "SL": 0.889,
+    "ZIM": 0.786,
+    "WI": 0.544,
+    "RSA": 0.698
    }
   },
   "declare": {
    "inn1": {
     "coef": {
-     "intercept": -14.7827,
-     "runs/100": 1.5707,
-     "matchOvers/90": 0.7683,
+     "intercept": -14.7806,
+     "runs/100": 1.571,
+     "matchOvers/90": 0.7659,
      "wickets": 0.3167
     },
     "overs": 13055,
@@ -1766,6 +1766,31 @@
     "Bangladesh": 0.278,
     "West Indies": 0.255,
     "Zimbabwe": 0.107
+   },
+   "teamTests": {
+    "Australia": 115,
+    "India": 113,
+    "South Africa": 93,
+    "New Zealand": 89,
+    "England": 148,
+    "Pakistan": 87,
+    "Sri Lanka": 96,
+    "Bangladesh": 72,
+    "West Indies": 94,
+    "Zimbabwe": 28
+   },
+   "hostTests": {
+    "West Indies": 43,
+    "India": 53,
+    "Sri Lanka": 46,
+    "Pakistan": 22,
+    "New Zealand": 46,
+    "Bangladesh": 38,
+    "Australia": 60,
+    "Ireland": 3,
+    "England": 77,
+    "South Africa": 47,
+    "Zimbabwe": 19
    }
   },
   "male2023": {
@@ -1897,6 +1922,30 @@
     "Sri Lanka": 0.348,
     "Pakistan": 0.292,
     "West Indies": 0.233
+   },
+   "teamTests": {
+    "South Africa": 25,
+    "Australia": 39,
+    "New Zealand": 28,
+    "England": 42,
+    "India": 35,
+    "Bangladesh": 25,
+    "Sri Lanka": 23,
+    "Pakistan": 24,
+    "West Indies": 30
+   },
+   "hostTests": {
+    "India": 18,
+    "Sri Lanka": 12,
+    "West Indies": 13,
+    "Pakistan": 10,
+    "New Zealand": 14,
+    "Australia": 18,
+    "England": 24,
+    "South Africa": 11,
+    "Bangladesh": 14,
+    "Zimbabwe": 8,
+    "Ireland": 2
    }
   },
   "female": {

@@ -824,6 +824,11 @@ FROM m WHERE {W} AND ((team1 IN ({','.join("'" + t + "'" for t in strong)}) AND 
         out["strongVsWeak"] = {"strong": strong, "weak": weak, "n": int(xs["n"]), "strongWin": r(xs["sw"] / xs["n"], 3),
                                "draw": r(xs["d"] / xs["n"], 3), "weakWin": r(xs["ww"] / xs["n"], 3)}
         out["teamWinShare"] = {x["team"]: r(x["w"], 3) for x in rows}
+        out["teamTests"] = {x["team"]: int(x["n"]) for x in rows}
+        # how often each side hosts: the benchmark draws fixtures in the real proportions
+        hs = duck(f"""SELECT CASE WHEN {team_country_sql('team1')} = country THEN team1 WHEN {team_country_sql('team2')} = country THEN team2 END host, count(*) n
+FROM m WHERE {W} GROUP BY 1""")
+        out["hostTests"] = {x["host"]: int(x["n"]) for x in hs if x["host"]}
     return out
 
 
