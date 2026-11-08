@@ -179,6 +179,18 @@ def slot_text(text: str, row: dict, lex: Lexicon, reasons: Counter):
     if ambiguous and any(re.search(r"\b" + re.escape(t) + r"\b", out) for t in ambiguous):
         reasons["ambiguous_name"] += 1
         return None
+    # a capitalised word right before a player slot can be a first name or nickname the slotting missed ("Cam {fielder}",
+    # "Venky {batter}"): drop it when it reads as a name (a known name token, never written in lowercase, or capitalised
+    # mid-sentence at least as often as lowercase); plain words ("Typical {batter}", "Glorious {batter}") stay
+    for m in re.finditer(r"\b([A-Z][a-z'’]+) \{(?:batter|bowler|fielder|nonstriker)\}", out):
+        w = m.group(1)
+        if w in ALLOW_CAPS or lex.is_common_word(w):
+            continue
+        low = lex.lower.get(w.lower(), 0)
+        if w in lex.names or low == 0 or lex.cap_mid.get(w, 0) >= low:
+            reasons["name_before_slot"] += 1
+            LEAK_TOKENS["name_before_slot"][w] += 1
+            return None
     # leak check: any remaining capitalised token must be a plain word
     stripped = re.sub(r"\{\w+\}", " ", out)
     for m in CAP_TOKEN.finditer(stripped):
