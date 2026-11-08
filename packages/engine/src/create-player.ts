@@ -10,6 +10,8 @@ import {
   PlayerRole,
   BowlingStyle,
   BattingHand,
+  type FormatRatings,
+  type LongFormat,
   calculateBattingOverall,
   calculateBowlingOverall,
 } from "./player.js";
@@ -153,6 +155,8 @@ export function createPlayerFromData(data: {
   /** Optional 0-99 fielding / keeping ratings (fielding.ts); absent = engine defaults */
   fielding?: number;
   keeping?: number;
+  /** ODI / Test ratings, kept as given (the ratings pipeline ships them already normalised); absent = T20 ratings */
+  formatRatings?: Partial<Record<LongFormat, FormatRatings>>;
   teamId?: string;
   bid?: number;
 }): Player {
@@ -185,6 +189,7 @@ export function createPlayerFromData(data: {
     imageUrl: data.imageUrl,
     role,
     ratings,
+    ...(data.formatRatings ? { formatRatings: data.formatRatings } : {}),
     isInternational,
     isWicketKeeper,
     bowlingStyle: data.bowlingStyle,

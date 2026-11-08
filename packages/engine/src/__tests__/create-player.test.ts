@@ -92,6 +92,20 @@ describe("createPlayerFromData", () => {
     expect(p.battingHand).toBe("right");
   });
 
+  it("keeps ODI / Test ratings as given and plays the format on them", () => {
+    const test = { battingIQ: 97, timing: 95, power: 52, running: 55, wicketTaking: 12, economy: 14, accuracy: 18, clutch: 80 };
+    const p = createPlayerFromData({
+      name: "Test Specialist", age: 34, country: "India", role: "batsman",
+      battingIQ: 70, timing: 68, power: 45, running: 50, wicketTaking: 10, economy: 10, accuracy: 15, clutch: 60,
+      formatRatings: { test: { ratings: test, source: "data" } },
+    });
+    expect(p.formatRatings?.test?.ratings).toEqual(test);
+    expect(p.formatRatings?.odi).toBeUndefined();
+    expect(p.forFormat("test").ratings.battingIQ).toBe(97);
+    expect(p.forFormat("odi")).toBe(p);
+    expect(createPlayerFromData({ name: "x", age: 25, country: "India", battingIQ: 50, timing: 50, power: 50, running: 50, wicketTaking: 20, economy: 20, accuracy: 20, clutch: 50 }).formatRatings).toBeUndefined();
+  });
+
   it("marks non-Indian players as international", () => {
     const p = createPlayerFromData({
       name: "Steve Smith",
