@@ -839,7 +839,9 @@ The Test entry of `SERIES_FORMATS` (`testSeriesFormat()`, `packages/app/src/test
   (`bazballTeamId`).
 - **Squads** on Test ratings, picked for a Test's shape on the engine's Test values (`testPlayerOf`): two keepers, five
   seamers, two spinners, one more bowler, six batters (`pickTestSquad`, the `ratingFormat === "test"` branch of
-  `buildNationSquad`). The limited-overs ranking left red-ball specialists such as Lyon out.
+  `buildNationSquad`). Within each slot, recent Test players come first (the activity tiers above), so India's seamers
+  are Siraj, Prasidh and Akash Deep rather than domestic quicks with high first-class ratings. The limited-overs ranking
+  left red-ball specialists such as Lyon out.
 - **XI**: the CPU and the user's "auto" XI are the engine's `pickTestXI` and `testBattingOrder` (`autoLineup`). A user's XI
   needs eleven, a keeper and four bowlers (`lineupProblems`); it reaches the engine as `xi` in his batting order.
 - **Play** live on `LiveTestPage` (`viewer: "test"`, `SeriesLiveTest` in `SeriesTestViews.tsx`; the user captains his side or

@@ -32,12 +32,15 @@ const SHAPE = { keepers: 2, pace: 5, spin: 2, extraBowler: 1, batters: 6 };
  * A Test squad of 16 from a nation's players (their `ratings` the Test set): on the engine's Test values (testPlayerOf: batting
  * survival and scoring, bowling wickets and economy in fitted log-rate units), so a red-ball specialist is not left out for a
  * white-ball name. Two keepers, five seamers, two spinners, a further bowler, then the six best batters (all-rounders
- * count with their bowling); a small pool is filled with the best of the rest.
+ * count with their bowling); a small pool is filled with the best of the rest. Within each of these, players of a lower
+ * `tier` come first (international.ts: 0 = a recent Test player, 1 = active at senior level, 2 = active three seasons ago).
  */
-export function pickTestSquad(players: readonly Player[], size = 16): Player[] {
+export function pickTestSquad(players: readonly Player[], size = 16, tier: (p: Player) => number = () => 0): Player[] {
   const tp = new Map(players.map(p => [p.id, testPlayerOf(p)]));
   const v = (p: Player) => tp.get(p.id)!;
   const bat = (p: Player) => v(p).batValue + 0.3 * Math.max(0, v(p).bowlValue);
+  // tier first, then the value
+  const by = (value: (p: Player) => number) => (a: Player, b: Player) => tier(a) - tier(b) || value(b) - value(a);
   const squad: Player[] = [];
   const add = (list: Player[], n: number) => {
     for (const p of list) {
@@ -45,14 +48,13 @@ export function pickTestSquad(players: readonly Player[], size = 16): Player[] {
       if (!squad.includes(p)) { squad.push(p); n--; }
     }
   };
-  add(players.filter(p => p.isWicketKeeper)
-    .sort((a, b) => (v(b).batValue + 0.01 * keepingRating(b)) - (v(a).batValue + 0.01 * keepingRating(a))), SHAPE.keepers);
-  const bowlers = () => players.filter(p => v(p).bowler && !squad.includes(p)).sort((a, b) => v(b).bowlValue - v(a).bowlValue);
+  add(players.filter(p => p.isWicketKeeper).sort(by(p => v(p).batValue + 0.01 * keepingRating(p))), SHAPE.keepers);
+  const bowlers = () => players.filter(p => v(p).bowler && !squad.includes(p)).sort(by(p => v(p).bowlValue));
   add(bowlers().filter(p => !v(p).spin), SHAPE.pace);
   add(bowlers().filter(p => v(p).spin), SHAPE.spin);
   add(bowlers(), SHAPE.extraBowler);
-  add(players.filter(p => !p.isWicketKeeper && !squad.includes(p)).sort((a, b) => bat(b) - bat(a)), SHAPE.batters);
-  add([...players].sort((a, b) => Math.max(bat(b), v(b).bowlValue) - Math.max(bat(a), v(a).bowlValue)), size - squad.length);
+  add(players.filter(p => !p.isWicketKeeper && !squad.includes(p)).sort(by(bat)), SHAPE.batters);
+  add([...players].sort(by(p => Math.max(bat(p), v(p).bowlValue))), size - squad.length);
   return squad;
 }
 

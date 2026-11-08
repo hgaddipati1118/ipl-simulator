@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { advanceTest, autoResolveTestDecision, setTestAutoCaptain, testPlayerOf, type TestMatchState } from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
+import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import {
   SERIES_FORMATS, addResult, buildNationSquad, createSeries, matchContext, matchName, seriesFormat, seriesScore, seriesSquads,
   seriesStats, simulateRestOfSeries, simulateSeriesMatch, type IntlSeries, type SeriesMatchRecord,
@@ -50,6 +51,14 @@ describe("Test squads and XIs", () => {
     }
     // the T20-shaped ranking left the Test spinner out
     expect(buildNationSquad("Australia", "men", "test", FILE).map(p => p.name)).toContain("Nathan Lyon");
+  });
+
+  it("with the activity data, recent Test players come first in each slot", () => {
+    const activity = JSON.parse(readFileSync(join(PUBLIC, "data", "player-activity.json"), "utf-8")) as PlayerActivityFile;
+    const names = buildNationSquad("India", "men", "test", FILE, undefined, activity).map(p => p.name);
+    expect(names).toHaveLength(16);
+    // without it, domestic seamers with high first-class ratings took these places
+    for (const n of ["Mohammed Siraj", "Jasprit Bumrah", "Shubman Gill"]) expect(names).toContain(n);
   });
 
   it("the auto XI: a keeper, four or five bowlers, a second spinner in the subcontinent; it passes the lineup check", () => {

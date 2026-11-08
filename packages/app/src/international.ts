@@ -271,8 +271,8 @@ export function buildNationSquad(
     const byId = new Map(inFormat.map(p => [p.id, p]));
     squad = ids.map(id => byId.get(id)).filter((p): p is Player => !!p);
   } else if (ratingFormat === "test") {
-    // a Test squad is picked for its shape: keepers, seamers, spinners, batters (test-match/test-series.ts)
-    squad = pickTestSquad(inFormat, SQUAD_SIZE);
+    // a Test squad is picked for its shape (keepers, seamers, spinners, batters), recent Test players first (test-series.ts)
+    squad = pickTestSquad(inFormat, SQUAD_SIZE, p => tierOf.get(p.id) ?? 2);
   } else {
     const ranked = [...inFormat].sort((a, b) => (tierOf.get(a.id) ?? 2) - (tierOf.get(b.id) ?? 2) || xiSelectionValue(b) - xiSelectionValue(a));
     squad = ranked.slice(0, SQUAD_SIZE);
