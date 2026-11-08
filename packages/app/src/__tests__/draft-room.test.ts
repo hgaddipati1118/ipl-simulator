@@ -268,7 +268,7 @@ describe("draft room: season draft with humans and AI", () => {
 });
 
 describe("Draft Match playing side", () => {
-  it("a match with a user-controlled side always simulates to the end (DRS and other decisions auto-resolve)", { timeout: 60000 }, () => {
+  it("a match with a user-controlled side always simulates to the end (DRS and other decisions auto-resolve)", () => {
     for (let k = 0; k < 25; k++) {
       const hub = new FakeHub();
       const deps = testDeps();
@@ -290,5 +290,5 @@ describe("Draft Match playing side", () => {
       expect(done.status).toBe("completed");
       host.destroy();
     }
-  }, 30_000);
+  }, 60_000);
 });
