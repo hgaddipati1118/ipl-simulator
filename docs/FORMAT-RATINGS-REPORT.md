@@ -159,6 +159,11 @@ runs per over 3.58 / 3.74 (3.58); innings 1 runs 326 / 337 (323); balls per wick
 regressions read the old attribute meanings (fours from power and running, survival from battingIQ fitted on raw averages),
 so the scoring rates and the team spread need the refit (`test-match-model.py`, docs/FORMATS.md section 8).
 
+**ODI benchmark** (`benchmark-odi.ts 2 both`, round-1 / round-2 ODI sets, real 2019+): men's first-innings total 251.9 /
+240.4 (253.1), 300+ 28.4 / 20.6% (24.8%), team win-share correlation with real 0.76 / 0.77, spread of win shares 0.16 /
+0.13 (0.12); women's 226.8 / 227.3 (227.4), 300+ 15.6 / 12.5% (15.6%). The ODI engine's composites (`ODI_REF`, `ODI_CAL`)
+were calibrated on the round-1 sets; its step 2 recalibration (docs/FORMATS.md, ODI, Refitting) brings the totals back.
+
 ## Tables (format-ratings-report.ts)
 
 ### Out-of-sample validation
