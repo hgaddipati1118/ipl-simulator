@@ -30,6 +30,8 @@ export type {
   TrainingFocus,
   TrainingIntensity,
   PlayerProgressReport,
+  LongFormat,
+  FormatRatings,
 } from "./player.js";
 
 export { Team, IPL_TEAMS, WPL_TEAMS, LEGACY_STADIUM_BOWLING_RATINGS, xiSelectionValue, keeperSelectionValue } from "./team.js";

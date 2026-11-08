@@ -113,6 +113,16 @@ export interface RatingHistoryEntry {
   keeping?: number;
 }
 
+/** The longer formats a player can carry their own ratings for (docs/FORMATS.md) */
+export type LongFormat = "odi" | "test";
+
+/** A player's attributes in one longer format: same 0-99 scale and meaning as the T20 `ratings` */
+export interface FormatRatings {
+  ratings: PlayerRatings;
+  /** "data": measured in the format (List A / ODI, first-class / Test); "derived": translated from other formats for want of data */
+  source?: "data" | "derived";
+}
+
 export interface PlayerProgressReport {
   focus: TrainingFocus;
   intensity: TrainingIntensity;
@@ -132,6 +142,8 @@ export interface PlayerData {
   imageUrl?: string;
   role: PlayerRole;
   ratings: PlayerRatings;
+  /** ODI / Test ratings; `ratings` stays the T20 set. Absent for a format = play it on the T20 ratings */
+  formatRatings?: Partial<Record<LongFormat, FormatRatings>>;
   battingPosition?: BattingPosition; // opener, top-order, middle-order, finisher, lower-order
   isInternational: boolean; // non-Indian = international (foreign player slot)
   isWicketKeeper?: boolean; // WK is a tag, not a role
@@ -348,6 +360,7 @@ export class Player implements PlayerData {
   imageUrl?: string;
   role: PlayerRole;
   ratings: PlayerRatings;
+  formatRatings?: Partial<Record<LongFormat, FormatRatings>>;
   isInternational: boolean;
   isWicketKeeper: boolean;
   bowlingStyle: BowlingStyle;
@@ -383,6 +396,12 @@ export class Player implements PlayerData {
     this.imageUrl = data.imageUrl;
     this.role = data.role;
     this.ratings = { ...data.ratings };
+    if (data.formatRatings) {
+      this.formatRatings = {};
+      for (const [f, fr] of Object.entries(data.formatRatings) as [LongFormat, FormatRatings][]) {
+        if (fr) this.formatRatings[f] = { ...fr, ratings: { ...fr.ratings } };
+      }
+    }
     this.isInternational = data.isInternational;
     this.isWicketKeeper = data.isWicketKeeper ?? false;
     this.bowlingStyle = data.bowlingStyle ?? "unknown";
@@ -432,6 +451,20 @@ export class Player implements PlayerData {
   /** Overall rating: stronger discipline as base, weaker adds diminishing bonus */
   get overall(): number {
     return calculateOverallRating(this.battingOvr, this.bowlingOvr);
+  }
+
+  /**
+   * The player as he plays `format`: a view whose `ratings` (and so battingOvr / bowlingOvr / overall) are that
+   * format's set; every other field, `stats` included, reads through to this player. T20, or a format without its
+   * own ratings, returns the player itself. Mutate the player, not the view: assigning a field on the view only
+   * shadows it there.
+   */
+  forFormat(format: "t20" | LongFormat): Player {
+    const fr = format === "t20" ? undefined : this.formatRatings?.[format];
+    if (!fr) return this;
+    const view = Object.create(this) as Player;
+    view.ratings = fr.ratings;
+    return view;
   }
 
   /** Match readiness derived from accumulated fatigue (0-100, higher is fresher). */
@@ -764,6 +797,7 @@ export class Player implements PlayerData {
       imageUrl: this.imageUrl,
       role: this.role,
       ratings: { ...this.ratings },
+      ...(this.formatRatings ? { formatRatings: JSON.parse(JSON.stringify(this.formatRatings)) } : {}),
       isInternational: this.isInternational,
       isWicketKeeper: this.isWicketKeeper,
       bowlingStyle: this.bowlingStyle,

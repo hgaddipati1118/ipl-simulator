@@ -410,3 +410,34 @@ describe("Player serialization", () => {
     expect(restored.workloadHistory).toEqual([]);
   });
 });
+
+describe("Player.forFormat", () => {
+  const odi = { battingIQ: 90, timing: 88, power: 55, running: 60, wicketTaking: 30, economy: 25, accuracy: 35, clutch: 70 };
+
+  it("returns the player itself for T20 and for formats without their own ratings", () => {
+    const p = new Player(makePlayerData());
+    expect(p.forFormat("t20")).toBe(p);
+    expect(p.forFormat("test")).toBe(p);
+  });
+
+  it("swaps in the format's ratings and reads every other field through to the player", () => {
+    const p = new Player(makePlayerData({ formatRatings: { odi: { ratings: odi, source: "data" } } }));
+    const v = p.forFormat("odi");
+    expect(v).not.toBe(p);
+    expect(v.ratings).toEqual(odi);
+    expect(v.battingOvr).not.toBe(p.battingOvr);
+    expect(v.id).toBe(p.id);
+    expect(v.stats).toBe(p.stats);
+    v.stats.runs += 40;
+    expect(p.stats.runs).toBe(40);
+    expect(p.ratings.battingIQ).toBe(80);
+  });
+
+  it("survives a JSON round trip", () => {
+    const p = new Player(makePlayerData({ formatRatings: { test: { ratings: odi, source: "derived" } } }));
+    const q = Player.fromJSON(JSON.parse(JSON.stringify(p.toJSON())));
+    expect(q.formatRatings?.test?.ratings).toEqual(odi);
+    expect(q.forFormat("test").ratings.battingIQ).toBe(90);
+    expect(Player.fromJSON(JSON.parse(JSON.stringify(new Player(makePlayerData()).toJSON()))).formatRatings).toBeUndefined();
+  });
+});
