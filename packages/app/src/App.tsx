@@ -440,7 +440,9 @@ export default function App() {
     // Create the incremental match state
     // Pass userTeamId so the engine knows which team to pause for decisions
     const isUserMatch = state.userTeamId && (match.homeTeamId === state.userTeamId || match.awayTeamId === state.userTeamId);
-    const ms = createMatchState(homeTeam, awayTeam, state.rules, isUserMatch ? state.userTeamId : null);
+    // rain at the league's fitted rates and neutral playoff grounds, as the season's instant matches play (schedule.ts)
+    const ms = createMatchState(homeTeam, awayTeam, state.rules, isUserMatch ? state.userTeamId : null, undefined,
+      { rain: true, ...(match.isPlayoff ? { neutralVenue: true } : {}) });
     setLiveMatchState(ms);
     liveMatchIndex.current = matchIdx;
     navigate(`/live-match/${matchIdx}`);
@@ -495,7 +497,8 @@ export default function App() {
     if (!homeTeam || !awayTeam) { navigate("/season"); return; }
 
     const isUserMatch = afterLineup.userTeamId && (match.homeTeamId === afterLineup.userTeamId || match.awayTeamId === afterLineup.userTeamId);
-    const ms = createMatchState(homeTeam, awayTeam, afterLineup.rules, isUserMatch ? afterLineup.userTeamId : null);
+    const ms = createMatchState(homeTeam, awayTeam, afterLineup.rules, isUserMatch ? afterLineup.userTeamId : null, undefined,
+      { rain: true, ...(match.isPlayoff ? { neutralVenue: true } : {}) });
     setLiveMatchState(ms);
     liveMatchIndex.current = matchIdx;
     navigate(`/live-match/${matchIdx}`);

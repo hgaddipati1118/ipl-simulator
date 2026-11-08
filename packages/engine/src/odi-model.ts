@@ -78,18 +78,20 @@ export interface OdiBallContext {
 
 /**
  * Reference ratings per gender: the involvement-weighted average of the international XIs the benchmark replays (balls
- * faced for the batting composites, balls bowled for the bowling ones), so an average matchup has rating_k = 1.
+ * faced for the batting composites, balls bowled for the bowling ones), so an average matchup has rating_k = 1. On the
+ * round-2 ODI sets (timing from the four rate, power from the six rate; docs/FORMAT-RATINGS-REPORT.md).
  */
 export const ODI_REF: Record<"male" | "female", { bat: number; timing: number; power: number; bowl: number; wicketTaking: number; accuracy: number }> = {
-  male: { bat: 0.688, timing: 0.696, power: 0.671, bowl: 0.704, wicketTaking: 0.805, accuracy: 0.657 },
-  female: { bat: 0.675, timing: 0.693, power: 0.591, bowl: 0.732, wicketTaking: 0.734, accuracy: 0.724 },
+  male: { bat: 0.674, timing: 0.666, power: 0.679, bowl: 0.712, wicketTaking: 0.814, accuracy: 0.679 },
+  female: { bat: 0.674, timing: 0.676, power: 0.610, bowl: 0.720, wicketTaking: 0.730, accuracy: 0.711 },
 };
 
 /**
  * Scale on every rating slope, per gender. Women's ODI sides are further apart than men's (the real spread of team win
- * shares over the same fixtures is about half as wide again), the T20 ratings of the women's pool are not.
+ * shares over the same fixtures is about half as wide again), the ratings of the women's pool are not (round-2 sets: 1.45,
+ * from 1.25 on round 1, for the women's team spread and leading sides' win share).
  */
-export const ODI_RATING_SCALE: Record<"male" | "female", number> = { male: 0.9, female: 1.25 };
+export const ODI_RATING_SCALE: Record<"male" | "female", number> = { male: 0.9, female: 1.45 };
 
 /**
  * Weight of a batter's shortfall below REF against his excess above it. The T20 batting ratings of tail-enders are on the
@@ -124,14 +126,14 @@ export const ODI_RATING_SLOPES: Record<(typeof ODI_OUTCOMES)[number], { balance?
 export const ODI_CAL: Record<"male" | "female", number[][]> = {
   //     dot    1      2      3      4      6      wicket wide   noball legbye
   male: [
-    [1.069, 0.865, 0.980, 1.151, 0.875, 0.583, 1.001, 1.211, 0.896, 1.281],
-    [1.031, 1.036, 0.944, 0.978, 0.842, 0.770, 0.886, 0.853, 0.839, 0.999],
-    [1.018, 1.023, 1.023, 0.886, 1.041, 0.845, 0.823, 1.020, 1.148, 1.083],
+    [1.063, 0.861, 0.996, 1.156, 0.915, 0.614, 0.963, 1.219, 0.899, 1.305],
+    [1.030, 1.036, 0.953, 0.948, 0.852, 0.802, 0.895, 0.856, 0.799, 0.991],
+    [1.007, 1.025, 1.027, 0.892, 1.044, 0.910, 0.829, 1.006, 1.008, 1.127],
   ],
   female: [
-    [1.054, 0.887, 0.905, 0.978, 0.859, 0.387, 0.914, 1.258, 0.972, 1.277],
-    [1.042, 1.014, 0.928, 0.934, 0.857, 0.651, 0.891, 0.814, 0.926, 0.990],
-    [1.042, 1.032, 0.959, 1.083, 0.960, 0.861, 0.825, 0.845, 0.881, 1.016],
+    [1.048, 0.892, 0.921, 1.000, 0.862, 0.384, 0.920, 1.273, 1.125, 1.370],
+    [1.039, 1.025, 0.930, 0.964, 0.844, 0.634, 0.900, 0.823, 0.829, 0.945],
+    [1.039, 1.034, 0.980, 1.063, 0.969, 0.881, 0.791, 0.878, 0.800, 0.969],
   ],
 };
 

@@ -112,6 +112,8 @@ function t20iRules(gender: SeriesGender): RuleSet {
     injuriesEnabled: false,
     scoringMultiplier: gender === "women" ? 0.82 : 1.0,
     superOverTieBreaker: "repeated-super-over",
+    // the T20I level, fitted on real T20Is between full members since 2019 (engine t20i-context.ts); leagues have none
+    scoringContext: "t20i",
   };
 }
 

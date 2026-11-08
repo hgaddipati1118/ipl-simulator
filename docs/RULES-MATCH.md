@@ -429,6 +429,57 @@ The live engine's scoring level (241 an innings with fours 25.9 and sixes 14.8, 
 "IPL 2025 scoring era" boost on top of the base model, a chase win rate of 62%); that was left alone, the rules change moves it by +0.4%. Its extras were just as
 low (4.2) and are now at the data (7.9). Its dismissal mix after the change matches the instant engine's.
 
+**The live engine now plays at the instant engine's level** (November 2026). The 241-run live level above is gone: a live ball comes from the instant
+engine's own chain, `ballProbabilities` in `match.ts` (the T20 tables or the ODI model, phase multipliers, the ground, the chase edge, matchups, the
+ball-change rule, chase context, clutch, morale, super over, over-rate restriction, free hit), and the live engine adds only the user's decisions on
+top: the batting approach, as a relative change (what the old live model's aggression term did to a middle-of-the-road matchup, so BAL 50 is neutral and
+DEF / ATK move scoring from the calibrated level), and the field setting (standard = none). Gone from the live ball, because the instant engine has none
+of them: the live engine's own base matrix and phase table, the "IPL 2025 scoring era" boost, the home and day/night edges, the boundary-running and dew
+tables, the batter's form, and the set-batter / bowler-fatigue terms. Around the ball the live engine now does what the instant one does: a CPU side bowls
+one of its three best bowlers by rating each over, the first over too (a user's own phase plan still comes first; the old automatic phase plan for CPU
+sides is gone), each side bats and bowls in its team's order in both innings (the toss and the innings break no longer re-sort the XI), a neutral venue
+(playoffs, a neutral series) has no ground effects, and rain comes only with the `rain` option, from the instant engine's fitted plan (the league's
+rates, DLS on T20 resources); the old once-an-innings rain check is gone. The season's live matches pass `rain` and neutral playoff grounds as the season's
+instant matches do, and every CPU bowling choice uses the match's seeded generator.
+
+Parity (`packages/app/src/__tests__/live-parity.test.ts`, `LIVE_PARITY=1`): the game's own squads per league (`createGameState`), the same pairings and
+seeds, injuries and rain off, per innings; "live user" is a user side on default settings whose decisions the CPU takes (`simulateRemaining`). Before:
+300 matches per row; after: 600 (noise about 1% on the runs, 3 points on batting-first wins).
+
+| league / engine | runs | wkts | 4s | 6s | extras | RR 1-6 / 7-15 / 16-20 | all out | bat 1st wins |
+|---|---|---|---|---|---|---|---|---|
+| IPL instant | 170.3 | 6.89 | 16.5 | 8.0 | 8.0 | 10.64 / 7.74 / 10.68 | 27.0% | 51.8% |
+| IPL live CPU, before | 245.2 | 5.91 | 25.9 | 15.1 | 7.6 | 14.83 / 11.70 / 15.29 | 19.7% | 39.0% |
+| IPL live user, before | 253.7 | 5.84 | 26.6 | 15.8 | 7.8 | 14.90 / 12.02 / 15.68 | 18.0% | 39.5% |
+| IPL instant (600) | 169.8 | 6.86 | 16.4 | 8.0 | 7.9 | 10.54 / 7.72 / 10.60 | 25.8% | 47.3% |
+| IPL live CPU, after | 168.3 | 6.86 | 16.4 | 7.7 | 8.0 | 10.54 / 7.69 / 10.44 | 25.1% | 45.8% |
+| IPL live user, after | 172.7 | 6.74 | 16.8 | 8.0 | 8.0 | 10.53 / 7.82 / 10.75 | 23.0% | 43.2% |
+| WPL instant (600) | 163.7 | 6.99 | 16.2 | 7.4 | 7.0 | 10.46 / 7.33 / 10.03 | 27.8% | 51.9% |
+| WPL live CPU, before / after | 224.2 / 159.3 | 6.41 / 6.93 | 24.1 / 15.8 | 12.8 / 7.1 | 6.7 / 6.7 | 14.05 / 10.73 / 13.77 → 10.28 / 7.24 / 10.07 | 23.7% / 28.4% | 43.6% / 46.3% |
+| BBL instant (600) | 159.2 | 6.45 | 15.0 | 7.7 | 8.5 | 9.77 / 7.05 / 9.57 | 18.9% | 49.0% |
+| BBL live CPU, before / after | 230.9 / 158.3 | 5.81 / 6.50 | 23.3 / 14.9 | 14.6 / 7.6 | 8.5 / 8.5 | 13.83 / 10.70 / 14.26 → 9.76 / 7.08 / 9.50 | 18.5% / 20.8% | 40.3% / 49.0% |
+| WBBL instant (600) | 141.1 | 6.21 | 13.7 | 6.6 | 6.6 | 8.74 / 6.08 / 8.81 | 16.4% | 49.9% |
+| WBBL live CPU, before / after | 208.5 / 142.0 | 5.82 / 6.26 | 21.6 / 13.7 | 12.5 / 6.7 | 7.2 / 6.6 | 12.55 / 9.42 / 13.12 → 8.73 / 6.07 / 8.78 | 15.2% / 16.2% | 41.1% / 51.4% |
+| PSL instant (600) | 170.4 | 6.40 | 16.1 | 8.4 | 8.8 | 10.39 / 7.70 / 10.40 | 20.8% | 48.0% |
+| PSL live CPU, before / after | 246.4 / 171.4 | 5.80 / 6.29 | 25.2 / 16.3 | 15.6 / 8.4 | 8.7 / 8.9 | 14.79 / 11.46 / 15.04 → 10.49 / 7.64 / 10.53 | 16.5% / 17.3% | 42.8% / 42.5% |
+
+Live user sides after (WPL / BBL / WBBL / PSL): 161.2 / 158.8 / 142.9 / 170.9 runs. A user side scores a little more than a CPU one because the CPU's
+answers to its decisions take the best batter available and the best bowler (not one of the best three). Left: the WPL live level is 2.7% under the
+instant one (the other leagues within 1%), batting first wins 0-6 points less often live than instant (within about two standard errors in each
+league), CPU sides do not use the Impact Player in the live engine (the instant engine's do; worth under a run an innings there), and the live DRS and
+CPU retire-out rules are still the live engine's own.
+
+The batting approach on that level (the same file, second table: the IPL, 400 matches, a user side batting DEF / BAL / ATK all match, its innings only):
+
+| approach | runs | wickets | run rate | 4s | 6s | all out |
+|---|---|---|---|---|---|---|
+| DEF (20) | 169.7 | 5.74 | 8.86 | 16.2 | 7.4 | 12.3% |
+| BAL (50) | 174.7 | 6.49 | 9.38 | 16.9 | 8.0 | 19.8% |
+| ATK (80) | 176.2 | 7.34 | 9.84 | 17.4 | 8.5 | 32.3% |
+
+DEF scores half a run an over slower and loses three-quarters of a wicket less; ATK half a run an over faster for nearly a wicket more, so over a whole
+innings it adds only a run and a half (a third of ATK innings are bowled out). At the old live level the same relative changes sat on 245-run innings.
+
 ### 12.5 Verified in the live viewer
 
 Headless Chromium (Playwright's own, against a Vite dev server on port 3877) played a full live match with the rule rates raised through `setRuleOverrides`:
@@ -641,9 +692,11 @@ beamers 0.0014, innings under the over-rate restriction 7.8%, sixes saved 0.032,
 
 - Bouncers per over (a third bouncer a no-ball, `maxBouncersPerOver`): the engines have no ball lengths; height no-balls stand in.
 - Concussion substitutes, the ICC stop clock (T20Is only, not in the franchise leagues), penalty runs against the batting side.
-- The live engine still has no Hundred (so the ten-ball ends are instant-only) and its own rain model (now with the fitted DLS resources, not the
-  per-league rates). Users do not nominate super-over batters / bowler (the AI picks).
+- The live engine still has no Hundred (so the ten-ball ends are instant-only). Its rain is now the instant engine's fitted plan, per league, when
+  the match is created with `rain` (12.4). Users do not nominate super-over batters / bowler (the AI picks).
 - The instant sim's strategic timeouts are records only (no effect); misfields are labels (they do not add runs: the base model's runs already contain them).
 - Thin rates (stumping misses, relay catches, sixes saved, short runs, lodged balls) are order-of-magnitude (Jeffreys); the over-rate effect sizes and
   penalty-reason split are assumptions.
-- The live engine's scoring level (about 242 an innings, against 174-186 in the IPL since 2023, section 12.4) is its own older calibration and was left alone.
+- The live engine's scoring level is now the instant engine's (section 12.4, November 2026; it was about 242 an innings). Still the live engine's own:
+  its DRS and CPU retire-out rules; its CPU sides do not use the Impact Player; a live super over is played at the death-overs rates (the instant one at
+  the first over's).

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  doesSide, doesSideNow, estimateFormat, fitLine, fitWls, linkCurve, percentile, quantile, readCurve, translatedPrior,
+  doesSide, doesSideNow, estimateFormat, formatRole, fitLine, fitWls, linkCurve, percentile, quantile, readCurve, translatedPrior,
   type CaPlayerFormats, type EstimateContext, type SideRating,
 } from "../pipeline/format-model.js";
 
@@ -109,6 +109,28 @@ describe("format model: the estimate", () => {
     const bowler: CaPlayerFormats = { T20: { bowl: side(10, 4, 2026, 2000) }, style: { bowl: [1, 2] } };
     expect(translatedPrior(bowler, "ListA", "bowl", styled)!.mean).toBeCloseTo(1 + 0.5 * 10 + 2 * 1 - 1 * 2, 9);
     expect(estimateFormat({}, "ListA", "bat", ctx())).toBeUndefined();
+  });
+});
+
+describe("format model: role in a format", () => {
+  const rec = (workload: number, pos: number) => ({
+    bowl: { ...side(0, 8, 2026, workload * 40, 40), recentPerMatch: workload }, bat: { ...side(0, 8, 2026, 1200, 40), meanPos: pos },
+  });
+  it("comes from the format's bowling workload and batting position, not the T20 role", () => {
+    const batsman = { id: "ca_1", role: "batsman" as const };
+    expect(formatRole(batsman, "odi", rec(42, 9.5))).toBe("bowler");
+    expect(formatRole(batsman, "odi", rec(42, 5))).toBe("all-rounder");
+    expect(formatRole({ id: "ca_2", role: "bowler" as const }, "odi", rec(8, 4))).toBe("batsman");
+    expect(formatRole({ ...batsman, isWicketKeeper: true }, "odi", rec(42, 5))).toBe("batsman");
+    expect(formatRole({ id: "ca_3", role: "all-rounder" as const }, "odi", undefined)).toBe("all-rounder"); // no record: T20 role
+  });
+
+  it("in Tests the Test profile decides when it has the player (test-profile-data.ts)", () => {
+    // Shoaib Bashir (a T20 batsman) is a front-line Test spinner batting at the bottom; Ben Stokes bowls and bats in the top seven;
+    // Joe Root is a part-timer. Their List A / first-class records here are deliberately misleading: the profile wins.
+    expect(formatRole({ id: "espn_1334872", role: "batsman" }, "test", rec(0, 3))).toBe("bowler");
+    expect(formatRole({ id: "espn_311158", role: "batsman" }, "test", rec(0, 3))).toBe("all-rounder");
+    expect(formatRole({ id: "espn_303669", role: "batsman" }, "test", rec(60, 3))).toBe("batsman");
   });
 });
 

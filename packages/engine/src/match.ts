@@ -23,6 +23,8 @@ import {
   getMatchPhase,
   getMatchupModifiers,
   isPaceBowler,
+  type BattingHand,
+  type BowlingStyle,
   type BoundarySize,
   type DewFactor,
   type PitchType,
@@ -54,6 +56,7 @@ import {
   type WicketKind,
 } from "./fielding.js";
 import { T20_FORMAT, hasOwnBallModel, matchFormatFor, phaseOver, type MatchFormatSpec } from "./format.js";
+import { applyScoringContext, scoringContextFor, type T20Context } from "./t20i-context.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
 import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
@@ -217,7 +220,8 @@ export interface MatchInjuryEvent {
   injury: InjuryStatus;
 }
 
-interface VenueContext {
+/** Where the match is played, as the ball model reads it */
+export interface VenueContext {
   stadiumBowlRating: number;
   pitchType: PitchType;
   boundarySize: BoundarySize;
@@ -228,6 +232,8 @@ interface VenueContext {
   chaseAdvantage: number;
   /** Men's or women's cricket (extras and dismissal mixes are fitted per gender) */
   gender?: Gender;
+  /** The competition's own fitted level (a T20I: t20i-context.ts); absent in league play */
+  context?: T20Context;
 }
 
 /* ───── Detailed scorecard types (from WT2) ───── */
@@ -363,8 +369,8 @@ const PHASE_MULTIPLIERS: Record<"powerplay" | "middle" | "death", Partial<Record
 
 /** Generate base outcome probabilities from batter and bowler ratings */
 function baseOutcomeProbabilities(
-  batter: Player,
-  bowler: Player,
+  batter: BallModelPlayer,
+  bowler: BallModelPlayer,
 ): Record<BallOutcome, number> {
   const batRating = (batter.battingOvr + batter.ratings.timing) / 2 / 100;
   const bowlRating = (bowler.bowlingOvr + bowler.ratings.accuracy) / 2 / 100;
@@ -423,7 +429,7 @@ function chaseAdjustment(
 }
 
 /** What the Laws and the format add to a ball: free hit, format (no-ball cost), gender, substitute fielders */
-interface BallRules {
+export interface BallRules {
   freeHit: boolean;
   fmt: MatchFormatSpec;
   gender: Gender;
@@ -439,23 +445,40 @@ interface BallRules {
   scheduledOvers?: number;
 }
 
-/** Simulate a single ball. `over` is the over of the innings on the T20 timeline (phaseOver); in an ODI, the over itself */
-function simulateBall(
-  batter: Player,
-  bowler: Player,
-  over: number,
-  isSecondInnings: boolean,
-  target: number,
-  currentScore: number,
-  ballsRemaining: number,
-  wicketsDown: number,
-  venue: VenueContext,
-  rng: RNG = Math.random,
-  fieldingUnit?: FieldingUnit,
-  inningsBalls = 120,
-  rules: BallRules = { freeHit: false, fmt: T20_FORMAT, gender: "male" },
-  nonStriker?: Player,
-): BallEvent {
+/** A player as the ball model reads him: a Player, or the live engine's serialized player */
+export interface BallModelPlayer {
+  battingOvr: number;
+  bowlingOvr: number;
+  bowlingStyle: BowlingStyle;
+  battingHand: BattingHand;
+  ratings: { timing: number; power: number; wicketTaking: number; accuracy: number; clutch: number };
+  /** 0-100 (70 = the default) */
+  morale: number;
+}
+
+/** The situation of one delivery */
+export interface BallSituation {
+  /** Over of the innings: on the T20 timeline for T20 and The Hundred (phaseOver), the over itself in an ODI */
+  over: number;
+  isSecondInnings: boolean;
+  target: number;
+  currentScore: number;
+  ballsRemaining: number;
+  wicketsDown: number;
+  venue: VenueContext;
+  /** Balls in a full innings of the format */
+  inningsBalls: number;
+  rules: BallRules;
+}
+
+/**
+ * The outcome weights of one delivery, before fielding (both engines): the format's base model (the T20 matrix with its
+ * phase multipliers, chase adjustment and ball-change rule; the ODI's fitted model), the ground, matchups, the clutch
+ * window, morale, super over, over-rate restriction and free hit. Not normalised. The instant engine then applies the
+ * fielding unit; the live engine first adds the user's batting approach and field setting.
+ */
+export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlayer, s: BallSituation): Record<BallOutcome, number> {
+  const { over, isSecondInnings, target, currentScore, ballsRemaining, wicketsDown, venue, inningsBalls, rules } = s;
   // The ODI has its own fitted model (odi-model.ts): over, wickets in hand, set batter, chase, bowler type, ratings, per gender.
   // It stands in for the T20 base matrix, phase multipliers, chase adjustment and ball-change rule below.
   const own = hasOwnBallModel(rules.fmt);
@@ -480,6 +503,8 @@ function simulateBall(
     for (const key of Object.keys(probs) as BallOutcome[]) {
       probs[key] *= phaseMult[key] ?? 1;
     }
+    // A competition with its own fitted level (T20Is) on top of the league tables
+    if (venue.context) applyScoringContext(probs, venue.context, phase);
   }
 
   // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel.
@@ -554,6 +579,29 @@ function simulateBall(
 
   // A free hit: boundaries come easier and only the run-out family can dismiss
   if (rules.freeHit) applyFreeHitToProbs(probs);
+
+  return probs;
+}
+
+/** Simulate a single ball. `over` is the over of the innings on the T20 timeline (phaseOver); in an ODI, the over itself */
+function simulateBall(
+  batter: Player,
+  bowler: Player,
+  over: number,
+  isSecondInnings: boolean,
+  target: number,
+  currentScore: number,
+  ballsRemaining: number,
+  wicketsDown: number,
+  venue: VenueContext,
+  rng: RNG = Math.random,
+  fieldingUnit?: FieldingUnit,
+  inningsBalls = 120,
+  rules: BallRules = { freeHit: false, fmt: T20_FORMAT, gender: "male" },
+  nonStriker?: Player,
+): BallEvent {
+  const own = hasOwnBallModel(rules.fmt);
+  const probs = ballProbabilities(batter, bowler, { over, isSecondInnings, target, currentScore, ballsRemaining, wicketsDown, venue, inningsBalls, rules });
 
   // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down).
   // An ODI has its own dismissal mix (more bowled and lbw than a T20)
@@ -858,6 +906,8 @@ function getVenueContext(
     };
   }
   const leagueChase = getLeagueChaseAdvantage(rules.league, rules.gender);
+  // A T20I: its own fitted level (t20i-context.ts); league play has none
+  const context = scoringContextFor(rules, fmt);
   if (options?.neutralVenue) {
     return {
       stadiumBowlRating: 1.0 * (2 - rules.scoringMultiplier),
@@ -867,6 +917,7 @@ function getVenueContext(
       profile: getNeutralVenueProfile(rules.league),
       chaseAdvantage: leagueChase,
       gender: genderOf(rules),
+      ...(context ? { context } : {}),
     };
   }
 
@@ -879,6 +930,7 @@ function getVenueContext(
     profile,
     chaseAdvantage: profile?.chaseAdvantage ?? leagueChase,
     gender: genderOf(rules),
+    ...(context ? { context } : {}),
   };
 }
 

@@ -271,7 +271,9 @@ describe("ODI rules, instant engine", () => {
 
   it("rain: a shortened ODI gets its DLS target from 50-over resources; a result needs 20 overs a side", () => {
     setRuleOverrides({ rainReduced: 1, rainNoResult: 0 });
-    const rs = play(16, { rain: true, seed: 6100 });
+    // every match draws a cut; it is recorded unless the innings it falls in was over before the stoppage
+    const rs = play(16, { rain: true, seed: 6100 }).filter(r => r.rain);
+    expect(rs.length).toBeGreaterThanOrEqual(12);
     for (const r of rs) {
       expect(r.rain?.kind).toBe("reduced");
       expect(r.rain!.overs).toBeGreaterThanOrEqual(20);

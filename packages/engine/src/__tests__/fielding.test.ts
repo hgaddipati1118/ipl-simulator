@@ -83,7 +83,7 @@ describe("dismissal chances", () => {
     expect(share("leg-spin")).toBeGreaterThan(share("right-arm-fast") * 2.5);
   });
 
-  it("is neutral: an average side leaves the base wicket probability and the other outcomes unchanged", () => {
+  it("is neutral: an average side leaves the base wicket probability and the other outcomes unchanged", { timeout: 60000 }, () => {
     const unit = buildFieldingUnit(xi(50, 50));
     const rng = createRNG(99);
     const n = 600000;

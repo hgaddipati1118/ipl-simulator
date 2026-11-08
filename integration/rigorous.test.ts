@@ -495,7 +495,9 @@ describe("match simulation validity", () => {
     const teams = buildIPLTeams();
     const result = simulateMatch(teams[0], teams[1]);
     for (const inn of result.innings) {
-      const outsCount = [...inn.batterStats.values()].filter(b => b.isOut).length;
+      // a tactical retirement (retired out) ends a batter's innings but is not a wicket
+      const retiredOut = (inn.offBall ?? []).filter(o => o.kind === "retired_out").length;
+      const outsCount = [...inn.batterStats.values()].filter(b => b.isOut).length - retiredOut;
       expect(inn.wickets).toBe(outsCount);
     }
   });

@@ -11,7 +11,8 @@
 
 import { execFileSync } from "child_process";
 import { existsSync, readFileSync, writeFileSync } from "fs";
-import type { FormatValidation, Metric } from "./format-validation.js";
+import type { FormatValidation, IntlEvidenceCheck, Metric } from "./format-validation.js";
+import { fitWls } from "./format-model.js";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const DIR = `${ROOT}data/analysis/`;
@@ -61,6 +62,7 @@ out("Rated with data up to 2023, target = ball-weighted adjusted value per 100 b
 out();
 for (const key of Object.keys(validation)) {
   const v = validation[key];
+  if (!("holdout" in v)) continue;
   const [gender, fmt, side] = key.split("/");
   if (!v.holdout?.length || !(v.holdout[0].all.n >= 20)) { out(`**${gender} ${FMT_NAME[CA_NAME[fmt]]} ${side === "bat" ? "batting" : "bowling"}**: too few players to validate (${v.holdout?.[0]?.all.n ?? 0}).`); out(); continue; }
   out(`**${gender} ${FMT_NAME[CA_NAME[fmt]]} ${side === "bat" ? "batting" : "bowling"}** (DATA_VAR ${v.dataVar}; tuning corr by DATA_VAR: ${v.tuning.map(t => `${t.dataVar >= 1e8 ? "own only" : t.dataVar} ${f3(t.corr)}`).join(", ")}; n ${v.tuning[0].n})`);
@@ -75,6 +77,24 @@ for (const key of Object.keys(validation)) {
   out(`Derived ratings, checked by hiding each player's ${FMT_NAME[CA_NAME[fmt]]} record (same players):`);
   out();
   table(["predictor", "players", "corr", "mse", "mean target - prediction"], v.masked.map(h => [h.predictor, h.all.n, f3(h.all.corr), f0(h.all.mse), h.all.bias.toFixed(1)]));
+}
+
+// ── 1b. international record vs domestic ──────────────────────────────
+
+const intlChecks = Object.values(JSON.parse(readFileSync(`${DIR}format_ratings_validation.json`, "utf-8").replace(/\bNaN\b/g, "null")) as Record<string, unknown>)
+  .filter((x): x is IntlEvidenceCheck => !!x && typeof x === "object" && "byK" in x);
+if (intlChecks.length) {
+  out("## International record against domestic cricket (checked, not applied)");
+  out();
+  out("Same folds and target. `+ intl residual`: the estimate plus his ODI / Test-only adjusted value minus his List A / first-class " +
+    "rating, shrunk by balls / (balls + K), weight fitted on the tuning folds. `+ countries`: a term per domestic country on his share of " +
+    "balls there (runs per 100 balls for a player whose balls were all there, against international-only players), fitted on the tuning folds. " +
+    "Held-out correlation.");
+  out();
+  table(["", "players (tune / held out)", "shipped estimate", "+ intl residual, K 250 / 1000 / 4000 (fitted weight)", "+ countries", "+ both (K 1000)", "country terms"],
+    intlChecks.map(c => [`men ${FMT_NAME[CA_NAME[c.format]]} ${c.side === "bat" ? "batting" : "bowling"}`, `${c.tuneN} / ${c.holdN}`, f3(c.base.hold),
+      c.byK.map(k => `${f3(k.holdIntl)} (${k.beta.toFixed(2)})`).join(" / "), f3(c.holdCountries), f3(c.byK[1].holdBoth),
+      Object.entries(c.countries).map(([k, v]) => `${k} ${v}`).join(", ")]));
 }
 
 // ── 2. distributions ──────────────────────────────────────────────────
@@ -203,13 +223,14 @@ for (const gender of ["male"] as const) {
 function duck<T>(sql: string): T[] {
   return JSON.parse(execFileSync("duckdb", ["-json", "-c", sql], { encoding: "utf-8", cwd: ROOT, maxBuffer: 512 * 1024 * 1024 }) || "[]") as T[];
 }
-interface CsBat { ca: number; fmt: string; balls: number; runs: number; outs: number; bnd: number; six: number; dots: number }
+interface CsBat { ca: number; fmt: string; balls: number; runs: number; outs: number; bnd: number; four: number; six: number; dots: number }
 const csBat = duck<CsBat>(`
   WITH m AS (SELECT match_id, match_type AS fmt FROM 'data/analysis/matches.parquet' WHERE match_type IN ('ODI', 'Test') AND gender = 'male'),
   d AS (SELECT d.*, m.fmt FROM 'data/analysis/deliveries.parquet' d JOIN m USING (match_id) WHERE coalesce(d.wides, 0) = 0 AND coalesce(d.super_over, 0) = 0),
   ppl AS (SELECT cricsheet_id, any_value(cricketarchive_id) AS ca FROM 'data/analysis/people.parquet' WHERE cricketarchive_id IS NOT NULL GROUP BY ALL)
   SELECT try_cast(ppl.ca AS BIGINT) AS ca, fmt, count(*) AS balls, sum(runs_batter) AS runs, sum((player_out_id = batter_id)::INT) AS outs,
-         sum((runs_batter IN (4, 6) AND coalesce(non_boundary, 0) = 0)::INT) AS bnd, sum((runs_batter = 6)::INT) AS six, sum((runs_batter = 0)::INT) AS dots
+         sum((runs_batter IN (4, 6) AND coalesce(non_boundary, 0) = 0)::INT) AS bnd, sum((runs_batter = 4 AND coalesce(non_boundary, 0) = 0)::INT) AS four,
+         sum((runs_batter = 6)::INT) AS six, sum((runs_batter = 0)::INT) AS dots
   FROM d JOIN ppl ON ppl.cricsheet_id = d.batter_id GROUP BY ALL HAVING count(*) >= 1000`);
 const corr = (xs: number[], ys: number[]) => {
   const n = xs.length, mx = xs.reduce((s, x) => s + x, 0) / n, my = ys.reduce((s, y) => s + y, 0) / n;
@@ -226,10 +247,10 @@ out();
   const byCa = new Map(diag.male.players.filter(p => p.group === "espn" && p.caId).map(p => [p.caId!, p]));
   const rows: (string | number)[][] = [];
   const stat: Record<string, (r: CsBat) => number> = {
-    "six %": r => r.six / r.balls, "boundary %": r => r.bnd / r.balls, "balls per dismissal": r => r.balls / Math.max(1, r.outs),
+    "six %": r => r.six / r.balls, "four %": r => r.four / r.balls, "boundary %": r => r.bnd / r.balls, "balls per dismissal": r => r.balls / Math.max(1, r.outs),
     "average": r => r.runs / Math.max(1, r.outs), "strike rate": r => r.runs / r.balls, "dot %": r => -r.dots / r.balls,
   };
-  const checks: [string, string][] = [["power", "six %"], ["power", "boundary %"], ["timing", "boundary %"], ["battingIQ", "balls per dismissal"], ["battingIQ", "average"], ["running", "dot %"]];
+  const checks: [string, string][] = [["power", "six %"], ["timing", "four %"], ["timing", "boundary %"], ["battingIQ", "balls per dismissal"], ["battingIQ", "average"], ["running", "dot %"]];
   for (const f of ["ODI", "Test"] as const) {
     const k: Fmt = f === "ODI" ? "odi" : "test";
     const pairs = csBat.filter(r => r.fmt === f && byCa.has(Number(r.ca))).map(r => ({ r, p: byCa.get(Number(r.ca))! }));
@@ -241,6 +262,35 @@ out();
     rows.push([f, pairs.length, "batting overall", "average", f3(corr(ovr, avg)), f3(corr(t20, avg))]);
   }
   table(["format", "players", "attribute", "stat in the format", "format set", "T20 set"], rows);
+
+  // Jointly, as the Test engine fits its scoring terms: each rate on the four batting attributes, standardised weights
+  out("The same players, each rate regressed on the four batting attributes together (ball-weighted, z-scored attributes, " +
+    "weights in SDs of the rate per SD of the attribute), as the Test engine fits its scoring terms. A format set's battingIQ carries " +
+    "its level, so timing, power and running carry the style given the level: fours through timing, sixes through power, singles through running.");
+  out();
+  const keys = ["battingIQ", "timing", "power", "running"];
+  const jrows: (string | number)[][] = [];
+  for (const f of ["ODI", "Test"] as const) {
+    const k: Fmt = f === "ODI" ? "odi" : "test";
+    const pairs = csBat.filter(r => r.fmt === f && byCa.has(Number(r.ca))).map(r => ({ r, p: byCa.get(Number(r.ca))! }));
+    for (const set of [k, "t20"] as const) {
+      const X = pairs.map(x => keys.map(a => (set === "t20" ? x.p.t20.ratings : x.p[k].ratings)[a]));
+      const mu = keys.map((_, j) => X.reduce((t, x) => t + x[j], 0) / X.length);
+      const sd = keys.map((_, j) => Math.sqrt(X.reduce((t, x) => t + (x[j] - mu[j]) ** 2, 0) / X.length) || 1);
+      const cells = (["four %", "six %"] as const).map(name => {
+        const ys = pairs.map(x => stat[name](x.r));
+        const my = ys.reduce((t, y) => t + y, 0) / ys.length, sy = Math.sqrt(ys.reduce((t, y) => t + (y - my) ** 2, 0) / ys.length) || 1;
+        const fit = fitWls(X.map((x, i) => ({ xs: x.map((v, j) => (v - mu[j]) / sd[j]), y: (ys[i] - my) / sy, w: pairs[i].r.balls })));
+        return fit ? keys.map((_, j) => fit.coef[j + 1]).concat(1 - fit.residVar) : [NaN, NaN, NaN, NaN, NaN];
+      });
+      jrows.push([f, set === "t20" ? "T20 set" : `${f} set`, pairs.length,
+        cells[0].slice(0, 4).map(v => v.toFixed(2)).join(" / ") + ` (R2 ${cells[0][4].toFixed(2)})`,
+        cells[1].slice(0, 4).map(v => v.toFixed(2)).join(" / ") + ` (R2 ${cells[1][4].toFixed(2)})`]);
+      if (set !== "t20" && !(cells[0][1] >= 0.3)) failures.push(`${f} timing does not carry the four rate (${cells[0][1].toFixed(2)} per SD)`);
+      if (set !== "t20" && !(cells[1][2] >= 0.3)) failures.push(`${f} power does not carry the six rate (${cells[1][2].toFixed(2)} per SD)`);
+    }
+  }
+  table(["format", "ratings", "players", "four %: battingIQ / timing / power / running", "six %: battingIQ / timing / power / running"], jrows);
 }
 
 // ── 6. ICC rankings (check only) ──────────────────────────────────────

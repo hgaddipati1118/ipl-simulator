@@ -313,3 +313,6 @@ export {
 } from "./test-live.js";
 export type { TestAdvanceUntil, TestAdvanceResult, TestBowlingOption, TestSituation } from "./test-live.js";
 export { TEST_MODEL } from "./test-model-data.js";
+export { scoringContextFor, applyScoringContext } from "./t20i-context.js";
+export type { T20Context, ScoringContextId } from "./t20i-context.js";
+export { T20I_CONTEXT } from "./t20i-context-data.js";
