@@ -78,6 +78,7 @@ OUTCOMES = ["1", "2", "3", "4", "6", "W", "wide", "nb", "bye"]
 AGE_BINS = [0, 5, 10, 20, 35, 50, 65]          # overs since the new ball (a new ball is assumed at 80, 160)
 SET_BINS = [0, 5, 10, 20, 35, 60, 100, 150]    # balls the batter has faced in the innings before this one
 SPELL_MAX = 7                                  # over in the spell 1..7+
+WD_BINS = [0, 3, 6, 8]                         # wickets down in the innings: 0-2, 3-5, 6-7, 8-9 (the tail is in)
 RR_BINS = [0, 2.5, 3.5, 4.5, 6.0]              # 4th innings: runs needed per (scheduled) over left
 PUSH_OVERS = 12                                # the last overs of an innings that was declared
 PRIOR_BALLS = 300                              # player terms: shrink with a 300-ball prior at the average rate
@@ -287,7 +288,7 @@ COUNTRY_IDX = {c: i for i, c in enumerate(COUNTRIES)}
 # vulnerable batter, so the set-ness effect vanishes into "a bad innings"), and its large wicket spread drawn per innings in
 # the engine runs into exposure (bad innings are short), which put the benchmark further from the real Tests.
 INNINGS_TERM = bool(os.environ.get("INNINGS_TERM"))
-FACTORS = ["age", "set", "inn", "dt", "spell", "sit", "home", "ct", "era", "baz", "match"] + (["innid"] if INNINGS_TERM else []) + ["bat", "bowl"]
+FACTORS = ["age", "set", "inn", "wd", "dt", "spell", "sit", "home", "ct", "era", "baz", "match"] + (["innid"] if INNINGS_TERM else []) + ["bat", "bowl"]
 PLAYER_FACTORS = {"bat", "bowl"}
 # a match's own conditions (pitch, weather, ball) beyond its country: a random effect shrunk with a 1500-ball prior
 MATCH_PRIOR_BALLS = 1500
@@ -313,6 +314,7 @@ SELECT row_number() OVER () rid, gender, yr, mid, inn,
   {bin_sql('(ov - 80 * floor(ov / 80))', AGE_BINS)} f_age,
   {bin_sql('setb', SET_BINS)} f_set,
   inn - 1 f_inn,
+  {bin_sql('inn_wkts', WD_BINS)} f_wd,
   (least(dy, 5) - 1) * 2 + CASE WHEN btype = 'spin' THEN 1 ELSE 0 END f_dt,
   least(coalesce(spell_pos, 1), {SPELL_MAX}) - 1 f_spell,
   CASE WHEN inn <= 3 AND inn_declared = 1 AND inn_total_legal - inn_legal <= {PUSH_OVERS * 6} THEN 1
@@ -360,7 +362,7 @@ UPDATE w SET lm = w.lm - w.l_{f} + u.nl, l_{f} = u.nl FROM u WHERE w.f_{f} = u.l
 
 # Recency weights of the eras in the engine's baseline ("weight recent years"): the base rates sit at this mix of eras
 ERA_WEIGHTS = [0.0, 0.0, 1.0, 1.5, 2.0]
-CONTEXT = ["age", "set", "inn", "dt", "spell", "sit", "home", "ct", "era", "baz"]
+CONTEXT = ["age", "set", "inn", "wd", "dt", "spell", "sit", "home", "ct", "era", "baz"]
 
 
 def ref_where():
@@ -1087,6 +1089,7 @@ def tables(model):
     T["age"] = {k: lv("age", k, range(len(AGE_BINS))) for k in OUTCOMES}
     T["set"] = {k: lv("set", k, range(len(SET_BINS))) for k in OUTCOMES}
     T["innings"] = {k: lv("inn", k, range(4)) for k in OUTCOMES}
+    T["wicketsDown"] = {k: lv("wd", k, range(len(WD_BINS))) for k in OUTCOMES}
     T["day"] = {t: {k: lv("dt", k, [d * 2 + (1 if t == "spin" else 0) for d in range(5)]) for k in OUTCOMES} for t in ("pace", "spin")}
     T["spell"] = {k: lv("spell", k, range(SPELL_MAX)) for k in OUTCOMES}
     T["situation"] = {"normal": {k: lv("sit", k, [0])[0] for k in OUTCOMES}, "push": {k: lv("sit", k, [1])[0] for k in OUTCOMES},
@@ -1104,7 +1107,7 @@ def write(model, rmap, dx, pol, real, spread, wbase):
         "source": f"Cricsheet ball-by-ball men's Tests {FIT_FROM}-, IPF fit (packages/ratings/src/analysis/test-match-model.py)",
         "outcomes": OUTCOMES,
         "base": {"male": {k: r(model[k]["base"], 5) for k in OUTCOMES}, "female": {k: r(wbase[k], 5) for k in OUTCOMES}},
-        "bins": {"age": AGE_BINS, "set": SET_BINS, "spell": SPELL_MAX, "chaseRate": RR_BINS, "pushOvers": PUSH_OVERS},
+        "bins": {"age": AGE_BINS, "set": SET_BINS, "wicketsDown": WD_BINS, "spell": SPELL_MAX, "chaseRate": RR_BINS, "pushOvers": PUSH_OVERS},
         "factors": tables(model),
         "matchSpread": spread,
         "inningsSpread": innings_spread(model),

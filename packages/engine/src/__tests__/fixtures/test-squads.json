@@ -475,42 +475,6 @@
      }
     },
     {
-     "id": "espn_559235",
-     "name": "Kuldeep Yadav",
-     "age": 31,
-     "country": "India",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "left-arm-wrist-spin",
-     "battingHand": "left",
-     "ratings": {
-      "battingIQ": 34,
-      "timing": 29,
-      "power": 15,
-      "running": 44,
-      "wicketTaking": 93,
-      "economy": 77,
-      "accuracy": 81,
-      "clutch": 82
-     },
-     "tests": 10,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 48,
-        "timing": 41,
-        "power": 32,
-        "running": 34,
-        "wicketTaking": 92,
-        "economy": 52,
-        "accuracy": 52,
-        "clutch": 82
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_1175496",
      "name": "Nitish Kumar Reddy",
      "age": 23,
@@ -541,6 +505,42 @@
         "economy": 24,
         "accuracy": 46,
         "clutch": 78
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_559235",
+     "name": "Kuldeep Yadav",
+     "age": 31,
+     "country": "India",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "left-arm-wrist-spin",
+     "battingHand": "left",
+     "ratings": {
+      "battingIQ": 34,
+      "timing": 29,
+      "power": 15,
+      "running": 44,
+      "wicketTaking": 93,
+      "economy": 77,
+      "accuracy": 81,
+      "clutch": 82
+     },
+     "tests": 10,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 48,
+        "timing": 41,
+        "power": 32,
+        "running": 34,
+        "wicketTaking": 92,
+        "economy": 52,
+        "accuracy": 52,
+        "clutch": 82
        },
        "source": "data"
       }
@@ -1022,78 +1022,6 @@
      }
     },
     {
-     "id": "espn_669855",
-     "name": "Jofra Archer",
-     "age": 31,
-     "country": "England",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-fast",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 41,
-      "timing": 60,
-      "power": 81,
-      "running": 74,
-      "wicketTaking": 89,
-      "economy": 85,
-      "accuracy": 78,
-      "clutch": 82
-     },
-     "tests": 10,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 27,
-        "timing": 39,
-        "power": 63,
-        "running": 37,
-        "wicketTaking": 89,
-        "economy": 78,
-        "accuracy": 62,
-        "clutch": 82
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
-     "id": "espn_297433",
-     "name": "Jonny Bairstow",
-     "age": 37,
-     "country": "England",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "right-arm-medium",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 83,
-      "timing": 83,
-      "power": 83,
-      "running": 36,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 87
-     },
-     "tests": 10,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 88,
-        "timing": 88,
-        "power": 78,
-        "running": 79,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 87
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_527776",
      "name": "Ollie Robinson",
      "age": 32,
@@ -1164,6 +1092,78 @@
        "source": "data"
       }
      }
+    },
+    {
+     "id": "espn_297433",
+     "name": "Jonny Bairstow",
+     "age": 37,
+     "country": "England",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "right-arm-medium",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 83,
+      "timing": 83,
+      "power": 83,
+      "running": 36,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 87
+     },
+     "tests": 10,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 88,
+        "timing": 88,
+        "power": 78,
+        "running": 79,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 87
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_669855",
+     "name": "Jofra Archer",
+     "age": 31,
+     "country": "England",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-fast",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 41,
+      "timing": 60,
+      "power": 81,
+      "running": 74,
+      "wicketTaking": 89,
+      "economy": 85,
+      "accuracy": 78,
+      "clutch": 82
+     },
+     "tests": 10,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 27,
+        "timing": 39,
+        "power": 63,
+        "running": 37,
+        "wicketTaking": 89,
+        "economy": 78,
+        "accuracy": 62,
+        "clutch": 82
+       },
+       "source": "data"
+      }
+     }
     }
    ]
   },
@@ -1172,42 +1172,6 @@
    "gender": "male",
    "country": "AUS",
    "players": [
-    {
-     "id": "espn_326434",
-     "name": "Alex Carey",
-     "age": 35,
-     "country": "Australia",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "unknown",
-     "battingHand": "left",
-     "ratings": {
-      "battingIQ": 75,
-      "timing": 82,
-      "power": 57,
-      "running": 63,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 79
-     },
-     "tests": 38,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 92,
-        "timing": 91,
-        "power": 78,
-        "running": 94,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 79
-       },
-       "source": "data"
-      }
-     }
-    },
     {
      "id": "espn_530011",
      "name": "Travis Head",
@@ -1239,6 +1203,42 @@
         "economy": 41,
         "accuracy": 24,
         "clutch": 85
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_326434",
+     "name": "Alex Carey",
+     "age": 35,
+     "country": "Australia",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "unknown",
+     "battingHand": "left",
+     "ratings": {
+      "battingIQ": 75,
+      "timing": 82,
+      "power": 57,
+      "running": 63,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 79
+     },
+     "tests": 38,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 92,
+        "timing": 91,
+        "power": 78,
+        "running": 94,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 79
        },
        "source": "data"
       }
@@ -1605,42 +1605,6 @@
      }
     },
     {
-     "id": "espn_219889",
-     "name": "David Warner",
-     "age": 40,
-     "country": "Australia",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "leg-spin",
-     "battingHand": "left",
-     "ratings": {
-      "battingIQ": 92,
-      "timing": 96,
-      "power": 76,
-      "running": 81,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 91
-     },
-     "tests": 12,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 90,
-        "timing": 92,
-        "power": 78,
-        "running": 93,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 91
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_381329",
      "name": "Beau Webster",
      "age": 32,
@@ -1677,36 +1641,36 @@
      }
     },
     {
-     "id": "espn_1193685",
-     "name": "Todd Murphy",
-     "age": 25,
+     "id": "espn_219889",
+     "name": "David Warner",
+     "age": 40,
      "country": "Australia",
-     "role": "bowler",
+     "role": "batsman",
      "isWicketKeeper": false,
-     "bowlingStyle": "off-spin",
+     "bowlingStyle": "leg-spin",
      "battingHand": "left",
      "ratings": {
-      "battingIQ": 74,
-      "timing": 66,
-      "power": 27,
-      "running": 65,
-      "wicketTaking": 74,
-      "economy": 92,
-      "accuracy": 55,
-      "clutch": 60
+      "battingIQ": 92,
+      "timing": 96,
+      "power": 76,
+      "running": 81,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 91
      },
-     "tests": 7,
+     "tests": 12,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 19,
-        "timing": 28,
-        "power": 55,
-        "running": 28,
-        "wicketTaking": 75,
-        "economy": 88,
-        "accuracy": 63,
-        "clutch": 67
+        "battingIQ": 90,
+        "timing": 92,
+        "power": 78,
+        "running": 93,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 91
        },
        "source": "data"
       }
@@ -1743,6 +1707,42 @@
         "economy": 42,
         "accuracy": 26,
         "clutch": 78
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_1193685",
+     "name": "Todd Murphy",
+     "age": 25,
+     "country": "Australia",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "off-spin",
+     "battingHand": "left",
+     "ratings": {
+      "battingIQ": 74,
+      "timing": 66,
+      "power": 27,
+      "running": 65,
+      "wicketTaking": 74,
+      "economy": 92,
+      "accuracy": 55,
+      "clutch": 60
+     },
+     "tests": 7,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 19,
+        "timing": 28,
+        "power": 55,
+        "running": 28,
+        "wicketTaking": 75,
+        "economy": 88,
+        "accuracy": 63,
+        "clutch": 67
        },
        "source": "data"
       }
@@ -2008,35 +2008,35 @@
      }
     },
     {
-     "id": "espn_372116",
-     "name": "Temba Bavuma",
-     "age": 36,
+     "id": "espn_696401",
+     "name": "Marco Jansen",
+     "age": 26,
      "country": "South Africa",
-     "role": "batsman",
+     "role": "bowler",
      "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium",
+     "bowlingStyle": "left-arm-fast",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 90,
-      "timing": 85,
-      "power": 59,
-      "running": 68,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
+      "battingIQ": 50,
+      "timing": 64,
+      "power": 87,
+      "running": 72,
+      "wicketTaking": 79,
+      "economy": 75,
+      "accuracy": 62,
       "clutch": 78
      },
      "tests": 15,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 96,
-        "timing": 91,
+        "battingIQ": 45,
+        "timing": 52,
         "power": 65,
-        "running": 77,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
+        "running": 46,
+        "wicketTaking": 90,
+        "economy": 70,
+        "accuracy": 58,
         "clutch": 78
        },
        "source": "data"
@@ -2080,42 +2080,6 @@
      }
     },
     {
-     "id": "espn_696401",
-     "name": "Marco Jansen",
-     "age": 26,
-     "country": "South Africa",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "left-arm-fast",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 50,
-      "timing": 64,
-      "power": 87,
-      "running": 72,
-      "wicketTaking": 79,
-      "economy": 75,
-      "accuracy": 62,
-      "clutch": 78
-     },
-     "tests": 15,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 45,
-        "timing": 52,
-        "power": 65,
-        "running": 46,
-        "wicketTaking": 90,
-        "economy": 70,
-        "accuracy": 58,
-        "clutch": 78
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_605661",
      "name": "Ryan Rickelton",
      "age": 30,
@@ -2146,6 +2110,42 @@
         "economy": 20,
         "accuracy": 25,
         "clutch": 81
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_372116",
+     "name": "Temba Bavuma",
+     "age": 36,
+     "country": "South Africa",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 90,
+      "timing": 85,
+      "power": 59,
+      "running": 68,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 78
+     },
+     "tests": 15,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 96,
+        "timing": 91,
+        "power": 65,
+        "running": 77,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 78
        },
        "source": "data"
       }
@@ -2224,6 +2224,42 @@
      }
     },
     {
+     "id": "espn_327947",
+     "name": "Dane Paterson",
+     "age": 37,
+     "country": "South Africa",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-fast-medium",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 31,
+      "timing": 47,
+      "power": 55,
+      "running": 61,
+      "wicketTaking": 70,
+      "economy": 43,
+      "accuracy": 55,
+      "clutch": 70
+     },
+     "tests": 5,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 10,
+        "timing": 17,
+        "power": 70,
+        "running": 10,
+        "wicketTaking": 83,
+        "economy": 68,
+        "accuracy": 75,
+        "clutch": 70
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
      "id": "espn_596010",
      "name": "Gerald Coetzee",
      "age": 26,
@@ -2290,42 +2326,6 @@
         "economy": 43,
         "accuracy": 37,
         "clutch": 76
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
-     "id": "espn_327947",
-     "name": "Dane Paterson",
-     "age": 37,
-     "country": "South Africa",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-fast-medium",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 31,
-      "timing": 47,
-      "power": 55,
-      "running": 61,
-      "wicketTaking": 70,
-      "economy": 43,
-      "accuracy": 55,
-      "clutch": 70
-     },
-     "tests": 5,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 10,
-        "timing": 17,
-        "power": 70,
-        "running": 10,
-        "wicketTaking": 83,
-        "economy": 68,
-        "accuracy": 75,
-        "clutch": 70
        },
        "source": "data"
       }
@@ -2411,42 +2411,6 @@
      }
     },
     {
-     "id": "espn_381743",
-     "name": "Daryl Mitchell",
-     "age": 35,
-     "country": "New Zealand",
-     "role": "all-rounder",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 90,
-      "timing": 65,
-      "power": 82,
-      "running": 94,
-      "wicketTaking": 75,
-      "economy": 15,
-      "accuracy": 54,
-      "clutch": 83
-     },
-     "tests": 25,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 95,
-        "timing": 87,
-        "power": 70,
-        "running": 73,
-        "wicketTaking": 78,
-        "economy": 65,
-        "accuracy": 67,
-        "clutch": 83
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_379140",
      "name": "Devon Conway",
      "age": 35,
@@ -2483,36 +2447,36 @@
      }
     },
     {
-     "id": "espn_277906",
-     "name": "Kane Williamson",
-     "age": 36,
+     "id": "espn_381743",
+     "name": "Daryl Mitchell",
+     "age": 35,
      "country": "New Zealand",
-     "role": "batsman",
+     "role": "all-rounder",
      "isWicketKeeper": false,
-     "bowlingStyle": "off-spin",
+     "bowlingStyle": "right-arm-medium",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 80,
-      "timing": 88,
-      "power": 67,
-      "running": 90,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 88
+      "battingIQ": 90,
+      "timing": 65,
+      "power": 82,
+      "running": 94,
+      "wicketTaking": 75,
+      "economy": 15,
+      "accuracy": 54,
+      "clutch": 83
      },
-     "tests": 21,
+     "tests": 25,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 99,
-        "timing": 99,
-        "power": 66,
-        "running": 86,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 88
+        "battingIQ": 95,
+        "timing": 87,
+        "power": 70,
+        "running": 73,
+        "wicketTaking": 78,
+        "economy": 65,
+        "accuracy": 67,
+        "clutch": 83
        },
        "source": "data"
       }
@@ -2555,36 +2519,36 @@
      }
     },
     {
-     "id": "espn_823509",
-     "name": "Glenn Phillips",
-     "age": 29,
+     "id": "espn_277906",
+     "name": "Kane Williamson",
+     "age": 36,
      "country": "New Zealand",
      "role": "batsman",
      "isWicketKeeper": false,
      "bowlingStyle": "off-spin",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 91,
-      "timing": 82,
-      "power": 90,
-      "running": 77,
-      "wicketTaking": 53,
-      "economy": 15,
-      "accuracy": 72,
-      "clutch": 84
+      "battingIQ": 80,
+      "timing": 88,
+      "power": 67,
+      "running": 90,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 88
      },
-     "tests": 18,
+     "tests": 21,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 78,
-        "timing": 82,
-        "power": 86,
-        "running": 73,
-        "wicketTaking": 42,
-        "economy": 39,
-        "accuracy": 24,
-        "clutch": 84
+        "battingIQ": 99,
+        "timing": 99,
+        "power": 66,
+        "running": 86,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 88
        },
        "source": "data"
       }
@@ -2621,6 +2585,42 @@
         "economy": 81,
         "accuracy": 72,
         "clutch": 80
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_823509",
+     "name": "Glenn Phillips",
+     "age": 29,
+     "country": "New Zealand",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "off-spin",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 91,
+      "timing": 82,
+      "power": 90,
+      "running": 77,
+      "wicketTaking": 53,
+      "economy": 15,
+      "accuracy": 72,
+      "clutch": 84
+     },
+     "tests": 18,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 78,
+        "timing": 82,
+        "power": 86,
+        "running": 73,
+        "wicketTaking": 42,
+        "economy": 39,
+        "accuracy": 24,
+        "clutch": 84
        },
        "source": "data"
       }
@@ -2958,42 +2958,6 @@
      }
     },
     {
-     "id": "espn_623977",
-     "name": "Salman Agha",
-     "age": 32,
-     "country": "Pakistan",
-     "role": "all-rounder",
-     "isWicketKeeper": false,
-     "bowlingStyle": "off-spin",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 65,
-      "timing": 87,
-      "power": 55,
-      "running": 83,
-      "wicketTaking": 72,
-      "economy": 75,
-      "accuracy": 71,
-      "clutch": 75
-     },
-     "tests": 22,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 85,
-        "timing": 85,
-        "power": 71,
-        "running": 79,
-        "wicketTaking": 43,
-        "economy": 64,
-        "accuracy": 71,
-        "clutch": 75
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_652687",
      "name": "Saud Shakeel",
      "age": 31,
@@ -3030,36 +2994,36 @@
      }
     },
     {
-     "id": "espn_323389",
-     "name": "Mohammad Rizwan",
-     "age": 34,
+     "id": "espn_623977",
+     "name": "Salman Agha",
+     "age": 32,
      "country": "Pakistan",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "right-arm-medium",
+     "role": "all-rounder",
+     "isWicketKeeper": false,
+     "bowlingStyle": "off-spin",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 92,
-      "timing": 82,
-      "power": 66,
-      "running": 99,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 86
+      "battingIQ": 65,
+      "timing": 87,
+      "power": 55,
+      "running": 83,
+      "wicketTaking": 72,
+      "economy": 75,
+      "accuracy": 71,
+      "clutch": 75
      },
-     "tests": 20,
+     "tests": 22,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 96,
-        "timing": 90,
-        "power": 60,
-        "running": 82,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 86
+        "battingIQ": 85,
+        "timing": 85,
+        "power": 71,
+        "running": 79,
+        "wicketTaking": 43,
+        "economy": 64,
+        "accuracy": 71,
+        "clutch": 75
        },
        "source": "data"
       }
@@ -3096,6 +3060,42 @@
         "economy": 20,
         "accuracy": 25,
         "clutch": 87
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_323389",
+     "name": "Mohammad Rizwan",
+     "age": 34,
+     "country": "Pakistan",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "right-arm-medium",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 92,
+      "timing": 82,
+      "power": 66,
+      "running": 99,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 86
+     },
+     "tests": 20,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 96,
+        "timing": 90,
+        "power": 60,
+        "running": 82,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 86
        },
        "source": "data"
       }
@@ -3210,42 +3210,6 @@
      }
     },
     {
-     "id": "espn_793441",
-     "name": "Aamer Jamal",
-     "age": 30,
-     "country": "Pakistan",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium-fast",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 51,
-      "timing": 71,
-      "power": 89,
-      "running": 60,
-      "wicketTaking": 58,
-      "economy": 10,
-      "accuracy": 27,
-      "clutch": 69
-     },
-     "tests": 9,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 28,
-        "timing": 36,
-        "power": 57,
-        "running": 32,
-        "wicketTaking": 27,
-        "economy": 26,
-        "accuracy": 21,
-        "clutch": 69
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_1072470",
      "name": "Shaheen Shah Afridi",
      "age": 26,
@@ -3276,6 +3240,42 @@
         "economy": 76,
         "accuracy": 59,
         "clutch": 85
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_793441",
+     "name": "Aamer Jamal",
+     "age": 30,
+     "country": "Pakistan",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium-fast",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 51,
+      "timing": 71,
+      "power": 89,
+      "running": 60,
+      "wicketTaking": 58,
+      "economy": 10,
+      "accuracy": 27,
+      "clutch": 69
+     },
+     "tests": 9,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 28,
+        "timing": 36,
+        "power": 57,
+        "running": 32,
+        "wicketTaking": 27,
+        "economy": 26,
+        "accuracy": 21,
+        "clutch": 69
        },
        "source": "data"
       }
@@ -3613,42 +3613,6 @@
      }
     },
     {
-     "id": "espn_629074",
-     "name": "Kusal Mendis",
-     "age": 31,
-     "country": "Sri Lanka",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "leg-spin",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 88,
-      "timing": 82,
-      "power": 80,
-      "running": 85,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 86
-     },
-     "tests": 20,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 86,
-        "timing": 85,
-        "power": 75,
-        "running": 80,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 86
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_786925",
      "name": "Asitha Fernando",
      "age": 29,
@@ -3679,6 +3643,42 @@
         "economy": 56,
         "accuracy": 56,
         "clutch": 72
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_629074",
+     "name": "Kusal Mendis",
+     "age": 31,
+     "country": "Sri Lanka",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "leg-spin",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 88,
+      "timing": 82,
+      "power": 80,
+      "running": 85,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 86
+     },
+     "tests": 20,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 86,
+        "timing": 85,
+        "power": 75,
+        "running": 80,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 86
        },
        "source": "data"
       }
@@ -3829,42 +3829,6 @@
      }
     },
     {
-     "id": "espn_1028655",
-     "name": "Pathum Nissanka",
-     "age": 28,
-     "country": "Sri Lanka",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "unknown",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 90,
-      "timing": 87,
-      "power": 78,
-      "running": 83,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 79
-     },
-     "tests": 10,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 91,
-        "timing": 90,
-        "power": 65,
-        "running": 80,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 79
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_465783",
      "name": "Vishwa Fernando",
      "age": 35,
@@ -3895,6 +3859,42 @@
         "economy": 47,
         "accuracy": 60,
         "clutch": 66
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_1028655",
+     "name": "Pathum Nissanka",
+     "age": 28,
+     "country": "Sri Lanka",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "unknown",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 90,
+      "timing": 87,
+      "power": 78,
+      "running": 83,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 79
+     },
+     "tests": 10,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 91,
+        "timing": 90,
+        "power": 65,
+        "running": 80,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 79
        },
        "source": "data"
       }
@@ -3973,42 +3973,6 @@
      }
     },
     {
-     "id": "espn_704693",
-     "name": "Lahiru Udara",
-     "age": 32,
-     "country": "Sri Lanka",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "unknown",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 85,
-      "timing": 88,
-      "power": 71,
-      "running": 46,
-      "wicketTaking": 22,
-      "economy": 22,
-      "accuracy": 26,
-      "clutch": 63
-     },
-     "tests": 5,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 76,
-        "timing": 84,
-        "power": 77,
-        "running": 89,
-        "wicketTaking": 22,
-        "economy": 22,
-        "accuracy": 26,
-        "clutch": 71
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_1153148",
      "name": "Sonal Dinusha",
      "age": 25,
@@ -4039,6 +4003,42 @@
         "economy": 52,
         "accuracy": 60,
         "clutch": 64
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_704693",
+     "name": "Lahiru Udara",
+     "age": 32,
+     "country": "Sri Lanka",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "unknown",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 85,
+      "timing": 88,
+      "power": 71,
+      "running": 46,
+      "wicketTaking": 22,
+      "economy": 22,
+      "accuracy": 26,
+      "clutch": 63
+     },
+     "tests": 5,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 76,
+        "timing": 84,
+        "power": 77,
+        "running": 89,
+        "wicketTaking": 22,
+        "economy": 22,
+        "accuracy": 26,
+        "clutch": 71
        },
        "source": "data"
       }
@@ -4268,42 +4268,6 @@
      }
     },
     {
-     "id": "espn_1168667",
-     "name": "Joshua Da Silva",
-     "age": 28,
-     "country": "West Indies",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "unknown",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 80,
-      "timing": 78,
-      "power": 79,
-      "running": 70,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 65
-     },
-     "tests": 16,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 89,
-        "timing": 84,
-        "power": 61,
-        "running": 72,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 71
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_1356971",
      "name": "Shamar Joseph",
      "age": 27,
@@ -4333,6 +4297,42 @@
         "wicketTaking": 99,
         "economy": 48,
         "accuracy": 38,
+        "clutch": 71
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_1168667",
+     "name": "Joshua Da Silva",
+     "age": 28,
+     "country": "West Indies",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "unknown",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 80,
+      "timing": 78,
+      "power": 79,
+      "running": 70,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 65
+     },
+     "tests": 16,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 89,
+        "timing": 84,
+        "power": 61,
+        "running": 72,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
         "clutch": 71
        },
        "source": "data"
@@ -4376,42 +4376,6 @@
      }
     },
     {
-     "id": "espn_670035",
-     "name": "Brandon King",
-     "age": 31,
-     "country": "West Indies",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "unknown",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 67,
-      "timing": 74,
-      "power": 72,
-      "running": 31,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 84
-     },
-     "tests": 11,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 72,
-        "timing": 76,
-        "power": 82,
-        "running": 63,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 84
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_391485",
      "name": "Jason Holder",
      "age": 35,
@@ -4442,42 +4406,6 @@
         "economy": 80,
         "accuracy": 87,
         "clutch": 91
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
-     "id": "espn_581379",
-     "name": "Shai Hope",
-     "age": 32,
-     "country": "West Indies",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "unknown",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 93,
-      "timing": 59,
-      "power": 91,
-      "running": 91,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 85
-     },
-     "tests": 11,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 99,
-        "timing": 91,
-        "power": 60,
-        "running": 75,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 85
        },
        "source": "data"
       }
@@ -4520,36 +4448,72 @@
      }
     },
     {
-     "id": "espn_670045",
-     "name": "Gudakesh Motie",
+     "id": "espn_670035",
+     "name": "Brandon King",
      "age": 31,
      "country": "West Indies",
-     "role": "bowler",
+     "role": "batsman",
      "isWicketKeeper": false,
-     "bowlingStyle": "left-arm-orthodox",
-     "battingHand": "left",
+     "bowlingStyle": "unknown",
+     "battingHand": "right",
      "ratings": {
-      "battingIQ": 32,
-      "timing": 44,
-      "power": 68,
-      "running": 51,
-      "wicketTaking": 86,
-      "economy": 63,
-      "accuracy": 67,
-      "clutch": 78
+      "battingIQ": 67,
+      "timing": 74,
+      "power": 72,
+      "running": 31,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 84
      },
-     "tests": 10,
+     "tests": 11,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 28,
-        "timing": 38,
-        "power": 56,
-        "running": 31,
-        "wicketTaking": 78,
-        "economy": 78,
-        "accuracy": 69,
-        "clutch": 78
+        "battingIQ": 72,
+        "timing": 76,
+        "power": 82,
+        "running": 63,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 84
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_581379",
+     "name": "Shai Hope",
+     "age": 32,
+     "country": "West Indies",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "unknown",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 93,
+      "timing": 59,
+      "power": 91,
+      "running": 91,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 85
+     },
+     "tests": 11,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 99,
+        "timing": 91,
+        "power": 60,
+        "running": 75,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 85
        },
        "source": "data"
       }
@@ -4592,6 +4556,42 @@
      }
     },
     {
+     "id": "espn_670045",
+     "name": "Gudakesh Motie",
+     "age": 31,
+     "country": "West Indies",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "left-arm-orthodox",
+     "battingHand": "left",
+     "ratings": {
+      "battingIQ": 32,
+      "timing": 44,
+      "power": 68,
+      "running": 51,
+      "wicketTaking": 86,
+      "economy": 63,
+      "accuracy": 67,
+      "clutch": 78
+     },
+     "tests": 10,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 28,
+        "timing": 38,
+        "power": 56,
+        "running": 31,
+        "wicketTaking": 78,
+        "economy": 78,
+        "accuracy": 69,
+        "clutch": 78
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
      "id": "espn_820677",
      "name": "Keacy Carty",
      "age": 29,
@@ -4628,36 +4628,36 @@
      }
     },
     {
-     "id": "espn_1209196",
-     "name": "Kirk McKenzie",
-     "age": 25,
+     "id": "espn_820681",
+     "name": "Amir Jangoo",
+     "age": 29,
      "country": "West Indies",
      "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "off-spin",
+     "isWicketKeeper": true,
+     "bowlingStyle": "unknown",
      "battingHand": "left",
      "ratings": {
-      "battingIQ": 52,
-      "timing": 61,
-      "power": 58,
-      "running": 19,
+      "battingIQ": 67,
+      "timing": 74,
+      "power": 74,
+      "running": 85,
       "wicketTaking": 20,
       "economy": 20,
       "accuracy": 25,
-      "clutch": 60
+      "clutch": 66
      },
      "tests": 6,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 68,
-        "timing": 69,
-        "power": 73,
-        "running": 59,
-        "wicketTaking": 20,
-        "economy": 20,
+        "battingIQ": 85,
+        "timing": 79,
+        "power": 69,
+        "running": 73,
+        "wicketTaking": 19,
+        "economy": 19,
         "accuracy": 25,
-        "clutch": 62
+        "clutch": 69
        },
        "source": "data"
       }
@@ -5139,36 +5139,36 @@
      }
     },
     {
-     "id": "espn_927619",
-     "name": "Khaled Ahmed",
-     "age": 34,
+     "id": "espn_824541",
+     "name": "Jaker Ali",
+     "age": 28,
      "country": "Bangladesh",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium-fast",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "unknown",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 18,
-      "timing": 39,
-      "power": 91,
-      "running": 32,
-      "wicketTaking": 85,
-      "economy": 28,
-      "accuracy": 49,
-      "clutch": 72
+      "battingIQ": 86,
+      "timing": 50,
+      "power": 94,
+      "running": 84,
+      "wicketTaking": 22,
+      "economy": 22,
+      "accuracy": 26,
+      "clutch": 73
      },
      "tests": 7,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 10,
-        "timing": 13,
-        "power": 73,
-        "running": 10,
-        "wicketTaking": 79,
-        "economy": 53,
-        "accuracy": 57,
-        "clutch": 72
+        "battingIQ": 86,
+        "timing": 76,
+        "power": 54,
+        "running": 55,
+        "wicketTaking": 22,
+        "economy": 22,
+        "accuracy": 26,
+        "clutch": 73
        },
        "source": "data"
       }
@@ -5211,36 +5211,36 @@
      }
     },
     {
-     "id": "espn_824541",
-     "name": "Jaker Ali",
-     "age": 28,
+     "id": "espn_927619",
+     "name": "Khaled Ahmed",
+     "age": 34,
      "country": "Bangladesh",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "unknown",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium-fast",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 86,
-      "timing": 50,
-      "power": 94,
-      "running": 84,
-      "wicketTaking": 22,
-      "economy": 22,
-      "accuracy": 26,
-      "clutch": 73
+      "battingIQ": 18,
+      "timing": 39,
+      "power": 91,
+      "running": 32,
+      "wicketTaking": 85,
+      "economy": 28,
+      "accuracy": 49,
+      "clutch": 72
      },
      "tests": 7,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 86,
-        "timing": 76,
-        "power": 54,
-        "running": 55,
-        "wicketTaking": 22,
-        "economy": 22,
-        "accuracy": 26,
-        "clutch": 73
+        "battingIQ": 10,
+        "timing": 13,
+        "power": 73,
+        "running": 10,
+        "wicketTaking": 79,
+        "economy": 53,
+        "accuracy": 57,
+        "clutch": 72
        },
        "source": "data"
       }
@@ -5326,42 +5326,6 @@
      }
     },
     {
-     "id": "espn_1071484",
-     "name": "Brian Bennett",
-     "age": 22,
-     "country": "Zimbabwe",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "off-spin",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 97,
-      "timing": 99,
-      "power": 51,
-      "running": 81,
-      "wicketTaking": 63,
-      "economy": 23,
-      "accuracy": 28,
-      "clutch": 72
-     },
-     "tests": 9,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 71,
-        "timing": 80,
-        "power": 78,
-        "running": 76,
-        "wicketTaking": 24,
-        "economy": 23,
-        "accuracy": 37,
-        "clutch": 73
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_722321",
      "name": "Tafadzwa Tsiga",
      "age": 32,
@@ -5392,6 +5356,42 @@
         "economy": 22,
         "accuracy": 26,
         "clutch": 59
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_1071484",
+     "name": "Brian Bennett",
+     "age": 22,
+     "country": "Zimbabwe",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "off-spin",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 97,
+      "timing": 99,
+      "power": 51,
+      "running": 81,
+      "wicketTaking": 63,
+      "economy": 23,
+      "accuracy": 28,
+      "clutch": 72
+     },
+     "tests": 9,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 71,
+        "timing": 80,
+        "power": 78,
+        "running": 76,
+        "wicketTaking": 24,
+        "economy": 23,
+        "accuracy": 37,
+        "clutch": 73
        },
        "source": "data"
       }
@@ -5434,42 +5434,6 @@
      }
     },
     {
-     "id": "espn_806241",
-     "name": "Richard Ngarava",
-     "age": 28,
-     "country": "Zimbabwe",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "left-arm-fast-medium",
-     "battingHand": "left",
-     "ratings": {
-      "battingIQ": 17,
-      "timing": 26,
-      "power": 44,
-      "running": 51,
-      "wicketTaking": 78,
-      "economy": 68,
-      "accuracy": 73,
-      "clutch": 77
-     },
-     "tests": 7,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 16,
-        "timing": 19,
-        "power": 54,
-        "running": 21,
-        "wicketTaking": 82,
-        "economy": 61,
-        "accuracy": 51,
-        "clutch": 77
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_938959",
      "name": "Wessly Madhevere",
      "age": 26,
@@ -5506,36 +5470,36 @@
      }
     },
     {
-     "id": "espn_1059122",
-     "name": "Tanaka Chivanga",
-     "age": 33,
+     "id": "espn_806241",
+     "name": "Richard Ngarava",
+     "age": 28,
      "country": "Zimbabwe",
      "role": "bowler",
      "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-fast",
-     "battingHand": "right",
+     "bowlingStyle": "left-arm-fast-medium",
+     "battingHand": "left",
      "ratings": {
-      "battingIQ": 39,
-      "timing": 56,
-      "power": 71,
-      "running": 56,
-      "wicketTaking": 30,
-      "economy": 3,
-      "accuracy": 45,
-      "clutch": 64
+      "battingIQ": 17,
+      "timing": 26,
+      "power": 44,
+      "running": 51,
+      "wicketTaking": 78,
+      "economy": 68,
+      "accuracy": 73,
+      "clutch": 77
      },
      "tests": 7,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 10,
-        "timing": 14,
-        "power": 68,
-        "running": 10,
-        "wicketTaking": 51,
-        "economy": 10,
-        "accuracy": 44,
-        "clutch": 64
+        "battingIQ": 16,
+        "timing": 19,
+        "power": 54,
+        "running": 21,
+        "wicketTaking": 82,
+        "economy": 61,
+        "accuracy": 51,
+        "clutch": 77
        },
        "source": "data"
       }
@@ -5572,6 +5536,42 @@
         "economy": 20,
         "accuracy": 25,
         "clutch": 63
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_1059122",
+     "name": "Tanaka Chivanga",
+     "age": 33,
+     "country": "Zimbabwe",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-fast",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 39,
+      "timing": 56,
+      "power": 71,
+      "running": 56,
+      "wicketTaking": 30,
+      "economy": 3,
+      "accuracy": 45,
+      "clutch": 64
+     },
+     "tests": 7,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 10,
+        "timing": 14,
+        "power": 68,
+        "running": 10,
+        "wicketTaking": 51,
+        "economy": 10,
+        "accuracy": 44,
+        "clutch": 64
        },
        "source": "data"
       }
@@ -5722,42 +5722,6 @@
      }
     },
     {
-     "id": "espn_465327",
-     "name": "Innocent Kaia",
-     "age": 34,
-     "country": "Zimbabwe",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "leg-spin",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 72,
-      "timing": 73,
-      "power": 59,
-      "running": 68,
-      "wicketTaking": 22,
-      "economy": 22,
-      "accuracy": 26,
-      "clutch": 63
-     },
-     "tests": 3,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 73,
-        "timing": 71,
-        "power": 53,
-        "running": 67,
-        "wicketTaking": 22,
-        "economy": 22,
-        "accuracy": 26,
-        "clutch": 63
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_1409283",
      "name": "Newman Nyamhuri",
      "age": 20,
@@ -5828,6 +5792,42 @@
        "source": "data"
       }
      }
+    },
+    {
+     "id": "espn_465327",
+     "name": "Innocent Kaia",
+     "age": 34,
+     "country": "Zimbabwe",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "leg-spin",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 72,
+      "timing": 73,
+      "power": 59,
+      "running": 68,
+      "wicketTaking": 22,
+      "economy": 22,
+      "accuracy": 26,
+      "clutch": 63
+     },
+     "tests": 3,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 73,
+        "timing": 71,
+        "power": 53,
+        "running": 67,
+        "wicketTaking": 22,
+        "economy": 22,
+        "accuracy": 26,
+        "clutch": 63
+       },
+       "source": "data"
+      }
+     }
     }
    ]
   },
@@ -5836,78 +5836,6 @@
    "gender": "male",
    "country": "IRELAND",
    "players": [
-    {
-     "id": "espn_928057",
-     "name": "Lorcan Tucker",
-     "age": 30,
-     "country": "Ireland",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "unknown",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 85,
-      "timing": 94,
-      "power": 51,
-      "running": 78,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 77
-     },
-     "tests": 9,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 82,
-        "timing": 80,
-        "power": 70,
-        "running": 70,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 77
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
-     "id": "espn_595921",
-     "name": "Curtis Campher",
-     "age": 27,
-     "country": "Ireland",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium-fast",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 82,
-      "timing": 83,
-      "power": 68,
-      "running": 70,
-      "wicketTaking": 26,
-      "economy": 26,
-      "accuracy": 39,
-      "clutch": 73
-     },
-     "tests": 9,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 77,
-        "timing": 74,
-        "power": 69,
-        "running": 62,
-        "wicketTaking": 41,
-        "economy": 38,
-        "accuracy": 22,
-        "clutch": 73
-       },
-       "source": "data"
-      }
-     }
-    },
     {
      "id": "espn_961407",
      "name": "Harry Tector",
@@ -6011,6 +5939,78 @@
         "economy": 21,
         "accuracy": 26,
         "clutch": 79
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_595921",
+     "name": "Curtis Campher",
+     "age": 27,
+     "country": "Ireland",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium-fast",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 82,
+      "timing": 83,
+      "power": 68,
+      "running": 70,
+      "wicketTaking": 26,
+      "economy": 26,
+      "accuracy": 39,
+      "clutch": 73
+     },
+     "tests": 9,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 77,
+        "timing": 74,
+        "power": 69,
+        "running": 62,
+        "wicketTaking": 41,
+        "economy": 38,
+        "accuracy": 22,
+        "clutch": 73
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_928057",
+     "name": "Lorcan Tucker",
+     "age": 30,
+     "country": "Ireland",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "unknown",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 85,
+      "timing": 94,
+      "power": 51,
+      "running": 78,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 77
+     },
+     "tests": 9,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 82,
+        "timing": 80,
+        "power": 70,
+        "running": 70,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 77
        },
        "source": "data"
       }
@@ -6125,114 +6125,6 @@
      }
     },
     {
-     "id": "espn_348059",
-     "name": "Barry McCarthy",
-     "age": 34,
-     "country": "Ireland",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-fast-medium",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 33,
-      "timing": 41,
-      "power": 60,
-      "running": 47,
-      "wicketTaking": 81,
-      "economy": 40,
-      "accuracy": 54,
-      "clutch": 75
-     },
-     "tests": 3,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 28,
-        "timing": 31,
-        "power": 44,
-        "running": 28,
-        "wicketTaking": 84,
-        "economy": 55,
-        "accuracy": 51,
-        "clutch": 75
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
-     "id": "espn_928059",
-     "name": "Ben White",
-     "age": 28,
-     "country": "Ireland",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "leg-spin",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 22,
-      "timing": 19,
-      "power": 18,
-      "running": 40,
-      "wicketTaking": 84,
-      "economy": 32,
-      "accuracy": 47,
-      "clutch": 66
-     },
-     "tests": 3,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 22,
-        "timing": 19,
-        "power": 18,
-        "running": 40,
-        "wicketTaking": 30,
-        "economy": 10,
-        "accuracy": 47,
-        "clutch": 66
-       },
-       "source": "derived"
-      }
-     }
-    },
-    {
-     "id": "espn_946283",
-     "name": "Cade Carmichael",
-     "age": 24,
-     "country": "Ireland",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 68,
-      "timing": 71,
-      "power": 56,
-      "running": 73,
-      "wicketTaking": 22,
-      "economy": 22,
-      "accuracy": 26,
-      "clutch": 40
-     },
-     "tests": 3,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 71,
-        "timing": 74,
-        "power": 61,
-        "running": 71,
-        "wicketTaking": 22,
-        "economy": 22,
-        "accuracy": 26,
-        "clutch": 60
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_364343",
      "name": "Craig Young",
      "age": 36,
@@ -6301,6 +6193,114 @@
         "clutch": 63
        },
        "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_946283",
+     "name": "Cade Carmichael",
+     "age": 24,
+     "country": "Ireland",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 68,
+      "timing": 71,
+      "power": 56,
+      "running": 73,
+      "wicketTaking": 22,
+      "economy": 22,
+      "accuracy": 26,
+      "clutch": 40
+     },
+     "tests": 3,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 71,
+        "timing": 74,
+        "power": 61,
+        "running": 71,
+        "wicketTaking": 22,
+        "economy": 22,
+        "accuracy": 26,
+        "clutch": 60
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_348059",
+     "name": "Barry McCarthy",
+     "age": 34,
+     "country": "Ireland",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-fast-medium",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 33,
+      "timing": 41,
+      "power": 60,
+      "running": 47,
+      "wicketTaking": 81,
+      "economy": 40,
+      "accuracy": 54,
+      "clutch": 75
+     },
+     "tests": 3,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 28,
+        "timing": 31,
+        "power": 44,
+        "running": 28,
+        "wicketTaking": 84,
+        "economy": 55,
+        "accuracy": 51,
+        "clutch": 75
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_928059",
+     "name": "Ben White",
+     "age": 28,
+     "country": "Ireland",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "leg-spin",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 22,
+      "timing": 19,
+      "power": 18,
+      "running": 40,
+      "wicketTaking": 84,
+      "economy": 32,
+      "accuracy": 47,
+      "clutch": 66
+     },
+     "tests": 3,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 22,
+        "timing": 19,
+        "power": 18,
+        "running": 40,
+        "wicketTaking": 30,
+        "economy": 10,
+        "accuracy": 47,
+        "clutch": 66
+       },
+       "source": "derived"
       }
      }
     },
@@ -6528,42 +6528,6 @@
      }
     },
     {
-     "id": "espn_556537",
-     "name": "Sneh Rana",
-     "age": 32,
-     "country": "India",
-     "role": "all-rounder",
-     "isWicketKeeper": false,
-     "bowlingStyle": "off-spin",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 63,
-      "timing": 64,
-      "power": 55,
-      "running": 52,
-      "wicketTaking": 70,
-      "economy": 76,
-      "accuracy": 83,
-      "clutch": 66
-     },
-     "tests": 6,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 67,
-        "timing": 63,
-        "power": 65,
-        "running": 67,
-        "wicketTaking": 72,
-        "economy": 77,
-        "accuracy": 91,
-        "clutch": 66
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_372317",
      "name": "Harmanpreet Kaur",
      "age": 37,
@@ -6594,6 +6558,42 @@
         "economy": 75,
         "accuracy": 95,
         "clutch": 95
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_556537",
+     "name": "Sneh Rana",
+     "age": 32,
+     "country": "India",
+     "role": "all-rounder",
+     "isWicketKeeper": false,
+     "bowlingStyle": "off-spin",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 63,
+      "timing": 64,
+      "power": 55,
+      "running": 52,
+      "wicketTaking": 70,
+      "economy": 76,
+      "accuracy": 83,
+      "clutch": 66
+     },
+     "tests": 6,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 67,
+        "timing": 63,
+        "power": 65,
+        "running": 67,
+        "wicketTaking": 72,
+        "economy": 77,
+        "accuracy": 91,
+        "clutch": 66
        },
        "source": "data"
       }
@@ -6672,42 +6672,6 @@
      }
     },
     {
-     "id": "espn_960715",
-     "name": "Yastika Bhatia",
-     "age": 26,
-     "country": "India",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "unknown",
-     "battingHand": "left",
-     "ratings": {
-      "battingIQ": 79,
-      "timing": 87,
-      "power": 65,
-      "running": 43,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 65
-     },
-     "tests": 4,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 64,
-        "timing": 74,
-        "power": 81,
-        "running": 70,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 67
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_709635",
      "name": "Rajeshwari Gayakwad",
      "age": 35,
@@ -6738,6 +6702,42 @@
         "economy": 94,
         "accuracy": 89,
         "clutch": 72
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_960715",
+     "name": "Yastika Bhatia",
+     "age": 26,
+     "country": "India",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "unknown",
+     "battingHand": "left",
+     "ratings": {
+      "battingIQ": 79,
+      "timing": 87,
+      "power": 65,
+      "running": 43,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 65
+     },
+     "tests": 4,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 64,
+        "timing": 74,
+        "power": 81,
+        "running": 70,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 67
        },
        "source": "data"
       }
@@ -6852,42 +6852,6 @@
      }
     },
     {
-     "id": "espn_1255540",
-     "name": "Sayali Satghare",
-     "age": 26,
-     "country": "India",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-fast-medium",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 66,
-      "timing": 68,
-      "power": 56,
-      "running": 89,
-      "wicketTaking": 70,
-      "economy": 87,
-      "accuracy": 71,
-      "clutch": 50
-     },
-     "tests": 2,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 48,
-        "timing": 44,
-        "power": 48,
-        "running": 47,
-        "wicketTaking": 72,
-        "economy": 78,
-        "accuracy": 71,
-        "clutch": 64
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_1464471",
      "name": "Kranti Gaud",
      "age": 23,
@@ -6924,72 +6888,108 @@
      }
     },
     {
-     "id": "espn_1289557",
-     "name": "Pratika Rawal",
+     "id": "espn_1255540",
+     "name": "Sayali Satghare",
      "age": 26,
      "country": "India",
-     "role": "batsman",
+     "role": "bowler",
      "isWicketKeeper": false,
-     "bowlingStyle": "off-spin",
+     "bowlingStyle": "right-arm-fast-medium",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 74,
-      "timing": 74,
-      "power": 52,
-      "running": 49,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 51
+      "battingIQ": 66,
+      "timing": 68,
+      "power": 56,
+      "running": 89,
+      "wicketTaking": 70,
+      "economy": 87,
+      "accuracy": 71,
+      "clutch": 50
      },
-     "tests": 1,
+     "tests": 2,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 66,
-        "timing": 62,
-        "power": 64,
-        "running": 59,
-        "wicketTaking": 28,
-        "economy": 28,
-        "accuracy": 25,
-        "clutch": 57
+        "battingIQ": 48,
+        "timing": 44,
+        "power": 48,
+        "running": 47,
+        "wicketTaking": 72,
+        "economy": 78,
+        "accuracy": 71,
+        "clutch": 64
        },
        "source": "data"
       }
      }
     },
     {
-     "id": "espn_709839",
-     "name": "Meghna Singh",
-     "age": 32,
+     "id": "espn_1464461",
+     "name": "N Charani",
+     "age": 22,
      "country": "India",
      "role": "bowler",
      "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium",
-     "battingHand": "right",
+     "bowlingStyle": "left-arm-orthodox",
+     "battingHand": "left",
      "ratings": {
-      "battingIQ": 44,
-      "timing": 46,
-      "power": 43,
-      "running": 41,
-      "wicketTaking": 68,
-      "economy": 77,
-      "accuracy": 71,
-      "clutch": 59
+      "battingIQ": 26,
+      "timing": 28,
+      "power": 66,
+      "running": 48,
+      "wicketTaking": 81,
+      "economy": 89,
+      "accuracy": 57,
+      "clutch": 62
      },
      "tests": 1,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 30,
-        "timing": 32,
-        "power": 29,
-        "running": 27,
-        "wicketTaking": 75,
-        "economy": 74,
-        "accuracy": 62,
-        "clutch": 64
+        "battingIQ": 14,
+        "timing": 16,
+        "power": 54,
+        "running": 36,
+        "wicketTaking": 70,
+        "economy": 93,
+        "accuracy": 61,
+        "clutch": 69
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_442145",
+     "name": "Shikha Pandey",
+     "age": 37,
+     "country": "India",
+     "role": "all-rounder",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 65,
+      "timing": 68,
+      "power": 64,
+      "running": 39,
+      "wicketTaking": 68,
+      "economy": 92,
+      "accuracy": 86,
+      "clutch": 77
+     },
+     "tests": 1,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 76,
+        "timing": 70,
+        "power": 62,
+        "running": 67,
+        "wicketTaking": 60,
+        "economy": 99,
+        "accuracy": 72,
+        "clutch": 77
        },
        "source": "data"
       }
@@ -7003,19 +7003,19 @@
    "country": "ENG",
    "players": [
     {
-     "id": "espn_297074",
-     "name": "Tammy Beaumont",
-     "age": 35,
+     "id": "espn_515874",
+     "name": "Amy Jones",
+     "age": 33,
      "country": "England",
      "role": "batsman",
-     "isWicketKeeper": false,
+     "isWicketKeeper": true,
      "bowlingStyle": "unknown",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 79,
-      "timing": 77,
-      "power": 66,
-      "running": 65,
+      "battingIQ": 82,
+      "timing": 82,
+      "power": 60,
+      "running": 73,
       "wicketTaking": 20,
       "economy": 20,
       "accuracy": 25,
@@ -7025,50 +7025,14 @@
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 83,
-        "timing": 77,
-        "power": 67,
-        "running": 78,
+        "battingIQ": 68,
+        "timing": 73,
+        "power": 81,
+        "running": 80,
         "wicketTaking": 20,
         "economy": 20,
         "accuracy": 25,
         "clutch": 90
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
-     "id": "espn_515905",
-     "name": "Nat Sciver-Brunt",
-     "age": 34,
-     "country": "England",
-     "role": "all-rounder",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 99,
-      "timing": 99,
-      "power": 88,
-      "running": 99,
-      "wicketTaking": 64,
-      "economy": 71,
-      "accuracy": 95,
-      "clutch": 96
-     },
-     "tests": 8,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 99,
-        "timing": 99,
-        "power": 87,
-        "running": 99,
-        "wicketTaking": 58,
-        "economy": 99,
-        "accuracy": 69,
-        "clutch": 96
        },
        "source": "data"
       }
@@ -7111,19 +7075,19 @@
      }
     },
     {
-     "id": "espn_515874",
-     "name": "Amy Jones",
-     "age": 33,
+     "id": "espn_297074",
+     "name": "Tammy Beaumont",
+     "age": 35,
      "country": "England",
      "role": "batsman",
-     "isWicketKeeper": true,
+     "isWicketKeeper": false,
      "bowlingStyle": "unknown",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 82,
-      "timing": 82,
-      "power": 60,
-      "running": 73,
+      "battingIQ": 79,
+      "timing": 77,
+      "power": 66,
+      "running": 65,
       "wicketTaking": 20,
       "economy": 20,
       "accuracy": 25,
@@ -7133,10 +7097,10 @@
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 68,
-        "timing": 73,
-        "power": 81,
-        "running": 80,
+        "battingIQ": 83,
+        "timing": 77,
+        "power": 67,
+        "running": 78,
         "wicketTaking": 20,
         "economy": 20,
         "accuracy": 25,
@@ -7183,36 +7147,36 @@
      }
     },
     {
-     "id": "espn_885815",
-     "name": "Sophia Dunkley",
-     "age": 28,
+     "id": "espn_515905",
+     "name": "Nat Sciver-Brunt",
+     "age": 34,
      "country": "England",
-     "role": "batsman",
+     "role": "all-rounder",
      "isWicketKeeper": false,
-     "bowlingStyle": "leg-spin",
+     "bowlingStyle": "right-arm-medium",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 93,
-      "timing": 89,
-      "power": 76,
-      "running": 69,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 82
+      "battingIQ": 99,
+      "timing": 99,
+      "power": 88,
+      "running": 99,
+      "wicketTaking": 64,
+      "economy": 71,
+      "accuracy": 95,
+      "clutch": 96
      },
-     "tests": 6,
+     "tests": 8,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 71,
-        "timing": 73,
-        "power": 93,
-        "running": 77,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 82
+        "battingIQ": 99,
+        "timing": 99,
+        "power": 87,
+        "running": 99,
+        "wicketTaking": 58,
+        "economy": 99,
+        "accuracy": 69,
+        "clutch": 96
        },
        "source": "data"
       }
@@ -7255,36 +7219,36 @@
      }
     },
     {
-     "id": "espn_297085",
-     "name": "Kate Cross",
-     "age": 35,
+     "id": "espn_885815",
+     "name": "Sophia Dunkley",
+     "age": 28,
      "country": "England",
-     "role": "bowler",
+     "role": "batsman",
      "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium-fast",
+     "bowlingStyle": "leg-spin",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 47,
-      "timing": 48,
-      "power": 41,
-      "running": 34,
-      "wicketTaking": 68,
-      "economy": 70,
-      "accuracy": 90,
-      "clutch": 71
+      "battingIQ": 93,
+      "timing": 89,
+      "power": 76,
+      "running": 69,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 82
      },
-     "tests": 5,
+     "tests": 6,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 48,
-        "timing": 49,
-        "power": 42,
-        "running": 35,
-        "wicketTaking": 75,
-        "economy": 66,
-        "accuracy": 65,
-        "clutch": 71
+        "battingIQ": 71,
+        "timing": 73,
+        "power": 93,
+        "running": 77,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 82
        },
        "source": "data"
       }
@@ -7321,6 +7285,42 @@
         "economy": 52,
         "accuracy": 44,
         "clutch": 66
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_297085",
+     "name": "Kate Cross",
+     "age": 35,
+     "country": "England",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium-fast",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 47,
+      "timing": 48,
+      "power": 41,
+      "running": 34,
+      "wicketTaking": 68,
+      "economy": 70,
+      "accuracy": 90,
+      "clutch": 71
+     },
+     "tests": 5,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 48,
+        "timing": 49,
+        "power": 42,
+        "running": 35,
+        "wicketTaking": 75,
+        "economy": 66,
+        "accuracy": 65,
+        "clutch": 71
        },
        "source": "data"
       }
@@ -7435,6 +7435,42 @@
      }
     },
     {
+     "id": "espn_254238",
+     "name": "Anya Shrubsole",
+     "age": 34,
+     "country": "England",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 45,
+      "timing": 53,
+      "power": 70,
+      "running": 44,
+      "wicketTaking": 67,
+      "economy": 99,
+      "accuracy": 93,
+      "clutch": 67
+     },
+     "tests": 2,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 35,
+        "timing": 34,
+        "power": 50,
+        "running": 37,
+        "wicketTaking": 65,
+        "economy": 99,
+        "accuracy": 71,
+        "clutch": 68
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
      "id": "espn_1187119",
      "name": "Ryana MacDonald-Gay",
      "age": 22,
@@ -7541,42 +7577,6 @@
        "source": "data"
       }
      }
-    },
-    {
-     "id": "espn_517572",
-     "name": "Lauren Winfield-Hill",
-     "age": 36,
-     "country": "England",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "unknown",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 78,
-      "timing": 86,
-      "power": 52,
-      "running": 71,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 79
-     },
-     "tests": 2,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 70,
-        "timing": 69,
-        "power": 81,
-        "running": 65,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 79
-       },
-       "source": "data"
-      }
-     }
     }
    ]
   },
@@ -7586,72 +7586,36 @@
    "country": "AUS",
    "players": [
     {
-     "id": "espn_1071705",
-     "name": "Annabel Sutherland",
-     "age": 25,
+     "id": "espn_858809",
+     "name": "Ashleigh Gardner",
+     "age": 29,
      "country": "Australia",
      "role": "all-rounder",
      "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium-fast",
+     "bowlingStyle": "off-spin",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 90,
-      "timing": 72,
-      "power": 79,
-      "running": 77,
-      "wicketTaking": 71,
-      "economy": 93,
-      "accuracy": 79,
-      "clutch": 77
+      "battingIQ": 92,
+      "timing": 83,
+      "power": 84,
+      "running": 62,
+      "wicketTaking": 70,
+      "economy": 73,
+      "accuracy": 95,
+      "clutch": 90
      },
      "tests": 7,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 91,
-        "timing": 97,
-        "power": 72,
-        "running": 76,
-        "wicketTaking": 86,
-        "economy": 60,
-        "accuracy": 60,
-        "clutch": 77
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
-     "id": "espn_381258",
-     "name": "Beth Mooney",
-     "age": 32,
-     "country": "Australia",
-     "role": "batsman",
-     "isWicketKeeper": true,
-     "bowlingStyle": "unknown",
-     "battingHand": "left",
-     "ratings": {
-      "battingIQ": 99,
-      "timing": 99,
-      "power": 65,
-      "running": 99,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 92
-     },
-     "tests": 7,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 99,
-        "timing": 99,
-        "power": 78,
-        "running": 99,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 92
+        "battingIQ": 71,
+        "timing": 77,
+        "power": 88,
+        "running": 80,
+        "wicketTaking": 78,
+        "economy": 77,
+        "accuracy": 67,
+        "clutch": 90
        },
        "source": "data"
       }
@@ -7694,36 +7658,36 @@
      }
     },
     {
-     "id": "espn_858809",
-     "name": "Ashleigh Gardner",
-     "age": 29,
+     "id": "espn_1071705",
+     "name": "Annabel Sutherland",
+     "age": 25,
      "country": "Australia",
      "role": "all-rounder",
      "isWicketKeeper": false,
-     "bowlingStyle": "off-spin",
+     "bowlingStyle": "right-arm-medium-fast",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 92,
-      "timing": 83,
-      "power": 84,
-      "running": 62,
-      "wicketTaking": 70,
-      "economy": 73,
-      "accuracy": 95,
-      "clutch": 90
+      "battingIQ": 90,
+      "timing": 72,
+      "power": 79,
+      "running": 77,
+      "wicketTaking": 71,
+      "economy": 93,
+      "accuracy": 79,
+      "clutch": 77
      },
      "tests": 7,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 71,
-        "timing": 77,
-        "power": 88,
-        "running": 80,
-        "wicketTaking": 78,
-        "economy": 77,
-        "accuracy": 67,
-        "clutch": 90
+        "battingIQ": 91,
+        "timing": 97,
+        "power": 72,
+        "running": 76,
+        "wicketTaking": 86,
+        "economy": 60,
+        "accuracy": 60,
+        "clutch": 77
        },
        "source": "data"
       }
@@ -7760,6 +7724,42 @@
         "economy": 20,
         "accuracy": 25,
         "clutch": 93
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_381258",
+     "name": "Beth Mooney",
+     "age": 32,
+     "country": "Australia",
+     "role": "batsman",
+     "isWicketKeeper": true,
+     "bowlingStyle": "unknown",
+     "battingHand": "left",
+     "ratings": {
+      "battingIQ": 99,
+      "timing": 99,
+      "power": 65,
+      "running": 99,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 92
+     },
+     "tests": 7,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 99,
+        "timing": 99,
+        "power": 78,
+        "running": 99,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 92
        },
        "source": "data"
       }
@@ -8090,38 +8090,38 @@
      }
     },
     {
-     "id": "espn_946057",
-     "name": "Georgia Wareham",
-     "age": 27,
+     "id": "espn_268889",
+     "name": "Rachael Haynes",
+     "age": 39,
      "country": "Australia",
-     "role": "all-rounder",
+     "role": "batsman",
      "isWicketKeeper": false,
-     "bowlingStyle": "leg-spin",
-     "battingHand": "right",
+     "bowlingStyle": "left-arm-medium",
+     "battingHand": "left",
      "ratings": {
-      "battingIQ": 94,
-      "timing": 93,
-      "power": 72,
-      "running": 71,
-      "wicketTaking": 77,
-      "economy": 94,
-      "accuracy": 83,
-      "clutch": 80
+      "battingIQ": 96,
+      "timing": 92,
+      "power": 55,
+      "running": 36,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 90
      },
      "tests": 1,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 77,
-        "timing": 76,
-        "power": 55,
-        "running": 54,
-        "wicketTaking": 66,
-        "economy": 83,
-        "accuracy": 83,
-        "clutch": 80
+        "battingIQ": 89,
+        "timing": 78,
+        "power": 63,
+        "running": 72,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 90
        },
-       "source": "derived"
+       "source": "data"
       }
      }
     },
@@ -8168,42 +8168,6 @@
    "gender": "female",
    "country": "RSA",
    "players": [
-    {
-     "id": "espn_971203",
-     "name": "Nonkululeko Mlaba",
-     "age": 26,
-     "country": "South Africa",
-     "role": "bowler",
-     "isWicketKeeper": false,
-     "bowlingStyle": "left-arm-orthodox",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 22,
-      "timing": 24,
-      "power": 39,
-      "running": 44,
-      "wicketTaking": 76,
-      "economy": 92,
-      "accuracy": 63,
-      "clutch": 73
-     },
-     "tests": 4,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 22,
-        "timing": 24,
-        "power": 39,
-        "running": 44,
-        "wicketTaking": 85,
-        "economy": 60,
-        "accuracy": 23,
-        "clutch": 73
-       },
-       "source": "data"
-      }
-     }
-    },
     {
      "id": "espn_487007",
      "name": "Sune Luus",
@@ -8277,6 +8241,42 @@
      }
     },
     {
+     "id": "espn_922481",
+     "name": "Laura Wolvaardt",
+     "age": 27,
+     "country": "South Africa",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "unknown",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 92,
+      "timing": 84,
+      "power": 72,
+      "running": 88,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 87
+     },
+     "tests": 4,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 85,
+        "timing": 86,
+        "power": 83,
+        "running": 86,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 87
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
      "id": "espn_939249",
      "name": "Nadine de Klerk",
      "age": 26,
@@ -8313,36 +8313,36 @@
      }
     },
     {
-     "id": "espn_922481",
-     "name": "Laura Wolvaardt",
-     "age": 27,
+     "id": "espn_971203",
+     "name": "Nonkululeko Mlaba",
+     "age": 26,
      "country": "South Africa",
-     "role": "batsman",
+     "role": "bowler",
      "isWicketKeeper": false,
-     "bowlingStyle": "unknown",
+     "bowlingStyle": "left-arm-orthodox",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 92,
-      "timing": 84,
-      "power": 72,
-      "running": 88,
-      "wicketTaking": 20,
-      "economy": 20,
-      "accuracy": 25,
-      "clutch": 87
+      "battingIQ": 22,
+      "timing": 24,
+      "power": 39,
+      "running": 44,
+      "wicketTaking": 76,
+      "economy": 92,
+      "accuracy": 63,
+      "clutch": 73
      },
      "tests": 4,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 85,
-        "timing": 86,
-        "power": 83,
-        "running": 86,
-        "wicketTaking": 20,
-        "economy": 20,
-        "accuracy": 25,
-        "clutch": 87
+        "battingIQ": 22,
+        "timing": 24,
+        "power": 39,
+        "running": 44,
+        "wicketTaking": 85,
+        "economy": 60,
+        "accuracy": 23,
+        "clutch": 73
        },
        "source": "data"
       }
@@ -8385,42 +8385,6 @@
      }
     },
     {
-     "id": "espn_351836",
-     "name": "Marizanne Kapp",
-     "age": 36,
-     "country": "South Africa",
-     "role": "all-rounder",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 85,
-      "timing": 73,
-      "power": 77,
-      "running": 64,
-      "wicketTaking": 81,
-      "economy": 95,
-      "accuracy": 95,
-      "clutch": 96
-     },
-     "tests": 3,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 82,
-        "timing": 86,
-        "power": 73,
-        "running": 69,
-        "wicketTaking": 62,
-        "economy": 99,
-        "accuracy": 64,
-        "clutch": 96
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
      "id": "espn_939229",
      "name": "Tumi Sekhukhune",
      "age": 27,
@@ -8457,72 +8421,36 @@
      }
     },
     {
-     "id": "espn_1208961",
-     "name": "Ayanda Hlubi",
-     "age": 22,
+     "id": "espn_351836",
+     "name": "Marizanne Kapp",
+     "age": 36,
      "country": "South Africa",
-     "role": "bowler",
+     "role": "all-rounder",
      "isWicketKeeper": false,
      "bowlingStyle": "right-arm-medium",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 34,
-      "timing": 34,
-      "power": 38,
-      "running": 42,
-      "wicketTaking": 69,
-      "economy": 86,
-      "accuracy": 63,
-      "clutch": 55
+      "battingIQ": 85,
+      "timing": 73,
+      "power": 77,
+      "running": 64,
+      "wicketTaking": 81,
+      "economy": 95,
+      "accuracy": 95,
+      "clutch": 96
      },
-     "tests": 2,
+     "tests": 3,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 29,
-        "timing": 29,
-        "power": 31,
-        "running": 33,
-        "wicketTaking": 17,
-        "economy": 34,
-        "accuracy": 63,
-        "clutch": 62
-       },
-       "source": "data"
-      }
-     }
-    },
-    {
-     "id": "espn_453370",
-     "name": "Chloe Tryon",
-     "age": 32,
-     "country": "South Africa",
-     "role": "all-rounder",
-     "isWicketKeeper": false,
-     "bowlingStyle": "left-arm-orthodox",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 82,
-      "timing": 75,
-      "power": 74,
-      "running": 57,
-      "wicketTaking": 55,
-      "economy": 91,
-      "accuracy": 97,
-      "clutch": 86
-     },
-     "tests": 2,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 70,
-        "timing": 74,
-        "power": 74,
-        "running": 72,
-        "wicketTaking": 75,
-        "economy": 76,
-        "accuracy": 27,
-        "clutch": 86
+        "battingIQ": 82,
+        "timing": 86,
+        "power": 73,
+        "running": 69,
+        "wicketTaking": 62,
+        "economy": 99,
+        "accuracy": 64,
+        "clutch": 96
        },
        "source": "data"
       }
@@ -8565,42 +8493,6 @@
      }
     },
     {
-     "id": "espn_1163087",
-     "name": "Annerie Dercksen",
-     "age": 25,
-     "country": "South Africa",
-     "role": "batsman",
-     "isWicketKeeper": false,
-     "bowlingStyle": "right-arm-medium",
-     "battingHand": "right",
-     "ratings": {
-      "battingIQ": 77,
-      "timing": 72,
-      "power": 76,
-      "running": 60,
-      "wicketTaking": 68,
-      "economy": 96,
-      "accuracy": 35,
-      "clutch": 63
-     },
-     "tests": 2,
-     "formatRatings": {
-      "test": {
-       "ratings": {
-        "battingIQ": 71,
-        "timing": 66,
-        "power": 70,
-        "running": 54,
-        "wicketTaking": 23,
-        "economy": 35,
-        "accuracy": 26,
-        "clutch": 66
-       },
-       "source": "derived"
-      }
-     }
-    },
-    {
      "id": "espn_364368",
      "name": "Masabata Klaas",
      "age": 35,
@@ -8637,72 +8529,108 @@
      }
     },
     {
-     "id": "espn_600731",
-     "name": "Tazmin Brits",
-     "age": 35,
+     "id": "espn_453370",
+     "name": "Chloe Tryon",
+     "age": 32,
      "country": "South Africa",
-     "role": "batsman",
+     "role": "all-rounder",
      "isWicketKeeper": false,
-     "bowlingStyle": "unknown",
+     "bowlingStyle": "left-arm-orthodox",
      "battingHand": "right",
      "ratings": {
-      "battingIQ": 76,
-      "timing": 74,
+      "battingIQ": 82,
+      "timing": 75,
       "power": 74,
-      "running": 75,
-      "wicketTaking": 22,
-      "economy": 22,
-      "accuracy": 26,
-      "clutch": 73
+      "running": 57,
+      "wicketTaking": 55,
+      "economy": 91,
+      "accuracy": 97,
+      "clutch": 86
      },
-     "tests": 1,
+     "tests": 2,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 76,
+        "battingIQ": 70,
         "timing": 74,
         "power": 74,
-        "running": 75,
-        "wicketTaking": 22,
-        "economy": 22,
-        "accuracy": 26,
-        "clutch": 73
+        "running": 72,
+        "wicketTaking": 75,
+        "economy": 76,
+        "accuracy": 27,
+        "clutch": 86
        },
        "source": "data"
       }
      }
     },
     {
-     "id": "espn_593936",
-     "name": "Lara Goodall",
-     "age": 30,
+     "id": "espn_1208961",
+     "name": "Ayanda Hlubi",
+     "age": 22,
+     "country": "South Africa",
+     "role": "bowler",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 34,
+      "timing": 34,
+      "power": 38,
+      "running": 42,
+      "wicketTaking": 69,
+      "economy": 86,
+      "accuracy": 63,
+      "clutch": 55
+     },
+     "tests": 2,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 29,
+        "timing": 29,
+        "power": 31,
+        "running": 33,
+        "wicketTaking": 17,
+        "economy": 34,
+        "accuracy": 63,
+        "clutch": 62
+       },
+       "source": "data"
+      }
+     }
+    },
+    {
+     "id": "espn_1163087",
+     "name": "Annerie Dercksen",
+     "age": 25,
      "country": "South Africa",
      "role": "batsman",
      "isWicketKeeper": false,
      "bowlingStyle": "right-arm-medium",
-     "battingHand": "left",
+     "battingHand": "right",
      "ratings": {
-      "battingIQ": 86,
+      "battingIQ": 77,
       "timing": 72,
-      "power": 42,
-      "running": 51,
-      "wicketTaking": 69,
-      "economy": 69,
-      "accuracy": 26,
-      "clutch": 60
+      "power": 76,
+      "running": 60,
+      "wicketTaking": 68,
+      "economy": 96,
+      "accuracy": 35,
+      "clutch": 63
      },
-     "tests": 1,
+     "tests": 2,
      "formatRatings": {
       "test": {
        "ratings": {
-        "battingIQ": 85,
-        "timing": 71,
-        "power": 41,
-        "running": 50,
-        "wicketTaking": 28,
-        "economy": 28,
-        "accuracy": 22,
-        "clutch": 60
+        "battingIQ": 71,
+        "timing": 66,
+        "power": 70,
+        "running": 54,
+        "wicketTaking": 23,
+        "economy": 35,
+        "accuracy": 26,
+        "clutch": 66
        },
        "source": "derived"
       }
@@ -8741,6 +8669,78 @@
         "clutch": 73
        },
        "source": "derived"
+      }
+     }
+    },
+    {
+     "id": "espn_483484",
+     "name": "Lizelle Lee",
+     "age": 34,
+     "country": "South Africa",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "right-arm-medium-fast",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 89,
+      "timing": 87,
+      "power": 82,
+      "running": 23,
+      "wicketTaking": 20,
+      "economy": 20,
+      "accuracy": 25,
+      "clutch": 88
+     },
+     "tests": 1,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 74,
+        "timing": 72,
+        "power": 67,
+        "running": 10,
+        "wicketTaking": 20,
+        "economy": 20,
+        "accuracy": 25,
+        "clutch": 88
+       },
+       "source": "derived"
+      }
+     }
+    },
+    {
+     "id": "espn_600731",
+     "name": "Tazmin Brits",
+     "age": 35,
+     "country": "South Africa",
+     "role": "batsman",
+     "isWicketKeeper": false,
+     "bowlingStyle": "unknown",
+     "battingHand": "right",
+     "ratings": {
+      "battingIQ": 76,
+      "timing": 74,
+      "power": 74,
+      "running": 75,
+      "wicketTaking": 22,
+      "economy": 22,
+      "accuracy": 26,
+      "clutch": 73
+     },
+     "tests": 1,
+     "formatRatings": {
+      "test": {
+       "ratings": {
+        "battingIQ": 76,
+        "timing": 74,
+        "power": 74,
+        "running": 75,
+        "wicketTaking": 22,
+        "economy": 22,
+        "accuracy": 26,
+        "clutch": 73
+       },
+       "source": "data"
       }
      }
     }

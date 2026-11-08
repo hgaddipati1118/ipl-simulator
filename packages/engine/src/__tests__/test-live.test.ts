@@ -6,9 +6,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   advanceTest, changeTestBowlerTo, decideTest, declareTest, deserializeTestState, finishLiveTest, serializeTestState,
-  setTestAutoCaptain, setTestBattingApproach, startLiveTest, takeTestNewBall, testBowlingOptions, testSituation,
+  setTestAutoCaptain, setTestBattingApproach, setTestNextBatter, startLiveTest, takeTestNewBall, testBowlingOptions, testSituation,
 } from "../test-live.js";
-import { autoResolveTestDecision, currentInnings, stepTestBall, type TestMatchState, type TestDecisionType } from "../test-match.js";
+import {
+  autoResolveTestDecision, currentInnings, simulateTestMatch, stepTestBall, testBatterQueue, type TestMatchState, type TestDecisionType,
+} from "../test-match.js";
 import { testTeam } from "./test-squads.js";
 
 // seed searches play whole Tests: room for a busy machine (deterministic; only the time varies)
@@ -138,6 +140,56 @@ describe("live Test: the user's decisions", () => {
     const r = advanceTest(st, "over", { autoDecide: true });
     expect(r.balls[0].bowler).toBe(pick.playerId);
     expect(() => changeTestBowlerTo(st, r.balls[0].bowler)).toThrow();
+  });
+
+  it("the next batter: asked at every wicket when the user wants, and he can send anyone still to come", () => {
+    const st = findSeed(seed => startLiveTest(IND, ENG, { seed, userTeamId: IND.id, country: "IND", pickBatters: true }), "next_batter");
+    const inn = currentInnings(st)!;
+    expect(inn.battingTeamId).toBe(IND.id);
+    const opts = st.pending!.options;
+    expect(opts).toEqual(testBatterQueue(inn));
+    const pick = opts[opts.length - 1];
+    decideTest(st, pick);
+    expect(inn.batters[pick]).toBeDefined();
+    expect([inn.strikerId, inn.nonStrikerId]).toContain(pick);
+    expect(inn.strikerId).not.toBe("");
+    expect(inn.nonStrikerId).not.toBe("");
+  });
+
+  it("a nightwatchman: offered late in the day with the top order out, and the tail-ender goes in", () => {
+    const st = findSeed(seed => startLiveTest(ENG, IND, { seed, userTeamId: ENG.id, country: "ENG" }), "next_batter", 1, 200);
+    const nw = st.pending!.context!.nightwatchman!;
+    expect(nw).toBeDefined();
+    expect(st.players[nw].role).toBe("bowler");
+    expect(st.dayCap - st.dayBalls / 6).toBeLessThanOrEqual(4);
+    expect(currentInnings(st)!.wickets).toBeLessThanOrEqual(5);
+    decideTest(st, nw);
+    expect(st.events.some(e => e.kind === "nightwatchman")).toBe(true);
+  });
+
+  it("a preset next batter comes in at the next wicket", () => {
+    const st = startLiveTest(AUS, ENG, { seed: 12, userTeamId: AUS.id, country: "AUS" });
+    for (let g = 0; g < 3000 && currentInnings(st)?.battingTeamId !== AUS.id; g++) {
+      if (st.status === "waiting_for_decision") { autoResolveTestDecision(st); continue; }
+      stepTestBall(st);
+    }
+    const inn = currentInnings(st)!;
+    const pick = testBatterQueue(inn).slice(-1)[0];
+    setTestNextBatter(st, pick);
+    const w0 = inn.wickets;
+    for (let g = 0; g < 2000 && inn.wickets === w0 && !inn.closed; g++) {
+      if (st.status === "waiting_for_decision") { if (st.pending!.type === "next_batter") break; autoResolveTestDecision(st); continue; }
+      stepTestBall(st);
+    }
+    if (st.pending?.type === "next_batter") decideTest(st, pick); // a nightwatchman situation asks anyway
+    expect(inn.batters[pick]).toBeDefined();
+  });
+
+  it("CPU captains send nightwatchmen now and then", () => {
+    let n = 0;
+    for (let i = 0; i < 40; i++) n += simulateTestMatch(IND, ENG, { seed: 300 + i, country: "IND" }).events.filter(e => e.kind === "nightwatchman").length;
+    expect(n).toBeGreaterThan(0);
+    expect(n / 40).toBeLessThan(1);
   });
 
   it("the approach is the user's to set and to hand back", () => {

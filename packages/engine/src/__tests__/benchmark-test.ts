@@ -92,6 +92,7 @@ for (let i = 0; i < N; i++) {
     }
   }
   if (r.margin.startsWith("an innings")) add("innWin");
+  add("nightwatchmen", st.events.filter(e => e.kind === "nightwatchman").length);
   if (st.innings.length >= 2) {
     const lead = st.innings[0].runs - st.innings[1].runs;
     if (lead >= (st.days >= 5 ? 200 : 150) && st.innings[1].wickets >= 10) add("foAvail");
@@ -174,6 +175,7 @@ if (gender === "male") {
   row("win share by team (sim / real 2015+ / 2023+)", squads.filter(s => tw[s.team] !== undefined).map(s => `${s.team.split(" ").map(w => w[0]).join("")} ${pct((sum[`teamWin_${s.team}`] ?? 0) / (sum[`team_${s.team}`] ?? 1))}`).join(" "),
     squads.filter(s => tw[s.team] !== undefined).map(s => `${pct(tw[s.team])}`).join(" "), squads.filter(s => tw[s.team] !== undefined).map(s => tw2[s.team] !== undefined ? pct(tw2[s.team]) : "-").join(" "));
 }
+row("nightwatchmen per Test (real: promoted tail-enders, all reasons)", f2((sum.nightwatchmen ?? 0) / n), "0.88");
 row("DRS reviews per innings", f2((sum.reviews ?? 0) / (sum.inn1 + sum.inn2 + (sum.inn3 ?? 0) + (sum.inn4 ?? 0))), TEST_MODEL.drs.reviewsPerInnings);
 
 console.log(`${N} ${gender} Tests, ${ms.toFixed(1)} ms each; squads from the shipped pool, ${withTest}/${rosterSize} players on Test ratings${t20Only ? " (T20 ratings only)" : ""}${missing.length ? `; not in the pool: ${missing.join(", ")}` : ""}`);

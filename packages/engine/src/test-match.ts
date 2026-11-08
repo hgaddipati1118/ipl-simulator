@@ -58,6 +58,9 @@ const CHASE_BINS: readonly number[] = M.bins.chaseRate;
 const T_AGE = lv(F.age, AGE_BINS.length);
 const T_SET = lv(F.set, SET_BINS.length);
 const T_INN = lv(F.innings, 4);
+/** Wickets down in the innings (0-2, 3-5, 6-7, 8-9): the tail goes quicker and swings harder than the batters' own terms say */
+const WD_BINS: readonly number[] = M.bins.wicketsDown;
+const T_WD = lv(F.wicketsDown, WD_BINS.length);
 const T_DAY = { pace: lv(F.day.pace, 5), spin: lv(F.day.spin, 5) };
 /**
  * Over of the bowler's spell. The fitted wicket rate rises along a spell (0.96 in the first over to 1.05 in the seventh), but
@@ -118,6 +121,8 @@ export interface TestMatchOptions {
   injuries?: boolean;
   /** Live: the user's side (decisions pause for it) */
   userTeamId?: string | null;
+  /** Live: ask for the next batter at every wicket of the user's side (default off: the order, and the nightwatchman call) */
+  pickBatters?: boolean;
   /** Bowl England's batting from June 2022 style: the fitted Bazball factor for this team id (default none) */
   bazballTeamId?: string;
 }
@@ -245,6 +250,8 @@ export interface TestInnings {
   overRuns: number;
   /** The fielding user picked the next bowler at an end */
   nextBowler?: [string | null, string | null];
+  /** The batting user's pick for the next batter in (at the next wicket) */
+  nextChoice?: string;
   retiredHurt?: string[];
   /** A CPU batting side went into its pre-declaration push at this over */
   pushFrom?: number;
@@ -267,7 +274,7 @@ export interface TestTeamState {
   bazball?: boolean;
 }
 
-export type TestDecisionType = "toss" | "follow_on" | "drs_batting" | "drs_fielding" | "new_ball";
+export type TestDecisionType = "toss" | "follow_on" | "drs_batting" | "drs_fielding" | "new_ball" | "next_batter";
 
 export interface TestPendingDecision {
   type: TestDecisionType;
@@ -283,6 +290,9 @@ export interface TestPendingDecision {
     reviewsLeft?: number;
     /** How out it looked (0-1): a hint, not the answer */
     confidence?: number;
+    /** next_batter: the batter due in, and the tail-ender the captain could send in as nightwatchman */
+    suggested?: string;
+    nightwatchman?: string;
   };
 }
 
@@ -291,7 +301,7 @@ export interface TestMatchEvent {
   inn: number;
   /** Innings overs when it happened */
   overs: number;
-  kind: "toss" | "day_start" | "stumps" | "lunch" | "tea" | "weather" | "innings_end" | "declaration" | "follow_on" | "new_ball" | "result";
+  kind: "toss" | "day_start" | "stumps" | "lunch" | "tea" | "weather" | "innings_end" | "declaration" | "follow_on" | "new_ball" | "nightwatchman" | "result";
   text: string;
 }
 
@@ -345,6 +355,8 @@ export interface TestMatchState {
   userTeamId: string | null;
   /** The CPU captain takes the user's discretionary decisions too (simulating ahead) */
   autoUser: boolean;
+  /** Live: ask the user for the next batter at every wicket of his side (the nightwatchman call is always asked) */
+  pickBatters?: boolean;
   reviewsPerInnings: number;
   commentary: boolean;
   events: TestMatchEvent[];
@@ -624,7 +636,7 @@ export function createTestMatch(home: Team, away: Team, options: TestMatchOption
     day: 1, dayBalls: 0, dayCap: 0, dayPlan: [], weatherLost: [], weatherAt: [], session: 1, matchBalls: 0,
     cond: [], status: "awaiting_toss", userTeamId: options.userTeamId ?? null, autoUser: false,
     reviewsPerInnings: options.reviews ?? 3,
-    commentary: options.commentary ?? !!options.userTeamId, events: [],
+    commentary: options.commentary ?? !!options.userTeamId, events: [], ...(options.pickBatters ? { pickBatters: true } : {}),
   };
   const r = rngOf(st);
   planWeather(st, r, options.weather ?? true);
@@ -820,6 +832,7 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
   const ab = binOf(Math.floor(inn.legalBalls / 6) - inn.ballTakenAt, AGE_BINS);
   const sb = binOf(inn.batters[inn.strikerId]?.balls ?? 0, SET_BINS);
   const i = inn.number - 1;
+  const wd = binOf(inn.wickets, WD_BINS);
   const d = Math.min(st.day, 5) - 1;
   const type = bowl.spin ? "spin" : "pace";
   const sp = Math.min((line?.spellOvers ?? 0) + 1, T_SPELL.length) - 1;
@@ -830,7 +843,7 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
   const fat = fatigue(line, bowl, st.day);
   const p = new Array<number>(K);
   for (let k = 0; k < K; k++) {
-    let v = base[k] * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
+    let v = base[k] * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_WD[wd][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
       * bat.batMul[k] * bowl.bowlMul[k] * st.cond[k];
     if (team.bazball) v *= T_BAZ[k];
     if (k < IW && inn.cond) v *= inn.cond;
@@ -1155,18 +1168,62 @@ function bowlerLine(inn: TestInnings, id: string): TestBowlerLine {
   return (inn.bowlers[id] ??= { balls: 0, runs: 0, wickets: 0, maidens: 0, wides: 0, noBalls: 0, spellOvers: 0, spellPlan: 0, lastOver: -99 });
 }
 
+/** Batters still to come in, in batting order (a retired-hurt batter only comes back when nobody else is left) */
+export function testBatterQueue(inn: TestInnings): string[] {
+  const q = inn.order.filter(id => !inn.batters[id]);
+  return q.length > 0 ? q : [...(inn.retiredHurt ?? [])];
+}
+
+function bringIn(inn: TestInnings, id: string): string {
+  const back = inn.retiredHurt?.indexOf(id) ?? -1;
+  if (back >= 0) { inn.retiredHurt!.splice(back, 1); inn.batters[id].retiredHurt = false; return id; }
+  inn.arrived = Object.keys(inn.batters).length + 1;
+  inn.batters[id] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, arrived: inn.arrived };
+  return id;
+}
+
 function nextBatter(inn: TestInnings): string | null {
-  while (inn.arrived < inn.order.length) {
-    const id = inn.order[inn.arrived++];
-    if (!inn.batters[id]) {
-      inn.batters[id] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, arrived: inn.arrived };
-      return id;
-    }
+  const q = testBatterQueue(inn);
+  return q.length > 0 ? bringIn(inn, q[0]) : null;
+}
+
+/**
+ * Nightwatchman: a wicket falls with NIGHTWATCHMAN_OVERS or fewer left in the day (not the last day) and the side no more
+ * than five down; a tail-ender (the best-batting bowler still to come, below the next batter) goes in to see out the day.
+ * Cricsheet has no day markers, so how often captains do it cannot be fitted: real Tests have 0.88 tail-enders promoted
+ * above their usual place per Test, 13% of them in the six overs before the estimated close against 6% of other arrivals.
+ * The CPU sends one in NIGHTWATCHMAN_P of these situations (a judgement), about 0.2 a Test.
+ */
+export const NIGHTWATCHMAN_OVERS = 4;
+export const NIGHTWATCHMAN_P = 0.35;
+
+export function nightwatchmanCandidate(st: TestMatchState, inn: TestInnings): string | null {
+  if (st.day >= st.days || inn.wickets > 5 || st.dayCap - st.dayBalls / 6 > NIGHTWATCHMAN_OVERS) return null;
+  const q = inn.order.filter(id => !inn.batters[id]);
+  if (q.length < 2 || st.players[q[0]].role === "bowler") return null;
+  const tail = q.slice(1).filter(id => st.players[id].role === "bowler");
+  if (tail.length === 0) return null;
+  return tail.reduce((a, b) => (st.players[b].batValue > st.players[a].batValue ? b : a), tail[0]);
+}
+
+/** The CPU captain's next batter: a nightwatchman in that situation (NIGHTWATCHMAN_P), else the next in the order */
+function cpuNextBatter(st: TestMatchState, inn: TestInnings, rng: RNG): string | null {
+  const preset = inn.nextChoice;
+  inn.nextChoice = undefined;
+  const q = testBatterQueue(inn);
+  if (q.length === 0) return null;
+  if (preset && q.includes(preset)) return preset;
+  const nw = nightwatchmanCandidate(st, inn);
+  if (nw && rng() < NIGHTWATCHMAN_P) return nw;
+  return q[0];
+}
+
+function sendIn(st: TestMatchState, inn: TestInnings, id: string): void {
+  if (nightwatchmanCandidate(st, inn) === id) {
+    st.events.push({ day: st.day, inn: inn.number, overs: Math.floor(inn.legalBalls / 6), kind: "nightwatchman", text: `${st.players[id].name} comes in as nightwatchman.` });
   }
-  // a retired-hurt batter comes back when nobody else is left
-  const back = inn.retiredHurt?.shift();
-  if (back) { inn.batters[back].retiredHurt = false; return back; }
-  return null;
+  bringIn(inn, id);
+  if (inn.strikerId === "") inn.strikerId = id; else if (inn.nonStrikerId === "") inn.nonStrikerId = id;
 }
 
 /** Book a delivery into the innings; returns whether the innings ended on it */
@@ -1211,12 +1268,22 @@ function applyBall(st: TestMatchState, inn: TestInnings, ev: TestBallEvent): boo
       line.spellPlan = Math.max(line.spellPlan, line.spellOvers + 1 + WICKET_SPELL_EXTENSION);
     }
     inn.fow.push({ runs: inn.runs, wickets: inn.wickets, balls: inn.legalBalls, playerId: outId });
-    const incoming = nextBatter(inn);
-    if (!incoming) ended = true;
+    if (inn.wickets >= 10 || testBatterQueue(inn).length === 0) ended = true;
     else {
-      // the new batter takes the end of the one who is out; a run out with an odd number completed crossed first
-      if (outId === inn.strikerId) inn.strikerId = incoming; else inn.nonStrikerId = incoming;
+      // the new batter takes the end of the one who is out ("" while the user picks him); a run out with an odd number
+      // completed crossed first
+      if (outId === inn.strikerId) inn.strikerId = ""; else inn.nonStrikerId = "";
       if (ev.wicketType === "run_out" && ev.runs % 2 === 1) [inn.strikerId, inn.nonStrikerId] = [inn.nonStrikerId, inn.strikerId];
+      const nw = nightwatchmanCandidate(st, inn);
+      if (isUserSide(st, inn.battingTeamId) && (st.pickBatters || nw) && !(inn.nextChoice && !nw)) {
+        st.status = "waiting_for_decision";
+        st.pending = {
+          type: "next_batter", teamId: inn.battingTeamId, options: testBatterQueue(inn),
+          context: { suggested: inn.nextChoice ?? testBatterQueue(inn)[0], ...(nw ? { nightwatchman: nw, oversLeft: Math.round((st.dayCap - st.dayBalls / 6) * 10) / 10 } : {}) },
+        };
+      } else {
+        sendIn(st, inn, cpuNextBatter(st, inn, rngOf(st))!);
+      }
     }
   } else {
     const ran = ev.boundary ? 0 : ev.outcome === "wide" ? Math.max(0, (ev.wides ?? 1) - 1) % 5 : ev.runs + (ev.byes ?? 0) + (ev.legByes ?? 0);
@@ -1229,7 +1296,7 @@ function applyBall(st: TestMatchState, inn: TestInnings, ev: TestBallEvent): boo
   if (inn.wickets >= 10 || ended) { closeInnings(st, inn, "all_out"); return true; }
   if (inn.number === 4 && inn.runs >= (testTarget(st) ?? Infinity)) { closeInnings(st, inn, "target"); return true; }
   // a batter goes off hurt (Cricsheet Tests: 46 in 1.73m deliveries) and comes back if nobody else is left
-  if (legal && rngOf(st)() < RETIRED_HURT_PER_BALL) {
+  if (legal && inn.strikerId !== "" && inn.nonStrikerId !== "" && rngOf(st)() < RETIRED_HURT_PER_BALL) {
     const id = inn.strikerId;
     const incoming = nextBatter(inn);
     if (incoming) {
@@ -1565,6 +1632,14 @@ export function applyTestDecision(st: TestMatchState, choice: string): TestBallE
       if (choice === "take") takeNewBallNow(st, inn);
       return null;
     }
+    case "next_batter": {
+      st.pending = undefined;
+      st.status = "in_progress";
+      const inn = currentInnings(st)!;
+      inn.nextChoice = undefined;
+      sendIn(st, inn, choice);
+      return null;
+    }
     case "drs_batting":
     case "drs_fielding": {
       const ev = resolveHeld(st, choice === "review");
@@ -1584,6 +1659,11 @@ export function autoResolveTestDecision(st: TestMatchState): TestBallEvent | nul
     case "toss": return applyTestDecision(st, cpuTossDecision(st, rng));
     case "follow_on": return applyTestDecision(st, rng() < followOnProbability(st) ? "enforce" : "bat");
     case "new_ball": return applyTestDecision(st, "take");
+    case "next_batter": {
+      const inn = currentInnings(st)!;
+      const id = cpuNextBatter(st, inn, rng);
+      return applyTestDecision(st, id && p.options.includes(id) ? id : p.options[0]);
+    }
     case "drs_batting": {
       const h = st.heldBall!;
       const R = DRS_RATES[h.kind];
@@ -1595,6 +1675,14 @@ export function autoResolveTestDecision(st: TestMatchState): TestBallEvent | nul
       return applyTestDecision(st, h.trulyOut ? "review" : rng() < 0.5 ? "review" : "decline");
     }
   }
+}
+
+/** The batting side's next batter in at the next wicket (null: back to the order and the captain's nightwatchman call) */
+export function setNextBatter(st: TestMatchState, batterId: string | null): void {
+  const inn = currentInnings(st);
+  if (!inn) return;
+  if (batterId !== null && !testBatterQueue(inn).includes(batterId)) throw new Error(`${batterId} cannot come in next`);
+  inn.nextChoice = batterId ?? undefined;
 }
 
 /** The batting side declares now (between deliveries) */

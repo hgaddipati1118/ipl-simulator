@@ -3,9 +3,10 @@
  * decisions (docs/FORMATS-TEST.md section 4):
  *
  *  - pauses for: the toss call, enforcing the follow-on, the new ball when it falls due, DRS reviews (his batter given out
- *    lbw / caught behind; an appeal of his bowlers turned down);
+ *    lbw / caught behind; an appeal of his bowlers turned down), the next batter when a wicket falls late in the day (send a
+ *    nightwatchman?) or at every wicket with `pickBatters`;
  *  - between any two balls: declare, the batting approach (defend / normal / attack, or back to the captain's own policy),
- *    a bowling change (from the next over at the end that bowls next), the new ball once due.
+ *    the next batter in, a bowling change (from the next over at the end that bowls next), the new ball once due.
  *
  * Everything the user does not decide, the CPU captain does with the fitted policies (test-match.ts): bowling changes and
  * spells, declarations for CPU sides, the approach before a declaration, the follow-on and reviews when skipping with
@@ -16,7 +17,7 @@
 import type { Team } from "./team.js";
 import {
   applyTestDecision, autoResolveTestDecision, changeTestBowler, createTestMatch, currentInnings, declareInnings,
-  oversLeftInMatch, setTestApproach, stepTestBall, takeNewBall, testLead, testMatchResult, testTarget,
+  oversLeftInMatch, setNextBatter, setTestApproach, stepTestBall, takeNewBall, testLead, testMatchResult, testTarget,
   type TestApproach, type TestBallEvent, type TestMatchEvent, type TestMatchOptions, type TestMatchResult, type TestMatchState,
   type TestPendingDecision,
 } from "./test-match.js";
@@ -103,6 +104,13 @@ export function changeTestBowlerTo(st: TestMatchState, bowlerId: string, opts: {
   const inn = currentInnings(st);
   if (!inn || inn.bowlingTeamId !== st.userTeamId) throw new Error("The user's side is not fielding");
   changeTestBowler(st, bowlerId, opts);
+}
+
+/** The user's next batter in at the next wicket (null: back to the order and the captain's nightwatchman call) */
+export function setTestNextBatter(st: TestMatchState, batterId: string | null): void {
+  const inn = currentInnings(st);
+  if (!inn || inn.battingTeamId !== st.userTeamId) throw new Error("The user's side is not batting");
+  setNextBatter(st, batterId);
 }
 
 /** The CPU captain also takes the user's own decisions (declarations, approach, reviews, the follow-on) while on */
