@@ -195,7 +195,7 @@ a user side. The hashes on this branch equal the ones before the ODI work and on
   ODI run gain (`ODI_VENUE_RUN_GAIN` 1.6) is the T20 value, not separately calibrated.
 - The model has no match-level conditions (pitch, weather) beyond the ground; state effects such as "0 down after 30 overs" may
   partly carry good batting conditions with them.
-- The Duckworth-Lewis-Stern G for women's ODIs (225) is the data's first-innings average, not a published value; men's 245.
+- The Duckworth-Lewis-Stern G for women's ODIs (227) is the data's first-innings average, not a published value; men's 245.
 - Strategic decisions a real ODI captain makes (powerplay field choices, holding a bowler for a matchup) are not modelled.
 - `ODI_CAL` and the rating slopes are tuned on the national pools in this game; other XIs (franchise sides playing an ODI,
   generated players) are not validated.

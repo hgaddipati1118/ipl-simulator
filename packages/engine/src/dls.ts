@@ -75,10 +75,10 @@ export function dlsPar(team1Score: number, r1: number, r2Used: number, g: number
 export const DLS_G_T20 = 160;
 
 /**
- * G for a 50-over innings: men 245, the Standard Edition's G50 for men's ODIs between full members; women 225, the
+ * G for a 50-over innings: men 245, the Standard Edition's G50 for men's ODIs between full members; women 227, the
  * 2019+ average first-innings score of full women's ODIs in Cricsheet (docs/FORMATS.md).
  */
-export const DLS_G_ODI = { male: 245, female: 225 } as const;
+export const DLS_G_ODI = { male: 245, female: 227 } as const;
 
 /** G for a format with a full DLS table (the ODI); the T20 / Hundred value is scaled in the match engine */
 export function dlsGFor(fmt: { overs: number; totalBalls: number }, gender: "male" | "female" = "male"): number {
