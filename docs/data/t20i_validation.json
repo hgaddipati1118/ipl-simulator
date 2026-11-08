@@ -114,6 +114,11 @@
      "legbye": 0.01932
     }
    },
+   "phaseDeliveries": {
+    "powerplay": 32684,
+    "middle": 47051,
+    "death": 22413
+   },
    "fixtures": [
     [
      "Australia",
@@ -664,6 +669,11 @@
      "noball": 0.00688,
      "legbye": 0.0226
     }
+   },
+   "phaseDeliveries": {
+    "powerplay": 43518,
+    "middle": 63997,
+    "death": 30527
    },
    "fixtures": [
     [
@@ -1267,6 +1277,11 @@
      "noball": 0.00527,
      "legbye": 0.01289
     }
+   },
+   "phaseDeliveries": {
+    "powerplay": 4958,
+    "middle": 7272,
+    "death": 3413
    }
   },
   "wbbl": {
@@ -1351,6 +1366,100 @@
      "noball": 0.00373,
      "legbye": 0.02634
     }
+   },
+   "phaseDeliveries": {
+    "powerplay": 5800,
+    "middle": 8429,
+    "death": 4024
+   }
+  },
+  "hundred-w": {
+   "matches": 98,
+   "firstInnings": {
+    "runs": 126.2,
+    "sd": 24.5,
+    "p200": 1.0,
+    "wickets": 6.53,
+    "allOut": 11.2,
+    "extras": 6.9,
+    "wides": 3.87,
+    "noballs": 0.62,
+    "byes": 2.44,
+    "fours": 13.6,
+    "sixes": 2.0,
+    "runRate": [
+     6.97,
+     7.42,
+     8.61
+    ],
+    "wicketsPer20": [
+     6.22,
+     6.39,
+     12.54
+    ]
+   },
+   "secondInnings": {
+    "runs": 115.9,
+    "wickets": 5.5,
+    "allOut": 15.3,
+    "runRate": [
+     7.47,
+     7.47,
+     8.43
+    ]
+   },
+   "allInnings": {
+    "runs": 121.0,
+    "wickets": 6.02,
+    "allOut": 13.3,
+    "extras": 6.6,
+    "fours": 13.3,
+    "sixes": 1.8,
+    "legalBalls": 95.3
+   },
+   "battingFirstWins": 43.2,
+   "phaseShares": {
+    "powerplay": {
+     "dot": 0.43445,
+     "1": 0.22711,
+     "2": 0.04713,
+     "3": 0.00349,
+     "4": 0.15962,
+     "6": 0.01183,
+     "wicket": 0.0481,
+     "wide": 0.04403,
+     "noball": 0.00562,
+     "legbye": 0.01862
+    },
+    "middle": {
+     "dot": 0.27829,
+     "1": 0.42354,
+     "2": 0.06647,
+     "3": 0.00262,
+     "4": 0.12346,
+     "6": 0.01563,
+     "wicket": 0.05164,
+     "wide": 0.0234,
+     "noball": 0.00222,
+     "legbye": 0.01271
+    },
+    "death": {
+     "dot": 0.20322,
+     "1": 0.39555,
+     "2": 0.09463,
+     "3": 0.00331,
+     "4": 0.13059,
+     "6": 0.03123,
+     "wicket": 0.09865,
+     "wide": 0.02082,
+     "noball": 0.00686,
+     "legbye": 0.01514
+    }
+   },
+   "phaseDeliveries": {
+    "powerplay": 5156,
+    "middle": 9914,
+    "death": 4227
    }
   }
  }

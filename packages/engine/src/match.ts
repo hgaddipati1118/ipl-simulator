@@ -56,7 +56,7 @@ import {
   type WicketKind,
 } from "./fielding.js";
 import { T20_FORMAT, hasOwnBallModel, matchFormatFor, phaseOver, type MatchFormatSpec } from "./format.js";
-import { applyScoringContext, scoringContextFor, type T20Context } from "./t20i-context.js";
+import { applyScoringContext, scoringContextFor, type T20Context } from "./scoring-context.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
 import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
@@ -232,7 +232,7 @@ export interface VenueContext {
   chaseAdvantage: number;
   /** Men's or women's cricket (extras and dismissal mixes are fitted per gender) */
   gender?: Gender;
-  /** The competition's own fitted level (a T20I: t20i-context.ts); absent in league play */
+  /** The competition's own fitted level (a T20I: scoring-context.ts); absent in league play */
   context?: T20Context;
 }
 
@@ -906,7 +906,7 @@ function getVenueContext(
     };
   }
   const leagueChase = getLeagueChaseAdvantage(rules.league, rules.gender);
-  // A T20I: its own fitted level (t20i-context.ts); league play has none
+  // A T20I: its own fitted level (scoring-context.ts); league play has none
   const context = scoringContextFor(rules, fmt);
   if (options?.neutralVenue) {
     return {

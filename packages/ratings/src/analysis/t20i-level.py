@@ -1,13 +1,16 @@
 """
 The scoring level of real T20Is between full members since 2019 (men and women), the targets the engine's T20I context is
-fitted to (packages/app/src/__tests__/calibrate-t20i.test.ts writes packages/engine/src/t20i-context-data.ts from them),
-and the same measures for the women's leagues (WPL, WBBL; 2024-26) for comparison.
+fitted to (packages/app/src/__tests__/calibrate-contexts.test.ts writes packages/engine/src/t20i-context-data.ts from them),
+and the same measures for the women's leagues (WPL, WBBL, the women's Hundred; 2024-26), the targets of the women's league
+contexts (the same test file with CAL_LEAGUES=1 writes packages/engine/src/womens-league-context-data.ts).
 
 Inputs (read-only): data/analysis/deliveries.parquet, matches.parquet. Needs the `duckdb` CLI on PATH.
 Run from packages/ratings:  python3 -I src/analysis/t20i-level.py
 Output: docs/data/t20i_validation.json
 
-Matches: full 20-over matches (no overs lost: the chase's target overs 20), no DLS or awarded results, no super-over balls.
+Matches: full 20-over matches (no overs lost: the chase's target overs 20; The Hundred: 20 sets of five), no DLS or awarded
+results, no super-over balls. The Hundred's phases are its sets as the engine maps them onto the T20 timeline (format.ts
+phaseOver): the powerplay sets 1-5, the middle 6-15, the death 16-20; its run rates are per six legal balls.
 T20Is: Cricsheet match_type T20 / IT20, team_type international, both sides among the twelve full members, 2019 onwards.
 
 Per gender: first-innings totals (mean, sd, 200+), wickets, all-out share, run rate by phase (overs 1-6, 7-15, 16-20), the
@@ -32,7 +35,9 @@ FULL_MEMBERS = ["Afghanistan", "Australia", "Bangladesh", "England", "India", "I
                 "South Africa", "Sri Lanka", "West Indies", "Zimbabwe"]
 CLASSES = ["dot", "1", "2", "3", "4", "6", "wicket", "wide", "noball", "legbye"]
 PHASES = [("powerplay", 0, 5), ("middle", 6, 14), ("death", 15, 19)]
-LEAGUES = {"wpl": "Women's Premier League", "wbbl": "Women's Big Bash League"}
+# league id -> (Cricsheet event, The Hundred?)
+LEAGUES = {"wpl": ("Women's Premier League", False), "wbbl": ("Women's Big Bash League", False),
+           "hundred-w": ("The Hundred Women's Competition", True)}
 
 
 TMP = Path(tempfile.mkdtemp())
@@ -51,12 +56,13 @@ def run(sql: str, json_out: bool = True) -> list:
     return [{k: float(v) if isinstance(v, str) and num.match(v) and k != "cls" else v for k, v in row.items()} for row in rows]
 
 
-def measures(where_matches: str) -> dict:
+def measures(where_matches: str, hundred: bool = False) -> dict:
     """Every measure for the matches selected by `where_matches` (a WHERE clause on matches m), per gender"""
     cls = ("CASE WHEN wides > 0 THEN 'wide' WHEN noballs > 0 THEN 'noball' WHEN is_wicket > 0 THEN 'wicket' "
            "WHEN byes + legbyes > 0 AND runs_batter = 0 THEN 'legbye' WHEN runs_batter >= 6 THEN '6' WHEN runs_batter >= 4 THEN '4' "
            "WHEN runs_batter = 0 THEN 'dot' ELSE runs_batter::VARCHAR END")
-    phase = "CASE WHEN over <= 5 THEN 'powerplay' WHEN over <= 14 THEN 'middle' ELSE 'death' END"
+    phase = ("CASE WHEN over <= 4 THEN 'powerplay' WHEN over <= 14 THEN 'middle' ELSE 'death' END" if hundred else
+             "CASE WHEN over <= 5 THEN 'powerplay' WHEN over <= 14 THEN 'middle' ELSE 'death' END")
     legal = "(wides = 0 AND noballs = 0)::INT"
     run(f"""
 CREATE OR REPLACE TABLE m AS SELECT * FROM 'matches.parquet' m WHERE {where_matches} AND outcome_method IS NULL;
@@ -104,6 +110,7 @@ CREATE OR REPLACE TABLE inn AS SELECT match_id, innings, gender, any_value(batti
             "battingFirstWins": round(100 * r["batfirst"], 1),
             "phaseShares": {p: {c: round(next((x["n"] for x in shares if x["gender"] == r["gender"] and x["phase"] == p and x["cls"] == c), 0) / tot[p], 5)
                                 for c in CLASSES} for p, _, _ in PHASES},
+            "phaseDeliveries": {p: int(tot[p]) for p, _, _ in PHASES},
             "fixtures": [[x["team1"], x["team2"], x["n"]] for x in fixtures if x["gender"] == r["gender"]],
         }
     return out
@@ -114,9 +121,9 @@ def main() -> None:
     t20i = measures(f"m.match_type IN ('T20', 'IT20') AND m.team_type = 'international' AND m.date >= DATE '2019-01-01' "
                     f"AND m.team1 IN ({fm}) AND m.team2 IN ({fm})")
     leagues = {}
-    for lid, event in LEAGUES.items():
+    for lid, (event, hundred) in LEAGUES.items():
         quoted = event.replace("'", "''")
-        res = measures(f"m.match_type = 'T20' AND m.event = '{quoted}' AND m.date >= DATE '2024-01-01'")
+        res = measures(f"m.event = '{quoted}' AND m.date >= DATE '2024-01-01'", hundred)
         lg = res["women"]
         lg.pop("fixtures", None)
         leagues[lid] = lg

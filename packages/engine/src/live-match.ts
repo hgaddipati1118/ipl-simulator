@@ -13,7 +13,7 @@ import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
 import { createRNG, randomSeed, type RNG } from "./rng.js";
 import { getVenueProfileForTeam, getLeagueChaseAdvantage, getNeutralVenueProfile, getOdiVenueProfile, type VenueProfile } from "./venues.js";
 import { stadiumRatingFor, planRain, ballProbabilities, type RainPlan, type VenueContext } from "./match.js";
-import { scoringContextFor, type T20Context } from "./t20i-context.js";
+import { scoringContextFor, type T20Context } from "./scoring-context.js";
 import {
   type BattingHand,
   type BowlingStyle,
@@ -548,7 +548,7 @@ function randomWicketType(rng: RNG = Math.random): "bowled" | "caught" | "lbw" |
 /** What the Laws add to a live ball: free hit, gender (fitted rates), substitute fielders */
 interface LiveRulesCtx {
   freeHit: boolean;
-  /** The competition's own fitted level (a T20I: t20i-context.ts) */
+  /** The competition's own fitted level (a T20I: scoring-context.ts) */
   context?: T20Context;
   /** The slow over-rate restriction is on (one fewer fielder outside the circle) */
   overRatePenalty?: boolean;
