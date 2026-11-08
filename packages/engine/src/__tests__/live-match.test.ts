@@ -130,7 +130,8 @@ function buildSpinHeavyTeam(configIdx: number, configOverride: Partial<TeamConfi
   return team;
 }
 
-function averageLiveFirstInnings(matches: number, homeFactory: () => Team, awayFactory: () => Team): {
+/** Seeded (seed, seed + 1, ...): two calls with the same seeds play the same matches but for what differs, the pitch here */
+function averageLiveFirstInnings(matches: number, homeFactory: () => Team, awayFactory: () => Team, seed = 1): {
   runs: number;
   wickets: number;
 } {
@@ -138,7 +139,7 @@ function averageLiveFirstInnings(matches: number, homeFactory: () => Team, awayF
   let wickets = 0;
 
   for (let i = 0; i < matches; i++) {
-    const initial = createMatchState(homeFactory(), awayFactory(), RULE_PRESETS.modern, null);
+    const initial = createMatchState(homeFactory(), awayFactory(), RULE_PRESETS.modern, null, seed + i);
     const { state } = simulateRemaining(initial);
     runs += state.innings1Score ?? 0;
     wickets += state.innings1Wickets ?? 0;
@@ -425,7 +426,8 @@ describe("live match venue logic", () => {
   });
 
   it("turning pitches suppress spin-heavy first innings scoring in aggregate", { timeout: 120000 }, () => {
-    const matches = 16;
+    // the same 40 seeded matches on each pitch (paired), so the comparison isn't drowned in match-to-match noise
+    const matches = 40;
     const flat = averageLiveFirstInnings(
       matches,
       () => buildSpinHeavyTeam(0, { id: "custom-flat", pitchType: "flat", boundarySize: "medium", dewFactor: "none", stadiumBowlingRating: 1.0 }),
