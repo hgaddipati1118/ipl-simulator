@@ -4,7 +4,7 @@ import { RATING_FORMATS, type RatingFormat } from "../format-ratings";
 /** T20 / ODI / Test segmented switch for rating views */
 export function FormatSwitch({ value, onChange, className = "" }: { value: RatingFormat; onChange: (f: RatingFormat) => void; className?: string }) {
   return (
-    <div role="group" aria-label="Ratings format" className={`flex w-full rounded-xl border border-th bg-th-surface p-0.5 sm:w-auto ${className}`}>
+    <div role="group" aria-label="Ratings format" className={`flex w-full rounded-xl border border-th bg-th-surface p-0.5 sm:inline-flex sm:w-auto ${className}`}>
       {RATING_FORMATS.map(f => (
         <button
           key={f.id}
