@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { type Player, type AuctionState, getBidIncrement, getBasePrice } from "@ipl-sim/engine";
-import { GameState } from "../game-state";
+import { type Player, type AuctionState, getBidIncrement, getBasePrice, maxBidKeepingReserve, squadReserve, squadTarget } from "@ipl-sim/engine";
+import { GameState, auctionConfigFor } from "../game-state";
 import { ovrColorClass, roleLabel, bowlingStyleLabel, battingHandLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerAvatar } from "../components/PlayerAvatar";
@@ -226,8 +226,13 @@ export function AuctionPage({
   const userIsHighest = auction.currentBidderId === state.userTeamId;
   const nextIncrement = getBidIncrement(auction.currentBid);
   const nextBidAmount = Math.round((auction.currentBid + nextIncrement) * 100) / 100;
+  // The purse reserve CPU bids keep (30 lakh per further place to the target squad) holds for the user's bids too, so
+  // the squad can always be completed without going overdrawn (RULES-AUCTION.md section 10)
+  const auctionConfig = auctionConfigFor(state.rules);
+  const userMaxBid = userTeam ? maxBidKeepingReserve(userTeam, auctionConfig, currentPlayer) : 0;
+  const bidBreaksReserve = !!userTeam && userTeam.remainingBudget >= nextBidAmount && nextBidAmount > userMaxBid + 1e-9;
   const canUserBid = auction.phase === "bidding" && userInBidding && !userIsHighest &&
-    userTeam && userTeam.remainingBudget >= nextBidAmount;
+    userTeam && userTeam.remainingBudget >= nextBidAmount && !bidBreaksReserve;
 
   const totalPlayers = auction.players.length;
   const completedCount = auction.completedBids.length + auction.unsold.length;
@@ -447,6 +452,13 @@ export function AuctionPage({
                     >
                       Sim Player
                     </button>
+                    {userTeam && userInBidding && !userIsHighest && bidBreaksReserve && (
+                      <p className="w-full text-[11px] text-amber-300 font-display" data-testid="bid-reserve-warning">
+                        {userMaxBid < 0
+                          ? "Your last place has to go to a wicketkeeper: you can't bid on this player."
+                          : `Keeping ${squadReserve(userTeam, auctionConfig, currentPlayer).toFixed(2)} Cr to fill your squad to ${squadTarget(auctionConfig)}${userTeam.roster.some(p => p.isWicketKeeper) ? "" : " with a keeper"}: you can bid up to ${userMaxBid.toFixed(2)} Cr.`}
+                      </p>
+                    )}
                   </>
                 )}
 

@@ -188,25 +188,29 @@ export function getMaxRetentions(auctionType: AuctionType, rules: RuleSet): numb
   return rules.maxMiniRetentions ?? 25; // Mini: keep full roster (effectively unlimited)
 }
 
+/** The IPL's purse increases between seasons: +5 Cr a year, +20 Cr at a mega auction (2025 120 -> 2026 125 -> 2027 130 -> 2028 150) */
+export const IPL_PURSE_RAISE = { mini: 5, mega: 20 } as const;
+/** The purse those raises belong to */
+const IPL_RAISE_BASE_PURSE = 120;
+
 /** Get the effective salary cap for a given season.
- *  Matches real IPL pattern: big jump at mega auctions (~15-20 Cr),
- *  small increase in mini auction years (~5 Cr).
- *  Real IPL: 2025=120Cr, 2026=125Cr, 2027=130Cr → 2028 mega=150Cr */
+ *  The IPL keeps its real pattern: a big jump at a mega auction (+20 Cr), a small rise in mini-auction years (+5 Cr),
+ *  rounded to 5 Cr. Every other league grows by the same share of its own purse (WPL 12 Cr: +0.5 and +2 Cr), rounded
+ *  to 0.5 Cr, instead of the IPL's crores (which took the WPL from 12 to 42 Cr by season 4). */
 export function getSeasonSalaryCap(seasonNumber: number, rules: RuleSet): number {
   const baseCap = rules.salaryCap;
   const cycle = rules.megaAuctionCycle ?? 3;
+  const ipl = rules.league === "ipl";
+  const scale = ipl ? 1 : baseCap / IPL_RAISE_BASE_PURSE;
   let cap = baseCap;
 
   for (let s = 2; s <= seasonNumber; s++) {
     const isMega = (s - 1) % cycle === 0;
-    if (isMega) {
-      cap += 20; // Big jump at mega auction (~15-20 Cr, matching 90→110→120→150 pattern)
-    } else {
-      cap += 5;  // Small annual increase (~5 Cr, matching 120→125→130 pattern)
-    }
+    cap += (isMega ? IPL_PURSE_RAISE.mega : IPL_PURSE_RAISE.mini) * scale;
   }
 
-  return Math.round(cap / 5) * 5; // Round to nearest 5
+  const step = ipl ? 5 : 0.5;
+  return Math.round(cap / step) * step;
 }
 
 /** Get the effective retention count for a given mega auction season.

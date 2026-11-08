@@ -22,6 +22,7 @@ import {
   simRemainingAuction as engineSimRemainingAuction,
   evaluateRetentionSelection,
   retentionCostScale,
+  cpuMiniReleases,
   RETENTION_BUDGET,
   MAX_RETENTIONS,
   buildAuctionPool,
@@ -120,11 +121,17 @@ export interface PlayerSeasonStat {
 }
 
 export interface RetentionState {
+  /**
+   * "mega": retain up to the league's retention limit on the fixed slabs, everyone else is released.
+   * "mini" (between mega auctions): keep the squad on its current contracts and release who you choose; the purse
+   * for the auction is the cap less what the kept squad is paid. Absent in saves from before it: mega.
+   */
+  mode?: "mega" | "mini";
   retained: string[];    // player IDs the user chose to keep
   released: string[];    // player IDs the user chose to release
-  budget: number;        // remaining retention budget
-  totalCost: number;     // total cost of retained players
-  costs: Record<string, number>; // retention cost by player ID
+  budget: number;        // mega: retention budget left; mini: the purse for the auction
+  totalCost: number;     // mega: retention cost of the retained; mini: their contracts
+  costs: Record<string, number>; // mega: retention cost by player ID; mini: contract (bid) by player ID
   cpuDone: boolean;      // whether CPU teams have done retention
 }
 
@@ -193,7 +200,8 @@ export interface GameState {
    * last auction (expired contracts, retention) or added to the pool by the user (ratings page, an imported file)
    */
   auctionEntrantIds?: string[];
-  /** Unsold at the last auction (the first time): they re-enter the next one. Unsold again, they are ordinary free agents. */
+  /** Unsold at the last auction (the first time): they have the first claim on the next one's shortlist after the
+   *  must-includes and the role cover. Unsold again, they are ordinary free agents. */
   lastAuctionUnsoldIds?: string[];
 }
 
@@ -206,10 +214,70 @@ export function auctionConfigFor(rules: RuleSet): AuctionConfig {
   };
 }
 
-/** Retention terms for a league: up to six players on the IPL's fixed slabs, the slabs and budget scaled to a smaller purse */
-export function retentionTerms(rules: RuleSet): { budget: number; max: number; costScale: number } {
+/**
+ * Retention terms for a season of a league (RULES-RETENTION.md). Before a mega auction: up to the league's retention
+ * limit (`rules.maxRetentions`, 6 by default, +1 every third mega auction: getScaledRetentions) on the IPL's fixed
+ * slabs, the slabs and budget scaled to a smaller purse. Before a mini auction: keep any of the squad on its current
+ * contracts (the limit is the squad itself).
+ */
+export function retentionTerms(rules: RuleSet, seasonNumber: number): { mode: "mega" | "mini"; budget: number; max: number; costScale: number } {
+  const mode = getAuctionType(seasonNumber, rules);
   const costScale = retentionCostScale(rules.salaryCap, rules.league);
-  return { budget: Math.round(RETENTION_BUDGET * costScale * 100) / 100, max: MAX_RETENTIONS, costScale };
+  return {
+    mode,
+    budget: Math.round(RETENTION_BUDGET * costScale * 100) / 100,
+    max: mode === "mega" ? getScaledRetentions(seasonNumber, rules) : rules.maxSquadSize,
+    costScale,
+  };
+}
+
+/** The user's retention choice to start from: a mega year releases everyone until retained, a mini year keeps everyone */
+function initialRetentionState(state: GameState): RetentionState {
+  const userTeam = state.teams.find(t => t.id === state.userTeamId);
+  const terms = retentionTerms(state.rules, state.seasonNumber);
+  if (terms.mode === "mini" && userTeam) {
+    return { mode: "mini", ...miniRetentionTotals(userTeam, userTeam.roster.map(p => p.id)), cpuDone: false };
+  }
+  return {
+    mode: "mega",
+    retained: [],
+    released: userTeam?.roster.map(p => p.id) ?? [],
+    budget: terms.budget,
+    totalCost: 0,
+    costs: {},
+    cpuDone: false,
+  };
+}
+
+/**
+ * A mini-year choice the auction couldn't complete: the purse left is less than 30 lakh for each place still needed
+ * to reach the minimum squad. Returns the shortfall in crores (0 when the choice is fine).
+ */
+export function miniRetentionShortfall(state: GameState): number {
+  const r = state.retentionState;
+  if (!r || r.mode !== "mini") return 0;
+  const minSquad = auctionConfigFor(state.rules).minSquadSize;
+  const needed = 0.3 * Math.max(0, minSquad - r.retained.length);
+  return Math.max(0, Math.round((needed - r.budget) * 100) / 100);
+}
+
+/** A mini-year choice: the kept players' contracts, and the purse left for the auction */
+function miniRetentionTotals(team: Team, keptIds: readonly string[]): Pick<RetentionState, "retained" | "released" | "budget" | "totalCost" | "costs"> {
+  const kept = new Set(keptIds);
+  const costs: Record<string, number> = {};
+  let totalCost = 0;
+  for (const p of team.roster) {
+    costs[p.id] = p.bid;
+    if (kept.has(p.id)) totalCost += p.bid;
+  }
+  totalCost = Math.round(totalCost * 100) / 100;
+  return {
+    retained: team.roster.filter(p => kept.has(p.id)).map(p => p.id),
+    released: team.roster.filter(p => !kept.has(p.id)).map(p => p.id),
+    budget: Math.round((team.salaryCap - totalCost) * 100) / 100,
+    totalCost,
+    costs,
+  };
 }
 
 /** Add players to the must-include list of the next auction */
@@ -443,7 +511,24 @@ function localizeForLeague(rules: RuleSet, players: Player[], homeGrown = false)
 }
 
 /** Fresh state for a set of teams and a free-agent pool. */
+/**
+ * The shipped squads come with what their players were paid (real IPL prices) or market-value stand-ins (the other
+ * leagues), which can add up to more than the league's purse: SA20 squads 180 Cr of 85, the WPL's 50 of 12, the IPL's
+ * 2026 squads of the classic era's 90. A team over its purse has every contract scaled down by the same factor to fit,
+ * so the squad a mini auction year carries over (RULES-RETENTION.md section 2) is within the cap.
+ */
+export function fitContractsToPurse(teams: readonly Team[]): void {
+  for (const team of teams) {
+    const total = team.roster.reduce((n, p) => n + p.bid, 0);
+    if (total <= team.salaryCap) continue;
+    const factor = team.salaryCap / total;
+    for (const p of team.roster) p.bid = Math.floor(p.bid * factor * 100) / 100;
+    team.totalSpent = Math.round(team.roster.reduce((n, p) => n + p.bid, 0) * 100) / 100;
+  }
+}
+
 function initialGameState(rules: RuleSet, teams: Team[], playerPool: Player[]): GameState {
+  fitContractsToPurse(teams);
   return {
     phase: "setup",
     rules,
@@ -585,6 +670,7 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES, extraPool: Exten
     ...generatePlayerPool(supplementCount - womenSupplement),
     ...generatePlayerPool(womenSupplement, Math.random, "female"),
   ];
+  fitContractsToPurse(teams);
 
   return {
     phase: "setup",
@@ -631,15 +717,14 @@ export function addPlayerToPool(state: GameState, data: ExtendedPlayer): GameSta
 
 /**
  * The next auction's pool from the free agents (RULES-AUCTION.md section 10): the must-includes (released since the
- * last auction, unsold at it, added by the user, this off-season's academy prospects), then the best free agents by
- * value with enough keepers, spinners, pacers, overseas and domestic players for what the teams need, sized for a
- * mini or mega auction in this league. The "Deep" pool puts every free agent in.
+ * last auction, added by the user, this off-season's academy prospects), enough keepers, spinners, pacers, overseas
+ * and domestic players for what the teams need, then the last auction's unsold (re-registering) and the best free
+ * agents by value up to the size of a mini or mega auction in this league. The "Deep" pool puts every free agent in.
  */
 export function buildAuctionPoolFor(state: GameState) {
   const pool = new Set(state.playerPool.map(p => p.id));
   const mustInclude = [
     ...(state.auctionEntrantIds ?? []),
-    ...(state.lastAuctionUnsoldIds ?? []),
     ...state.youthProspects.map(y => y.player.id),
   ].filter(id => pool.has(id));
   return buildAuctionPool(state.playerPool, state.teams, {
@@ -647,6 +732,7 @@ export function buildAuctionPoolFor(state: GameState) {
     maxSquadSize: state.rules.maxSquadSize,
     maxOverseasInSquad: state.rules.maxOverseasInSquad,
     mustInclude,
+    preferred: (state.lastAuctionUnsoldIds ?? []).filter(id => pool.has(id)),
     deep: state.rules.poolDepth === "deep",
   });
 }
@@ -1449,17 +1535,9 @@ export function nextSeason(state: GameState): GameState {
 
   if (auctionType === "mega") {
     // Set up retention state for mega auction
-    const userTeam = baseNextState.teams.find(t => t.id === baseNextState.userTeamId);
     return progressStateScoutingAssignments(withSyncedScouting({
       ...baseNextState,
-      retentionState: {
-        retained: [],
-        released: userTeam?.roster.map(p => p.id) ?? [],
-        budget: retentionTerms(state.rules).budget,
-        totalCost: 0,
-        costs: {},
-        cpuDone: false,
-      },
+      retentionState: initialRetentionState(baseNextState),
     }, state.seasonNumber + 1));
   }
 
@@ -1893,18 +1971,10 @@ export function releaseExpiredUserContracts(state: GameState): GameState {
 
 /** Start the retention phase after trade window */
 export function startRetention(state: GameState): GameState {
-  const userTeam = state.teams.find(t => t.id === state.userTeamId);
   return withSyncedScouting({
     ...state,
     phase: "retention",
-    retentionState: {
-      retained: [],
-      released: userTeam?.roster.map(player => player.id) ?? [],
-      budget: retentionTerms(state.rules).budget,
-      totalCost: 0,
-      costs: {},
-      cpuDone: false,
-    },
+    retentionState: initialRetentionState(state),
   });
 }
 
@@ -1922,10 +1992,15 @@ export function togglePlayerRetention(state: GameState, playerId: string): GameS
     ? state.retentionState.retained.filter(id => id !== playerId)
     : [...state.retentionState.retained, playerId];
 
+  // Mini year: keep or release on the current contract, no slabs
+  if (state.retentionState.mode === "mini") {
+    return { ...state, retentionState: { ...state.retentionState, ...miniRetentionTotals(userTeam, nextRetained) } };
+  }
+
   const retainedPlayers = nextRetained
     .map(id => userTeam.roster.find(p => p.id === id))
     .filter((p): p is Player => p !== undefined);
-  const terms = retentionTerms(state.rules);
+  const terms = retentionTerms(state.rules, state.seasonNumber);
   const evaluation = evaluateRetentionSelection(retainedPlayers, terms.budget, terms.max, terms.costScale);
   if (!evaluation.valid) return state;
 
@@ -1954,11 +2029,15 @@ export function runCPURetentions(state: GameState): GameState {
   if (!state.retentionState || state.retentionState.cpuDone) return state;
 
   const releasedToPool: Player[] = [];
-  const terms = retentionTerms(state.rules);
+  const terms = retentionTerms(state.rules, state.seasonNumber);
+  const mini = state.retentionState.mode === "mini";
 
   for (const team of state.teams) {
     if (team.id === state.userTeamId) continue;
-    const { released } = retainPlayers(team, terms.budget, terms.max, terms.costScale);
+    // mini year: keep most of the squad (the overpaid and oldest go); mega year: retain up to the limit on the slabs
+    const released = mini
+      ? cpuMiniReleases(team, auctionConfigFor(state.rules))
+      : retainPlayers(team, terms.budget, terms.max, terms.costScale).released;
     releasedToPool.push(...released);
   }
 
@@ -1977,12 +2056,30 @@ export function finishRetention(state: GameState): GameState {
   if (!state.retentionState) return state;
 
   const userTeam = state.teams.find(t => t.id === state.userTeamId);
-  if (userTeam) {
+  // a mini-year choice whose purse couldn't fill the squad to the minimum: the page asks for more releases first
+  if (miniRetentionShortfall(state) > 0) return state;
+  if (userTeam && state.retentionState.mode === "mini") {
+    // Mini year: the released leave on their contracts' money (the purse grows by it); the kept stay as they are
+    const kept = new Set(state.retentionState.retained);
+    const released: Player[] = [];
+    for (const p of [...userTeam.roster]) {
+      if (kept.has(p.id)) continue;
+      const out = userTeam.removePlayer(p.id);
+      if (!out) continue;
+      out.teamId = undefined;
+      out.bid = 0;
+      released.push(out);
+    }
+    state = {
+      ...withAuctionEntrants(state, released),
+      playerPool: [...state.playerPool, ...released],
+    };
+  } else if (userTeam) {
     const { retained } = state.retentionState;
     const retainedPlayers = retained
       .map(id => userTeam.roster.find(player => player.id === id))
       .filter((player): player is Player => player !== undefined);
-    const terms = retentionTerms(state.rules);
+    const terms = retentionTerms(state.rules, state.seasonNumber);
     const evaluation = evaluateRetentionSelection(retainedPlayers, terms.budget, terms.max, terms.costScale);
     if (!evaluation.valid) return state;
 
@@ -2038,7 +2135,8 @@ export function initLiveAuction(state: GameState): GameState {
 /** User bids on the current player in live auction */
 export function liveAuctionUserBid(state: GameState): GameState {
   if (!state.auctionLiveState || !state.userTeamId) return state;
-  const next = engineUserBid(state.auctionLiveState, state.teams, state.userTeamId);
+  // the same purse reserve as a CPU bid: the squad can always be completed without going overdrawn
+  const next = engineUserBid(state.auctionLiveState, state.teams, state.userTeamId, auctionConfigFor(state.rules));
   return { ...state, auctionLiveState: next };
 }
 
