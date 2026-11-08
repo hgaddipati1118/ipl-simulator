@@ -29,7 +29,7 @@
  *     and extras in ODIs / Tests), each attribute's blend of z-scores (calculator.ts weights, format populations) mapped
  *     by percentile among the format's regulars onto the T20 attribute distribution of T20 regulars; a side without a
  *     usable record keeps the T20 mix. The side's attributes are then shifted together to its overall (model-ratings.ts
- *     shiftTo); clutch, fielding and keeping are the T20 values. Finally the set is normalised the way
+ *     shiftTo); fielding and keeping are the T20 values, clutch too except for a format-mixed bowling side (below). Finally the set is normalised the way
  *     createPlayerFromData normalises T20 ratings (secondary discipline, clutch), with the player's T20 role (his format
  *     views share it), so it is runtime-ready.
  *  A set is "data" when the player's main discipline (his better T20 side) is measured in the format, else "derived".
@@ -50,10 +50,10 @@ import { decodeShard, encodeShard, POOL_VERSION, type PoolManifest, type PoolRow
 import { CORE_KEYS, encodeSet, FORMAT_RATINGS_VERSION, type EncodedSet, type FormatRatingsFile } from "../format-ratings.js";
 import { shiftTo, type GameRatings } from "./model-ratings.js";
 import {
-  buildContext, caParams, doesSide, doesSideNow, estimateFormat, fitLine, fitTranslations, linkCurve, loadCaFormats, percentile, quantile, RANK_CONSERVATISM, readCurve, REGULAR_BALLS,
-  type CaPlayerFormats, type EstimateContext, type FormatScore, type Gender, type Side, SIDES,
+  bowlingWorkload, buildContext, caParams, doesSide, doesSideNow, estimateFormat, formatRole, loadRelativeRates, fitLine, fitTranslations, linkCurve, loadCaFormats, percentile, quantile, RANK_CONSERVATISM, readCurve, REGULAR_BALLS,
+  type CaPlayerFormats, type EstimateContext, type FormatScore, type Gender, type RelativeRates, type Side, SIDES,
 } from "./format-model.js";
-import { validate, type FormatValidation } from "./format-validation.js";
+import { checkIntlEvidence, validate, type FormatValidation } from "./format-validation.js";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const DIR = `${ROOT}data/analysis/`;
@@ -270,8 +270,16 @@ function populationRates(stats: Map<number, FormatStats>): PopRates {
   };
 }
 
-function batFeatures(s: NonNullable<FormatStats["bat"]>, pop: PopRates, n0: number): Features {
+/**
+ * Batting style features. With `rel` (career rates against the competition-season averages, loadRelativeRates) the
+ * scoring and survival rates are relative, so a Ranji Trophy average is not set against county or Test scoring; the
+ * boundary and dot-ball rates stay raw against today's regulars.
+ */
+function batFeatures(s: NonNullable<FormatStats["bat"]>, pop: PopRates, n0: number, rel?: RelativeRates): Features {
   const balls = s.balls + n0, runs = s.runs + n0 * pop.rpb, outs = s.outs + n0 * pop.opb;
+  // relative rates shrunk toward average (1) with the same pseudo-balls
+  const relRuns = rel ? (rel.runs * s.balls + n0) / (s.balls + n0) : undefined;
+  const relOuts = rel ? (rel.outs * s.balls + n0) / (s.balls + n0) : undefined;
   const share = s.bndBalls > 0 ? Math.min(1, s.bndBalls / s.balls) : 0;
   const bndBalls = s.bndBalls + n0, fours = s.fours + n0 * pop.four, sixes = s.sixes + n0 * pop.six;
   // Boundaries on the innings that record them, scaled to all balls faced, for the runs not from boundaries
@@ -279,37 +287,53 @@ function batFeatures(s: NonNullable<FormatStats["bat"]>, pop: PopRates, n0: numb
   const nonBnd = Math.max(0, s.runs - bndRuns) + n0 * (pop.rpb - 4 * pop.four - 6 * pop.six);
   const hasDots = (s.dotBalls ?? 0) >= MIN_CRICSHEET_BALLS;
   return {
-    avg: runs / Math.max(0.5, outs), sr: (100 * runs) / balls, bpo: balls / Math.max(0.5, outs),
-    bdry: (fours + sixes) / bndBalls, six: sixes / bndBalls, srnb: (100 * nonBnd) / balls,
+    avg: relRuns !== undefined ? relRuns / Math.max(0.05, relOuts!) : runs / Math.max(0.5, outs),
+    sr: relRuns ?? (100 * runs) / balls,
+    bpo: relOuts !== undefined ? 1 / Math.max(0.05, relOuts) : balls / Math.max(0.5, outs),
+    bdry: (fours + sixes) / bndBalls, four: fours / bndBalls, six: sixes / bndBalls, srnb: (100 * nonBnd) / balls,
     dot: hasDots ? ((s.dots ?? 0) + n0 * pop.dot) / (s.dotBalls! + n0) : undefined,
     exp: Math.log1p(s.matches),
   };
 }
 
-function bowlFeatures(s: NonNullable<FormatStats["bowl"]>, pop: PopRates, n0: number): Features {
+/** Bowling style features; with `rel`, economy and strike rate are relative to the competition-seasons he bowled in */
+function bowlFeatures(s: NonNullable<FormatStats["bowl"]>, pop: PopRates, n0: number, rel?: RelativeRates): Features {
   const balls = s.balls + n0;
   const hasCs = (s.legal ?? 0) >= MIN_CRICSHEET_BALLS;
   return {
-    wpb: (s.wkts + n0 * pop.wpb) / balls, rpb: (s.runs + n0 * pop.brpb) / balls, bpi: s.balls / Math.max(1, s.inns),
+    wpb: rel ? (rel.outs * s.balls + n0) / balls : (s.wkts + n0 * pop.wpb) / balls,
+    rpb: rel ? (rel.runs * s.balls + n0) / balls : (s.runs + n0 * pop.brpb) / balls,
+    bpi: s.balls / Math.max(1, s.inns),
     dot: hasCs ? ((s.dots ?? 0) + n0 * pop.bdot) / (s.legal! + n0) : undefined,
     extras: hasCs ? ((s.extras ?? 0) + n0 * pop.extras) / (s.legal! + n0) : undefined,
     exp: Math.log1p(s.matches),
   };
 }
 
-/** Weighted z-score blends per attribute (calculator.ts weights; dot balls and extras where Cricsheet has them) */
-const BAT_BLEND: Record<(typeof BAT_KEYS)[number], [string, number][]> = {
-  battingIQ: [["avg", 0.40], ["bpo", 0.25], ["srnb", 0.20], ["exp", 0.05], ["-dot", 0.10]],
-  timing: [["avg", 0.25], ["bpo", 0.20], ["srnb", 0.20], ["sr", 0.20], ["bdry", 0.15]],
-  power: [["sr", 0.2], ["bdry", 0.4], ["six", 0.4]],
-  // The game's T20 running is the ratings model's running component, not age: here non-boundary scoring and strike rotation
-  running: [["sr", 0.3], ["srnb", 0.5], ["-dot", 0.2]],
+/**
+ * Weighted z-score blends for the style attributes (dot balls and extras where Cricsheet has them). As the engines read
+ * them: timing carries the four rate, power the six rate, running non-boundary scoring and strike rotation (the game's
+ * T20 running is the ratings model's running component, not age), economy runs conceded, accuracy control. battingIQ and
+ * wicketTaking are not blended: they carry the side's level (see LEVEL_KEY).
+ */
+const BAT_STYLE_KEYS = ["timing", "power", "running"] as const;
+const BOWL_STYLE_KEYS = ["economy", "accuracy"] as const;
+const BAT_BLEND: Record<(typeof BAT_STYLE_KEYS)[number], [string, number][]> = {
+  timing: [["four", 0.7], ["sr", 0.15], ["avg", 0.15]],
+  power: [["six", 0.6], ["bdry", 0.2], ["sr", 0.2]],
+  running: [["srnb", 0.5], ["sr", 0.2], ["-dot", 0.3]],
 };
-const BOWL_BLEND: Record<(typeof BOWL_KEYS)[number], [string, number][]> = {
-  wicketTaking: [["wpb", 0.6], ["-rpb", 0.2], ["bpi", 0.1], ["exp", 0.1]],
+const BOWL_BLEND: Record<(typeof BOWL_STYLE_KEYS)[number], [string, number][]> = {
   economy: [["-rpb", 0.7], ["dot", 0.2], ["bpi", 0.1]],
   accuracy: [["exp", 0.4], ["-rpb", 0.2], ["dot", 0.3], ["-extras", 0.1]],
 };
+/**
+ * The attribute that carries a side's level in a format set: the format rating (competition- and opponent-adjusted, with
+ * the translated prior) sets it, by percentile of the T20 attribute among T20 regulars, and the style attributes absorb
+ * the rest of the overall. Survival in the long formats is what the level measures, and what the engines read from
+ * battingIQ (batter wickets) and wicketTaking (bowler wickets).
+ */
+const LEVEL_KEY = { bat: "battingIQ", bowl: "wicketTaking" } as const;
 
 type Moments = Record<string, { mean: number; sd: number }>;
 
@@ -337,6 +361,9 @@ function blend(f: Features, m: Moments, weights: [string, number][]): number {
   }
   return w > 0 ? s / w : 0;
 }
+
+/** T20 bowling workload (balls a match) of a front-line T20 bowler, for the bowling link */
+const T20_FRONT_LINE_BALLS = 12;
 
 // ── the generator ─────────────────────────────────────────────────────
 
@@ -371,6 +398,7 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
   const formatsOf = (p: Shipped): CaPlayerFormats => (p.caId === undefined ? {} : (p.group === "espn" ? senior.get(p.caId) : merged.get(p.caId)) ?? {});
   const translations = fitTranslations(senior.values(), gender);
   const stats = loadFormatStats(gender);
+  const relRates = loadRelativeRates(gender);
   const params = caParams(gender);
   console.log(`${gender}: ${shipped.length} shipped players (${espn.length} ESPN), CA rows ${senior.size} (${Date.now() - t0} ms)`);
 
@@ -378,10 +406,13 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
   const t20Regular = (p: Shipped, side: Side) => doesSide(formatsOf(p).T20?.[side], REGULAR_BALLS[gender].T20);
   const t20Ref = Object.fromEntries(SIDES.map(side => {
     const regs = espn.filter(p => t20Regular(p, side));
-    const attrs = Object.fromEntries((side === "bat" ? BAT_KEYS : BOWL_KEYS).map(k => [k, regs.map(p => p.t20[k]).sort((a, b) => a - b)]));
+    const attrs = Object.fromEntries([...(side === "bat" ? BAT_KEYS : BOWL_KEYS), "clutch" as const].map(k => [k, regs.map(p => p.t20[k]).sort((a, b) => a - b)]));
     return [side, { overalls: regs.map(p => ovr(side, p.t20)).sort((a, b) => a - b), attrs }];
   })) as Record<Side, { overalls: number[]; attrs: Record<string, number[]> }>;
 
+  // T20 front-line bowler: two overs a match or more, and a bowler or all-rounder in T20 (a T20 batsman's bowling is squashed
+  // by the runtime normalisation, so it says nothing about his level)
+  const t20FrontLine = (p: Shipped) => (bowlingWorkload(formatsOf(p).T20?.bowl) ?? 0) >= T20_FRONT_LINE_BALLS && (p.role === "bowler" || p.role === "all-rounder");
   const results: PlayerResult[] = shipped.map(p => ({ p, formats: {} as PlayerResult["formats"] }));
   const summary: Record<string, unknown> = { players: shipped.length, espn: espn.length };
 
@@ -391,12 +422,15 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
     const n0 = MIX_PRIOR_BALLS[fmt.ca];
     // Attribute-mix populations: regulars of the format who still play it (career rates are not era-adjusted, and
     // scoring has risen since 2000: against every regular since then, today's bowlers would all look expensive)
-    const current = [...fstats.values()].filter(s => s.lastYear >= AS_OF - MIX_CURRENT_SEASONS);
-    const batRegs = current.filter(s => (s.bat?.balls ?? 0) >= REGULAR_BALLS[gender][fmt.ca]).map(s => batFeatures(s.bat!, pop, n0.bat));
-    const bowlRegs = current.filter(s => (s.bowl?.balls ?? 0) >= REGULAR_BALLS[gender][fmt.ca]).map(s => bowlFeatures(s.bowl!, pop, n0.bowl));
+    const current = [...fstats.entries()].filter(([, s]) => s.lastYear >= AS_OF - MIX_CURRENT_SEASONS);
+    const rel = relRates[fmt.ca];
+    const batRegs = current.filter(([, s]) => (s.bat?.balls ?? 0) >= REGULAR_BALLS[gender][fmt.ca]).map(([id, s]) => batFeatures(s.bat!, pop, n0.bat, rel.get(id)?.bat));
+    const bowlRegs = current.filter(([, s]) => (s.bowl?.balls ?? 0) >= REGULAR_BALLS[gender][fmt.ca]).map(([id, s]) => bowlFeatures(s.bowl!, pop, n0.bowl, rel.get(id)?.bowl));
     const batM = moments(batRegs), bowlM = moments(bowlRegs);
-    const batBlends = Object.fromEntries(BAT_KEYS.map(k => [k, batRegs.map(f => blend(f, batM, BAT_BLEND[k])).sort((a, b) => a - b)]));
-    const bowlBlends = Object.fromEntries(BOWL_KEYS.map(k => [k, bowlRegs.map(f => blend(f, bowlM, BOWL_BLEND[k])).sort((a, b) => a - b)]));
+    const batBlends = Object.fromEntries(BAT_STYLE_KEYS.map(k => [k, batRegs.map(f => blend(f, batM, BAT_BLEND[k])).sort((a, b) => a - b)]));
+    const bowlBlends = Object.fromEntries(BOWL_STYLE_KEYS.map(k => [k, bowlRegs.map(f => blend(f, bowlM, BOWL_BLEND[k])).sort((a, b) => a - b)]));
+    const roles = shipped.map(p => formatRole(p, fmt.key, formatsOf(p)[fmt.ca]));
+    const frontLine = (i: number) => roles[i] === "bowler" || roles[i] === "all-rounder";
 
     const sideOut = {} as Record<Side, SideResult[]>;
     const regularsOf = {} as Record<Side, number[]>;
@@ -407,14 +441,17 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
       const ctx: EstimateContext = buildContext(senior, fmt.ca, gender, AS_OF, dataVar, translations);
       const est = shipped.map(p => estimateFormat(formatsOf(p), fmt.ca, side, ctx));
       const score = est.map(e => (e ? e.mean - RANK_CONSERVATISM * e.sd : undefined));
+      // Bowling regulars are the format's front-line bowlers: a part-timer's thin record is shrunk to about average while
+      // his T20 bowling sits at the bottom, so linking part-timers would hand a weak front-line bowler a part-timer's rating
       const isRegular = (i: number) => {
         const r = formatsOf(shipped[i])[fmt.ca]?.[side];
-        return shipped[i].group === "espn" && est[i]?.source === "data" && doesSide(r, REGULAR_BALLS[gender][fmt.ca]) && AS_OF - r.year <= REGULAR_MAX_AGE;
+        return shipped[i].group === "espn" && est[i]?.source === "data" && doesSide(r, REGULAR_BALLS[gender][fmt.ca]) && AS_OF - r.year <= REGULAR_MAX_AGE
+          && (side === "bat" || frontLine(i));
       };
       const regIdx = shipped.map((_, i) => i).filter(isRegular);
       regularsOf[side] = regIdx;
-      // Link on players who are regulars of both; fall back to all format regulars vs all T20 regulars
-      const linked = regIdx.filter(i => t20Regular(shipped[i], side));
+      // Link on players who are regulars of both (bowling: front-line in T20 too); fall back to all format regulars vs all T20 regulars
+      const linked = regIdx.filter(i => t20Regular(shipped[i], side) && (side === "bat" || t20FrontLine(shipped[i])));
       const useLinked = linked.length >= MIN_LINK_PLAYERS;
       linkedOf[side] = useLinked ? linked : [];
       const curve = useLinked
@@ -472,28 +509,39 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
       const st = p.caId !== undefined ? fstats.get(p.caId) : undefined;
       const r: PlayerRatings = { ...p.t20 };
       const bat = sideOut.bat[i], bowl = sideOut.bowl[i];
+      const relP = p.caId !== undefined ? rel.get(p.caId) : undefined;
+      // The level attribute from the side's overall (its percentile among T20 regulars), the style attributes from his stats
+      const levelOf = (side: Side, overall: number) => quantile(t20Ref[side].attrs[LEVEL_KEY[side]], percentile(t20Ref[side].overalls, overall));
       if (bat.mix === "format" && st?.bat) {
-        const f = batFeatures(st.bat, pop, n0.bat);
-        for (const k of BAT_KEYS) r[k] = quantile(t20Ref.bat.attrs[k], percentile(batBlends[k], blend(f, batM, BAT_BLEND[k])));
+        const f = batFeatures(st.bat, pop, n0.bat, relP?.bat);
+        for (const k of BAT_STYLE_KEYS) r[k] = quantile(t20Ref.bat.attrs[k], percentile(batBlends[k], blend(f, batM, BAT_BLEND[k])));
+        r.battingIQ = levelOf("bat", bat.overall);
       }
       if (bowl.mix === "format" && st?.bowl) {
-        const f = bowlFeatures(st.bowl, pop, n0.bowl);
-        for (const k of BOWL_KEYS) r[k] = quantile(t20Ref.bowl.attrs[k], percentile(bowlBlends[k], blend(f, bowlM, BOWL_BLEND[k])));
+        const f = bowlFeatures(st.bowl, pop, n0.bowl, relP?.bowl);
+        for (const k of BOWL_STYLE_KEYS) r[k] = quantile(t20Ref.bowl.attrs[k], percentile(bowlBlends[k], blend(f, bowlM, BOWL_BLEND[k])));
+        r.wicketTaking = levelOf("bowl", bowl.overall);
+        // Clutch is 15% of bowling overall: his T20 clutch (big-match experience) would decide how much is left for economy
+        // and accuracy, so two bowlers of the same level would split it by their T20 careers. It takes the level too.
+        r.clutch = quantile(t20Ref.bowl.attrs.clutch, percentile(t20Ref.bowl.overalls, bowl.overall));
       }
-      // Shift to the targets, normalise like createPlayerFromData, repeat once (the clutch floor moves bowling overall)
-      // With the player's T20 role: his format views share it (a derived all-rounder capped at the medians must not be
-      // squashed into a bowler)
+      // Shift to the targets (a format-mixed side moves its style attributes first, keeping the level attribute; the rest
+      // move together if those run out of room), normalise like createPlayerFromData, repeat once (the clutch floor moves
+      // bowling overall). With the player's role in this format (formatRole): a regular Test spinner is a bowler in Tests
+      // whatever his T20 role.
       let ratings = r;
-      const role = p.role;
+      const role = roles[i];
       for (let pass = 0; pass < 2; pass++) {
+        if (bat.mix === "format") shiftTo(ratings as GameRatings, [...BAT_STYLE_KEYS], calculateBattingOverall, bat.overall);
         shiftTo(ratings as GameRatings, [...BAT_KEYS], calculateBattingOverall, bat.overall);
+        if (bowl.mix === "format") shiftTo(ratings as GameRatings, [...BOWL_STYLE_KEYS], calculateBowlingOverall, bowl.overall);
         shiftTo(ratings as GameRatings, [...BOWL_SHIFT_KEYS], calculateBowlingOverall, bowl.overall);
         ratings = normalizeRatingsForRole(ratings, role, p.isWicketKeeper);
       }
       // A tail-ender's batting can be shifted to the bottom of the scale: floor it where the runtime squash floors T20 sets
       for (const k of CORE_KEYS) ratings[k] = Math.max(ATTRIBUTE_FLOOR, Math.min(99, Math.round(ratings[k])));
       for (const k of ["fielding", "keeping"] as const) { if (p.t20[k] !== undefined) ratings[k] = p.t20[k]; else delete ratings[k]; }
-      const main: Side = ovr("bat", p.t20) >= ovr("bowl", p.t20) ? "bat" : "bowl";
+      const main: Side = role === "bowler" ? "bowl" : role === "all-rounder" ? (bowl.overall > bat.overall ? "bowl" : "bat") : "bat";
       res.formats[fmt.key] = { bat, bowl, ratings, source: (main === "bat" ? bat : bowl).source, role };
     });
     // Distribution check: final discipline overall of the format's regulars against T20 regulars' T20 overall
@@ -566,6 +614,11 @@ function main(): void {
       validation.push(v);
       valOut[`${gender}/${f}/${side}`] = v;
       console.log(`  validation ${gender} ${f} ${side}: DATA_VAR ${v.dataVar}, held-out corr ${v.holdout[0].all.corr.toFixed(3)} (T20 rating ${v.holdout.find(h => h.predictor.startsWith("T20 rating ("))?.all.corr.toFixed(3)})`);
+    }
+    // Whether the international record is weighted enough against domestic cricket (reported, not applied)
+    if (gender === "male") for (const f of ["FC", "ListA"] as const) for (const side of SIDES) {
+      const v = validation.find(x => x.format === f && x.side === side);
+      valOut[`intl/${gender}/${f}/${side}`] = checkIntlEvidence(gender, f, side, v?.dataVar ?? 1) as unknown as FormatValidation;
     }
     const { results, summary } = runGender(gender, poolData?.files ?? null, validation);
     const out: unknown[] = [];
