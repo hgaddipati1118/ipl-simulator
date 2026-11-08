@@ -110,7 +110,19 @@ const f1 = (x: number) => x.toFixed(1);
 const f2 = (x: number) => x.toFixed(2);
 const rows: [string, string, string, string][] = [];
 const row = (label: string, sim: string, r1: string | number | undefined, r2?: string | number) => rows.push([label, sim, String(r1 ?? "-"), String(r2 ?? "-")]);
-const R = real as any, R2 = recent as any;
+/** The real targets (TEST_MODEL.real.*), read loosely: the women's have fewer fields */
+interface Chase { n: number; win: number; draw: number; loss: number }
+interface RealTargets {
+  tests: number;
+  innings: Record<number, { n: number; runs: number; wickets: number; overs: number }>;
+  runsPerOver: number; ballsPerWicket: number; oversPerTest: number; oversPerDayUsed: number;
+  results: { home: number; away: number; neutral: number; draw: number; tie: number };
+  days: { mean: number; upTo3: number; four: number; five: number };
+  followOnsPerTest: number; followOnEnforcedShare: number; declarationsPerTest: Record<number, number>;
+  chases: Record<string, Chase>; inningsWins: number; centuriesPerTest: number; fiftiesPlusPerTest: number; fiveForsPerTest: number;
+  spinWicketShareByDay: number[]; spinOverShareByDay: number[]; oversShareByRank: number[]; wicketShareByRank: number[];
+}
+const R = real as unknown as RealTargets, R2 = recent as unknown as RealTargets | undefined;
 for (const i of [1, 2, 3, 4]) {
   const c = sum[`inn${i}`] ?? 0;
   row(`innings ${i}: runs / wickets / overs`, `${f1(sum[`inn${i}runs`] / c)} / ${f2(sum[`inn${i}wkts`] / c)} / ${f1(sum[`inn${i}balls`] / 6 / c)}`,
@@ -132,9 +144,9 @@ row("declarations per Test (inn 1 / 2 / 3)", `${f2((sum.dec1 ?? 0) / n)} / ${f2(
   `${R.declarationsPerTest[1]} / ${R.declarationsPerTest[2]} / ${R.declarationsPerTest[3]}`, R2 ? `${R2.declarationsPerTest[1]} / ${R2.declarationsPerTest[2]} / ${R2.declarationsPerTest[3]}` : undefined);
 CH.forEach((lo, b) => {
   const c = sum[`ch${b}`] ?? 0;
-  const rr = (R.chases as any)[`${lo}+`];
-  const rr2 = R2 ? (R2.chases as any)[`${lo}+`] : undefined;
-  const fmt = (x: any) => (x ? `${pct(x.win)} / ${pct(x.draw)} / ${pct(x.loss)} (n ${x.n})` : "-");
+  const rr = R.chases[`${lo}+`];
+  const rr2 = R2 ? R2.chases[`${lo}+`] : undefined;
+  const fmt = (x: Chase | undefined) => (x ? `${pct(x.win)} / ${pct(x.draw)} / ${pct(x.loss)} (n ${x.n})` : "-");
   row(`4th-inn target ${lo}${b < CH.length - 1 ? `-${CH[b + 1] - 1}` : "+"}: win / draw / loss`,
     c ? `${pct((sum[`ch${b}_win`] ?? 0) / c)} / ${pct((sum[`ch${b}_draw`] ?? 0) / c)} / ${pct((sum[`ch${b}_loss`] ?? 0) / c)} (n ${c})` : "-", fmt(rr), rr2 ? fmt(rr2) : undefined);
 });
