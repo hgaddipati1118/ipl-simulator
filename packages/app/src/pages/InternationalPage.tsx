@@ -92,10 +92,10 @@ export function InternationalPage() {
   if (view.kind === "live") {
     const n = view.n;
     const { home, away, venue } = teamsForMatch(series, n, squads);
-    const done = series.results.find(r => r.n === n);
     return (
       <div>
-        <div className="max-w-6xl mx-auto px-4 pt-4 flex items-center gap-3">
+        {/* above the live page's decision modals, so the series is reachable at any moment */}
+        <div className="relative z-[60] max-w-6xl mx-auto px-4 pt-4 flex items-center gap-3">
           <button onClick={() => setView({ kind: "hub" })} className="text-xs font-display text-th-muted hover:text-th-primary">&larr; Series</button>
           <span className="text-xs font-display text-th-muted">{matchName(series, n)} · {venue.name}</span>
         </div>
@@ -116,12 +116,6 @@ export function InternationalPage() {
           onContinue={() => setView({ kind: "hub" })}
           onViewScorecard={() => setView({ kind: "scorecard", n })}
         />
-        {done && (
-          <button onClick={() => setView({ kind: "hub" })} data-testid="series-back-to-hub"
-            className="fixed bottom-20 right-5 z-[60] px-5 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white text-sm font-display font-semibold shadow-lg shadow-orange-500/30">
-            Back to the series
-          </button>
-        )}
       </div>
     );
   }

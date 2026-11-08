@@ -363,6 +363,16 @@ export function LiveMatchPage({
     };
   }, [activeSlotId, seasonNumber, matchIndex, lsKey, saveToLS]);
 
+  // Leaving the page for another route (the season, a series hub): keep the match where it is
+  useEffect(() => () => {
+    const st = stateRef.current;
+    if (st && matchIndex >= 0 && st.status !== "completed") {
+      const serialized = serializeMatchState(st);
+      void saveInProgressMatch(activeSlotId, seasonNumber, matchIndex, serialized);
+      try { localStorage.setItem(lsKey, JSON.stringify(serialized)); } catch { /* quota: IndexedDB has it */ }
+    }
+  }, [activeSlotId, seasonNumber, matchIndex, lsKey]);
+
   // Scroll ball feed to bottom
   useEffect(() => {
     if (ballFeedRef.current) {
@@ -1050,8 +1060,10 @@ export function LiveMatchPage({
                   ({oversDisplay})
                 </span>
                 {isOdi && state.status !== "completed" && (() => {
-                  const p = odiPowerplay(state.overs, fmt);
-                  const out = maxFieldersOutside(state.overs, fmt);
+                  // a shortened innings has its powerplays in proportion (overs 1-10 of 50 = 1-5 of 25)
+                  const over50 = Math.floor((state.overs * fullOvers) / Math.max(1, state.maxOvers));
+                  const p = odiPowerplay(over50, fmt);
+                  const out = maxFieldersOutside(over50, fmt);
                   return (
                     <span data-testid="odi-powerplay" title={`Powerplay ${p}: at most ${out} fielders outside the circle`}
                       className="self-center rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-display font-semibold text-sky-300">
@@ -1975,7 +1987,8 @@ export function LiveMatchPage({
         const currentBowlerData = currentBowlerStats ? state._internal.playerDataMap[currentBowlerStats.playerId] : null;
         const nextBatterId = state._internal.battingOrderIds[state.nextBatterIdx];
         const nextBatter = nextBatterId ? state._internal.playerDataMap[nextBatterId] : null;
-        const phaseLabel = getMatchPhaseLabel(state.overs, liveMatchFormat(state._internal.rules));
+        const phaseFmt = liveMatchFormat(state._internal.rules);
+        const phaseLabel = getMatchPhaseLabel(Math.floor((state.overs * phaseFmt.overs) / Math.max(1, state.maxOvers)), phaseFmt);
         const legalBallsUsed = state.overs * 6 + state.balls;
         const ballsLeft = Math.max(0, state.maxOvers * 6 - legalBallsUsed);
         const runsNeeded = state.innings === 2 && state.target ? Math.max(0, state.target - state.score) : 0;

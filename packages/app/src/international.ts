@@ -65,13 +65,13 @@ export interface SeriesFormatDef {
   live?: SeriesLiveDef<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
-/** A limited-overs format played by the engine's simulateMatch / createMatchState */
+/** A limited-overs format played by the engine's simulateMatch / createMatchState (rain on, as in a season) */
 function limitedOversFormat(def: Omit<SeriesFormatDef, "simulate" | "live"> & { rules(gender: SeriesGender): RuleSet }): SeriesFormatDef {
   const live: SeriesLiveDef<MatchState> = {
     viewer: "limited-overs",
     create(ctx, userTeamId) {
       return createMatchState(ctx.home, ctx.away, ctx.rules ?? def.rules(ctx.gender), userTeamId, ctx.seed,
-        ctx.venue.neutral ? { neutralVenue: true } : { venueName: ctx.venue.name });
+        { rain: true, ...(ctx.venue.neutral ? { neutralVenue: true } : { venueName: ctx.venue.name }) });
     },
     finish(state, ctx) {
       return recordFromDetailed(buildDetailedResultFromState(state), ctx.venue, ctx.seed, "live");
@@ -82,6 +82,7 @@ function limitedOversFormat(def: Omit<SeriesFormatDef, "simulate" | "live"> & { 
     simulate(ctx) {
       const res = simulateMatch(ctx.home, ctx.away, ctx.rules ?? def.rules(ctx.gender), ctx.seed, {
         countTowardStandings: false,
+        rain: true, // rain, DLS and no results at the fitted rates, as in a season
         ...(ctx.venue.neutral ? { neutralVenue: true } : { venueName: ctx.venue.name }),
       });
       return recordFromDetailed(res.detailed!, ctx.venue, ctx.seed, "sim");
