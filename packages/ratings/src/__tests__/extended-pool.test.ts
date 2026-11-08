@@ -109,10 +109,8 @@ describe("extended pool: shards and manifest", () => {
 describe("extended pool: ODI / Test sets (shard version 2)", () => {
   it("every row carries both sets, and they reach the game player", () => {
     expect(manifest.version).toBe(2);
-    for (const p of all) {
-      expect(p.formatRatings?.odi, p.id).toBeDefined();
-      expect(p.formatRatings?.test, p.id).toBeDefined();
-    }
+    // one assertion over the whole pool: per-row expects take seconds on a loaded machine
+    expect(all.filter(p => !p.formatRatings?.odi || !p.formatRatings?.test).map(p => p.id).slice(0, 5)).toEqual([]);
     const best = [...group("men", "senior")].sort((a, b) => ovr(b) - ovr(a))[0];
     const player = createPlayerFromData(toRealPlayerData(best));
     expect(player.formatRatings).toEqual(best.formatRatings);

@@ -255,10 +255,12 @@ describe.skipIf(!model)("corpus commentary model", () => {
     for (const pool of Object.values(NAME_POOLS)) for (const t of [...pool.first, ...pool.last]) if (t.length >= 3) realTokens.add(t);
     // onomatopoeia and exclamations that happen to be a first name somewhere in the world
     for (const w of ["Bam", "Boom", "Wham", "Pow", "Zing", "Whack", "Wow", "Ooh", "Oof", "Yes", "Hope", "Love", "Lord", "King", "Major", "Short", "Brown", "Gray", "Grey", "Rose", "Sunny", "Happy", "Faith", "Free", "Grace"]) lowerWords.add(w.toLowerCase());
+    // idioms whose first word is also a surname ("Stone dead." for a plumb lbw); the bare surname still counts
+    const IDIOMS = /\bStone dead\b/g;
     const offenders: string[] = [];
     for (const [cls, { t }] of Object.entries(getCommentaryModel()!.lines)) {
       for (const s of t) {
-        for (const m of s.matchAll(/\b[A-Z][a-zA-Z'’-]+\b/g)) {
+        for (const m of s.replace(IDIOMS, "").matchAll(/\b[A-Z][a-zA-Z'’-]+\b/g)) {
           const tok = m[0];
           if (realTokens.has(tok) && !lowerWords.has(tok.toLowerCase())) offenders.push(`${cls}: ${tok} in "${s}"`);
         }
