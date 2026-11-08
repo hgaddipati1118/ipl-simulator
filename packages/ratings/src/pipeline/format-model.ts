@@ -12,9 +12,11 @@
  *     the CA model's own half-life) and scaled by DATA_VAR (tuned out of sample, format-ratings-report.ts);
  *   - prior: the best translation from another format (T20 or the other long format; weighted least squares over
  *     players rated in both, residual variance added to the sd, as ca-model.ts does for T20);
- *   - both: inverse-variance blend. `dataWeight` >= 0.5 makes the side "data", else "derived";
+ *   - both: inverse-variance blend (`dataWeight` = the record's share);
  *   - prior only ("derived"): shrunk toward a below-average prior (the 35th percentile of the format's regulars).
  * A side the player barely does (< 6 balls a match in the format) has no data, the same rule as ca-model.ts.
+ * The side is "data" when it is measured in the format: half a regular's balls (DATA_BALLS) and a rating from the last
+ * DATA_MAX_AGE seasons; else "derived" (the blend still uses whatever record there is).
  */
 
 import { execFileSync } from "child_process";
@@ -45,8 +47,18 @@ export const REGULAR_BALLS: Record<Gender, Record<CaFormat, number>> = {
   // Women play few multi-day matches: 300 first-class balls is a regular (about three Tests)
   female: { T20: 240, ListA: 480, FC: 300 },
 };
-/** Players rated in both formats with this much evidence define a translation */
-const TRANSLATE_MIN_BALLS: Record<CaFormat, number> = { T20: 500, ListA: 600, FC: 1200 };
+/** A side is "data" (measured in the format) with this many career balls in it ... */
+export const DATA_BALLS: Record<Gender, Record<CaFormat, number>> = {
+  male: { T20: 120, ListA: 240, FC: 600 },
+  female: { T20: 120, ListA: 240, FC: 150 },
+};
+/** ... and a rating no older than this many seasons */
+export const DATA_MAX_AGE = 5;
+/** Players rated in both formats with this much evidence define a translation (women: few play first-class cricket) */
+const TRANSLATE_MIN_BALLS: Record<Gender, Record<CaFormat, number>> = {
+  male: { T20: 500, ListA: 600, FC: 1200 },
+  female: { T20: 500, ListA: 600, FC: 300 },
+};
 /** Ratings of the two formats must be within this many years of each other to pair them for a translation */
 const TRANSLATE_MAX_GAP = 2;
 /** Players are ranked by mean - this many sds (model-ratings.ts FALLBACK_CONSERVATISM): a thin record ranks a little lower */
@@ -178,7 +190,8 @@ export function doesSide(r: SideRating | undefined, minBalls = MIN_EVIDENCE_BALL
 }
 
 /** Translations from every format to every other, per side, over players rated in both */
-export function fitTranslations(players: Iterable<CaPlayerFormats>): Translations {
+export function fitTranslations(players: Iterable<CaPlayerFormats>, gender: Gender): Translations {
+  const minBalls = TRANSLATE_MIN_BALLS[gender];
   const out: Translations = {};
   const list = [...players];
   for (const side of SIDES) {
@@ -188,7 +201,7 @@ export function fitTranslations(players: Iterable<CaPlayerFormats>): Translation
         const pairs: { x: number; y: number; w: number }[] = [];
         for (const p of list) {
           const x = p[from]?.[side], y = p[to]?.[side];
-          if (!doesSide(x, TRANSLATE_MIN_BALLS[from]) || !doesSide(y, TRANSLATE_MIN_BALLS[to])) continue;
+          if (!doesSide(x, minBalls[from]) || !doesSide(y, minBalls[to])) continue;
           if (Math.abs(x.year - y.year) > TRANSLATE_MAX_GAP) continue;
           pairs.push({ x: x.rating, y: y.rating, w: (2 * x.balls * y.balls) / (x.balls + y.balls) });
         }
@@ -222,6 +235,8 @@ export interface EstimateContext {
   prior: Record<Side, { mean: number; sd: number }>;
   /** Multiplier on the data variance (tuned out of sample); Infinity would ignore the record, 0 ignores the prior */
   dataVar: number;
+  /** Career balls in the target format for the side to count as "data" (DATA_BALLS) */
+  dataBalls: number;
 }
 
 /** Variance of a rating, widened for the years since it was last updated (the CA model's half-life) */
@@ -253,11 +268,11 @@ export function estimateFormat(p: CaPlayerFormats, target: CaFormat, side: Side,
   const balls = own?.balls ?? 0;
   if (data) {
     const vD = staleVar(data, target, side, ctx) * ctx.dataVar;
-    if (!prior || !Number.isFinite(prior.var)) return { mean: data.rating, sd: Math.sqrt(vD), dataWeight: 1, source: "data", balls };
+    const source = data.balls >= ctx.dataBalls && ctx.asOf - data.year <= DATA_MAX_AGE ? "data" : "derived";
+    if (!prior || !Number.isFinite(prior.var)) return { mean: data.rating, sd: Math.sqrt(vD), dataWeight: 1, source, balls };
     const wD = 1 / Math.max(1e-6, vD), wP = 1 / prior.var;
     const mean = (data.rating * wD + prior.mean * wP) / (wD + wP);
-    const dataWeight = wD / (wD + wP);
-    return { mean, sd: Math.sqrt(1 / (wD + wP)), dataWeight, source: dataWeight >= 0.5 ? "data" : "derived", from: prior.from, balls };
+    return { mean, sd: Math.sqrt(1 / (wD + wP)), dataWeight: wD / (wD + wP), source, from: prior.from, balls };
   }
   if (!prior) return undefined;
   // No record in the format: the translation, shrunk toward a below-average prior (a player who has not played the
@@ -286,8 +301,8 @@ export function regularsPrior(players: Iterable<CaPlayerFormats>, target: CaForm
 /** Everything estimateFormat needs for one gender, format and season */
 export function buildContext(players: Map<number, CaPlayerFormats>, target: CaFormat, gender: Gender, asOf: number, dataVar: number, translations?: Translations): EstimateContext {
   return {
-    asOf, dataVar,
-    translations: translations ?? fitTranslations(players.values()),
+    asOf, dataVar, dataBalls: DATA_BALLS[gender][target],
+    translations: translations ?? fitTranslations(players.values(), gender),
     params: caParams(gender),
     prior: regularsPrior(players.values(), target, gender, asOf),
   };

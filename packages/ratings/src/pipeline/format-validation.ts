@@ -102,6 +102,7 @@ export interface FormatValidation {
 }
 
 const DATA_VAR_GRID = [0.25, 0.5, 1, 2, 4, 1e9];
+const MIN_TUNING_PLAYERS = 30;
 /** Tuning folds (rate through Y, target Y+1..Y+2; non-overlapping) and the held-out fold */
 export const TUNING_YEARS = [2014, 2017, 2020];
 export const HOLDOUT_YEAR = 2023;
@@ -124,7 +125,7 @@ export function validate(gender: Gender, format: "ListA" | "FC", side: Side, cac
   // tuning: pool the folds' (prediction, target) pairs per DATA_VAR
   const folds = TUNING_YEARS.map(y => {
     const players = load(y);
-    return { y, players, target: intlRecords(gender, format, y + 1, y + 2)[side], translations: fitTranslations(players.values()) };
+    return { y, players, target: intlRecords(gender, format, y + 1, y + 2)[side], translations: fitTranslations(players.values(), gender) };
   });
   const tuning = DATA_VAR_GRID.map(dataVar => {
     const xs: number[] = [], ys: number[] = [], ws: number[] = [];
@@ -142,13 +143,14 @@ export function validate(gender: Gender, format: "ListA" | "FC", side: Side, cac
     return { dataVar, corr: m.corr, mse: m.mse, n: m.n };
   });
   // Ranks are what the game keeps (format ratings are a percentile map of the score), so tune on correlation
-  const best = tuning.filter(t => Number.isFinite(t.corr)).sort((a, b) => b.corr - a.corr)[0] ?? { dataVar: 1 };
+  // Too few players to tune (women's Tests): the CA sd as it is
+  const best = tuning.filter(t => Number.isFinite(t.corr) && t.n >= MIN_TUNING_PLAYERS).sort((a, b) => b.corr - a.corr)[0] ?? { dataVar: 1 };
 
   // held-out fold
   const players = load(HOLDOUT_YEAR);
   const target = intlRecords(gender, format, HOLDOUT_YEAR + 1, HOLDOUT_YEAR + 2)[side];
   const hist = intlHistory(gender, format, HOLDOUT_YEAR);
-  const translations = fitTranslations(players.values());
+  const translations = fitTranslations(players.values(), gender);
   const ctx: EstimateContext = buildContext(players, format, gender, HOLDOUT_YEAR, best.dataVar, translations);
   const t20 = translations[`${side}/T20>${format}`];
   const t20Rating: Predictor = (_id, p) => doesSide(p.T20?.[side]) ? p.T20![side]!.rating : undefined;
