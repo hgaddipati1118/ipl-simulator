@@ -103,6 +103,12 @@ test.describe("IPL Simulator E2E", () => {
     await page.getByRole("button", { name: "Finish Trades & Start Auction" }).click();
     await page.waitForURL("**/retention", { timeout: 15000 });
 
+    // Season 2 is a mini auction year: the squad is kept on its contracts, releases are the user's choice
+    await expect(page.getByTestId("retention-mode")).toContainText("Mini auction year");
+    await expect(page.getByTestId("mini-retention-note")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Release" }).first()).toBeVisible();
+    if (process.env.E2E_SCREENSHOTS) await page.screenshot({ path: `${process.env.E2E_SCREENSHOTS}/retention-mini.png`, fullPage: false });
+
     // Retention: the CPU teams retain, then the auction opens
     await page.getByRole("button", { name: "Sim CPU Retentions" }).click({ timeout: 10000 });
     const finishRetention = page.getByRole("button", { name: "Finish Retentions & Start Auction" });
