@@ -6,10 +6,10 @@
  * holds. A real auction shortlists from its registrations: the IPL's mini auctions put about 350 players in front of
  * the teams (333 for 2024, 350 for 2026), its mega auctions about 575 (590 for 2022, 574 for 2025), for 250 squad
  * places. The pool here is that many per squad place, at least enough per open place for every side to fill its
- * squad, and always holds the players who must be there (released this off-season, unsold at the last auction,
- * added by the user). The rest are the best free agents by market value, topped up so the pool holds enough
- * keepers, spinners, pacers, overseas and domestic players for what the teams still need. Everyone else stays a free
- * agent: signable during the season and eligible for the next auction.
+ * squad, and always holds the players who must be there (released since the last auction, added by the user). It
+ * holds enough keepers, spinners, pacers, overseas and domestic players for what the teams still need; the last
+ * auction's unsold have the next claim on the places left, then the best free agents by market value. Everyone else
+ * stays a free agent: signable during the season and eligible for the next auction.
  */
 
 import type { Player } from "./player.js";
@@ -36,8 +36,11 @@ export interface AuctionPoolOptions {
   type: AuctionType;
   maxSquadSize: number;
   maxOverseasInSquad: number;
-  /** Ids that are always in the auction (released this off-season, unsold at the last auction, added by the user) */
+  /** Ids that are always in the auction (released since the last auction, added by the user, academy prospects) */
   mustInclude?: Iterable<string>;
+  /** Ids with the first claim on the shortlist after the must-includes and the role cover, up to its size (the last
+   *  auction's unsold, re-registering) */
+  preferred?: Iterable<string>;
   /** Every free agent goes to the auction (the "Deep" pool option) */
   deep?: boolean;
 }
@@ -156,7 +159,12 @@ export function buildAuctionPool(freeAgents: readonly Player[], teams: readonly 
       if (!chosen.has(p) && inCategory(p, c)) add(p);
     }
   }
-  // Then the best of the rest up to the target size
+  // Then the preferred (re-registering unsold), best first, and the best of the rest, up to the target size
+  const preferred = new Set(opts.preferred ?? []);
+  for (const p of candidates) {
+    if (chosen.size >= target) break;
+    if (!chosen.has(p) && preferred.has(p.id)) add(p);
+  }
   for (const p of candidates) {
     if (chosen.size >= target) break;
     if (!chosen.has(p)) add(p);

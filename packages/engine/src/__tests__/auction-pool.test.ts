@@ -7,10 +7,13 @@ import {
   POOL_COVERAGE, POOL_PER_SQUAD_PLACE,
 } from "../auction-pool.js";
 import {
-  initAuction, simRemainingAuction, runAuction, completeSquads, keepsSquadReserve, squadTarget,
+  initAuction, simRemainingAuction, runAuction, completeSquads, keepsSquadReserve, squadTarget, maxBidKeepingReserve,
+  userBid, cpuMiniReleases, MINI_KEEP_SHARE,
   retentionCostScale, evaluateRetentionSelection, RETENTION_BUDGET, MAX_RETENTIONS,
   type AuctionBid, type AuctionConfig,
 } from "../auction.js";
+import { RULE_PRESETS, getSeasonSalaryCap } from "../rules.js";
+import { EXTRA_LEAGUES } from "../leagues.js";
 
 type Role = "batsman" | "bowler" | "all-rounder";
 
@@ -116,6 +119,28 @@ describe("auction pool contents", () => {
     expect(plan.pool.length).toBeGreaterThan(plan.target);
   });
 
+  it("gives the last auction's unsold the first claim on the places left, without passing the target", () => {
+    const fa = market(3000);
+    const t = teams(10, 20);
+    const weakest = [...fa].sort((a, b) => a.marketValue - b.marketValue);
+    // a few re-registering: all of them get in
+    const few = weakest.slice(0, 100).map(p => p.id);
+    const a = buildAuctionPool(fa, t, { type: "mini", ...IPL, preferred: few });
+    const inA = new Set(a.pool.map(p => p.id));
+    for (const id of few) expect(inA.has(id)).toBe(true);
+    expect(a.pool.length).toBe(a.target);
+    // more than the shortlist holds (a mega auction's unsold before a mini one): the pool stays at its size
+    const many = weakest.slice(0, 1000).map(p => p.id);
+    const b = buildAuctionPool(fa, t, { type: "mini", ...IPL, preferred: many });
+    expect(b.pool.length).toBe(b.target);
+    // the role cover still takes the best of each kind; the re-registering unsold take the places after it, which a
+    // value shortlist would have given to better players
+    const plain = buildAuctionPool(fa, t, { type: "mini", ...IPL });
+    const inPool = (pool: readonly { id: string }[]) => pool.filter(p => many.includes(p.id)).length;
+    expect(inPool(plain.pool)).toBe(0);
+    expect(inPool(b.pool)).toBeGreaterThan(b.target * 0.3);
+  });
+
   it("fills the rest with the best free agents by market value", () => {
     const fa = market(3000);
     const plan = buildAuctionPool(fa, teams(10, 20), { type: "mini", ...IPL });
@@ -191,6 +216,67 @@ describe("auction end: completing the squads", () => {
     expect(squadTarget(cfg)).toBe(22);
     expect(keepsSquadReserve(team, 10 - 0.3 * 11, cfg)).toBe(true);
     expect(keepsSquadReserve(team, 10 - 0.3 * 11 + 0.05, cfg)).toBe(false);
+  });
+
+  it("a team without a keeper keeps 30 lakh for one, and fills its last place with one", () => {
+    const team = new Team(IPL_TEAMS[0], 30);
+    for (let i = 0; i < 23; i++) team.addPlayer(makePlayer(`b${i}`, { role: "batsman", ovr: 60 }), 1); // past the target, no keeper
+    const batter = makePlayer("bat", { role: "batsman", ovr: 70 });
+    const keeper = makePlayer("wk", { role: "batsman", ovr: 70, wk: true });
+    expect(maxBidKeepingReserve(team, cfg, batter)).toBeCloseTo(7 - 0.3); // 7 Cr left, 30 lakh for the keeper
+    expect(maxBidKeepingReserve(team, cfg, keeper)).toBeCloseTo(7);
+    team.addPlayer(makePlayer("b23", { role: "batsman", ovr: 60 }), 1); // 24 of 25: the last place is the keeper's
+    expect(keepsSquadReserve(team, 0.5, cfg, batter)).toBe(false);
+    expect(keepsSquadReserve(team, 0.5, cfg, keeper)).toBe(true);
+  });
+
+  it("the user's bids keep the same reserve: a bid that would leave the squad unfillable is refused", () => {
+    const t = teams(2, 10, 102); // 2 Cr left, 11 places to the target after the next signing: 3.3 Cr reserved
+    const pool = [makePlayer("star", { role: "batsman", ovr: 90 })];
+    const state = initAuction(pool, t, cfg);
+    expect(userBid(state, t, t[0].id, cfg)).toBe(state); // refused
+    const rich = teams(2, 10, 120);
+    const ok = userBid(initAuction(pool, rich, cfg), rich, rich[0].id, cfg);
+    expect(ok.currentBidderId).toBe(rich[0].id);
+  });
+});
+
+describe("mini-year retention (CPU)", () => {
+  it("keeps 70% of the maximum squad, releasing the most overpaid and oldest first, never the three best or the keeper", () => {
+    const team = new Team(IPL_TEAMS[0], 150);
+    const roster = market(25, 21);
+    roster[0].isWicketKeeper = true;
+    roster.forEach((p, i) => team.addPlayer(p, i % 4 === 0 ? p.marketValue * 3 : p.marketValue * 0.8)); // every 4th paid 3x his value
+    const best3 = [...team.roster].sort((a, b) => b.valueOverall - a.valueOverall).slice(0, 3).map(p => p.id);
+    const released = cpuMiniReleases(team, { maxRosterSize: 25, maxInternational: 8, minSquadSize: 18 });
+    const kept = team.roster.length;
+    expect(kept).toBeLessThanOrEqual(Math.round(MINI_KEEP_SHARE * 25));
+    expect(kept).toBeGreaterThanOrEqual(15);
+    expect(released.length).toBe(25 - kept);
+    for (const id of best3) expect(team.roster.some(p => p.id === id)).toBe(true);
+    expect(team.roster.some(p => p.isWicketKeeper)).toBe(true);
+    // the overpaid go first: of the released, most were paid 3x their value
+    expect(released.filter(p => roster.indexOf(p) % 4 === 0).length).toBeGreaterThanOrEqual(Math.min(released.length, 5));
+    for (const p of released) { expect(p.teamId).toBeUndefined(); expect(p.bid).toBe(0); }
+  });
+
+  it("releases more when the purse couldn't fill the squad back", () => {
+    const team = new Team(IPL_TEAMS[0], 125);
+    market(25, 5).forEach(p => team.addPlayer(p, 5)); // 125 Cr of contracts: no purse at all
+    cpuMiniReleases(team, { maxRosterSize: 25, maxInternational: 8, minSquadSize: 18 });
+    expect(team.remainingBudget).toBeGreaterThanOrEqual(0.3 * (22 - team.roster.length) - 1e-9);
+  });
+});
+
+describe("season-to-season purse", () => {
+  it("the IPL keeps its real raises (+5 Cr a year, +20 at a mega auction); other leagues grow by the same share of their purse", () => {
+    const ipl = RULE_PRESETS.modern2026; // 125 Cr
+    expect([1, 2, 3, 4, 7].map(n => getSeasonSalaryCap(n, ipl))).toEqual([125, 130, 135, 155, 185]);
+    const wpl = RULE_PRESETS.wpl; // 12 Cr: +0.5 a year, +2 at a mega auction
+    expect([1, 2, 3, 4].map(n => getSeasonSalaryCap(n, wpl))).toEqual([12, 12.5, 13, 15]);
+    const hundred = EXTRA_LEAGUES.find(l => l.id === "hundred-m")!.rules; // 80
+    expect(getSeasonSalaryCap(2, hundred)).toBe(83.5);
+    expect(getSeasonSalaryCap(4, hundred)).toBe(100);
   });
 });
 

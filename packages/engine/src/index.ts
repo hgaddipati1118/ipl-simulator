@@ -88,7 +88,8 @@ export type {
 } from "./match.js";
 
 export {
-  runAuction, retainPlayers, completeSquads, squadTarget, keepsSquadReserve,
+  runAuction, retainPlayers, completeSquads, squadTarget, keepsSquadReserve, maxBidKeepingReserve, squadReserve,
+  cpuMiniReleases, miniReleasePriority, MINI_KEEP_SHARE, MINI_OVERPAID_RATIO, MINI_KEEP_FLOOR_SHARE,
   initAuction, userBid, userDropBid, cpuBidRound,
   nextPlayer, simCurrentPlayer, simRemainingAuction,
   rtmAccept, rtmDecline,
@@ -143,7 +144,7 @@ export { generateRandomPlayer, generatePlayerPool, createPlayerFromData, nextPla
 
 export { randomNormal, clamp, weightedRandom, shuffle, normSInv, displayOversToReal } from "./math.js";
 
-export { RULE_PRESETS, DEFAULT_RULES, odiRules, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_IDS, ALL_TEAM_IDS, getAuctionType, getMaxRetentions, getSeasonSalaryCap, getScaledRetentions, getAuctionPoolSize } from "./rules.js";
+export { RULE_PRESETS, DEFAULT_RULES, odiRules, IPL_8_TEAM_IDS, IPL_10_TEAM_IDS, WPL_TEAM_IDS, ALL_TEAM_IDS, getAuctionType, getMaxRetentions, getSeasonSalaryCap, IPL_PURSE_RAISE, getScaledRetentions, getAuctionPoolSize } from "./rules.js";
 export type { RuleSet, LeagueType, ExtraLeagueId, PlayoffFormat, MatchFormatId, GenderOption, PlayerSource, AuctionType } from "./rules.js";
 export {
   ALL_LEAGUES, EXTRA_LEAGUES, LEAGUE_RULE_PRESETS, LEAGUE_SCORING_MULTIPLIER,

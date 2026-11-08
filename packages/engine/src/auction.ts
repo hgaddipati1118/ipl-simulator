@@ -240,12 +240,27 @@ export function squadTarget(config: AuctionConfig): number {
 }
 
 /**
- * A CPU bid of `amount` leaves the team 30 lakh (the last accelerated round's price) for each place it still has to
- * fill to its target squad, so the purse can always complete the squad (and the minimum, which the target includes).
+ * A bid of `amount` (for `player`) leaves the team 30 lakh (the last accelerated round's price) for each place it still
+ * has to fill to its target squad, and for a wicketkeeper when it has none and the player isn't one, so the purse can
+ * always complete the squad (the minimum and a keeper included). A team without a keeper can't fill its last place
+ * with anyone else. CPU and user bids both keep it.
  */
-export function keepsSquadReserve(team: Team, amount: number, config: AuctionConfig): boolean {
-  const placesAfter = Math.max(0, squadTarget(config) - team.roster.length - 1);
-  return team.remainingBudget - amount >= MIN_FILL_PRICE * placesAfter - 1e-9;
+export function keepsSquadReserve(team: Team, amount: number, config: AuctionConfig, player?: Player): boolean {
+  return amount <= maxBidKeepingReserve(team, config, player) + 1e-9;
+}
+
+/** The most a team can bid on one player and still keep its reserve (keepsSquadReserve); negative when it can't bid at all */
+export function maxBidKeepingReserve(team: Team, config: AuctionConfig, player?: Player): number {
+  if (player && !player.isWicketKeeper && keeperCount(team) === 0 && team.roster.length + 1 >= config.maxRosterSize) return -1;
+  return team.remainingBudget - squadReserve(team, config, player);
+}
+
+/** The purse a team keeps back for the rest of its squad: 30 lakh per place after the next one to the target squad,
+ *  and at least one (for a keeper) when it has no keeper and the next player isn't one */
+export function squadReserve(team: Team, config: AuctionConfig, player?: Player): number {
+  const toTarget = Math.max(0, squadTarget(config) - team.roster.length - 1);
+  const keeperPlace = keeperCount(team) === 0 && !player?.isWicketKeeper ? 1 : 0;
+  return MIN_FILL_PRICE * Math.max(toTarget, keeperPlace);
 }
 
 /**
@@ -440,7 +455,7 @@ function auctionPlayer(
       const increment = getBidIncrement(currentBid);
       if (team.remainingBudget < currentBid + increment) continue;
       if (team.roster.length >= config.maxRosterSize) continue;
-      if (!keepsSquadReserve(team, currentBid + increment, config)) continue;
+      if (!keepsSquadReserve(team, currentBid + increment, config, player)) continue;
 
       // Squad need: a team with no wicketkeeper wants one and will pay over the odds
       const wantsKeeper = player.isWicketKeeper && need?.needy.has(team.id) === true;
@@ -556,6 +571,8 @@ export function userBid(
   state: AuctionState,
   teams: Team[],
   userTeamId: string,
+  /** The squad rules: the bid must leave the purse able to complete the squad (keepsSquadReserve), as a CPU bid must */
+  config: Partial<AuctionConfig> = {},
 ): AuctionState {
   if (state.phase !== "bidding") return state;
   const team = teams.find(t => t.id === userTeamId);
@@ -564,6 +581,7 @@ export function userBid(
   const increment = getBidIncrement(state.currentBid);
   const newBid = Math.round((state.currentBid + increment) * 100) / 100;
   if (team.remainingBudget < newBid) return state;
+  if (!keepsSquadReserve(team, newBid, { ...DEFAULT_CONFIG, ...config }, state.players[state.currentPlayerIndex])) return state;
 
   return {
     ...state,
@@ -620,7 +638,7 @@ export function cpuBidRound(
     if (team.roster.length >= cfg.maxRosterSize) continue;
     if (player.isInternational && team.internationalCount >= cfg.maxInternational) continue;
     if (reservedTo && !reservedTo.has(teamId)) continue;
-    if (!keepsSquadReserve(team, currentBid + increment, cfg)) continue;
+    if (!keepsSquadReserve(team, currentBid + increment, cfg, player)) continue;
 
     // Squad need: a team with no wicketkeeper wants one and will pay over the odds
     const wantsKeeper = need?.needy.has(teamId) === true;
@@ -854,6 +872,72 @@ export function simRemainingAuction(
 }
 
 // ── Retention ───────────────────────────────────────────────────────────
+
+/**
+ * Between mega auctions a team keeps most of its squad (RULES-RETENTION.md section 2): the IPL's mini auctions of
+ * 2024 and 2026 each had 77 places to fill across ten 25-man squads, so teams kept about 17-18, 70% of the maximum.
+ */
+export const MINI_KEEP_SHARE = 0.7;
+/** A player paid at least this many times his market value is released in a mini year even below the keep share */
+export const MINI_OVERPAID_RATIO = 2;
+/** ...as long as the team still keeps this share of the maximum squad */
+export const MINI_KEEP_FLOOR_SHARE = 0.6;
+/** The franchise players (best by value) a team never releases in a mini year */
+const MINI_PROTECTED = 3;
+
+/**
+ * Mini-year release priority: what a player costs against what he is worth, older players first (the doc's
+ * "overpaid relative to current form"). Highest = first to go.
+ */
+export function miniReleasePriority(p: Player): number {
+  const agePenalty = p.age >= 34 ? 1.5 : p.age >= 32 ? 1.2 : 1;
+  return (p.bid / Math.max(p.marketValue, 0.2)) * agePenalty;
+}
+
+/**
+ * A CPU team's releases before a mini auction: keep all but enough to come down to 70% of the maximum squad (IPL 25:
+ * keep 18), releasing the most overpaid and oldest first, plus any player paid twice his value while the squad stays at
+ * 60% (IPL: 15), and more in the same order while the purse could not fill the squad back to its target at 30 lakh a
+ * place. The three most valuable and the best keeper are never released. Kept players stay on their contracts (their bids), so the purse
+ * for the auction is the cap (`team.salaryCap`, this season's) less what the kept squad is paid. Mutates the team;
+ * returns the released players.
+ */
+export function cpuMiniReleases(team: Team, config: Partial<AuctionConfig> = {}): Player[] {
+  const cfg = { ...DEFAULT_CONFIG, ...config };
+  const maxSquadSize = cfg.maxRosterSize;
+  const target = squadTarget(cfg);
+  const keepTarget = Math.round(MINI_KEEP_SHARE * maxSquadSize);
+  const keepFloor = Math.round(MINI_KEEP_FLOOR_SHARE * maxSquadSize);
+  const protectedIds = new Set([...team.roster].sort((a, b) => b.valueOverall - a.valueOverall).slice(0, MINI_PROTECTED).map(p => p.id));
+  // ...nor its best wicketkeeper (a squad needs one)
+  const bestKeeper = [...team.roster].filter(p => p.isWicketKeeper).sort((a, b) => b.valueOverall - a.valueOverall)[0];
+  if (bestKeeper) protectedIds.add(bestKeeper.id);
+  const candidates = team.roster
+    .filter(p => !protectedIds.has(p.id))
+    .sort((a, b) => miniReleasePriority(b) - miniReleasePriority(a) || a.valueOverall - b.valueOverall);
+  const releasing: Player[] = [];
+  let size = team.roster.length;
+  let purse = team.remainingBudget;
+  /** the purse can't fill the squad back to its target at 30 lakh a place */
+  const short = () => purse < MIN_FILL_PRICE * Math.max(0, target - size) - 1e-9;
+  for (const p of candidates) {
+    const overpaid = p.bid >= MINI_OVERPAID_RATIO * Math.max(p.marketValue, 0.2);
+    if (size > keepTarget || (overpaid && size > keepFloor) || (short() && p.bid > MIN_FILL_PRICE)) {
+      releasing.push(p);
+      size--;
+      purse += p.bid;
+    }
+  }
+  const released: Player[] = [];
+  for (const p of releasing) {
+    const out = team.removePlayer(p.id);
+    if (!out) continue;
+    out.teamId = undefined;
+    out.bid = 0;
+    released.push(out);
+  }
+  return released;
+}
 
 /** Simulate player retention between seasons using real IPL cost slabs.
  *  Max 6 retentions: up to 5 capped + up to 2 uncapped. */
