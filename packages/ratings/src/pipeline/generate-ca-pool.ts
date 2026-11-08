@@ -6,7 +6,8 @@
  * Inputs (data/analysis/, from the CA analysis scripts):
  *   ca_ratings_by_year.parquet, ca_lower_ratings.parquet, ca_pool_stats.parquet, ca_pool_players.parquet, ca_espn_map.csv
  *   data/scraped/espn-ratings-base.json / espn-ratings-women-base.json (the generator's pool before the ratings model)
- * Output: ../../app/public/pool/ (manifest.json + gzip JSON shards, format in src/extended-pool.ts)
+ * Output: ../../app/public/pool/ (manifest.json + gzip JSON shards, format in src/extended-pool.ts). The shards come out
+ * without ODI / Test sets: run src/pipeline/generate-format-ratings.ts afterwards to add them.
  *
  * Players: every CA player with a senior (Twenty20 / List A / First-Class) or lower-level (event-only) appearance since
  * 2000 who is not already in the ESPN pool (ca_espn_map.csv, plus same name + date of birth for ESPN profiles the map

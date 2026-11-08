@@ -13,7 +13,7 @@
 import { ALL_PLAYERS } from "./all-players.js";
 import { WPL_PLAYERS } from "./wpl-players.js";
 import { LEAGUE_ROSTERS } from "./league-rosters.js";
-import type { BowlingStyle, BattingHand } from "@ipl-sim/engine";
+import type { BowlingStyle, BattingHand, PlayerData } from "@ipl-sim/engine";
 
 export interface LeagueRosterPlayer {
   /** Display name */
@@ -73,6 +73,8 @@ export interface LeaguePlayerData {
   teamId: string;
   imageUrl?: string;
   careerStats?: { m: number; r: number; avg: number; sr: number; w: number; econ: number };
+  /** ODI / Test ratings, when the record carries them (extended-pool players); pool players get theirs from format-ratings.json */
+  formatRatings?: PlayerData["formatRatings"];
   source: LeaguePlayerSource;
   caId: number;
   espnId?: number;

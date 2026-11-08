@@ -131,7 +131,7 @@ export type {
   SerializableInningsScore,
 } from "./schedule.js";
 
-export { generateRandomPlayer, generatePlayerPool, createPlayerFromData, nextPlayerId } from "./create-player.js";
+export { generateRandomPlayer, generatePlayerPool, createPlayerFromData, nextPlayerId, inferRuntimeRole, normalizeRatingsForRole } from "./create-player.js";
 
 export { randomNormal, clamp, weightedRandom, shuffle, normSInv, displayOversToReal } from "./math.js";
 
