@@ -363,8 +363,10 @@ UPDATE w SET lm = w.lm - w.l_{f} + u.nl, l_{f} = u.nl FROM u WHERE w.f_{f} = u.l
 
 
 
-# Recency weights of the eras in the engine's baseline ("weight recent years"): the base rates sit at this mix of eras
-ERA_WEIGHTS = [0.0, 0.0, 1.0, 1.5, 2.0]
+# The engine's baseline era: the base rates are those of men's Tests from 2023 (the game is played today). Every era from 2006
+# still informs the context factors; only the level is the modern one. (Up to round 4 the base was a 1 : 1.5 : 2 mix of
+# 2015-18, 2019-22 and 2023+, which made a ~2020 level that the benchmark then compared with all Tests since 2015.)
+ERA_WEIGHTS = [0.0, 0.0, 0.0, 0.0, 1.0]
 CONTEXT = ["age", "set", "inn", "wd", "dt", "spell", "sit", "home", "ct", "era", "baz"]
 
 
@@ -411,6 +413,10 @@ def extract(k):
     for f in facs:
         if f == "baz":
             means[f] = math.exp(duck("SELECT any_value(a_baz) l FROM z WHERE f_baz = 0")[0]["l"])
+        elif f in PLAYER_FACTORS or f == "match":
+            # players and matches are centred over all Tests since 2015, the pool the rating maps are centred on; the base
+            # then carries the modern level for players as the maps rate them
+            means[f] = duck(f"SELECT avg(exp(a_{f})) m FROM z WHERE isref")[0]["m"]
         else:
             means[f] = duck(f"SELECT sum(wt * exp(a_{f})) / sum(wt) m FROM z WHERE isref")[0]["m"]
         if f in CONTEXT:
@@ -1362,7 +1368,8 @@ def main():
         rmap["test"] = with_regressions(rating_map(model, gp_test), rating_regression(model, gp_test, "test"), model, gp_test)
     dx = dismissals_extras()
     pol = policies()
-    real = {"male": real_targets("male", VALID_FROM), "male2023": real_targets("male", 2023), "female": real_targets("female", 2014)}
+    real = {"male": real_targets("male", VALID_FROM), "male2023": real_targets("male", 2023), "male2022": real_targets("male", 2022),
+            "female": real_targets("female", 2014)}
     spread = match_spread(model)
     wbase = women_base(model)
     write(model, rmap, dx, pol, real, spread, wbase)
