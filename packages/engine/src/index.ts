@@ -294,10 +294,11 @@ export {
   pickTestXI, testBattingOrder, testPlayerOf, testBallProbs, oversLeftInMatch, testLead, testTarget, currentInnings as currentTestInnings,
   followOnMargin, followOnProbability, declarationHazard, testCountryCode, TEST_OUTCOMES, TEST_COUNTRIES,
   setNextBatter, testBatterQueue, nightwatchmanCandidate, NIGHTWATCHMAN_OVERS, NIGHTWATCHMAN_P,
+  testProfileOf, testBattingSlot, isTestOpener,
 } from "./test-match.js";
 export type {
   TestMatchOptions, TestMatchState, TestMatchResult, TestResult, TestInnings, TestInningsSummary, TestBallEvent, TestBatterLine,
-  TestBowlerLine, TestTeamState, TestPlayer, TestPendingDecision, TestDecisionType, TestMatchEvent, TestApproach, TestGender, TestOutcomeClass,
+  TestBowlerLine, TestTeamState, TestPlayer, TestProfile, TestPendingDecision, TestDecisionType, TestMatchEvent, TestApproach, TestGender, TestOutcomeClass,
 } from "./test-match.js";
 export {
   startLiveTest, advanceTest, decideTest, declareTest, setTestBattingApproach, setTestNextBatter, takeTestNewBall, changeTestBowlerTo, setTestAutoCaptain,

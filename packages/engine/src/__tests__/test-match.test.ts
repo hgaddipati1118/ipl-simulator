@@ -8,7 +8,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   TEST_MATCH_HOOKS, createTestMatch, currentInnings, declarationHazard, followOnMargin, followOnProbability, runTestToEnd,
   simulateTestMatch, stepTestBall, testBallProbs, testTarget, type TestMatchResult, type TestMatchState,
+  isTestOpener, pickTestXI, testBattingSlot, testPlayerOf, testProfileOf,
 } from "../test-match.js";
+import { Player } from "../player.js";
 import { TEST_MODEL } from "../test-model-data.js";
 import { testTeam } from "./test-squads.js";
 
@@ -305,5 +307,53 @@ describe("seeded statistics against real Tests (wide tolerances)", () => {
     const wins = (team: string) => BATCH.filter(r => r.result.winnerId === team).length;
     const played = (team: string) => BATCH.filter(r => r.homeTeamId === team || r.awayTeamId === team).length;
     expect(wins(AUS.id) / played(AUS.id)).toBeGreaterThan(wins(ZIM.id) / played(ZIM.id) + 0.3);
+  });
+});
+
+describe("Test profiles: the order and the attack from the first-class record (section 3.2)", () => {
+  const SIDES = ["India", "England", "Australia", "South Africa", "New Zealand", "Pakistan"];
+
+  it("the attack comes from bowling workload, not the T20 role", () => {
+    const eng = testTeam("England").roster;
+    const byName = (n: string) => eng.find(p => p.name === n);
+    for (const n of ["Shoaib Bashir", "Brydon Carse"]) {
+      const p = byName(n);
+      if (!p) continue;
+      expect(p.role).toBe("batsman");
+      expect(testProfileOf(p)?.bowl).toBe(2);
+      expect(testPlayerOf(p).bowler).toBe(true);
+    }
+    expect(testPlayerOf(byName("Shoaib Bashir")!).spin).toBe(true);
+    expect(testPlayerOf(byName("Joe Root")!).bowler).toBe(false);
+    expect(testPlayerOf(testTeam("Australia").roster.find(p => p.name === "Travis Head")!).bowler).toBe(false);
+  });
+
+  it("an XI has two openers and bats in its real order: openers first, the keeper at 5-8, the bowlers last", () => {
+    for (const side of SIDES) {
+      const xi = pickTestXI(testTeam(side).roster, side === "India" || side === "Pakistan" ? "sub" : "other");
+      expect(xi.slice(0, 2).every(isTestOpener)).toBe(true);
+      const slots = xi.map(testBattingSlot);
+      expect(slots).toEqual([...slots].sort((a, b) => a - b));
+      // the keeper who keeps (the first keeper in the order) bats in the middle or lower order unless he opens
+      const bowlers = xi.map((p, i) => [p, i] as const).filter(([p]) => testPlayerOf(p).bowler && testBattingSlot(p) >= 8);
+      for (const [, i] of bowlers) expect(i).toBeGreaterThanOrEqual(6);
+    }
+    const ind = pickTestXI(testTeam("India").roster, "sub").map(p => p.name);
+    expect(ind[0]).toBe("Yashasvi Jaiswal");
+    expect(ind.indexOf("Ravindra Jadeja")).toBeGreaterThanOrEqual(5);
+    const aus = pickTestXI(testTeam("Australia").roster).map(p => p.name);
+    expect(aus.indexOf("Alex Carey")).toBeGreaterThanOrEqual(5);
+    expect(aus.indexOf("Nathan Lyon")).toBeGreaterThanOrEqual(7);
+  });
+
+  it("without a first-class record: the T20 place in the order and the role", () => {
+    const p = new Player({
+      id: "gen_x", name: "New Opener", age: 22, country: "India", role: "batsman", battingPosition: "opener",
+      ratings: { battingIQ: 70, timing: 70, power: 60, running: 60, wicketTaking: 20, economy: 20, accuracy: 20, clutch: 60 },
+      isInternational: true, isWicketKeeper: false, bowlingStyle: "unknown", battingHand: "right", injured: false, injuryGamesLeft: 0,
+    } as never);
+    expect(testProfileOf(p)).toBeUndefined();
+    expect(testBattingSlot(p)).toBe(1.5);
+    expect(isTestOpener(p)).toBe(true);
   });
 });
