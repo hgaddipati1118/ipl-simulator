@@ -78,8 +78,11 @@ OUTCOMES = ["1", "2", "3", "4", "6", "W", "wide", "nb", "bye"]
 AGE_BINS = [0, 5, 10, 20, 35, 50, 65]          # overs since the new ball (a new ball is assumed at 80, 160)
 SET_BINS = [0, 5, 10, 20, 35, 60, 100, 150]    # balls the batter has faced in the innings before this one
 SPELL_MAX = 7                                  # over in the spell 1..7+
-WD_BINS = [0, 3, 6, 8]                         # wickets down in the innings: 0-2, 3-5, 6-7, 8-9 (the tail is in)
-RR_BINS = [0, 2.5, 3.5, 4.5, 6.0]              # 4th innings: runs needed per (scheduled) over left
+WD_BINS = [0, 3, 6, 8]                         # wickets down in the innings: 0-2, 3-5, 6-7, 8-9 (the tail is in), per innings 1-4
+# 4th innings: runs needed per scheduled over left (days x overs a day less the overs bowled). Not the overs the match turned out
+# to have: estimated from the match's own length, that ties a chase's "time left" to how long the chase itself lasted (a quick
+# collapse looks short of time), which made the easy-chase level partly an outcome.
+RR_BINS = [0, 2.5, 3.5, 4.5, 6.0]
 PUSH_OVERS = 12                                # the last overs of an innings that was declared
 PRIOR_BALLS = 300                              # player terms: shrink with a 300-ball prior at the average rate
 
@@ -314,11 +317,11 @@ SELECT row_number() OVER () rid, gender, yr, mid, inn,
   {bin_sql('(ov - 80 * floor(ov / 80))', AGE_BINS)} f_age,
   {bin_sql('setb', SET_BINS)} f_set,
   inn - 1 f_inn,
-  {bin_sql('inn_wkts', WD_BINS)} f_wd,
+  (inn - 1) * {len(WD_BINS)} + {bin_sql('inn_wkts', WD_BINS)} f_wd,
   (least(dy, 5) - 1) * 2 + CASE WHEN btype = 'spin' THEN 1 ELSE 0 END f_dt,
   least(coalesce(spell_pos, 1), {SPELL_MAX}) - 1 f_spell,
   CASE WHEN inn <= 3 AND inn_declared = 1 AND inn_total_legal - inn_legal <= {PUSH_OVERS * 6} THEN 1
-       WHEN inn = 4 THEN 2 + {bin_sql('need / greatest(overs_left, 1.0)', RR_BINS)}
+       WHEN inn = 4 THEN 2 + {bin_sql(f'need / greatest(CASE WHEN gender = {chr(39)}female{chr(39)} THEN {SCHED_DAYS["female"] * 100} ELSE {SCHED_DAYS["male"] * DAY_OVERS} END - cum_legal / 6.0, 1.0)', RR_BINS)}
        ELSE 0 END f_sit,
   CASE home WHEN 'home' THEN 0 WHEN 'away' THEN 1 ELSE 2 END f_home,
   coalesce(CASE country {ct_case} END, {len(COUNTRIES)}) * 2 + CASE WHEN btype = 'spin' THEN 1 ELSE 0 END f_ct,
@@ -1101,7 +1104,8 @@ def tables(model):
     T["age"] = {k: lv("age", k, range(len(AGE_BINS))) for k in OUTCOMES}
     T["set"] = {k: lv("set", k, range(len(SET_BINS))) for k in OUTCOMES}
     T["innings"] = {k: lv("inn", k, range(4)) for k in OUTCOMES}
-    T["wicketsDown"] = {k: lv("wd", k, range(len(WD_BINS))) for k in OUTCOMES}
+    # wickets down by innings: [innings 1-4][0-2, 3-5, 6-7, 8-9] (a 4th-innings top order goes quicker than the main effects say)
+    T["wicketsDown"] = {k: [lv("wd", k, range(i * len(WD_BINS), (i + 1) * len(WD_BINS))) for i in range(4)] for k in OUTCOMES}
     T["day"] = {t: {k: lv("dt", k, [d * 2 + (1 if t == "spin" else 0) for d in range(5)]) for k in OUTCOMES} for t in ("pace", "spin")}
     T["spell"] = {k: lv("spell", k, range(SPELL_MAX)) for k in OUTCOMES}
     T["situation"] = {"normal": {k: lv("sit", k, [0])[0] for k in OUTCOMES}, "push": {k: lv("sit", k, [1])[0] for k in OUTCOMES},
