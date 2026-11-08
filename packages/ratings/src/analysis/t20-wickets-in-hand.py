@@ -13,13 +13,15 @@ Output: docs/data/t20_wickets_in_hand.json and packages/engine/src/wickets-in-ha
 Model, per gender, per outcome class k (dot, 1, 2, 3, 4, 6, wicket, wide, no-ball, bye / leg bye), as independent Poisson
 rates fitted by iterative proportional fitting (as odi-ball-model.py):
 
-    rate_k = level_k(league, season, over band) x state_k(over band, wickets down) x batter_k x bowler_k
+    rate_k = level_k(league, season, over band) x state_k(over band, wickets down) x set_k(balls faced) x batter_k x bowler_k
 
 The level takes each league-season's phase rates out, the batter and bowler terms the quality of who is at the crease (a
 side seven down has its tail in: that is the batters, not the situation), so the state term is the situation alone. Over
 bands: 1-6, 7-11, 12-15, 16-18, 19-20; wickets down 0 to 7, 8+. Shrinkage toward 1 with 5 pseudo-events for players (light,
 so a tail-ender's few balls still set his own effect rather than leaving it in the state cells: with 20, the eight-down
-death cells were about 0.07 lower), 30 for the state cells (some are thin: eight down in the powerplay), 10 for the levels. The state term is normalised to a mean of 1 within each over band over the real deliveries, so it
+death cells were about 0.07 lower), 30 for the state cells (some are thin: eight down in the powerplay) and the set term, 10 for the levels. The set term (the
+striker's balls faced before the ball: 0, 1-2, 3-5, 6-9, 10-19, 20-29, 30+) is a new batter playing himself in and a set
+one taking risks, with the situation and the batter's quality held fixed; normalised to mean 1 over the real deliveries. The state term is normalised to a mean of 1 within each over band over the real deliveries, so it
 moves rates between states and not the band's level. Matches: full matches (no overs lost, no DLS or awarded result).
 """
 import json
@@ -43,6 +45,8 @@ CLASSES = ["dot", "1", "2", "3", "4", "6", "wicket", "wide", "noball", "legbye"]
 K = len(CLASSES)
 BANDS = [(0, 5), (6, 10), (11, 14), (15, 17), (18, 19)]
 WK = 9  # 0..7 down, 8+
+# balls the striker has faced before the ball: 0, 1-2, 3-5, 6-9, 10-19, 20-29, 30+
+SET_EDGES = [0, 1, 3, 6, 10, 20, 30]
 EVENTS = {
     "male": ["Indian Premier League", "Big Bash League", "Pakistan Super League", "SA20", "Caribbean Premier League",
              "International League T20", "Major League Cricket", "Bangladesh Premier League", "Lanka Premier League"],
@@ -82,12 +86,14 @@ CREATE TABLE b AS SELECT match_id, gender, batter_id, bowler_id, over,
        WHEN runs_batter IN (4, 5) THEN 4 ELSE 5 END cls,
   regexp_replace(event, '[^A-Za-z0-9]', '', 'g') || '|' || season || '|' || ({band_sql('over')})::VARCHAR AS f_level,
   (({band_sql('over')}) * 10 + least(coalesce(sum(is_wicket + (coalesce(retired_kind, '') NOT IN ('', 'retired hurt', 'retired not out'))::INT)
-     OVER (PARTITION BY match_id, innings ORDER BY seq ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0), 8))::INT AS f_state
-  FROM raw;
+     OVER (PARTITION BY match_id, innings ORDER BY seq ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0), 8))::INT AS f_state,
+  (CASE {" ".join(f"WHEN sb < {e} THEN {i - 1}" for i, e in enumerate(SET_EDGES) if i > 0)} ELSE {len(SET_EDGES) - 1} END)::INT AS f_set
+  FROM (SELECT *, coalesce(sum((wides = 0)::INT) OVER (PARTITION BY match_id, innings, batter_id ORDER BY seq
+     ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) sb FROM raw);
 """, json_out=False)
 
 
-FACTORS = ["f_level", "f_state", "batter_id", "bowler_id"]
+FACTORS = ["f_level", "f_state", "f_set", "batter_id", "bowler_id"]
 
 
 def fit(gender: str) -> dict:
@@ -100,7 +106,7 @@ def fit(gender: str) -> dict:
         worst = 0.0
         for f in FACTORS:
             rows = run(f"SELECT {f} lv, {', '.join(f'sum((cls={k})::INT) o{k}, sum(lam{k}) e{k}' for k in range(K))} FROM g GROUP BY 1")
-            a = A_PLAYER if f in ("batter_id", "bowler_id") else A_STATE if f == "f_state" else A_CTX
+            a = A_PLAYER if f in ("batter_id", "bowler_id") else A_STATE if f in ("f_state", "f_set") else A_CTX
             ratio = []
             for row in rows:
                 lv, old = row["lv"], eff[f][row["lv"]]
@@ -128,7 +134,12 @@ def fit(gender: str) -> dict:
         mean = [sum(n.get(lv, 0) * eff["f_state"][lv][k] for lv in lvs) / tot for k in range(K)]
         table.append([[round(eff["f_state"][band * 10 + w][k] / mean[k], 4) for k in range(K)] for w in range(WK)])
     counts = [[int(n.get(band * 10 + w, 0)) for w in range(WK)] for band in range(len(BANDS))]
-    return {"table": table, "deliveries": counts}
+    # the set term (balls faced) to mean 1 over the real deliveries
+    ns = {int(r["lv"]): r["n"] for r in run("SELECT f_set lv, count(*) n FROM g GROUP BY 1")}
+    tot = sum(ns.values())
+    smean = [sum(ns[lv] * eff["f_set"][lv][k] for lv in ns) / tot for k in range(K)]
+    set_table = [[round(eff["f_set"][lv][k] / smean[k], 4) for k in range(K)] for lv in range(len(SET_EDGES))]
+    return {"table": table, "deliveries": counts, "set": set_table, "setDeliveries": [int(ns.get(lv, 0)) for lv in range(len(SET_EDGES))]}
 
 
 def main() -> None:
@@ -138,6 +149,8 @@ def main() -> None:
         print(f"fitting {gender}")
         out[gender] = fit(gender)
         t = out[gender]["table"]
+        print("  set (balls faced 0, 1-2, 3-5, 6-9, 10-19, 20-29, 30+): wicket " + " ".join(f"{x[6]:.2f}" for x in out[gender]["set"])
+              + " | 4 " + " ".join(f"{x[4]:.2f}" for x in out[gender]["set"]) + " | 6 " + " ".join(f"{x[5]:.2f}" for x in out[gender]["set"]))
         for band, (a, b) in enumerate(BANDS):
             row = " | ".join(f"{w}: 4 {t[band][w][4]:.2f} 6 {t[band][w][5]:.2f} wk {t[band][w][6]:.2f} 1 {t[band][w][1]:.2f}" for w in range(0, WK, 2))
             print(f"  overs {a + 1}-{b + 1}: {row}")
@@ -145,6 +158,7 @@ def main() -> None:
         "source": "Cricsheet ball-by-ball (data/analysis/deliveries.parquet, matches.parquet); packages/ratings/src/analysis/t20-wickets-in-hand.py",
         "generated": date.today().isoformat(), "classes": CLASSES, "overBands": [[a, b] for a, b in BANDS], "events": EVENTS, **out,
     }, indent=1) + "\n")
+    setfmt = lambda t: "[\n" + ",\n".join("    [" + ", ".join(f"{x:.4f}" for x in row) + "]" for row in t) + ",\n  ]"
     fmt = lambda t: "[\n" + ",\n".join("    [" + ", ".join("[" + ", ".join(f"{x:.4f}" for x in cell) + "]" for cell in band) + "]" for band in t) + ",\n  ]"
     OUT_TS.write_text(f"""/**
  * GENERATED by packages/ratings/src/analysis/t20-wickets-in-hand.py from Cricsheet (men's and women's T20 leagues since
@@ -159,6 +173,15 @@ export const WICKETS_IN_HAND_BANDS: readonly (readonly [number, number])[] = {js
 export const WICKETS_IN_HAND: Record<"male" | "female", number[][][]> = {{
   male: {fmt(out["male"]["table"])},
   female: {fmt(out["female"]["table"])},
+}};
+
+/** The striker's balls faced before the ball, lower edges of the set term's levels: 0, 1-2, 3-5, 6-9, 10-19, 20-29, 30+ */
+export const WICKETS_IN_HAND_SET_EDGES: readonly number[] = {json.dumps(SET_EDGES)};
+
+/** Each class's rate by the striker's balls faced, the situation and the batter held fixed, mean 1: [level][class] */
+export const WICKETS_IN_HAND_SET: Record<"male" | "female", number[][]> = {{
+  male: {setfmt(out["male"]["set"])},
+  female: {setfmt(out["female"]["set"])},
 }};
 """)
     print(f"wrote {OUT_JSON} and {OUT_TS}")

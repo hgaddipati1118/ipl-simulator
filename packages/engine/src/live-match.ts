@@ -651,7 +651,8 @@ function runOneBall(
     over, isSecondInnings, target, currentScore, ballsRemaining, wicketsDown, venue, inningsBalls: fmt.totalBalls,
     rules: {
       freeHit: rulesCtx.freeHit, fmt, gender: rulesCtx.gender, superOver: rulesCtx.superOver, overRatePenalty: rulesCtx.overRatePenalty,
-      ...(odi ? { batterBalls: odi.batterBalls, scheduledOvers: odi.scheduledOvers } : {}),
+      batterBalls: odi ? odi.batterBalls : batterBalls,
+      ...(odi ? { scheduledOvers: odi.scheduledOvers } : {}),
     },
   });
   applyAggression(probs, aggression);

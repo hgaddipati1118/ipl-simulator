@@ -1,8 +1,8 @@
 /**
  * How a T20 side bats by wickets down and overs left, beyond who is at the crease: real sides consolidate after early
  * wickets (fewer boundaries and wickets, more singles) and accelerate late with wickets in hand. A table of each outcome
- * class's multiplier by over band and wickets down, fitted on the first innings of the T20 leagues since 2021 with the
- * batter and bowler held fixed (wickets-in-hand-data.ts, from packages/ratings/src/analysis/t20-wickets-in-hand.py), one
+ * class's multiplier by over band and wickets down, and by the striker's balls faced (a new batter plays himself in, a set
+ * one takes risks), fitted on the first innings of the T20 leagues since 2021 with the batter and bowler held fixed (wickets-in-hand-data.ts, from packages/ratings/src/analysis/t20-wickets-in-hand.py), one
  * per gender. Applied in the first innings of a T20 or Hundred (a chase has its own context: chaseAdjustment), raised to a
  * per-competition power (the league's scale: how much of the pooled behaviour its sides show in the engine) and times a
  * per-competition factor per band and class that keeps its phase rates and mean total where they were
@@ -11,7 +11,7 @@
 import type { BallOutcome } from "./match.js";
 import type { Gender } from "./delivery-rules.js";
 import type { RuleSet } from "./rules.js";
-import { WICKETS_IN_HAND, WICKETS_IN_HAND_BANDS } from "./wickets-in-hand-data.js";
+import { WICKETS_IN_HAND, WICKETS_IN_HAND_BANDS, WICKETS_IN_HAND_SET, WICKETS_IN_HAND_SET_EDGES } from "./wickets-in-hand-data.js";
 import { WICKETS_IN_HAND_NORM } from "./wickets-in-hand-norm-data.js";
 
 const CLASSES: BallOutcome[] = ["dot", "1", "2", "3", "4", "6", "wicket", "wide", "noball", "legbye"];
@@ -29,11 +29,22 @@ export function wicketsInHandKey(rules: Pick<RuleSet, "league" | "scoringContext
   return WICKETS_IN_HAND_NORM[rules.league]?.gender === gender ? rules.league : `default-${gender}`;
 }
 
-/** Multiply the wickets-in-hand table into a first-innings ball (no-op where the competition has no factors) */
-export function applyWicketsInHand(probs: Record<BallOutcome, number>, gender: Gender, key: string, over: number, wicketsDown: number): void {
+/** The set term's level for a striker who has faced `balls` balls */
+export function setLevel(balls: number): number {
+  let lv = 0;
+  for (let i = 0; i < WICKETS_IN_HAND_SET_EDGES.length; i++) if (balls >= WICKETS_IN_HAND_SET_EDGES[i]) lv = i;
+  return lv;
+}
+
+/**
+ * Multiply the wickets-in-hand table (to the competition's power) and the set term (the striker's balls faced, in full)
+ * into a first-innings ball, with the competition's factors (no-op where it has none)
+ */
+export function applyWicketsInHand(probs: Record<BallOutcome, number>, gender: Gender, key: string, over: number, wicketsDown: number, batterBalls = 0): void {
   const c = WICKETS_IN_HAND_NORM[key];
   if (!c || c.scale === 0) return; // none for this competition (scale 0: fitted with none)
   const band = wicketsInHandBand(over);
   const cell = WICKETS_IN_HAND[gender][band][Math.min(8, Math.max(0, wicketsDown))];
-  CLASSES.forEach((k, i) => { probs[k] *= cell[i] ** c.scale * c.norm[band][i]; });
+  const set = WICKETS_IN_HAND_SET[gender][setLevel(batterBalls)];
+  CLASSES.forEach((k, i) => { probs[k] *= cell[i] ** c.scale * set[i] * c.norm[band][i]; });
 }

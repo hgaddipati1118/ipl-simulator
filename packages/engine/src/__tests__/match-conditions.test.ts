@@ -48,7 +48,8 @@ describe("match conditions", () => {
     expect(below.length / logs.length).toBeCloseTo(s.lo / (s.lo + s.hi), 2);
     // a half-normal's root mean square is its sd
     const rms = (xs: number[]) => Math.sqrt(xs.reduce((a, x) => a + x * x, 0) / xs.length);
-    expect(rms(below)).toBeCloseTo(s.lo, 2);
+    if (s.lo > 0) expect(rms(below)).toBeCloseTo(s.lo, 2);
+    else expect(below.length).toBe(0); // one-sided: a day can only be better than the centre
     expect(rms(above)).toBeCloseTo(s.hi, 2);
   });
 

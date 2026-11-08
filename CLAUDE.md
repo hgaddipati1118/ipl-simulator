@@ -29,7 +29,8 @@ both play at the same level (RULES-MATCH.md 12.4; `packages/app/src/__tests__/li
 T20Is between full members (`RuleSet.scoringContext: "t20i"`, `scoring-context.ts`; docs/FORMATS.md, "T20I level"); the women's leagues have contexts
 fitted on their own matches (RULES-MATCH.md 12.7), the IPL its real phase shape at the engine's level (12.8); other men's leagues carry none. Men's
 T20 / Hundred matches draw their own conditions (a skewed run multiplier for the day, per league, `match-conditions.ts`; 12.8), and a first innings
-bats by wickets in hand and overs left as real sides do (`wickets-in-hand.ts`, fitted with batter and bowler held fixed; 12.9).
+bats by wickets in hand and overs left, and a new batter plays himself in, as real sides do (`wickets-in-hand.ts`, fitted with batter and
+bowler held fixed; 12.9, 12.10).
 
 Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ball text (scraper, templates, engine API: `docs/COMMENTARY.md`;
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).
