@@ -62,7 +62,7 @@ export interface SeriesFormatDef {
   /** Play the whole match at once */
   simulate(ctx: SeriesMatchContext): SeriesMatchRecord;
   /** The live screen, if the format has one (absent = instant only) */
-  live?: SeriesLiveDef<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  live?: SeriesLiveDef<any>;
 }
 
 /** A limited-overs format played by the engine's simulateMatch / createMatchState (rain on, as in a season) */

@@ -55,7 +55,7 @@ export function InternationalPage() {
   useEffect(() => { loadFormatRatings().then(f => setFile(f ?? null)); }, []);
 
   const update = (s: IntlSeries | null) => { setSeries(s); saveSeries(s); };
-  const squads = useMemo(() => (series && file !== undefined ? seriesSquads(series, file) : null), [series?.id, file]); // eslint-disable-line react-hooks/exhaustive-deps
+  const squads = useMemo(() => (series && file !== undefined ? seriesSquads(series, file) : null), [series?.id, file]);
 
   if (file === undefined) {
     return <div className="max-w-md mx-auto px-4 py-20 text-center text-th-muted font-display animate-pulse">Loading ratings...</div>;
@@ -174,7 +174,7 @@ function SeriesSetup({ file, existing, onStart, onResume, onBack }: {
     const names = nations.map(n => n.country);
     if (!names.includes(a)) setA(names[0]);
     if (!names.includes(b) || b === a) setB(names.find(n => n !== (names.includes(a) ? a : names[0])) ?? names[1]);
-  }, [nations]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nations]);
   useEffect(() => { if (!def.lengths.includes(length)) setLength(def.lengths[0]); }, [def, length]);
 
   const groundsA = homeGrounds(a).length, groundsB = homeGrounds(b).length;
