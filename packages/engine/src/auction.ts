@@ -75,6 +75,8 @@ export interface AuctionConfig {
   maxRosterSize: number;      // default 25
   maxInternational: number;   // default 8
   minSquadSize: number;       // default 18
+  /** The squad teams complete at the end of the auction when their purse allows (default: halfway between min and max) */
+  targetSquadSize?: number;
 }
 
 export interface AuctionBid {
@@ -113,6 +115,9 @@ const DEFAULT_CONFIG: AuctionConfig = {
   minSquadSize: 18,
 };
 
+/** The cheapest base price: what a fill signing at the end of an auction costs at least */
+const MIN_FILL_PRICE = 0.3;
+
 function assignAuctionContract(player: Player): void {
   if (player.contractYears <= 0) {
     player.contractYears = getContractLength("auction");
@@ -140,6 +145,21 @@ export interface RetentionEvaluation {
   uncappedCount: number;
 }
 
+/** The purse the IPL's retention slabs and budget belong to (2025: 120 Cr) */
+export const IPL_RETENTION_PURSE = 120;
+
+/**
+ * Retention prices for a league: the IPL's slabs and budget scale with a smaller purse (the WPL's 12 Cr retains on
+ * a tenth of the IPL's prices; its real 2026 slabs, 3.5 / 2.5 / 1.75 / 1 Cr of 15, are the same share of the purse).
+ * The IPL itself (and any purse of 120 Cr or more) keeps the slabs as they are.
+ */
+export function retentionCostScale(salaryCap: number, league?: string): number {
+  if (league === "ipl") return 1;
+  return Math.min(1, Math.max(0.05, salaryCap / IPL_RETENTION_PURSE));
+}
+
+const roundCost = (c: number) => Math.round(c * 100) / 100;
+
 export function isCappedRetentionPlayer(player: Player): boolean {
   return player.isInternational || player.overall >= CAPPED_RETENTION_THRESHOLD;
 }
@@ -148,6 +168,8 @@ export function evaluateRetentionSelection(
   players: Player[],
   retentionBudget: number = RETENTION_BUDGET,
   maxRetentions: number = MAX_RETENTIONS,
+  /** Multiplies the slab costs (retentionCostScale; the budget is passed already scaled) */
+  costScale = 1,
 ): RetentionEvaluation {
   const errors: string[] = [];
   const retentionCosts: RetentionCost[] = [];
@@ -168,7 +190,7 @@ export function evaluateRetentionSelection(
         errors.push("Can only retain 5 capped players.");
         break;
       }
-      const cost = CAPPED_RETENTION_COSTS[cappedCount];
+      const cost = roundCost(CAPPED_RETENTION_COSTS[cappedCount] * costScale);
       totalCost += cost;
       retentionCosts.push({ player, cost, slot: cappedCount + 1, isCapped: true });
       cappedCount++;
@@ -179,17 +201,18 @@ export function evaluateRetentionSelection(
       errors.push("Can only retain 2 uncapped players.");
       break;
     }
-    totalCost += UNCAPPED_RETENTION_COST;
+    const uncappedCost = roundCost(UNCAPPED_RETENTION_COST * costScale);
+    totalCost += uncappedCost;
     retentionCosts.push({
       player,
-      cost: UNCAPPED_RETENTION_COST,
+      cost: uncappedCost,
       slot: uncappedCount + 1,
       isCapped: false,
     });
     uncappedCount++;
   }
 
-  if (totalCost > retentionBudget) {
+  if (totalCost > retentionBudget + 1e-9) {
     errors.push(`Retention plan exceeds the ${retentionBudget} Cr budget.`);
   }
 
@@ -204,47 +227,63 @@ export function evaluateRetentionSelection(
   };
 }
 
-// ── Full automated auction ──────────────────────────────────────────────
+// ── Completing the squads ───────────────────────────────────────────────
 
-/** Run a full automated auction */
-export function runAuction(
-  players: Player[],
-  teams: Team[],
-  config: Partial<AuctionConfig> = {},
-  rng: RNG = Math.random,
-): AuctionResult {
+/**
+ * The squad a team completes at the end of an auction when its purse allows: `targetSquadSize`, else halfway between
+ * the minimum and the maximum (IPL 18-25: 22; BBL 16-20: 18; The Hundred 14-16: 15). Real IPL squads end at 22-25.
+ */
+export function squadTarget(config: AuctionConfig): number {
+  const min = Math.min(config.minSquadSize, config.maxRosterSize);
+  const target = config.targetSquadSize ?? Math.round((min + config.maxRosterSize) / 2);
+  return Math.max(min, Math.min(config.maxRosterSize, target));
+}
+
+/**
+ * A CPU bid of `amount` leaves the team 30 lakh (the last accelerated round's price) for each place it still has to
+ * fill to its target squad, so the purse can always complete the squad (and the minimum, which the target includes).
+ */
+export function keepsSquadReserve(team: Team, amount: number, config: AuctionConfig): boolean {
+  const placesAfter = Math.max(0, squadTarget(config) - team.roster.length - 1);
+  return team.remainingBudget - amount >= MIN_FILL_PRICE * placesAfter - 1e-9;
+}
+
+/**
+ * After the last player: every team gets two wicketkeepers if the unsold have them (an injury backup), a team still
+ * without one takes one from a team with a spare (releasing its cheapest non-keeper if it must), and every squad is
+ * filled from the unsold to the minimum and then, while the purse allows, to its target (`squadTarget`), round-robin
+ * so no team is starved of domestic depth. These are the accelerated rounds: a fill signing costs the player's base
+ * price, reduced (to 30 lakh at the lowest, the last round's price) when the team must keep 30 lakh for each other
+ * place still to fill, so a purse the bidding left able to complete the squad stays positive. `unsold` and `bids`
+ * are updated in place. Both the automated and the live auction end here.
+ */
+export function completeSquads(teams: Team[], unsold: Player[], bids: AuctionBid[], config: Partial<AuctionConfig> = {}): void {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const bids: AuctionBid[] = [];
-  const unsold: Player[] = [];
+  const minSquad = Math.min(cfg.minSquadSize, cfg.maxRosterSize);
+  const target = squadTarget(cfg);
+  const sign = (team: Team, player: Player, price: number) => {
+    unsold.splice(unsold.indexOf(player), 1);
+    team.addPlayer(player, price);
+    assignAuctionContract(player);
+    bids.push({ playerId: player.id, playerName: player.name, teamId: team.id, amount: price, round: 0 });
+  };
+  /** What a team can pay for one more player and still fill its other places to the target at 30 lakh */
+  const spendable = (team: Team) => team.remainingBudget - MIN_FILL_PRICE * Math.max(0, target - team.roster.length - 1);
+  /** An accelerated-round price: the base price, or what the team can spare, but not below the last round's 30 lakh */
+  const fillPrice = (team: Team, p: Player) =>
+    Math.max(MIN_FILL_PRICE, Math.min(getBasePrice(p), Math.floor(spendable(team) * 20) / 20));
 
-  // Sort players by market value (highest first)
-  const sortedPlayers = [...players].sort((a, b) => b.marketValue - a.marketValue);
-  let keepersLeft = countKeepers(sortedPlayers);
-
-  for (const player of sortedPlayers) {
-    const need = keeperNeed(teams, keepersLeft, cfg.maxRosterSize);
-    if (player.isWicketKeeper) keepersLeft--;
-    const result = auctionPlayer(player, teams, cfg, bids.length, rng, need);
-    if (result) {
-      bids.push(result);
-    } else {
-      unsold.push(player);
-    }
-  }
-
-  // Ensure every team has at least 2 WKs (injury backup) before filling remaining spots. Teams with none go first.
+  // Every team gets two keepers when the unsold have them (injury backup). Teams with none go first.
   for (const team of [...teams].sort((a, b) => keeperCount(a) - keeperCount(b))) {
-    let wkCount = team.roster.filter(p => p.isWicketKeeper).length;
+    let wkCount = keeperCount(team);
     while (wkCount < 2 && team.roster.length < cfg.maxRosterSize) {
-      const wkIdx = unsold.findIndex(p =>
+      const wk = unsold.find(p =>
         p.isWicketKeeper &&
-        (!p.isInternational || team.internationalCount < cfg.maxInternational)
+        (!p.isInternational || team.internationalCount < cfg.maxInternational) &&
+        (wkCount === 0 || getBasePrice(p) <= spendable(team))
       );
-      if (wkIdx === -1) break;
-      const [wk] = unsold.splice(wkIdx, 1);
-      team.addPlayer(wk, getBasePrice(wk));
-      assignAuctionContract(wk);
-      bids.push({ playerId: wk.id, playerName: wk.name, teamId: team.id, amount: getBasePrice(wk), round: 0 });
+      if (!wk) break;
+      sign(team, wk, wkCount === 0 ? fillPrice(team, wk) : getBasePrice(wk));
       wkCount++;
     }
   }
@@ -286,23 +325,21 @@ export function runAuction(
         const moved = src.from.removePlayer(src.player.id);
         if (!moved) continue;
         team.addPlayer(moved, moved.bid);
-        const bid = bids.find(b => b.playerId === moved.id);
-        if (bid) bid.teamId = team.id;
+        const bi = bids.findIndex(b => b.playerId === moved.id);
+        if (bi !== -1) bids[bi] = { ...bids[bi], teamId: team.id };
       } else {
-        unsold.splice(unsold.indexOf(src.player), 1);
-        team.addPlayer(src.player, src.price);
-        assignAuctionContract(src.player);
-        bids.push({ playerId: src.player.id, playerName: src.player.name, teamId: team.id, amount: src.price, round: 0 });
+        sign(team, src.player, Math.min(src.price, fillPrice(team, src.player)));
       }
       break;
     }
   }
 
-  // Fill up teams that have fewer than minSquadSize players with unsold players at base price.
-  // Do this round-robin so later teams are not starved of domestic depth by earlier teams.
+  // Fill from the unsold, round-robin (fewest players first): to the minimum, then to the target while the purse has
+  // 30 lakh to spare; the best player left (a domestic one when the team has as many overseas as domestic players), at
+  // an accelerated-round price
   while (unsold.length > 0) {
     const teamsNeedingPlayers = teams
-      .filter(team => team.roster.length < cfg.minSquadSize)
+      .filter(team => team.roster.length < minSquad || (team.roster.length < target && spendable(team) >= MIN_FILL_PRICE - 1e-9))
       .sort((a, b) => {
         const rosterDiff = a.roster.length - b.roster.length;
         if (rosterDiff !== 0) return rosterDiff;
@@ -313,35 +350,47 @@ export function runAuction(
 
     let addedAny = false;
     for (const team of teamsNeedingPlayers) {
+      const allowed = (p: Player) => !p.isInternational || team.internationalCount < cfg.maxInternational;
       const preferDomestic = team.domesticCount <= team.internationalCount;
-      let idx = preferDomestic
-        ? unsold.findIndex(player => !player.isInternational)
-        : -1;
-
-      if (idx === -1) {
-        idx = unsold.findIndex(player =>
-          !player.isInternational || team.internationalCount < cfg.maxInternational
-        );
-      }
-
-      if (idx === -1) continue;
-
-      const [freeAgent] = unsold.splice(idx, 1);
-      const bid = getBasePrice(freeAgent);
-      team.addPlayer(freeAgent, bid);
-      assignAuctionContract(freeAgent);
-      bids.push({
-        playerId: freeAgent.id,
-        playerName: freeAgent.name,
-        teamId: team.id,
-        amount: bid,
-        round: 0,
-      });
+      const pick = (preferDomestic ? unsold.find(p => !p.isInternational) : undefined) ?? unsold.find(allowed);
+      if (!pick) continue;
+      sign(team, pick, fillPrice(team, pick));
       addedAny = true;
     }
 
     if (!addedAny) break;
   }
+}
+
+// ── Full automated auction ──────────────────────────────────────────────
+
+/** Run a full automated auction */
+export function runAuction(
+  players: Player[],
+  teams: Team[],
+  config: Partial<AuctionConfig> = {},
+  rng: RNG = Math.random,
+): AuctionResult {
+  const cfg = { ...DEFAULT_CONFIG, ...config };
+  const bids: AuctionBid[] = [];
+  const unsold: Player[] = [];
+
+  // Sort players by market value (highest first)
+  const sortedPlayers = [...players].sort((a, b) => b.marketValue - a.marketValue);
+  let keepersLeft = countKeepers(sortedPlayers);
+
+  for (const player of sortedPlayers) {
+    const need = keeperNeed(teams, keepersLeft, cfg.maxRosterSize);
+    if (player.isWicketKeeper) keepersLeft--;
+    const result = auctionPlayer(player, teams, cfg, bids.length, rng, need);
+    if (result) {
+      bids.push(result);
+    } else {
+      unsold.push(player);
+    }
+  }
+
+  completeSquads(teams, unsold, bids, cfg);
 
   return { bids, unsold };
 }
@@ -391,6 +440,7 @@ function auctionPlayer(
       const increment = getBidIncrement(currentBid);
       if (team.remainingBudget < currentBid + increment) continue;
       if (team.roster.length >= config.maxRosterSize) continue;
+      if (!keepsSquadReserve(team, currentBid + increment, config)) continue;
 
       // Squad need: a team with no wicketkeeper wants one and will pay over the odds
       const wantsKeeper = player.isWicketKeeper && need?.needy.has(team.id) === true;
@@ -570,6 +620,7 @@ export function cpuBidRound(
     if (team.roster.length >= cfg.maxRosterSize) continue;
     if (player.isInternational && team.internationalCount >= cfg.maxInternational) continue;
     if (reservedTo && !reservedTo.has(teamId)) continue;
+    if (!keepsSquadReserve(team, currentBid + increment, cfg)) continue;
 
     // Squad need: a team with no wicketkeeper wants one and will pay over the odds
     const wantsKeeper = need?.needy.has(teamId) === true;
@@ -676,7 +727,11 @@ export function nextPlayer(
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const nextIndex = state.currentPlayerIndex + 1;
   if (nextIndex >= state.players.length) {
-    return { ...state, phase: "complete" };
+    // The last player has gone: complete the squads (keepers, the minimum squad) from the unsold, as runAuction does
+    const unsold = [...state.unsold];
+    const completedBids = [...state.completedBids];
+    completeSquads(teams, unsold, completedBids, cfg);
+    return { ...state, unsold, completedBids, phase: "complete" };
   }
 
   const nextP = state.players[nextIndex];
@@ -806,13 +861,14 @@ export function retainPlayers(
   team: Team,
   retentionBudget: number = RETENTION_BUDGET,
   maxRetentions: number = MAX_RETENTIONS,
+  costScale = 1,
 ): { retained: Player[]; released: Player[]; retentionCosts: { player: Player; cost: number }[] } {
   const sorted = [...team.roster].sort((a, b) => b.valueOverall - a.valueOverall);
   const retained: Player[] = [];
   const released: Player[] = [];
 
   for (const player of sorted) {
-    const evaluation = evaluateRetentionSelection([...retained, player], retentionBudget, maxRetentions);
+    const evaluation = evaluateRetentionSelection([...retained, player], retentionBudget, maxRetentions, costScale);
     if (!evaluation.valid) {
       released.push(player);
       continue;
@@ -820,7 +876,7 @@ export function retainPlayers(
     retained.push(player);
   }
 
-  const evaluation = evaluateRetentionSelection(retained, retentionBudget, maxRetentions);
+  const evaluation = evaluateRetentionSelection(retained, retentionBudget, maxRetentions, costScale);
   const costByPlayerId = new Map(evaluation.retentionCosts.map(entry => [entry.player.id, entry.cost]));
 
   // Update team roster

@@ -1,10 +1,8 @@
 import {
-  MAX_RETENTIONS,
-  RETENTION_BUDGET,
   evaluateRetentionSelection,
   type Player,
 } from "@ipl-sim/engine";
-import { GameState } from "../game-state";
+import { GameState, retentionTerms } from "../game-state";
 import { ovrColorClass, roleLabel } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 
@@ -86,6 +84,8 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
     );
   }
 
+  // the IPL's slabs, scaled to this league's purse
+  const terms = retentionTerms(state.rules);
   const retainedSet = new Set(retention.retained);
   const sortedRoster = [...userTeam.roster].sort((a, b) => b.overall - a.overall);
   const retainedPlayers = retention.retained
@@ -101,8 +101,9 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
 
     const evaluation = evaluateRetentionSelection(
       [...retainedPlayers, player],
-      RETENTION_BUDGET,
-      MAX_RETENTIONS,
+      terms.budget,
+      terms.max,
+      terms.costScale,
     );
     const cost = evaluation.retentionCosts.find(entry => entry.player.id === player.id)?.cost ?? null;
     projectedCostByPlayerId.set(player.id, evaluation.valid ? cost : null);
@@ -120,7 +121,7 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
             Player Retention
           </h2>
           <p className="text-th-muted mt-1 font-display">
-            Season <span className="stat-num">{state.seasonNumber}</span> — Choose up to {MAX_RETENTIONS} players using IPL fixed retention slabs
+            Season <span className="stat-num">{state.seasonNumber}</span> — Choose up to {terms.max} players using {terms.costScale < 1 ? "the IPL's fixed retention slabs, scaled to this league's purse" : "IPL fixed retention slabs"}
           </p>
         </div>
         <button
@@ -137,7 +138,7 @@ export function RetentionPage({ state, onToggleRetention, onRunCPURetentions, on
         <div className="rounded-2xl border border-th bg-th-surface p-4 text-center">
           <div className="text-[10px] text-th-muted uppercase tracking-wider font-display font-semibold mb-1">Budget</div>
           <div className="text-2xl font-display font-bold text-th-primary stat-num">
-            {retention.budget.toFixed(1)} <span className="text-sm text-th-muted font-normal">/ {RETENTION_BUDGET} Cr</span>
+            {retention.budget.toFixed(1)} <span className="text-sm text-th-muted font-normal">/ {terms.budget} Cr</span>
           </div>
         </div>
 

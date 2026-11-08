@@ -98,6 +98,9 @@ interface SaveMeta {
   contractsResolved?: boolean;
   /** Seed for seeded generation and progression between seasons */
   worldSeed?: number;
+  /** The next auction's must-includes (GameState.auctionEntrantIds / lastAuctionUnsoldIds) */
+  auctionEntrantIds?: string[];
+  lastAuctionUnsoldIds?: string[];
   // Season progress (lightweight scalars in localStorage)
   currentMatchIndex?: number;
   playoffsStarted?: boolean;
@@ -314,6 +317,8 @@ export async function saveState(state: GameState): Promise<void> {
     retentionState: state.retentionState,
     contractsResolved: state.contractsResolved,
     worldSeed: state.worldSeed,
+    auctionEntrantIds: state.auctionEntrantIds,
+    lastAuctionUnsoldIds: state.lastAuctionUnsoldIds,
     currentMatchIndex: state.currentMatchIndex,
     playoffsStarted: state.playoffsStarted,
     needsLineup: state.needsLineup,
@@ -449,6 +454,8 @@ export async function loadStateFromSlot(slotId: string): Promise<GameState | nul
       contractReport: contractReport ?? undefined,
       contractsResolved: meta.contractsResolved ?? true,
       worldSeed: meta.worldSeed,
+      auctionEntrantIds: meta.auctionEntrantIds,
+      lastAuctionUnsoldIds: meta.lastAuctionUnsoldIds,
       retentionState: meta.retentionState,
       auctionLiveState: auctionLiveStateRaw
         ? deserializeAuctionLiveState(auctionLiveStateRaw) : undefined,
@@ -655,6 +662,8 @@ export function exportSave(state: GameState): void {
       retentionState: state.retentionState,
       contractsResolved: state.contractsResolved,
       worldSeed: state.worldSeed,
+      auctionEntrantIds: state.auctionEntrantIds,
+      lastAuctionUnsoldIds: state.lastAuctionUnsoldIds,
       currentMatchIndex: state.currentMatchIndex,
       playoffsStarted: state.playoffsStarted,
       needsLineup: state.needsLineup,
@@ -742,6 +751,8 @@ export async function importSave(file: File): Promise<GameState> {
     draftHistory: data.draftHistory ?? [],
     contractsResolved: data.meta?.contractsResolved ?? data.contractsResolved ?? true,
     worldSeed: data.meta?.worldSeed,
+    auctionEntrantIds: data.meta?.auctionEntrantIds,
+    lastAuctionUnsoldIds: data.meta?.lastAuctionUnsoldIds,
   };
 
   // Create a new slot for the import

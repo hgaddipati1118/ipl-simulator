@@ -88,18 +88,25 @@ export type {
 } from "./match.js";
 
 export {
-  runAuction, retainPlayers,
+  runAuction, retainPlayers, completeSquads, squadTarget, keepsSquadReserve,
   initAuction, userBid, userDropBid, cpuBidRound,
   nextPlayer, simCurrentPlayer, simRemainingAuction,
   rtmAccept, rtmDecline,
   getBasePrice, getBidIncrement,
   evaluateRetentionSelection,
   isCappedRetentionPlayer,
+  retentionCostScale,
+  IPL_RETENTION_PURSE,
   RETENTION_BUDGET,
   MAX_RETENTIONS,
   MAX_CAPPED_RETENTIONS,
   MAX_UNCAPPED_RETENTIONS,
 } from "./auction.js";
+export {
+  buildAuctionPool, auctionNeeds, auctionPoolTarget, isFrontlineSpinner, isFrontlinePacer,
+  POOL_PER_SQUAD_PLACE, POOL_PER_OPEN_PLACE, POOL_COVERAGE,
+} from "./auction-pool.js";
+export type { AuctionPoolOptions, AuctionPoolPlan, PoolCategory } from "./auction-pool.js";
 export type {
   AuctionConfig,
   AuctionBid,
