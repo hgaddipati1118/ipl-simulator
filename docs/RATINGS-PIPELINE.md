@@ -586,6 +586,7 @@ player with an appearance since 2000: `ca_<CricketArchive id>` ids, rated from C
     CA_RATINGS_WORK=/some/tmp python3 -I src/analysis/ca-lower-ratings.py   # lower-level ratings on the senior scale (~1 min)
     duckdb < src/analysis/ca-pool-stats.sql                 # career stats + profile facts for every candidate
     npx tsx src/pipeline/generate-ca-pool.ts --verify       # rates the pool, writes ../app/public/pool/*.json.gz + manifest.json
+    npx tsx src/pipeline/generate-format-ratings.ts         # adds the ODI / Test sets to the shards (section "ODI and Test ratings")
 
 Re-run all of it as the scrape grows (the events DB is rebuilt from the gzip file; a gzip member being appended is tolerated).
 `--verify` proves the bundled pool is untouched: it re-runs the ESPN players through the same model call next to the extended
@@ -650,6 +651,47 @@ Shards for 840k lower-level matches should be generated into that storage rather
 
 Batting for lower-level players rests on the minority of innings with balls recorded; tiers below tier0 are thin or on fallback translations until the scrape reaches them (re-run the pipeline then);
 selection bias in the link players (see above); no per-ground or per-team lower-level strength; lower-level players have no DOB on most cards (age 26) and no batting position.
+
+## ODI and Test ratings
+
+Every shipped player (ESPN pool, league squads' fallback players, extended pool) carries `formatRatings.odi` and
+`formatRatings.test` (engine `PlayerData.formatRatings`; `Player.forFormat("odi" | "test")` is the view the match engines
+play on): the eight attributes on the T20 scale, `source` "data" or "derived", fielding / keeping from T20. Method,
+validation and sanity tables: docs/FORMAT-RATINGS-REPORT.md.
+
+### Regenerate (from the repo root, after the CA analysis above and after `generate-ca-pool.ts`)
+
+    npm run build --workspace=packages/engine && npm run build --workspace=packages/ratings
+    npx tsx packages/ratings/src/pipeline/generate-format-ratings.ts      # ~15 s; --gender male|female, --no-pool
+    npx tsx packages/ratings/src/pipeline/format-ratings-report.ts        # report tables + sanity checks (exit 1 on failure)
+
+`generate-format-ratings.ts` first re-runs the out-of-sample validation (`format-validation.ts`) to tune DATA_VAR, then rates
+every player. It reads the shipped pools from the TypeScript modules themselves (`all-players.ts`, `wpl-players.ts`,
+`league-rosters.ts` through `league-players.ts`) and the extended pool from `app/public/pool/`, so re-run it after
+`generate-ratings-espn.ts`, `build-league-rosters.py` or `generate-ca-pool.ts` (which writes shards without format sets).
+Inputs: `ca_ratings_by_year.parquet`, `ca_cells.parquet`, `ca_lower_ratings.parquet`, `ca_lower_cells.parquet`,
+`ca_pool_stats.parquet`, `ca_comp_strength.csv`, `ca_validation.json`, `ca_espn_map.csv`, Cricsheet `deliveries.parquet` +
+`matches.parquet`, `people.parquet`. Outputs:
+
+- `packages/app/public/data/format-ratings.json` (committed; 8,058 players, 572 KB, 144 KB gzipped): `{ v, generated,
+  players: { [sourceId]: [odi, test] } }`, each set `[battingIQ, timing, power, running, wicketTaking, economy, accuracy,
+  clutch, source]` (1 = data), format in `packages/ratings/src/format-ratings.ts`;
+- the pool shards rewritten as version 2 (`extended-pool.ts`): each row gains its two sets after the 23 version 1 fields; the
+  T20 fields are checked unchanged on write. Shards total 5.1 MB gzipped (3.7 MB before; men's senior shard 622 -> 931 KB);
+- `data/analysis/format_ratings.json` (per-player diagnostics), `format_ratings_validation.json`, `format-ratings-report.md`.
+
+ICC ODI / Test rankings for the report's check live in `data/external-rankings-format/` (validation only, never an input).
+
+### How the app loads it
+
+Not in the JS bundle (the loader, switch and decode add about 3 KB). `app/src/format-ratings.ts` fetches
+`/data/format-ratings.json` once and `attachFormatRatings` (ratings `format-ratings.ts`) sets `Player.formatRatings` by
+`sourceId` on every player a game state holds (an effect in `App.tsx`; pages that show format ratings call
+`useFormatRatings` to re-render once the file is in). Players that already have sets keep them. Extended-pool players carry
+theirs from the shards: `decodeShard` -> `toRealPlayerData` -> `createPlayerFromData` keep `formatRatings`, as do league
+records resolved from the extended pool. Sets are saved with the player (`Player.toJSON`); a save or player without them
+plays every format on the T20 ratings. The Player Ratings page and the player page's Attributes card have a T20 / ODI / Test
+switch ("est." marks a derived set, "T20" a player without format ratings).
 
 ## Venues, pitches, toss/chase and geography (analysis only)
 

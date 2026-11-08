@@ -11,11 +11,18 @@
  *   battingIQ, timing, power, running, wicketTaking, economy, accuracy, clutch, matches, runs, avg, sr, wickets, econ, lastYear]] }
  * tier: "senior" (Twenty20 / List A / First-Class cards) or "tier0".."tier4" for event-only cards by their lowest-tier
  * appearance (0 domestic second XI / touring / other senior-side, 1 university, 2 club / league, 3 youth, 4 veterans).
+ * Version 2 rows add two trailing elements, the player's ODI and Test sets (format-ratings.ts EncodedSet: eight
+ * attributes + source), written by pipeline/generate-format-ratings.ts. Version 1 shards still decode (no format sets).
  */
 
 import { calculateBattingOverall, calculateBowlingOverall, calculateOverallRating, type PlayerData, type BowlingStyle } from "@ipl-sim/engine";
+import { decodeFormatSets, type EncodedSet } from "./format-ratings.js";
 
-export const POOL_VERSION = 1;
+export const POOL_VERSION = 2;
+/** Shard versions decodeShard reads */
+const READABLE_VERSIONS = [1, 2];
+/** Fields of a version 1 row (the version 2 format sets come after them) */
+const BASE_FIELDS = 23;
 
 export type PoolGender = "men" | "women";
 export type PoolRole = "batsman" | "bowler" | "all-rounder";
@@ -36,6 +43,8 @@ export interface PoolRow {
   matches: number; runs: number; average: number; strikeRate: number; wickets: number; economy: number;
   /** Last season he played (2000-2026) */
   lastYear: number;
+  /** ODI and Test sets (version 2) */
+  formats?: [EncodedSet, EncodedSet];
 }
 
 export interface PoolShard {
@@ -44,7 +53,7 @@ export interface PoolShard {
   tier: string;
   countries: string[];
   styles: string[];
-  rows: (string | number)[][];
+  rows: (string | number | EncodedSet)[][];
 }
 
 export interface PoolShardInfo {
@@ -69,6 +78,7 @@ export function encodeShard(gender: PoolGender, tier: string, rows: PoolRow[]): 
     rows: rows.map(r => [
       r.id, r.name, r.age, idx(countries, r.country), ROLES.indexOf(r.role), idx(styles, r.bowlingStyle), r.battingHand === "left" ? 1 : 0, r.isWicketKeeper ? 1 : 0,
       ...r.ratings, r.matches, r.runs, r.average, r.strikeRate, r.wickets, r.economy, r.lastYear,
+      ...(r.formats ? r.formats : []),
     ]),
   };
 }
@@ -77,10 +87,11 @@ export function encodeShard(gender: PoolGender, tier: string, rows: PoolRow[]): 
 export type ExtendedPlayer = Omit<PlayerData, "injured" | "injuryGamesLeft"> & { gender: PoolGender; tier: string; lastYear: number };
 
 export function decodeShard(shard: PoolShard): ExtendedPlayer[] {
-  if (shard.v !== POOL_VERSION) throw new Error(`Unsupported pool shard version ${shard.v}`);
+  if (!READABLE_VERSIONS.includes(shard.v)) throw new Error(`Unsupported pool shard version ${shard.v}`);
   return shard.rows.map(r => {
     const country = shard.countries[r[3] as number];
     const keeper = r[7] === 1;
+    const sets = r.length > BASE_FIELDS ? (r.slice(BASE_FIELDS, BASE_FIELDS + 2) as unknown as [EncodedSet, EncodedSet]) : undefined;
     return {
       id: `ca_${r[0]}`,
       name: r[1] as string,
@@ -93,6 +104,7 @@ export function decodeShard(shard: PoolShard): ExtendedPlayer[] {
       bowlingStyle: shard.styles[r[5] as number] as BowlingStyle,
       battingHand: r[6] === 1 ? "left" : "right",
       careerStats: { m: r[16] as number, r: r[17] as number, avg: r[18] as number, sr: r[19] as number, w: r[20] as number, econ: r[21] as number },
+      ...(sets ? { formatRatings: decodeFormatSets(sets) } : {}),
       gender: shard.gender,
       tier: shard.tier,
       lastYear: r[22] as number,
@@ -132,6 +144,7 @@ export function toRealPlayerData(p: ExtendedPlayer) {
     bowlingStyle: p.bowlingStyle, battingHand: p.battingHand, careerStats: p.careerStats,
     battingIQ: p.ratings.battingIQ, timing: p.ratings.timing, power: p.ratings.power, running: p.ratings.running,
     wicketTaking: p.ratings.wicketTaking, economy: p.ratings.economy, accuracy: p.ratings.accuracy, clutch: p.ratings.clutch,
+    ...(p.formatRatings ? { formatRatings: p.formatRatings } : {}),
   };
 }
 
