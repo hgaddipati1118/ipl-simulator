@@ -58,9 +58,12 @@ const CHASE_BINS: readonly number[] = M.bins.chaseRate;
 const T_AGE = lv(F.age, AGE_BINS.length);
 const T_SET = lv(F.set, SET_BINS.length);
 const T_INN = lv(F.innings, 4);
-/** Wickets down in the innings (0-2, 3-5, 6-7, 8-9): the tail goes quicker and swings harder than the batters' own terms say */
+/**
+ * Wickets down (0-2, 3-5, 6-7, 8-9), by innings: the tail goes quicker and swings harder than the batters' own terms say, and
+ * a 4th-innings top order goes quicker than the innings and day factors alone say (FORMATS-TEST.md section 6.5)
+ */
 const WD_BINS: readonly number[] = M.bins.wicketsDown;
-const T_WD = lv(F.wicketsDown, WD_BINS.length);
+const T_WD = [0, 1, 2, 3].map(i => Array.from({ length: WD_BINS.length }, (_, b) => TEST_OUTCOMES.map(k => (F.wicketsDown as unknown as Record<string, number[][]>)[k]?.[i]?.[b] ?? 1)));
 const T_DAY = { pace: lv(F.day.pace, 5), spin: lv(F.day.spin, 5) };
 /**
  * Over of the bowler's spell. The fitted wicket rate rises along a spell (0.96 in the first over to 1.05 in the seventh), but
@@ -791,10 +794,13 @@ const COUNTRY_T = F.country as unknown as Readonly<Record<string, { pace: Outcom
 const CTY: Record<string, { pace: number[]; spin: number[] }> = {};
 for (const [c, t] of Object.entries(COUNTRY_T)) CTY[c] = { pace: vec(t.pace), spin: vec(t.spin) };
 
-/** The CPU's chase intent in a 4th innings: the fitted factor for the runs needed per over left (data: scheduled overs) */
+/**
+ * The CPU's chase intent in a 4th innings: the fitted factor for the runs needed per scheduled over left (days x overs a day
+ * less the overs bowled, as in the fit: weather and over rate left out, so the measure does not depend on how the chase went)
+ */
 function chaseLevel(st: TestMatchState, inn: TestInnings): number {
   const need = (testTarget(st) ?? 0) - inn.runs;
-  return binOf(need / Math.max(1, oversLeftInMatch(st)), CHASE_BINS);
+  return binOf(need / Math.max(1, st.days * st.oversPerDay - st.matchBalls / 6), CHASE_BINS);
 }
 
 /** Situation and approach multipliers for the side batting */
@@ -849,13 +855,22 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
   const wearMul = st.wear ? Math.exp(st.wear * (Math.min(st.day, 5) - 3) / 3) : 1;
   const p = new Array<number>(K);
   for (let k = 0; k < K; k++) {
-    let v = base[k] * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_WD[wd][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
+    let v = base[k] * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_WD[i][wd][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
       * bat.batMul[k] * bowl.bowlMul[k] * st.cond[k];
     if (team.bazball) v *= T_BAZ[k];
     if (k < IW && inn.cond) v *= inn.cond;
     else if (k === IW && inn.condW) v *= inn.condW;
     if (k === IW) v *= fat.wkts * wearMul; else v *= fat.runs;
     p[k] = v;
+  }
+  if (TEST_MATCH_HOOKS.traceWicket) {
+    const k = TEST_MATCH_HOOKS.traceClass ?? IW;
+    TEST_MATCH_HOOKS.traceWicket(inn, {
+      age: T_AGE[ab][k], set: T_SET[sb][k], inn: T_INN[i][k], wd: T_WD[i][wd][k], day: T_DAY[type][d][k], spell: T_SPELL[sp][k], sit: sit[k],
+      home: home[k], cty: cty[k], bat: bat.batMul[k], bowl: bowl.bowlMul[k], match: st.cond[k], innCond: k === IW ? inn.condW ?? 1 : k < IW ? inn.cond ?? 1 : 1,
+      wear: k === IW ? wearMul : 1, fatigue: k === IW ? fat.wkts : fat.runs, baz: team.bazball ? T_BAZ[k] : 1,
+      pW: p[k],
+    });
   }
   return p;
 }
@@ -987,7 +1002,12 @@ function newEvent(st: TestMatchState, inn: TestInnings): TestBallEvent {
 }
 
 /** Test hook: force the outcome class of every delivery (a forced wicket is bowled: no fielding, no review). Never used by the game. */
-export const TEST_MATCH_HOOKS: { forceClass?: TestOutcomeClass } = {};
+export const TEST_MATCH_HOOKS: {
+  forceClass?: TestOutcomeClass;
+  /** Called with each factor's multiplier on every delivery (diagnostics): the wicket class, or class index `traceClass` */
+  traceWicket?: (inn: TestInnings, parts: Record<string, number>) => void;
+  traceClass?: number;
+} = {};
 
 /** Draw the delivery; returns the event, or a held event when a user DRS decision is pending */
 function deliver(st: TestMatchState, inn: TestInnings, rng: RNG): TestBallEvent | null {
