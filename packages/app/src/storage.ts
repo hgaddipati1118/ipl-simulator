@@ -17,6 +17,7 @@ import {
 } from "@ipl-sim/engine";
 import type { GameState, SeasonSummary, CompletedTrade } from "./game-state";
 import { deleteSlotMatchData } from "./match-db";
+import { teamToData, teamFromData } from "./team-data";
 import { createScoutingState } from "./scouting";
 import { createRecruitmentState } from "./recruitment";
 
@@ -126,48 +127,11 @@ function generateSlotId(): string {
 // ── Serialization helpers ────────────────────────────────────────────────
 
 function serializeTeams(teams: Team[]) {
-  return teams.map(t => ({
-    config: t.config,
-    roster: t.roster.map(p => p.toJSON()),
-    salaryCap: t.salaryCap,
-    totalSpent: t.totalSpent,
-    wins: t.wins, losses: t.losses, ties: t.ties,
-    nrr: t.nrr, runsFor: t.runsFor, ballsFacedFor: t.ballsFacedFor,
-    runsAgainst: t.runsAgainst, ballsFacedAgainst: t.ballsFacedAgainst,
-    isUserControlled: t.isUserControlled,
-    userPlayingXI: t.userPlayingXI,
-    userBattingOrder: t.userBattingOrder,
-    userBowlingOrder: t.userBowlingOrder,
-    trainingIntensity: t.trainingIntensity,
-    bowlingPlan: t.bowlingPlan,
-    batterAggression: t.batterAggression,
-    bowlerFieldSettings: t.bowlerFieldSettings,
-  }));
+  return teams.map(teamToData);
 }
 
 function deserializeTeams(data: any[]): Team[] {
-  return data.map((t: any) => {
-    const team = new Team(t.config, t.salaryCap);
-    team.roster = t.roster.map((p: any) => Player.fromJSON(p));
-    team.totalSpent = t.totalSpent ?? 0;
-    team.wins = t.wins ?? 0;
-    team.losses = t.losses ?? 0;
-    team.ties = t.ties ?? 0;
-    team.nrr = t.nrr ?? 0;
-    team.runsFor = t.runsFor ?? 0;
-    team.ballsFacedFor = t.ballsFacedFor ?? 0;
-    team.runsAgainst = t.runsAgainst ?? 0;
-    team.ballsFacedAgainst = t.ballsFacedAgainst ?? 0;
-    team.isUserControlled = t.isUserControlled ?? false;
-    team.userPlayingXI = t.userPlayingXI;
-    team.userBattingOrder = t.userBattingOrder;
-    team.userBowlingOrder = t.userBowlingOrder;
-    team.trainingIntensity = t.trainingIntensity ?? "balanced";
-    team.bowlingPlan = t.bowlingPlan;
-    team.batterAggression = t.batterAggression;
-    team.bowlerFieldSettings = t.bowlerFieldSettings;
-    return team;
-  });
+  return data.map(teamFromData);
 }
 
 function serializePlayers(players: Player[]) {

@@ -47,7 +47,7 @@ import {
   releaseExpiredUserContracts,
   initSeason,
   playNextMatch,
-  applyLiveMatchToState,
+  stateAfterLiveMatch,
   simToMatch,
   isSeasonComplete,
   isGroupStageComplete,
@@ -320,21 +320,25 @@ export default function App() {
 
   const { resolved: themeResolved, toggle: themeToggle } = useTheme();
 
-  /** Called when a live match completes. Uses the actual live match result (no re-simulation). */
+  /**
+   * Called when a live match completes. Uses the actual live match result (no re-simulation). The state update is pure
+   * (stateAfterLiveMatch: React calls an updater twice in StrictMode, and applying the result in place counted the
+   * match twice); clearing the live match happens here, and the save once the new state is in (the effect below).
+   */
+  const saveAfterLiveResult = useRef(false);
   const handleLiveMatchComplete = useCallback((completedMatchState: MatchState, matchIdx?: number, narrativeEvents?: NarrativeEvent[]) => {
-    setState(prev => {
-      if (!prev) return prev;
-      const idx = matchIdx ?? liveMatchIndex.current;
-      if (idx < 0) return prev;
-      // Apply the live match result directly — no re-simulation
-      const { state: newState } = applyLiveMatchToState(prev, completedMatchState, narrativeEvents);
-      setLiveMatchState(null);
-      liveMatchIndex.current = -1;
-      // Fire-and-forget save
-      saveState(newState).then(() => refreshSlots());
-      return newState;
-    });
-  }, [refreshSlots]);
+    const idx = matchIdx ?? liveMatchIndex.current;
+    if (idx < 0) return;
+    setState(prev => stateAfterLiveMatch(prev, completedMatchState, idx, narrativeEvents));
+    setLiveMatchState(null);
+    liveMatchIndex.current = -1;
+    saveAfterLiveResult.current = true;
+  }, []);
+  useEffect(() => {
+    if (!state || !saveAfterLiveResult.current) return;
+    saveAfterLiveResult.current = false;
+    saveState(state).then(() => refreshSlots());
+  }, [state, refreshSlots]);
 
   if (loading || !state) {
     return (

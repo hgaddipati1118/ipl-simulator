@@ -70,6 +70,7 @@ import {
   type DraftState, type DraftType,
 } from "@ipl-sim/engine";
 import { seasonDraftConfig, draftRoundPrice } from "./draft-pools";
+import { cloneTeam } from "./team-data";
 // Import directly to avoid pulling in snapshot.ts (which uses Node fs/path/url)
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { getWPLPlayers } from "@ipl-sim/ratings/dist/wpl-players.js";
@@ -1040,6 +1041,20 @@ export function playNextMatch(state: GameState): {
   };
 }
 
+/**
+ * The App's state update for a live match that has just finished: pure (React may call it twice), and the result is
+ * applied only while that match is still the current one, so a late or repeated completion can't count it again.
+ */
+export function stateAfterLiveMatch(
+  prev: GameState | null,
+  completedMatchState: import("@ipl-sim/engine").MatchState,
+  matchIndex: number,
+  narrativeEvents?: NarrativeEvent[],
+): GameState | null {
+  if (!prev || matchIndex < 0 || matchIndex !== prev.currentMatchIndex) return prev;
+  return applyLiveMatchToState(prev, completedMatchState, narrativeEvents).state;
+}
+
 /** Apply a completed live match to the game state without re-simulating.
  *  Uses the actual ball-by-ball result from the live match viewer.
  */
@@ -1052,7 +1067,12 @@ export function applyLiveMatchToState(
   result: SerializableMatchResult;
   matchIndex: number;
 } {
-  const { schedule, currentMatchIndex, teams, matchResults } = state;
+  // Pure: the result goes onto copies of the teams and of this match's schedule entry, and the state passed in is left
+  // as it was. React calls a state updater twice in StrictMode (dev); applying the result to the teams in place counted
+  // every live match twice there (wins, net run rate, player stats).
+  const { currentMatchIndex, matchResults } = state;
+  const teams = state.teams.map(cloneTeam);
+  const schedule = state.schedule.map((m, i) => (i === currentMatchIndex ? { ...m } : m));
 
   const rawResult = applyLiveResult(schedule, currentMatchIndex, teams, completedMatchState, state.rules);
   const serialized = serializeMatchResult(rawResult);
@@ -1093,6 +1113,7 @@ export function applyLiveMatchToState(
 
   let nextState: GameState = {
     ...state,
+    teams,
     schedule: newSchedule,
     currentMatchIndex: newIndex,
     matchResults: newMatchResults,
