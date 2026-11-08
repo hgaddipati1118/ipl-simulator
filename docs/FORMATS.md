@@ -210,10 +210,17 @@ Reached from the Setup page ("International") and the top navigation. `packages/
 - **Setup**: men or women; two nations (every nation with 14+ shipped players aged 40 or under and six bowling options:
   `ALL_PLAYERS` for men, `WPL_PLAYERS` for women); the format; 1, 3 or 5 matches; the venue (the host's grounds in turn,
   most used first, from the ODI venue analysis; or neutral); captain one side or watch.
-- **Squads**: the nation's 16 best by XI value on the format's ratings (a player's `ratings` is his ODI set for an ODI,
+- **Squads**: 16 of the nation's active players on the format's ratings (a player's `ratings` is his ODI set for an ODI,
   attached from `public/data/format-ratings.json` like the rest of the app; T20 ratings for a T20I), with a keeper (the best
-  gloveman if the data flags none) and six bowling options. Ids are the record ids (`espn_<id>`), so a saved series rebuilds
-  the same squads.
+  gloveman if the data flags none) and six bowling options. Who is active comes from `public/data/player-activity.json`
+  (`packages/ratings/src/pipeline/generate-player-activity.ts`: each shipped player's last T20I, ODI and Test season and last
+  senior domestic season, from the CricketArchive cells; 7,235 players, 39 KB gzipped; read by
+  `packages/ratings/src/player-activity.ts` `squadTier`). Players who played the format internationally in the last two
+  seasons come first, then players active at senior level in the last two, then (only to fill a gap) the last three; nobody
+  inactive three seasons or more. Within a tier, by XI value. Australia's ODI squad no longer has James Faulkner (last senior
+  game 2022) or David Warner (no ODI since 2023); a player the data has no record of (685 of the pool) counts as a gap-filler
+  if he is 40 or under. Ids are the record ids (`espn_<id>`), so a saved series rebuilds the same squads. The rule is in
+  `buildNationSquad`, so every format, the Test included, uses it.
 - **Before each match** the captain can pick his XI from the squad and set the batting order (the Draft Match lineup editor);
   the CPU side gets the engine's own XI and order. A saved lineup carries over to the next match.
 - **Each match** is played live (`LiveMatchPage`, with the user's decisions for his side) or simulated instantly; rain is on
@@ -243,8 +250,7 @@ optional, absent = T20).
 ### Live ODI (`LiveMatchPage`)
 
 The page reads the format from the match's rules (`liveMatchFormat`): the overs counter shows `/ 50` (or the overs left
-after rain), run rate, required rate, progress and win probability (the T20 model on a stretched par, `totalOvers`) work for
-50 overs, the worm spans the innings, and a chip shows the fielding-restriction phase (P1 / P2 / P3 with the fielders allowed
+after rain), run rate, required rate, progress and win probability work for 50 overs, the worm spans the innings, and a chip shows the fielding-restriction phase (P1 / P2 / P3 with the fielders allowed
 out, in proportion in a shortened innings). The bowler picker lists only bowlers under their cap who did not bowl the last
 over, with "3/10 ov · 7 left". After rain the chase shows "DLS target 306 in 48 overs" and the rain banner the revised
 target. No Impact Player or strategic-timeout prompts appear (the engine raises none in an ODI). A live match is now also
@@ -257,6 +263,34 @@ saved when the page is left for another route.
 XI, open the scorecard, reload and resume; a Draft Match ODI to its result; `Math.random` is seeded in the page so the runs
 repeat). `E2E_PORT` runs the app on another port when several checkouts share the machine.
 
-Not done: the T20I is the franchise-calibrated T20 engine (T20I scoring is not separately validated); live win probability in
-an ODI uses the T20 model on a stretched par, which reads generous to the chasing side; no multiplayer series; the series
-does not feed career stats.
+**ODI win probability** (`odiWinProbability`, `calculateWinProbability` with `totalOvers: 50`): fitted on Cricsheet ODIs
+2015+ (full matches with a result, every delivery a state; `packages/ratings/src/analysis/odi-win-probability.py`, generated
+`odi-win-probability-data.ts`, calibration in `docs/data/odi_win_probability.json`). E = g x R(overs left, wickets down) / 100,
+the runs still to come at the average level (R = the DLS resources). A chase: P = sigmoid(a_k + b_k (E - runs needed) /
+sqrt(E + c)) with its own a, b in six stages of overs left (the end of a chase is sharper than its start); the first innings:
+P = sigmoid(a + b (runs + E - g) / sd). Men g 265, sd 65; women g 235, sd 64. Predicted and actual agree within about 3 points
+in every tenth of probability (in sample). 11/1 chasing 306 in 48 overs reads 21% (the T20 model on a stretched par had said
+76%), the start of a chase of 301 31%, of 251 59%. T20 win probability is unchanged.
+
+**T20I check** (the T20 engine as the series plays T20Is: national squads of active players on T20 ratings, neutral venues;
+the real fixtures between full members since 2019 replayed twice; real: Cricsheet T20Is 2019+, both sides full members,
+full 20-over matches):
+
+| | men sim | men real | women sim | women real |
+|---|---|---|---|---|
+| 1st-innings total (sd) | 173.0 (31.5) | 169.5 (37.3) | 163.5 (32.7) | 142.2 (34.6) |
+| 200+ | 18.6% | 19.2% | 11.5% | 5.1% |
+| run rate overs 1-6 / 7-15 / 16-20 | 10.33 / 7.52 / 10.47 | 8.08 / 8.05 / 10.01 | 10.18 / 6.96 / 10.01 | 6.52 / 6.84 / 8.46 |
+| 1st inns: wickets / all out | 7.55 / 30.5% | 6.63 / 11.5% | 7.68 / 31.5% | 6.23 / 9.2% |
+| 2nd inns runs | 154.9 | 150.7 | 145.3 | 123.2 |
+| batting first wins | 50.5% | 49.7% | 46.5% | 48.0% |
+| live engine 1st innings (150 matches) | 251.8 | | 229.6 | |
+
+The instant engine's men's totals land near the real ones, but by a different route: a powerplay two runs an over too fast
+and a third of innings bowled out (real: one in nine). The women's T20Is score 21 runs (15%) too many, with the same
+powerplay. The live engine scores about 250 (its own calibration, RULES-MATCH.md 12.4: about 242 an innings in the IPL), so
+a live T20I in the series plays far above real T20Is. Not fixed: a T20I level would need a new scoring hook in both T20
+engines (the T20 tables and the live engine's calibration are shared by every league), which is more than a clean fix; the
+ODI, on its own model, is unaffected.
+
+Not done: no multiplayer series; the series does not feed career stats.
