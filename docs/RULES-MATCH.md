@@ -530,34 +530,84 @@ First innings (sd), real / before / after (instant; live CPU after in brackets):
 (the WPL's targets are pulled a little toward the lower-scoring pool), all-out shares are a point or three high, and the
 spread of totals is narrow in every league (see 12.8).
 
-### 12.8 The spread of innings totals: match conditions
+### 12.8 The spread of innings totals: the IPL's shape and match conditions
 
 Simulated totals were too even. T20Is between full members had a first-innings standard deviation of 24 against a real 37,
-and the men's leagues were 3-13 runs short, so 200 came up too rarely.
+the men's leagues were 3-13 runs short, and 200 came up too rarely. A first version (a symmetric day multiplier) matched
+the standard deviations but made the low tail far too heavy (IPL under 120: 6.6% to 9.2%). This is the revision.
 
-**Where the real spread comes from** (`packages/ratings/src/analysis/t20-spread.py`, `docs/data/t20_spread.json`).
-The data is every full league match since 2021, and T20Is since 2019. Each innings' first ten overs are split into the
-batting side (per season), the bowling side (per season), the ground and the rest. The first ten overs are used because a
-chase almost never ends inside them. The match term is the covariance of the two innings' residuals within a match: what
-both have in common beyond the sides and the ground, which is the pitch and the weather on the day. Runs in overs 1-10,
-pooled over the men's T20 leagues: batting side 8.6, bowling side 0.8, ground 30.4, the rest 277. Of the rest, 60 is the
-match term. The engine on the same measure: the match term was 16 (a chase's response to its target makes some in both),
-and its innings' own variance was 174 against a real 217. Women's leagues pooled: the real match term is 7.9, the engine's
-already 6.5.
+**The real shape** (`packages/ratings/src/analysis/t20-spread.py`, `docs/data/t20_spread.json`). Each league's first
+innings since 2021 are centred on their season's mean, because seasons drift by up to 30 runs (the IPL from about 160
+in 2021 to 190 in 2024-25) and the engine plays one era. Centred, real totals are not right-skewed. The IPL's are close
+to symmetric (skew -0.14; 10th / 90th percentile -41 / +43), as are the other leagues' (skew -0.4 to +0.3). The raw
+right tail was the seasons' drift. So the engine is compared with the real shape at the engine's own league mean: sd,
+the 10th / 25th / 50th / 75th / 90th percentiles of the deviation, and the 200+ and under-120 shares that shape gives at
+the engine's mean (The Hundred: 167+ / under 100). The means are the league calibration's and stay as they are.
 
-**The term** (`match-conditions.ts`, both engines). Each T20 and Hundred match draws a run multiplier on the scoring
-classes, shared by both innings, lognormal like the Test engine's match conditions. Its spread is fitted so the engine's
-match term equals the real one, pooled per gender (`packages/app/src/__tests__/calibrate-spread.test.ts`): men 0.186,
-women 0.037. A centre (men +0.019) keeps the mean total where it was, because runs fall a little faster than they rise
-with the multiplier. The ODI has none: its fitted model already has the real spread. An innings' own multiplier, fitted to
-the innings-level gap, widened totals far past the real ones (IPL sd 43, a 4-run lower mean). It is kept in the code at
-zero.
+**The low tail is the engine's collapses, most of all in the IPL.** With no term, IPL first innings were all out 27%
+of the time against a real 7.7%, and nearly all of the engine's under-120 innings were all-outs. Against the real IPL
+since 2023, by phase and wickets down, the engine's powerplay wicket rate was 37% too high and its middle-overs rate 24%
+too high. Its powerplay was a run an over too fast and its middle overs 1.7 an over too slow, and it barely slowed down
+after early wickets (the real middle-overs rate falls from 9.7 an over at 0-2 down to 7.1 at 5-6 down; the engine's
+from 8.0 to 7.3). The other men's leagues' wickets per innings already sit near their real ones (`LEAGUE_LEVELS` fits
+them), and their all-out excess is smaller (17-21% against 11-19%).
 
-First innings, mean (sd) / 200+ / under 120, real (2021+) / engine before / after. The game's own squads, 1,500 instant
-matches each; The Hundred on 167+ / under 100.
+**The IPL's shape** (`mens-league-context-data.ts`, read through `scoring-context.ts`; fitted by
+`calibrate-contexts.test.ts`, `CALIBRATE_MEN=1`). The IPL now has a scoring context like the women's leagues', fitted on
+its matches since 2024 (211), but at the engine's own scoring level. The real run-class shares are scaled together (by
+0.93) so the mean first innings stays where it was (177.0 against 176.7). Wickets per innings 7.33 to 6.38 (real 6.35),
+all out 27.9% to 13.8% (real 9.0%), run rate by phase 10.56 / 7.70 / 10.51 to 8.87 / 8.48 / 10.22 (real 9.54 / 8.97 /
+11.24, at 0.93 of the level). The other men's leagues stay on the league tables. A shape fitted to them (`CAL_ONLY`)
+leaves their all-outs where they are and narrows their totals.
+
+**The conditions term** (`match-conditions.ts`, both engines). Each T20 and Hundred match draws a run multiplier on the
+scoring classes, shared by both innings, like the Test engine's match conditions. Its log is two-piece normal: sd `lo`
+below a centre and `hi` above it, so it can be skewed. The shape `hi / lo` is pooled over the men's leagues; the scale
+and the centre are per league (`match-conditions-data.ts`, fitted by `calibrate-spread.test.ts`, `CAL_FIT=1`).
+- Each men's league is played at a grid of fixed multipliers (log -0.6 to +0.8, 800 matches each). A candidate term's
+  totals are the grid mixture weighted by its density.
+- The pooled shape and each league's scale minimise the squared distance of the five percentiles plus four times that of
+  the two shares, in points.
+- Each centre is then set on 5,000 drawn matches so the mean first innings equals the one without a term.
+- The fitted shape is `hi = 2 lo`, a mild right skew that offsets the engine's own left tail. A league fitting better
+  with none keeps none (the BBL). Other men's T20s, T20Is included, use the median league's. The women get none: the
+  first version's small fitted term (0.037) changed nothing, and their real match term (7.9) is the engine's own (6.5).
+
+First innings, 1,500 instant matches a league, the game's own squads: mean (sd); deviation from the mean at the 10th /
+50th / 90th percentile; 200+; under 120. "Real" is the season-centred real shape at the engine's mean; "before" is no
+IPL shape and no term; "after" is this version.
 
 | league | real | before | after |
 |---|---|---|---|
+| IPL | (33.9) -41 / 0 / +43; 22.4%; 4.3% | 175.6 (32.3) -45 / +4 / +36; 21.3%; 6.6% | 175.0 (33.0) -42 / +1 / +42; 21.7%; 5.2% |
+| BBL | (29.5) -35 / -3 / +38; 11.3%; 4.2% | 165.5 (27.8) -35 / +3 / +34; 9.7%; 6.2% | no term: as before |
+| PSL | (33.3) -44 / +3 / +40; 21.3%; 5.8% | 178.1 (30.3) -38 / +3 / +36; 23.3%; 3.8% | 176.4 (31.7) -41 / +3 / +39; 22.9%; 5.4% |
+| SA20 | (38.6) -47 / -1 / +51; 12.7%; 14.4% | 159.7 (25.6) -33 / +1 / +31; 4.9%; 6.9% | 158.0 (34.7) -46 / +1 / +43; 10.6%; 13.2% |
+| CPL | (32.4) -38 / -1 / +42; 15.9%; 4.9% | 171.9 (26.8) -34 / +2 / +32; 13.3%; 4.2% | 171.3 (31.6) -40 / +2 / +38; 17.5%; 5.9% |
+| ILT20 | (30.3) -38 / +2 / +30; 6.1%; 9.8% | 159.7 (26.7) -31 / +1 / +32; 5.3%; 7.1% | 159.6 (27.2) -37 / +1 / +31; 5.9%; 7.7% |
+| MLC | (34.4) -40 / 0 / +45; 19.4%; 5.8% | 174.4 (27.4) -35 / +3 / +34; 17.0%; 3.5% | 172.7 (31.9) -41 / +1 / +38; 18.7%; 6.3% |
+| BPL | (32.1) -40 / 0 / +35; 5.9%; 10.9% | 159.1 (26.3) -33 / +2 / +31; 5.3%; 7.1% | 157.3 (30.0) -38 / +2 / +37; 7.3%; 10.1% |
+| LPL | (31.8) -39 / +4 / +39; 21.6%; 6.3% | 178.1 (29.4) -37 / +3 / +35; 22.9%; 4.3% | 176.1 (31.9) -41 / +3 / +39; 22.5%; 5.3% |
+| Hundred men | (27.4) -37 / -1 / +34; 20.0%; 6.3% | 144.0 (23.6) -29 / 0 / +29; 16.5%; 3.3% | 143.5 (27.1) -35 / 0 / +33; 20.3%; 6.1% |
+
+The "after" means differ from "before" by up to 2 runs on these 1,500 matches: noise. On 5,000 matches the IPL is 177.0
+with neither change and 177.2 with both. The IPL now matches its real shape within a point on 200+ and a run on the sd
+and the 90th percentile. Under 120 is 5.2% against 4.3%, and all out 16.6% against 7.7% (27% before). Left over:
+- BBL, ILT20 and BPL are still a couple of points heavy below the median, from collapses (all out 18% against 11-15%)
+  that their shapes do not touch.
+- SA20 and MLC are still short of spread (real sd 38.6 and 34.4).
+- The IPL's match term in the first ten overs is now 87 against a real 104. Other leagues' terms come out at 23-106
+  against real 18-146: the scales are fitted to the totals, not to that term.
+- T20I men (fixture replays): 167.2 (26.3) against a real 169.5 (37.3). The default term; the rest is grounds and how far
+  apart the sides are (see 12.7 for the women).
+- The live engine follows: IPL live CPU 172.3 runs an innings against instant 169.7 (400 matches; 1.4 runs of noise each).
+- The IPL's extras follow the real league's per-ball rates: 9.1 an innings with the game's squads against the real 8.9.
+
+Fingerprint: the men's T20 lines and the Hundred line move; the women's line does not. Instant men `48ec01dbb07dbc66`, men
+with rain `a4b19bc607589f48`, women `7d214ad967890a1c`, Hundred `35656ed4f9692502`; live CPU `c6092d833b2d11a6`, user
+`b8cea85a7ee08af0`; combined `efa2366c3cb4e486`.
+
+---|---|---|---|
 | IPL | 182.4 (35.9) / 33.2% / 3.6% | 175.6 (32.3) / 21.3% / 6.6% | 174.4 (35.9) / 24.3% / 9.2% |
 | BBL | 165.7 (29.6) / 12.5% / 4.2% | 165.5 (27.8) / 9.7% / 6.2% | 166.2 (31.9) / 14.1% / 7.7% |
 | PSL | 180.2 (33.5) / 25.1% / 4.8% | 178.1 (30.4) / 23.3% / 3.8% | 177.3 (33.2) / 25.2% / 6.3% |

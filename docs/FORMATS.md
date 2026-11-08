@@ -195,7 +195,7 @@ a user side. The ODI work left every line as it was. Since then, on purpose:
 | before the ODI work | `81d0471a218f9e03` / `886e09f301bed9f4` / `44cb21795e248267` / `c21a7f5308560ea1` | `7976b1a6fb569b50` / `c52cfbcc19c0d6ce` | `90919c560ce4405b` |
 | live engine on the instant engine's ball (RULES-MATCH.md 12.4) | unchanged | `5fb19cfd90456037` / `8701f337d6b4e5fc` | `657e769a9f784f1c` |
 | women's league contexts (RULES-MATCH.md 12.7): the women's line only | women `7d214ad967890a1c` | unchanged | `c83288e1be6891af` |
-| match conditions (RULES-MATCH.md 12.8): every line | `96d92c7268a40d3c` / `7879658a66718ab3` / `8f4882ca77975e4f` / `c7b89ea837d208d5` | `58a6b982314dba6d` / `e8f4a822eda4fb05` | `19f481c2f372457a` |
+| the IPL's shape and match conditions (RULES-MATCH.md 12.8): all but the women's line | `48ec01dbb07dbc66` / `a4b19bc607589f48` / women unchanged / `35656ed4f9692502` | `c6092d833b2d11a6` / `b8cea85a7ee08af0` | `efa2366c3cb4e486` |
 
 ### Refitting
 

@@ -1,10 +1,11 @@
 /**
- * A T20 match's own conditions (match-conditions.ts, docs/RULES-MATCH.md 12.8): a run multiplier drawn per match from the
- * fitted spread, shared by both innings, in both engines; none in an ODI. It widens the spread of totals and leaves their
- * mean where it was. Seeded.
+ * A T20 match's own conditions (match-conditions.ts, docs/RULES-MATCH.md 12.8): a run multiplier drawn per match from its
+ * league's fitted two-piece shape (the men's default for other men's T20s; none for the women and for leagues fitted with
+ * none), shared by both innings, in both engines; none in an ODI. It widens the spread of totals, more above than below,
+ * and leaves their mean where it was. Seeded.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applyMatchConditions, drawMatchConditions } from "../match-conditions.js";
+import { applyMatchConditions, conditionsShapeFor, drawMatchConditions } from "../match-conditions.js";
 import { MATCH_CONDITIONS } from "../match-conditions-data.js";
 import { simulateMatch, type BallOutcome } from "../match.js";
 import { createMatchState } from "../live-match.js";
@@ -27,29 +28,35 @@ function teams(): Team[] {
 }
 
 describe("match conditions", () => {
-  it("draws a lognormal run multiplier with the fitted spread, and nothing (no draw) at zero spread", () => {
-    const rng = createRNG(5);
-    const logs = Array.from({ length: 20000 }, () => Math.log(drawMatchConditions("male", rng)!.run));
-    const m = logs.reduce((a, b) => a + b, 0) / logs.length;
-    const sd = Math.sqrt(logs.reduce((a, x) => a + (x - m) ** 2, 0) / logs.length);
-    const s = MATCH_CONDITIONS.male;
-    expect(s.match).toBeGreaterThan(0.1);
-    expect(sd).toBeCloseTo(s.match, 2);
-    expect(m).toBeCloseTo(-(s.match ** 2) / 2 + s.center, 2);
-    MATCH_CONDITIONS.male = { match: 0, innings: 0, center: 0 };
+  it("each league its own shape; the men's default elsewhere; none for the women or a league fitted with none", () => {
+    expect(conditionsShapeFor("male", "ipl")).toBe(MATCH_CONDITIONS.male.ipl);
+    expect(conditionsShapeFor("male", "custom")).toBe(MATCH_CONDITIONS.male.default);
+    expect(conditionsShapeFor("female", "wpl")).toBeUndefined();
+    for (const [league, shape] of Object.entries(MATCH_CONDITIONS.male)) if (shape === null) expect(conditionsShapeFor("male", league)).toBeUndefined();
     let draws = 0;
-    expect(drawMatchConditions("male", () => { draws++; return 0.5; })).toBeUndefined();
+    expect(drawMatchConditions("female", "wpl", () => { draws++; return 0.5; })).toBeUndefined();
     expect(draws).toBe(0);
+  });
+
+  it("draws the two-piece log multiplier: below the centre with probability lo / (lo + hi), each side with its own spread", () => {
+    const s = MATCH_CONDITIONS.male.ipl!;
+    expect(s.hi).toBeGreaterThan(s.lo);
+    const rng = createRNG(5);
+    const logs = Array.from({ length: 40000 }, () => Math.log(drawMatchConditions("male", "ipl", rng)!.run) - s.center);
+    const below = logs.filter(x => x < 0), above = logs.filter(x => x >= 0);
+    expect(below.length / logs.length).toBeCloseTo(s.lo / (s.lo + s.hi), 2);
+    // a half-normal's root mean square is its sd
+    const rms = (xs: number[]) => Math.sqrt(xs.reduce((a, x) => a + x * x, 0) / xs.length);
+    expect(rms(below)).toBeCloseTo(s.lo, 2);
+    expect(rms(above)).toBeCloseTo(s.hi, 2);
   });
 
   it("multiplies the scoring classes only", () => {
     const probs = { dot: 1, "1": 1, "2": 1, "3": 1, "4": 1, "6": 1, wicket: 1, wide: 1, noball: 1, legbye: 1 } as Record<BallOutcome, number>;
-    applyMatchConditions(probs, { run: 1.2, innings: [1, 0.5] }, false);
+    applyMatchConditions(probs, { run: 1.2 });
     expect(probs["4"]).toBeCloseTo(1.2);
     expect(probs.dot).toBe(1);
     expect(probs.wicket).toBe(1);
-    applyMatchConditions(probs, { run: 1, innings: [1, 0.5] }, true);
-    expect(probs["6"]).toBeCloseTo(0.6);
   });
 
   it("the live engine draws them for a T20, not for an ODI", () => {
@@ -58,29 +65,26 @@ describe("match conditions", () => {
     expect(createMatchState(a, b, odiRules("men", RULES), null, 11)._internal.conditions).toBeUndefined();
   });
 
-  it("widens the spread of first-innings totals and keeps their mean; both innings of a match move together", () => {
+  it("widens the spread of first-innings totals, more above the median than below, and keeps the mean", () => {
     const N = 1500;
     const play = () => {
-      const first: number[] = [], pairs: [number, number][] = [];
+      const first: number[] = [];
       const t = teams();
       for (let i = 0; i < N; i++) {
         const a = t[i % t.length], b = t[(i * 3 + 1) % t.length === i % t.length ? (i + 1) % t.length : (i * 3 + 1) % t.length];
-        const r = simulateMatch(a, b, RULES, 4400 + i, { countTowardStandings: false });
-        first.push(r.innings[0].runs);
-        const r10 = (k: number) => r.innings[k].ballLog.filter(e => e.over < 10).reduce((s, e) => s + e.runs + e.extras, 0);
-        if (r.innings[1].ballLog.some(e => e.over >= 9)) pairs.push([r10(0), r10(1)]);
+        first.push(simulateMatch(a, b, RULES, 4400 + i, { countTowardStandings: false }).innings[0].runs);
       }
+      const v = [...first].sort((x, y) => x - y);
+      const q = (p: number) => v[Math.floor(p * (v.length - 1))];
       const mean = first.reduce((x, y) => x + y, 0) / N;
       const sd = Math.sqrt(first.reduce((x, y) => x + (y - mean) ** 2, 0) / (N - 1));
-      const ma = pairs.reduce((s, p) => s + p[0], 0) / pairs.length, mb = pairs.reduce((s, p) => s + p[1], 0) / pairs.length;
-      const cov = pairs.reduce((s, p) => s + (p[0] - ma) * (p[1] - mb), 0) / pairs.length;
-      return { mean, sd, cov };
+      return { mean, sd, up: q(0.9) - q(0.5), down: q(0.5) - q(0.1) };
     };
     const withConditions = play();
-    MATCH_CONDITIONS.male = { match: 0, innings: 0, center: 0 };
+    MATCH_CONDITIONS.male = {};
     const without = play();
     expect(withConditions.sd).toBeGreaterThan(without.sd + 2);
-    expect(Math.abs(withConditions.mean - without.mean)).toBeLessThan(4);
-    expect(withConditions.cov).toBeGreaterThan(without.cov + 15);
+    expect(Math.abs(withConditions.mean - without.mean)).toBeLessThan(3);
+    expect(withConditions.up - without.up).toBeGreaterThan(withConditions.down - without.down);
   });
 });

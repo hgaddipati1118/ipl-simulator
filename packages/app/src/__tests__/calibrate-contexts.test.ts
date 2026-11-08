@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import {
-  EXTRA_LEAGUES, RULE_PRESETS, T20I_CONTEXT, WOMENS_LEAGUE_CONTEXT, createMatchState, simulateMatch, simulateRemaining,
+  EXTRA_LEAGUES, MENS_LEAGUE_CONTEXT, RULE_PRESETS, T20I_CONTEXT, WOMENS_LEAGUE_CONTEXT, createMatchState, simulateMatch, simulateRemaining,
   type BallEvent, type BallOutcome, type RuleSet, type T20Context, type Team,
 } from "@ipl-sim/engine";
 import { createGameState } from "../game-state";
@@ -32,12 +32,20 @@ import { createPoolLoader } from "../extended-pool";
  * "default" table (any other women's T20) is the delivery-weighted geometric mean of the three. CAL_MATCHES (default 600)
  * matches per league per round; CAL_LIVE=1 adds the live engine (not the Hundred: the live viewer has none).
  *   CALIBRATE_LEAGUES=1 CAL_ITER=6 CALIBRATE_WRITE=1 npx vitest run packages/app/src/__tests__/calibrate-contexts.test.ts --reporter=verbose
+ *
+ * Men's league shapes (skipped unless CALIBRATE_MEN=1): a men's league the same way against its matches since 2024
+ * (mensLeagues2024; shrunk toward the leagues' pooled shares with 1,500 deliveries' weight), but at the engine's own scoring
+ * level: the real run-class shares (1, 2, 3, 4, 6) are scaled together, the dots taking up the difference, by the factor
+ * that keeps the mean first innings what it is without a shape (updated each round). Wickets, extras and the phase shape
+ * follow the real league. The IPL by default; CAL_ONLY=bbl,psl fits others. Writes mens-league-context-data.ts.
+ *   CALIBRATE_MEN=1 CAL_ITER=8 CALIBRATE_WRITE=1 npx vitest run packages/app/src/__tests__/calibrate-contexts.test.ts -t "men's" --reporter=verbose
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..", "..", "..");
 const PUBLIC = join(HERE, "..", "..", "public");
 const OUT = join(REPO, "packages", "engine", "src", "t20i-context-data.ts");
 const OUT_LEAGUES = join(REPO, "packages", "engine", "src", "womens-league-context-data.ts");
+const OUT_MEN = join(REPO, "packages", "engine", "src", "mens-league-context-data.ts");
 
 type Phase = "powerplay" | "middle" | "death";
 const PHASES: Phase[] = ["powerplay", "middle", "death"];
@@ -224,6 +232,95 @@ export const WOMENS_LEAGUE_CONTEXT: Record<"wpl" | "wbbl" | "hundred-w" | "defau
 };
 `);
     console.log(`wrote ${OUT_LEAGUES}`);
+  }
+}, 3_600_000);
+
+it.skipIf(!process.env.CALIBRATE_MEN)("men's league shapes", () => {
+  const VALID = JSON.parse(readFileSync(join(REPO, "docs", "data", "t20i_validation.json"), "utf-8")) as { mensLeagues2024: Record<string, Real> };
+  const N = Number(process.env.CAL_MATCHES ?? 800);
+  const iters = Number(process.env.CAL_ITER ?? 0);
+  const RUNS: BallOutcome[] = ["1", "2", "3", "4", "6"];
+  // shipped: the IPL (its wickets and all-outs were far off; the other leagues' wickets already sit near the real ones and a
+  // shape does not change their collapses, RULES-MATCH.md 12.8); CAL_ONLY fits others
+  const only = process.env.CAL_ONLY?.split(",") ?? ["ipl"];
+  const candidates: Array<[string, RuleSet, boolean]> = [
+    ["ipl", RULE_PRESETS.modern2026 as RuleSet, false],
+    ...EXTRA_LEAGUES.filter(l => l.gender === "men").map(l => [l.id, l.rules, l.rules.matchFormat === "hundred"] as [string, RuleSet, boolean]),
+  ];
+  const leagues = candidates.filter(([id]) => VALID.mensLeagues2024[id] && (!only || only.includes(id)));
+  const A = 1500;
+  const all = Object.values(VALID.mensLeagues2024);
+  const pooled = Object.fromEntries(PHASES.map(p => {
+    const n = all.reduce((sum, r) => sum + r.phaseDeliveries[p], 0);
+    return [p, Object.fromEntries(CLASSES.map(c => [c, all.reduce((sum, r) => sum + r.phaseShares[p][c] * r.phaseDeliveries[p], 0) / n]))];
+  })) as Record<Phase, Record<string, number>>;
+  const play = (r0: RuleSet, hundred: boolean): Acc => {
+    const rules = { ...r0, injuriesEnabled: false } as RuleSet;
+    const teams = createGameState(rules).teams;
+    const acc = newAcc();
+    for (let i = 0; i < N; i++) {
+      const home = teams[i % teams.length];
+      let away = teams[(i * 7 + 3) % teams.length];
+      if (away === home) away = teams[(i * 7 + 4) % teams.length];
+      const r = simulateMatch(home, away, rules, 5000 + i, { countTowardStandings: false });
+      addMatch(acc, r.innings as Inn[], r.winnerId && r.margin !== "Super Over" ? r.winnerId === r.innings[0].teamId : null, hundred);
+    }
+    return acc;
+  };
+  for (const [id, r0, hundred] of leagues) {
+    const real = VALID.mensLeagues2024[id];
+    const goalShares = Object.fromEntries(PHASES.map(p => {
+      const n = real.phaseDeliveries[p];
+      return [p, Object.fromEntries(CLASSES.map(c => [c, (n * real.phaseShares[p][c] + A * pooled[p][c]) / (n + A)]))];
+    })) as Record<Phase, Record<string, number>>;
+    const kept = MENS_LEAGUE_CONTEXT[id];
+    delete MENS_LEAGUE_CONTEXT[id];
+    const before = summary(play(r0, hundred));
+    const level = before.runs;
+    const ctx: T20Context = kept && !process.env.CAL_NOCONTEXT ? kept : { powerplay: {}, middle: {}, death: {} };
+    MENS_LEAGUE_CONTEXT[id] = ctx;
+    let k = 1;
+    for (let it = 0; it < iters; it++) {
+      const acc = play(r0, hundred);
+      const sm = summary(acc);
+      if (it > 0) k *= level / sm.runs;
+      const sim = shares(acc);
+      const step = it < 3 ? 1 : 0.5;
+      for (const p of PHASES) {
+        const goal: Record<string, number> = { ...goalShares[p] };
+        let moved = 0;
+        for (const c of RUNS) { moved += goal[c] * (1 - k); goal[c] *= k; }
+        goal.dot += moved;
+        for (const c of CLASSES) {
+          const r = goal[c], sv = sim[p][c];
+          if (!(sv > 0) || !(r > 0)) continue;
+          ctx[p][c] = (ctx[p][c] ?? 1) * (r / sv) ** step;
+        }
+      }
+      console.log(`${id} round ${it + 1}: first innings ${f(sm.runs)} (level ${f(level)}), run-share factor ${k.toFixed(3)}, wickets ${f(sm.wickets, 2)}, all out ${f(sm.allOut)}%`);
+    }
+    console.log(`| ${id} | 1st inns (sd) | 200+ | RR 1-6 / 7-15 / 16-20 | 1st inns wkts / all out | 2nd inns | bat 1st wins | extras/inn | 4s / 6s per inn |`);
+    console.log(realRow("real", real));
+    console.log(row("instant, no shape", before));
+    console.log(row("instant, shape", summary(play(r0, hundred))));
+  }
+  if (process.env.CALIBRATE_WRITE) {
+    writeFileSync(OUT_MEN, `/**
+ * GENERATED by packages/app/src/__tests__/calibrate-contexts.test.ts (CALIBRATE_MEN=1 CALIBRATE_WRITE=1) from
+ * docs/data/t20i_validation.json. Do not edit by hand.
+ *
+ * Men's league shapes: per league and phase, a multiplier on each outcome class of the T20 ball model, fitted so the game's
+ * own sides reproduce the league's real phase shape since 2024 (how often each phase's balls are dots, ones ... wickets,
+ * extras) at the engine's own scoring level: the run classes are scaled together so the mean total stays what it was
+ * (scoring-context.ts; docs/RULES-MATCH.md 12.8).
+ */
+import type { T20Context } from "./scoring-context.js";
+
+export const MENS_LEAGUE_CONTEXT: Record<string, T20Context> = {
+${leagues.map(([id]) => id).map(id => `  ${/^[a-z]+$/.test(id) ? id : `"${id}"`}: ${fmtContext(MENS_LEAGUE_CONTEXT[id])},`).join("\n")}
+};
+`);
+    console.log(`wrote ${OUT_MEN}`);
   }
 }, 3_600_000);
 

@@ -154,13 +154,38 @@ def match_terms(dr: dict, dw: dict) -> dict:
     return {"run": round(cr, 2), "wicket": round(cw, 4), "corr": round(max(-1.0, min(1.0, corr)), 3), "matches": k}
 
 
+QS = [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95]
+
+
+def quantile(xs: list, q: float) -> float:
+    """Linear-interpolation quantile (DuckDB's quantile_cont)"""
+    v = sorted(xs)
+    h = (len(v) - 1) * q
+    lo = math.floor(h)
+    return v[lo] + (v[min(lo + 1, len(v) - 1)] - v[lo]) * (h - lo)
+
+
 def distribution(rows: list, hundred: bool) -> dict:
-    first = [r["runs"] for r in rows if r["innings"] == 1]
+    """First-innings totals: as played, and centred on their season's mean (the shape the engine is fitted to: the engine
+    plays one era, the real seasons since 2021 drift by up to 30 runs)"""
+    first = [r for r in rows if r["innings"] == 1]
+    runs = [r["runs"] for r in first]
     hi, lo = (200 * 100 / 120, 120 * 100 / 120) if hundred else (200, 120)
-    m = sum(first) / len(first)
-    sd = math.sqrt(sum((x - m) ** 2 for x in first) / (len(first) - 1))
-    return {"matches": len(first), "mean": round(m, 1), "sd": round(sd, 1),
-            "p200": round(100 * sum(x >= hi for x in first) / len(first), 1), "under120": round(100 * sum(x < lo for x in first) / len(first), 1)}
+    m = sum(runs) / len(runs)
+    sd = math.sqrt(sum((x - m) ** 2 for x in runs) / (len(runs) - 1))
+    by = {}
+    for r in first:
+        by.setdefault(r["season"], []).append(r["runs"])
+    means = {k: sum(v) / len(v) for k, v in by.items()}
+    dev = [r["runs"] - means[r["season"]] for r in first]
+    sdc = math.sqrt(sum(d * d for d in dev) / (len(dev) - len(by)))
+    skew = sum(d ** 3 for d in dev) / len(dev) / (sum(d * d for d in dev) / len(dev)) ** 1.5
+    allout = 100 * sum(r["wk"] >= 10 for r in first) / len(first)
+    lo_allout = 100 * sum(r["wk"] >= 10 and r["runs"] < lo for r in first) / len(first)
+    return {"matches": len(runs), "mean": round(m, 1), "sd": round(sd, 1), "allOut": round(allout, 1), "under120AllOut": round(lo_allout, 1),
+            "p200": round(100 * sum(x >= hi for x in runs) / len(runs), 1), "under120": round(100 * sum(x < lo for x in runs) / len(runs), 1),
+            "centred": {"sd": round(sdc, 1), "skew": round(skew, 3), "quantiles": [round(quantile(dev, q), 1) for q in QS],
+                        "deviations": sorted(round(d, 1) for d in dev)}}
 
 
 def window_rows(rows: list) -> list:
@@ -209,6 +234,7 @@ def main() -> None:
         "source": "Cricsheet ball-by-ball (data/analysis/deliveries.parquet, matches.parquet); packages/ratings/src/analysis/t20-spread.py",
         "generated": date.today().isoformat(),
         "terms": TERMS + ["residual"],
+        "quantiles": QS,
         "note": "r10 / w10: runs / wickets in each innings' first ten overs (sets); var: variance components; match: within-match covariance of the residuals (run, wicket) and their correlation",
         "leagues": leagues,
         "pooled": pooled,

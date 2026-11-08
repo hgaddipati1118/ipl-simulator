@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { scoringContextFor, applyScoringContext } from "../scoring-context.js";
 import { T20I_CONTEXT } from "../t20i-context-data.js";
 import { WOMENS_LEAGUE_CONTEXT } from "../womens-league-context-data.js";
+import { MENS_LEAGUE_CONTEXT } from "../mens-league-context-data.js";
 import { EXTRA_LEAGUES } from "../leagues.js";
 import { T20_FORMAT, HUNDRED_FORMAT, ODI_FORMAT } from "../format.js";
 import { RULE_PRESETS, type RuleSet } from "../rules.js";
@@ -33,7 +34,8 @@ describe("T20I context", () => {
     expect(scoringContextFor({ ...T20I, gender: "women" }, T20_FORMAT)).toBe(T20I_CONTEXT.female);
     expect(scoringContextFor(T20I, HUNDRED_FORMAT)).toBeUndefined();
     expect(scoringContextFor(T20I, ODI_FORMAT)).toBeUndefined();
-    for (const rules of Object.values(RULE_PRESETS)) if (rules.league !== "wpl") expect(scoringContextFor(rules, T20_FORMAT)).toBeUndefined();
+    // the IPL presets read the IPL's fitted shape (12.8), the WPL its women's table; nothing reads the T20I's
+    for (const rules of Object.values(RULE_PRESETS)) expect(scoringContextFor(rules, T20_FORMAT)).not.toBe(T20I_CONTEXT.male);
   });
 
   it("multiplies each phase's classes", () => {
@@ -80,6 +82,8 @@ describe("women's league contexts", () => {
     expect(scoringContextFor({ ...RULE_PRESETS.modern2026, league: "custom", gender: "women" }, T20_FORMAT)).toBe(WOMENS_LEAGUE_CONTEXT.default);
     expect(scoringContextFor(RULE_PRESETS.wpl, ODI_FORMAT)).toBeUndefined();
     expect(scoringContextFor({ ...T20I, gender: "women" }, T20_FORMAT)).toBe(T20I_CONTEXT.female);
+    // men's leagues: the IPL its shape, the others none
+    expect(scoringContextFor(RULE_PRESETS.modern2026, T20_FORMAT)).toBe(MENS_LEAGUE_CONTEXT.ipl);
     for (const l of EXTRA_LEAGUES.filter(l => l.gender === "men")) {
       expect(scoringContextFor(l.rules, l.rules.matchFormat === "hundred" ? HUNDRED_FORMAT : T20_FORMAT)).toBeUndefined();
     }

@@ -920,7 +920,7 @@ export function createMatchState(
   }
 
   // The match's own conditions on the day (as in simulateMatch; none in an ODI)
-  const conditions = odi ? undefined : drawMatchConditions(genderOf(rules), rng);
+  const conditions = odi ? undefined : drawMatchConditions(genderOf(rules), rules.league, rng);
   // Rain: drawn now from the fitted rates, the league's or the ODI's, as in simulateMatch (a late start shortens both innings from the first ball)
   const rainPlan = options.rain ? planRain(rules, rng, fmt) : null;
   const startOvers = rainPlan && rainPlan.kind === "reduced" && rainPlan.when === "preMatch" ? rainPlan.overs : fmt.overs;

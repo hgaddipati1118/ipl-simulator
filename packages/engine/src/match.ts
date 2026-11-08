@@ -235,7 +235,7 @@ export interface VenueContext {
   gender?: Gender;
   /** The competition's own fitted level (a T20I: scoring-context.ts); absent in league play */
   context?: T20Context;
-  /** The match's own conditions (match-conditions.ts): the pitch and weather on the day, the innings' own day */
+  /** The match's own conditions (match-conditions.ts): the pitch and weather on the day */
   conditions?: MatchConditions;
 }
 
@@ -509,7 +509,7 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
     // A competition with its own fitted level (T20Is, women's leagues) on top of the league tables
     if (venue.context) applyScoringContext(probs, venue.context, phase);
     // The match's own conditions, shared by both innings
-    if (venue.conditions) applyMatchConditions(probs, venue.conditions, isSecondInnings);
+    if (venue.conditions) applyMatchConditions(probs, venue.conditions);
   }
 
   // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel.
@@ -1987,8 +1987,8 @@ export function simulateMatch(
   // Toss
   const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
   const venue = getVenueContext(homeTeam, rules, options, fmt);
-  // The match's own conditions on the day (T20, The Hundred; drawn only when the gender's fitted spread is not zero)
-  const conditions = own ? undefined : drawMatchConditions(venue.gender ?? "male", rng);
+  // The match's own conditions on the day (T20, The Hundred; drawn only where the league or gender has a fitted shape)
+  const conditions = own ? undefined : drawMatchConditions(venue.gender ?? "male", rules.league, rng);
   if (conditions) venue.conditions = conditions;
   // Measured grounds: follow the chase record. Unmapped (custom) venues keep the dew/pitch heuristic. ODI captains field
   // first as often as the real ones have since 2019.
