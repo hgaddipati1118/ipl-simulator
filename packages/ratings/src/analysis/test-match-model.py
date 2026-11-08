@@ -648,6 +648,192 @@ def rating_map(model, gp):
     return res
 
 
+ALL_ATTRS = ["battingIQ", "timing", "power", "running", "wicketTaking", "economy", "accuracy", "clutch"]
+POS_GROUPS = ["1-3", "4-6", "7-11"]
+HOLDOUT_FROM = 2023
+REG_RIDGE = 0.10
+REG_MIN_BALLS = 300
+
+
+def player_periods(term, k):
+    """Per player: observed and expected (without his own term) count of outcome k, before HOLDOUT_FROM and from it."""
+    col = "bat" if term == "bat" else "bowl"
+    rows = duck(f"""SELECT f.{col} id, CASE WHEN f.yr >= {HOLDOUT_FROM} THEN 1 ELSE 0 END recent, sum(w.y) o, sum(exp(w.lm - w.l_{col})) e, count(*) n
+FROM fit_{k} w JOIN fb f USING(rid) WHERE f.gender = 'male' GROUP BY 1, 2""")
+    out = {}
+    for x in rows:
+        out.setdefault(x["id"], {})["test" if int(x["recent"]) == 1 else "train"] = (x["o"], x["e"], int(x["n"]))
+    return out
+
+
+def usual_positions():
+    """A batter's usual place in the order: his median order of arrival over his Test innings (men, 2006 on)"""
+    duck("""CREATE OR REPLACE TABLE arrp_all AS WITH fb_ AS (SELECT mid, inn, p, min(seq) s FROM (SELECT mid, inn, bat p, seq FROM tb WHERE gender = 'male'
+  UNION ALL SELECT mid, inn, nst p, seq FROM tb WHERE gender = 'male') GROUP BY ALL) SELECT mid, inn, p, row_number() OVER (PARTITION BY mid, inn ORDER BY s, p) pos FROM fb_""", json_out=False)
+    return {x["p"]: x["mp"] for x in duck("SELECT p, median(pos) mp FROM arrp_all GROUP BY 1")}
+
+
+def pos_group(pos):
+    return 0 if pos <= 3 else 1 if pos <= 6 else 2
+
+
+def wls(X, y, w, ridge):
+    """Weighted ridge least squares (no penalty on the intercept, column 0)"""
+    n_ = len(X[0])
+    A = [[sum(w[i] * X[i][a] * X[i][b] for i in range(len(X))) + (ridge * sum(w) if a == b and a > 0 else 0) for b in range(n_)] for a in range(n_)]
+    return solve(A, [sum(w[i] * X[i][a] * y[i] for i in range(len(X))) for a in range(n_)])
+
+
+def rating_regression(model, gp, ratings_kind):
+    """For each player term: a precision-weighted ridge regression of the player's observed / expected ratio on all eight of his
+    z-scored ratings, and for batters on the position group he usually bats in (1-3, 4-6, 7-11), so survival comes from the
+    attributes that predict real survival, scoring from those that predict real scoring, and the group takes the role effects
+    (a tail-ender swinging). Fitted on players with REG_MIN_BALLS+ balls; checked out of sample (fitted on the terms before
+    HOLDOUT_FROM, scored against the same players' terms from it, against the curve map and against no map at all). The
+    intercept makes the ball-weighted mean term 1 over the pool (bowlers per type)."""
+    pos = usual_positions()
+    res = {"bat": {}, "bowl": {}, "pool": {}, "holdout": {}}
+    for f, mix in (("bat", BAT_MIX), ("bowl", BOWL_MIX)):
+        pools = {}
+        for k in mix:
+            per = player_periods(f, k)
+            rows = []
+            for cs, v in model[k][f].items():
+                ci, spin, n, nref, l, o, e = v
+                p = gp.get(f"espn_{int(ci)}") if ci else None
+                if not p or n < 60:
+                    continue
+                g = ("spin" if spin else "pace") if f == "bowl" else "all"
+                grp = pos_group(pos.get(cs, 7)) if f == "bat" else 0
+                rows.append({"p": p, "g": g, "grp": grp, "o": o, "e": e, "n": n, "nref": nref, "per": per.get(cs, {})})
+            if not pools:
+                for g in sorted(set(x["g"] for x in rows)):
+                    xs = [x for x in rows if x["g"] == g and x["n"] >= REG_MIN_BALLS]
+                    mu = {a: sum(x["p"]["r"][a] for x in xs) / len(xs) for a in ALL_ATTRS}
+                    sd = {a: math.sqrt(sum((x["p"]["r"][a] - mu[a]) ** 2 for x in xs) / len(xs)) or 1 for a in ALL_ATTRS}
+                    pools[g] = {"n": len(xs), "mean": {a: r(mu[a], 2) for a in ALL_ATTRS}, "sd": {a: r(sd[a], 2) for a in ALL_ATTRS}}
+            zof = lambda x, a: (x["p"]["r"][a] - pools[x["g"]]["mean"][a]) / pools[x["g"]]["sd"][a]
+            feats = lambda x: [1.0] + [zof(x, a) for a in ALL_ATTRS] + ([1.0 if x["grp"] == 1 else 0.0, 1.0 if x["grp"] == 2 else 0.0] if f == "bat" else [])
+            def fit_on(sel, oe):
+                xs = [x for x in rows if sel(x)]
+                ys = [math.log((oe(x)[0] + 0.5) / (oe(x)[1] + 0.5)) for x in xs]
+                my = sum(ys) / len(ys)
+                tau2 = max(1e-4, sum((y_ - my) ** 2 for y_ in ys) / len(ys) - sum(1 / (oe(x)[1] + 0.5) for x in xs) / len(xs))
+                ws = [1 / (tau2 + 1 / (oe(x)[1] + 0.5)) for x in xs]
+                return wls([feats(x) for x in xs], ys, ws, REG_RIDGE), tau2
+            # out of sample: fit before HOLDOUT_FROM, score on the same players from it
+            tr = lambda x: x["per"].get("train", (0, 0, 0))
+            te = lambda x: x["per"].get("test", (0, 0, 0))
+            beta_tr, _ = fit_on(lambda x: tr(x)[2] >= REG_MIN_BALLS, tr)
+            ev = [x for x in rows if te(x)[1] >= 1.0 and tr(x)[2] >= REG_MIN_BALLS]
+            if ev:
+                yt = [math.log((te(x)[0] + 0.5) / (te(x)[1] + 0.5)) for x in ev]
+                wt = [te(x)[1] for x in ev]
+                pr = [sum(b_ * v for b_, v in zip(beta_tr, feats(x))) for x in ev]
+                # deviance of the Poisson counts: no map (each player at the period mean), and the regression's prediction
+                def dev(pred):
+                    tot = 0.0
+                    m0 = math.log(sum(te(x)[0] for x in ev) / sum(te(x)[1] for x in ev))
+                    for x, q in zip(ev, pred):
+                        o_, e_ = te(x)[0], te(x)[1]
+                        mu_ = e_ * math.exp(q if q is not None else m0)
+                        tot += 2 * ((o_ * math.log(o_ / mu_) if o_ > 0 else 0) - (o_ - mu_))
+                    return tot
+                # the regression's predictions recentred to the test period's mean (the hold-out checks the ranking, not the era level)
+                shift = math.log(sum(te(x)[0] for x in ev) / sum(te(x)[1] * math.exp(q) for x, q in zip(ev, pr)))
+                d0, d1 = dev([None] * len(ev)), dev([q + shift for q in pr])
+                res["holdout"].setdefault(f, {})[k] = {"players": len(ev), "devianceNoMap": r(d0, 1), "devianceRegression": r(d1, 1), "gain": r(1 - d1 / d0, 4)}
+            beta, tau2 = fit_on(lambda x: x["n"] >= REG_MIN_BALLS, lambda x: (x["o"], x["e"], x["n"]))
+            # the wicket term: as with the curves, the attribute part is stretched to the term's true spread (at most
+            # STRETCH_MAX): in the game the rating is the player's skill, and the regression regresses to the mean as far as
+            # the ratings are noisy (strong sides were too weak without it); the position offsets stay as fitted
+            stretch = 1.0
+            if k in STRETCH_TERMS:
+                xs0 = [x for x in rows if x["n"] >= REG_MIN_BALLS]
+                att = [sum(b_ * zof(x, a) for b_, a in zip(beta[1:9], ALL_ATTRS)) for x in xs0]
+                ma = sum(att) / len(att)
+                sa = math.sqrt(sum((q - ma) ** 2 for q in att) / len(att)) or 1
+                stretch = max(1.0, min(STRETCH_MAX, math.sqrt(tau2) / sa))
+                beta = [beta[0]] + [b_ * stretch for b_ in beta[1:9]] + list(beta[9:])
+            weights = {a: r(b_, 4) for a, b_ in zip(ALL_ATTRS, beta[1:9])}
+            posw = [0.0] + [r(b_, 4) for b_ in beta[9:]] if f == "bat" else None
+            lin = lambda x: sum(b_ * v for b_, v in zip(beta[1:], feats(x)[1:]))
+            cs_ = {}
+            for g in pools:
+                xs = [x for x in rows if x["g"] == g and x["nref"] >= 30]
+                tot = sum(x["nref"] for x in xs)
+                cs_[g] = r(-math.log(sum(x["nref"] * math.exp(lin(x)) for x in xs) / tot))
+            xs = [x for x in rows if x["n"] >= REG_MIN_BALLS]
+            pred = [lin(x) for x in xs]
+            mp = sum(pred) / len(pred)
+            res[f][k] = {"weights": weights, **({"pos": posw} if posw else {}), "c": cs_["all"] if f == "bat" else cs_,
+                         "tau": r(math.sqrt(tau2)), "spread": r(math.sqrt(sum((q - mp) ** 2 for q in pred) / len(pred))), "stretch": r(stretch, 3), "n": len(xs)}
+        res["pool"][f] = pools["all"] if f == "bat" else pools
+    log(f"rating regression ({ratings_kind}): out-of-sample deviance gain " + ", ".join(f"{f}.{k} {v['gain']:.3f}" for f, d in res["holdout"].items() for k, v in d.items()))
+    return res
+
+
+# Which player terms take the per-outcome regression (all eight attributes, plus the batting-position group) rather than the
+# single-composite calibration curve (docs/FORMATS-TEST.md section 6.6): every batter term, so scoring rate comes from the
+# attributes that predict real scoring and survival from those that predict survival, and the position group carries role
+# effects (an opener's survival is no better than a number five's despite better ratings). Out of sample the regression beats
+# the curve on scoring and comes close on survival (0.46 vs 0.50 deviance gain), where only it has the position term. The
+# bowler's wicket term keeps its stretched curve (it carries the team spread), his threes and no-balls their near-flat curves
+# (the regression did worse than no map there).
+REGRESSION_TERMS = {"bat": ["1", "2", "3", "4", "6"], "bowl": ["1", "2", "4", "6", "wide"]}
+
+
+def curve_value(term, pool, ratings):
+    x = sum(w * (ratings[a] - pool["mean"][a]) / (pool["sd"][a] or 1) for a, w in term["weights"].items())
+    k = term["knots"]
+    if x <= k[0][0]:
+        return k[0][1]
+    if x >= k[-1][0]:
+        return k[-1][1]
+    for i in range(len(k) - 1):
+        if k[i][0] <= x <= k[i + 1][0]:
+            return k[i][1] + (k[i + 1][1] - k[i][1]) * (x - k[i][0]) / ((k[i + 1][0] - k[i][0]) or 1)
+    return k[-1][1]
+
+
+def curve_position_offsets(model, gp, curves):
+    """Batting-position offsets on top of the batter's wicket curve: the curve's precision-weighted mean residual (observed /
+    expected against the curve) by the group the player usually bats in (1-3, 4-6, 7-11), relative to 1-3; then the intercept
+    is reset so the ball-weighted mean term is 1 again."""
+    pos = usual_positions()
+    term = curves["bat"]["W"]
+    pool = curves["pool"]["bat"]
+    acc = [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]
+    pts = []
+    for cs, v in model["W"]["bat"].items():
+        ci, spin, n, nref, l, o, e = v
+        p = gp.get(f"espn_{int(ci)}") if ci else None
+        if not p or n < REG_MIN_BALLS:
+            continue
+        g = pos_group(pos.get(cs, 7))
+        res_ = math.log((o + 0.5) / (e + 0.5)) - curve_value(term, pool, p["r"])
+        w = 1 / (term["tau"] ** 2 + 1 / (e + 0.5))
+        acc[g][0] += w * res_
+        acc[g][1] += w
+        pts.append((p, g, nref))
+    means = [a / b if b else 0 for a, b in acc]
+    offs = [0.0, r(means[1] - means[0], 4), r(means[2] - means[0], 4)]
+    tot = sum(q[2] for q in pts)
+    c = -math.log(sum(q[2] * math.exp(curve_value(term, pool, q[0]["r"]) + offs[q[1]]) for q in pts) / tot)
+    return offs, r(c)
+
+
+def with_regressions(curves, reg, model=None, gp=None):
+    for f, ks in REGRESSION_TERMS.items():
+        for k in ks:
+            curves[f][k] = {**reg[f][k], "pool": reg["pool"][f]}
+    if model is not None:
+        offs, c = curve_position_offsets(model, gp, curves)
+        curves["bat"]["W"] = {**curves["bat"]["W"], "pos": offs, "c": c}
+    curves["holdout"] = reg["holdout"]
+    return curves
+
+
 # ── 5. Dismissals, extras, DRS ─────────────────────────────────────────────────────────────────────────────────────
 
 def dismissals_extras():
@@ -934,6 +1120,15 @@ SELECT rk, sum(balls) / sum(tot) so, sum(w) / sum(totw) sw FROM q WHERE tot >= 3
     out["oversShareByRank"] = [r(x["so"], 3) for x in rows]
     out["wicketShareByRank"] = [r(x["sw"], 3) for x in rows]
     out["inningsWins"] = r(duck(f"SELECT avg(CASE WHEN by_innings = 1 THEN 1.0 ELSE 0 END) p FROM m WHERE {W}")[0]["p"], 3)
+    # scoring and survival by batting position (order of arrival in the innings): runs off the bat per six balls faced, balls
+    # faced per dismissal, share of the balls faced
+    duck(f"""CREATE OR REPLACE TABLE arrp AS WITH fb_ AS (SELECT mid, inn, p, min(seq) s FROM (SELECT mid, inn, bat p, seq FROM tb
+  UNION ALL SELECT mid, inn, nst p, seq FROM tb) GROUP BY ALL) SELECT mid, inn, p, row_number() OVER (PARTITION BY mid, inn ORDER BY s, p) pos FROM fb_""", json_out=False)
+    rows = duck(f"""SELECT CASE WHEN a.pos <= 3 THEN '1-3' WHEN a.pos <= 6 THEN '4-6' ELSE '7-11' END grp, 6.0 * sum(t.rb) / sum(t.faced) rpo,
+  sum(t.faced) * 1.0 / sum(CASE WHEN t.is_wicket = 1 AND t.pout = t.bat AND coalesce(t.wk, '') NOT IN ('retired hurt', 'retired not out') THEN 1 ELSE 0 END) bpw,
+  sum(t.faced) bf FROM tb t JOIN m ON m.mid = t.mid JOIN arrp a ON a.mid = t.mid AND a.inn = t.inn AND a.p = t.bat WHERE {W} GROUP BY 1 ORDER BY 1""")
+    tot = sum(x["bf"] for x in rows)
+    out["byPosition"] = {x["grp"]: {"runsPer6": r(x["rpo"], 3), "ballsPerDismissal": r(x["bpw"], 1), "ballShare": r(x["bf"] / tot, 3)} for x in rows}
     x = duck(f"""SELECT sum((SELECT sum(legal) FROM inn WHERE inn.match_id = m.mid) / 6.0) / sum(n_dates - 1 + CASE WHEN result = 'draw' THEN 1.0 ELSE 0.5 END) opd FROM m WHERE {W}""")[0]
     out["oversPerDayUsed"] = r(x["opd"], 1)
     if gender == "male":
@@ -1160,9 +1355,11 @@ def main():
     build_fit_table()
     model = fit_all()
     test_sets = load_test_sets()
-    rmap = {"t20": rating_map(model, load_game_players("t20", test_sets))}
+    gp_t20 = load_game_players("t20", test_sets)
+    rmap = {"t20": with_regressions(rating_map(model, gp_t20), rating_regression(model, gp_t20, "t20"), model, gp_t20)}
     if test_sets:
-        rmap["test"] = rating_map(model, load_game_players("test", test_sets))
+        gp_test = load_game_players("test", test_sets)
+        rmap["test"] = with_regressions(rating_map(model, gp_test), rating_regression(model, gp_test, "test"), model, gp_test)
     dx = dismissals_extras()
     pol = policies()
     real = {"male": real_targets("male", VALID_FROM), "male2023": real_targets("male", 2023), "female": real_targets("female", 2014)}
