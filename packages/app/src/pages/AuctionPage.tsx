@@ -112,10 +112,43 @@ export function AuctionPage({
     };
   }, [auction?.phase, auction?.round, auction?.currentBidderId, auction?.biddingTeams]);
 
+  // Scout once per player under the hammer. The callback is a new closure on every App render and scouting updates
+  // the game state, so depending on it re-ran the effect after every update: an endless render loop (as on PlayerPage)
+  const scoutPlayersRef = useRef(onScoutPlayers);
+  scoutPlayersRef.current = onScoutPlayers;
   useEffect(() => {
     if (!currentPlayer) return;
-    onScoutPlayers([currentPlayer.id], 12);
-  }, [currentPlayer?.id, onScoutPlayers]);
+    scoutPlayersRef.current([currentPlayer.id], 12);
+  }, [currentPlayer?.id]);
+
+  // Remaining players to show (after current), with search/filter/sort. Every hook runs before the early returns
+  // below: the page renders "Auction Complete" once the last player goes, and a hook skipped then crashes React.
+  const filteredRemainingPlayers = useMemo(() => {
+    let list = auction ? auction.players.slice(auction.currentPlayerIndex + 1) : [];
+    // Text search
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(q));
+    }
+    // Role filter
+    if (roleFilter !== "all") {
+      list = list.filter(p => p.role === roleFilter);
+    }
+    // Country filter
+    if (countryFilter === "india") {
+      list = list.filter(p => !p.isInternational);
+    } else if (countryFilter === "overseas") {
+      list = list.filter(p => p.isInternational);
+    }
+    // Sort
+    list = [...list].sort((a, b) => {
+      if (sortBy === "overall") return b.overall - a.overall;
+      if (sortBy === "basePrice") return getBasePrice(b) - getBasePrice(a);
+      if (sortBy === "age") return a.age - b.age;
+      return 0;
+    });
+    return list;
+  }, [auction?.players, auction?.currentPlayerIndex, searchQuery, roleFilter, countryFilter, sortBy]);
 
   if (!auction) {
     return (
@@ -199,35 +232,7 @@ export function AuctionPage({
   const totalPlayers = auction.players.length;
   const completedCount = auction.completedBids.length + auction.unsold.length;
 
-  // Remaining players to show (after current), with search/filter/sort
   const allRemainingPlayers = auction.players.slice(auction.currentPlayerIndex + 1);
-  const filteredRemainingPlayers = useMemo(() => {
-    let list = allRemainingPlayers;
-    // Text search
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(p => p.name.toLowerCase().includes(q));
-    }
-    // Role filter
-    if (roleFilter !== "all") {
-      list = list.filter(p => p.role === roleFilter);
-    }
-    // Country filter
-    if (countryFilter === "india") {
-      list = list.filter(p => !p.isInternational);
-    } else if (countryFilter === "overseas") {
-      list = list.filter(p => p.isInternational);
-    }
-    // Sort
-    list = [...list].sort((a, b) => {
-      if (sortBy === "overall") return b.overall - a.overall;
-      if (sortBy === "basePrice") return getBasePrice(b) - getBasePrice(a);
-      if (sortBy === "age") return a.age - b.age;
-      return 0;
-    });
-    return list;
-  }, [allRemainingPlayers, searchQuery, roleFilter, countryFilter, sortBy]);
-
   const remainingPlayerViews = filteredRemainingPlayers.slice(0, 50).map(player => ({
     player,
     scoutingView: getPlayerScoutingView(player, player.teamId, scouting, state.userTeamId),
