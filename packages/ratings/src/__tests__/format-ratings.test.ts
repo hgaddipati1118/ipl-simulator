@@ -55,13 +55,14 @@ describe("format ratings: the shipped file", () => {
   });
 
   it("holds well-formed sets on the 10-99 scale", () => {
+    // one assertion over the file: ~145k per-value expects overran the timeout on a loaded machine
+    const bad: string[] = [];
     for (const [id, pair] of Object.entries(file.players)) {
       for (const set of pair) {
-        expect(set.length, id).toBe(9);
-        for (const v of set.slice(0, 8)) expect(v >= 10 && v <= 99, `${id} ${set}`).toBe(true);
-        expect([0, 1]).toContain(set[8]);
+        if (set.length !== 9 || set.slice(0, 8).some(v => v < 10 || v > 99) || (set[8] !== 0 && set[8] !== 1)) bad.push(`${id} ${set}`);
       }
     }
+    expect(bad.slice(0, 5)).toEqual([]);
   });
 
   it("reaches game players: a real squad player plays ODIs and Tests on his own sets", () => {
