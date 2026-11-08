@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import {
-  EXTRA_LEAGUES, MATCH_CONDITIONS, RULE_PRESETS, simulateMatch,
+  EXTRA_LEAGUES, MATCH_CONDITIONS, RULE_PRESETS, WICKETS_IN_HAND_NORM, simulateMatch,
   type BallEvent, type ConditionsShape, type RuleSet,
 } from "@ipl-sim/engine";
 import { createGameState } from "../game-state";
@@ -164,7 +164,7 @@ function wQuantile(xs: number[], ws: number[], q: number): number {
   return xs[xs.length - 1];
 }
 
-interface Shape { mean: number; sd: number; q: number[]; p200: number; u120: number; allOut?: number; u120AllOut?: number }
+interface Shape { mean: number; sd: number; q: number[]; p200: number; u120: number; allOut?: number; u120AllOut?: number; wickets?: number }
 
 function shapeOf(xs: number[], ws: number[] | null, hundred: boolean, mean?: number): Shape {
   const order = xs.map((x, i) => i).sort((a, b) => xs[a] - xs[b]);
@@ -188,22 +188,27 @@ function realShape(real: RealLeague, engineMean: number, hundred: boolean): Shap
 
 const fq = (s: Shape) => s.q.map(x => f(x, 0)).join(" / ");
 const shapeRow = (label: string, s: Shape) =>
-  `| ${label} | ${f(s.mean)} | ${f(s.sd)} | ${fq(s)} | ${f(s.p200)}% | ${f(s.u120)}% |${s.allOut !== undefined ? ` ${f(s.allOut)}% / ${f(s.u120AllOut!)}% |` : " |"}`;
+  `| ${label} | ${f(s.mean)} | ${f(s.sd)} | ${fq(s)} | ${f(s.p200)}% | ${f(s.u120)}% |${s.allOut !== undefined ? ` ${f(s.allOut)}% / ${f(s.u120AllOut!)}% |` : " |"}${s.wickets !== undefined ? ` ${f(s.wickets, 2)} |` : ""}`;
 
 function engineShape(rows: Row[], hundred: boolean): Shape {
   const first = rows.filter(r => r.innings === 1);
   const s = shapeOf(first.map(r => r.runs), null, hundred);
   const [, lo] = thresholds(hundred);
-  return { ...s, allOut: (100 * first.filter(r => r.wk >= 10).length) / first.length, u120AllOut: (100 * first.filter(r => r.wk >= 10 && r.runs < lo).length) / first.length };
+  return {
+    ...s, allOut: (100 * first.filter(r => r.wk >= 10).length) / first.length, u120AllOut: (100 * first.filter(r => r.wk >= 10 && r.runs < lo).length) / first.length,
+    wickets: first.reduce((a, r) => a + r.wk, 0) / first.length,
+  };
 }
 it.skipIf(!process.env.CALIBRATE_SPREAD)("T20 innings spread", () => {
   const REAL = JSON.parse(readFileSync(join(REPO, "docs", "data", "t20_spread.json"), "utf-8")) as Real;
   const leagues = leagueList();
   const men = leagues.filter(l => REAL.leagues[l.id]?.gender === "men");
+  // CAL_NO_WIH=1: without the first innings' wickets-in-hand table (wickets-in-hand.ts), for a before / after
+  if (process.env.CAL_NO_WIH) for (const k of Object.keys(WICKETS_IN_HAND_NORM)) delete WICKETS_IN_HAND_NORM[k];
 
   const report = (label: string) => {
     console.log(`\n${label}`);
-    console.log("| league | mean | sd | deviation at 10 / 25 / 50 / 75 / 90% | 200+ | under 120 | all out / all out under 120 |");
+    console.log("| league | mean | sd | deviation at 10 / 25 / 50 / 75 / 90% | 200+ | under 120 | all out / all out under 120 | wickets |");
     for (const lg of leagues) {
       const real = REAL.leagues[lg.id];
       if (!real) continue;

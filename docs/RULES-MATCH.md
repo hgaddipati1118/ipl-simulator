@@ -569,7 +569,8 @@ and the centre are per league (`match-conditions-data.ts`, fitted by `calibrate-
 - The pooled shape and each league's scale minimise the squared distance of the five percentiles plus four times that of
   the two shares, in points.
 - Each centre is then set on 5,000 drawn matches so the mean first innings equals the one without a term.
-- The fitted shape is `hi = 2 lo`, a mild right skew that offsets the engine's own left tail. A league fitting better
+- The fitted shape is `hi = 2 lo` (refitted to `lo = 2 hi` with the wickets-in-hand table, 12.9), a mild right skew that
+  offsets the engine's own left tail. A league fitting better
   with none keeps none (the BBL). Other men's T20s, T20Is included, use the median league's. The women get none: the
   first version's small fitted term (0.037) changed nothing, and their real match term (7.9) is the engine's own (6.5).
 
@@ -607,43 +608,85 @@ Fingerprint: the men's T20 lines and the Hundred line move; the women's line doe
 with rain `a4b19bc607589f48`, women `7d214ad967890a1c`, Hundred `35656ed4f9692502`; live CPU `c6092d833b2d11a6`, user
 `b8cea85a7ee08af0`; combined `efa2366c3cb4e486`.
 
----|---|---|---|
-| IPL | 182.4 (35.9) / 33.2% / 3.6% | 175.6 (32.3) / 21.3% / 6.6% | 174.4 (35.9) / 24.3% / 9.2% |
-| BBL | 165.7 (29.6) / 12.5% / 4.2% | 165.5 (27.8) / 9.7% / 6.2% | 166.2 (31.9) / 14.1% / 7.7% |
-| PSL | 180.2 (33.5) / 25.1% / 4.8% | 178.1 (30.4) / 23.3% / 3.8% | 177.3 (33.2) / 25.2% / 6.3% |
-| SA20 | 166.5 (38.5) / 22.9% / 11.0% | 159.7 (25.6) / 4.9% / 6.9% | 159.5 (29.9) / 8.1% / 9.1% |
-| CPL | 166.1 (32.4) / 15.9% / 8.2% | 171.9 (26.8) / 13.3% / 4.2% | 171.5 (30.6) / 17.7% / 5.9% |
-| ILT20 | 162.4 (30.2) / 8.3% / 6.8% | 159.7 (26.7) / 5.3% / 7.1% | 160.2 (30.9) / 9.2% / 9.8% |
-| MLC | 173.1 (35.1) / 21.4% / 3.9% | 174.4 (27.4) / 17.0% / 3.5% | 174.9 (32.0) / 21.6% / 5.9% |
-| BPL | 159.2 (32.4) / 8.4% / 9.4% | 159.1 (26.3) / 5.3% / 7.1% | 159.2 (31.1) / 8.5% / 9.8% |
-| LPL | 167.3 (34.7) / 14.4% / 9.0% | 178.1 (29.5) / 22.9% / 4.3% | 177.7 (33.1) / 26.1% / 5.1% |
-| Hundred men | 147.9 (27.9) / 23.2% / 5.3% | 144.0 (23.6) / 16.5% / 3.3% | 143.9 (25.7) / 19.3% / 4.2% |
-| T20I men (fixture replays) | 169.5 (37.3) / 19.2% | 165.6 (24.3) / 6.6% | 166.1 (27.0) / 8.7% |
-| WPL | 160.6 (30.7) / 11.4% / 9.1% | 159.1 (23.6) / 3.0% / 5.2% | 157.5 (23.8) / 2.3% / 5.9% |
-| WBBL | 149.2 (28.7) / 3.0% / 13.9% | 151.3 (22.7) / 1.3% / 8.4% | 152.6 (22.7) / 0.8% / 8.0% |
-| Hundred women | 127.1 (23.4) / 3.3% / 10.5% | 126.2 (18.5) / 1.0% / 7.1% | 125.8 (18.2) / 0.9% / 7.5% |
-| T20I women | 142.2 (34.6) / 5.1% | 138.1 (18.4) / 0.0% | 138.4 (18.1) / 0.0% |
+### 12.9 Collapses: how sides bat by wickets in hand
 
-The means here are the 2021+ seasons; the leagues' levels are fitted on 2024+ (LEAGUES.md), so compare spreads, not means.
-The men's league means moved by at most 1.2 runs. The men's spreads now sit within 0-3 runs of the real ones, except SA20
-(30 against 38.5) and the T20Is (27 against 37).
+After 12.8 the engine still bowled sides out too often: IPL first innings 16.6% against a real 7.7%; BBL, PSL, ILT20 and
+LPL 18-21% against 11-14%. The engine also barely slowed down after early wickets. Real sides consolidate (fewer
+boundaries, fewer wickets, more singles) and accelerate late with wickets in hand; the engine's batters played the same
+way at any score.
+
+**The table** (`packages/ratings/src/analysis/t20-wickets-in-hand.py`; `docs/data/t20_wickets_in_hand.json`, generated
+`wickets-in-hand-data.ts`). First innings of the men's T20 leagues since 2021 (IPL, BBL, PSL, SA20, CPL, ILT20, MLC, BPL,
+LPL) and the women's (WPL, WBBL), full matches. Each outcome class's rate is fitted by iterative proportional fitting:
+
+  league-season level by over band × state (over band × wickets down) × batter × bowler
+
+The batter and bowler terms hold who is at the crease fixed. A side seven down has its tail in; that is the batters, not
+the situation, and the engine already has its tail-enders through their ratings. The batter shrinkage is light (5
+pseudo-events), so a tail-ender's own few balls set his effect. With 20, the eight-down death cells came out about 0.07
+lower: tail quality leaking into the state term. The state term is normalised to a mean of 1 within each over band, so
+it only moves rates between states. Over bands: overs 1-6, 7-11, 12-15, 16-18, 19-20; wickets down 0 to 7, 8+.
+
+Men, selected cells (fours / sixes / wickets, relative to the band's mean):
+- **Overs 7-11:** none down 1.16 / 1.54 / 1.21; four down 0.83 / 0.60 / 0.82 (consolidation).
+- **Overs 16-18:** two down 1.16 / 1.25 / 1.15; eight or more down 0.68 / 0.57 / 0.82 (the late push needs wickets in hand).
+
+The women's table has the same shape, milder.
+
+**In the engine** (`wickets-in-hand.ts`, the instant chain the live engine follows). Every T20 and Hundred first innings
+multiplies each class by the table's cell raised to the competition's power, times a factor per band and class that keeps
+the competition's phase rates and mean first innings where they were (`wickets-in-hand-norm-data.ts`, fitted by
+`packages/app/src/__tests__/calibrate-collapses.test.ts`). A chase already has its own wickets-down terms
+(`chaseAdjustment`), and the ODI has its own model, so neither uses the table.
+- **The power** per competition is chosen from 0 (none), 0.5, 0.75 and 1 on 2,500 matches each. It is the one whose
+  all-out share and under-120 and 200+ shares (at the engine's mean) are nearest the real league's; a spread above the
+  real one counts as a miss.
+- **Fitted powers:** IPL 1, BBL 0.5, PSL 0.5, SA20 1, men's Hundred 0.75, CPL 0.75, ILT20 0.5, MLC 0.5, BPL 0.75, LPL 0.5,
+  T20I men 1; WPL 1, WBBL 0.75, women's Hundred 1, T20I women 1. Other competitions use their gender's default (the median
+  power).
+- **Women:** they had the same all-out gap (WBBL 20% against 12%), so they are included.
+
+The match conditions (12.8) were refitted on top. The table now supplies most of the spread, so the term is small: IPL sd
+0.11 below the centre and 0.055 above, SA20 0.27 / 0.135, the others 0.02-0.08, pooled shape `lo = 2 hi`.
+
+First innings, 1,500 instant matches a league, the game's own squads. Columns: all out; wickets; under 120; 200+; sd. The
+Hundred uses under 100 / 167+. Real: all out since 2021, wickets since 2024, the shares from the season-centred real shape
+at the engine's mean, the centred sd. Before is main as of 12.8; after is with the table and the refitted conditions.
+
+| league | real | before | after |
+|---|---|---|---|
+| IPL | 7.7%; 6.35; 3.6%; 25.0%; 33.9 | 16.6%; 6.37; 5.2%; 21.7%; 33.0 | 12.4%; 6.41; 4.6%; 25.6%; 33.4 |
+| BBL | 11.3%; 7.13; 3.4%; 11.7%; 29.5 | 18.1%; 6.82; 6.2%; 9.7%; 27.8 | 15.5%; 6.78; 7.5%; 12.8%; 30.3 |
+| PSL | 11.6%; 6.61; 5.8%; 21.3%; 33.3 | 21.5%; 6.88; 5.4%; 22.9%; 31.7 | 17.3%; 6.78; 5.8%; 23.0%; 32.5 |
+| SA20 | 15.3%; 6.38; 14.4%; 12.7%; 38.6 | 15.4%; 6.46; 13.2%; 10.6%; 34.7 | 10.8%; 6.42; 14.4%; 12.5%; 36.0 |
+| CPL | 12.1%; 6.83; 5.5%; 15.9%; 32.4 | 14.7%; 6.27; 5.9%; 17.5%; 31.6 | 12.1%; 6.51; 6.3%; 16.4%; 31.1 |
+| ILT20 | 10.6%; 6.66; 8.3%; 6.8%; 30.3 | 17.7%; 6.66; 7.7%; 5.9%; 27.2 | 12.3%; 6.50; 8.9%; 9.2%; 30.1 |
+| MLC | 18.4%; 6.99; 4.9%; 19.4%; 34.4 | 18.5%; 6.77; 6.3%; 18.7%; 31.9 | 17.5%; 6.88; 6.1%; 19.6%; 31.9 |
+| BPL | 14.9%; 6.78; 10.9%; 5.9%; 32.1 | 18.3%; 6.68; 10.1%; 7.3%; 30.0 | 13.5%; 6.67; 10.1%; 6.7%; 30.5 |
+| LPL | 13.5%; 6.87; 6.3%; 21.6%; 31.8 | 20.7%; 6.95; 5.3%; 22.5%; 31.9 | 16.9%; 6.84; 5.7%; 23.7%; 32.8 |
+| Hundred men | 8.4%; 6.56; 5.8%; 20.5%; 27.4 | 11.9%; 6.13; 6.1%; 20.3%; 27.1 | 9.3%; 6.25; 5.7%; 20.3%; 27.4 |
+| WPL | 14.8%; 6.79; 12.5%; 9.1%; 30.6 | 15.7%; 6.54; 5.2%; 3.0%; 23.6 | 15.5%; 6.49; 7.7%; 4.7%; 26.4 |
+| WBBL | 12.1%; 6.92; 14.3%; 3.0%; 28.1 | 20.3%; 6.82; 8.4%; 1.3%; 22.7 | 17.4%; 6.65; 10.5%; 1.5%; 24.7 |
+| Hundred women | 9.4%; 6.53; 10.5%; 4.4%; 23.6 | 10.9%; 6.05; 7.1%; 1.0%; 18.5 | 8.0%; 6.04; 5.9%; 1.9%; 19.3 |
+
+- **All-outs** come down in every league, by 2-6 points; IPL 16.6% to 12.4%, BPL 18.3% to 13.5%, ILT20 17.7% to 12.3%.
+  On 5,000 matches: IPL 17.6% to 11.0%, BBL 18.8% to 15.7%, PSL 21.2% to 16.7%, WBBL 19.2% to 16.6%.
+- **Wickets per innings** barely move, because the table moves wickets between states, not their number.
+- **Means** stay within the noise of the game's squads: on 5,000 matches, IPL 175.4 to 177.4, the others within 1.6 runs.
+  New squads are drawn for each run, and that alone moves a mean by about 2.
+- **SD** moves toward the real one in most leagues.
+- **The low tail** is where it was: IPL under 120 is 4.6%, the BBL's still 7.5% against 3.4%.
 
 Left over:
-- The lower tail grows with the spread. In the IPL, BBL, PSL and MLC, under 120 is now 6-9% against a real 4-5% (the IPL's
-  9.2% against 3.6%). The real distribution is skewed to the right; a multiplier on the run classes widens both sides.
-- T20Is and SA20 are short of spread for reasons that are not the day. The fit plays T20Is on neutral grounds, while the
-  real ground term is 46. National sides are further apart in reality than their ratings make them (batting side 25
-  against single figures in the leagues).
-- Women's totals stay narrow, by 5-12 runs of sd. The real match term is small; the gap is the sides (batting side 27
-  against single figures) and the innings' own variance. A term for either would be a ratings or a modelling change, not
-  conditions.
-- The match term is the real covariance less the engine's. It also takes in any way real chases answer their targets more
-  strongly than the engine's do; the data cannot separate the two.
+- The IPL is still bowled out 12% of the time against 7.7% with the right wickets per innings. Its wickets are more
+  bunched by innings than the real ones; the table moves how a side bats after wickets, not how often they cluster.
+- BBL, PSL and LPL are still 4-5 points high on all-outs.
+- The women's spreads stay narrow (12.7).
+- The table is fitted on first innings only.
 
-Fingerprint: every line moves (the draw comes before the first ball). Instant men `96d92c7268a40d3c`, men with rain
-`7879658a66718ab3`, women `8f4882ca77975e4f`, Hundred `c7b89ea837d208d5`; live CPU `58a6b982314dba6d`, user
-`e8f4a822eda4fb05`; combined `19f481c2f372457a`.
-
+Fingerprint: every line moves, the women's too (the women's table and default factors). Instant men `c3ec93bf630671cb`,
+men with rain `c7eb7766f258c4a9`, women `bc0c2eaf9dd01cf8`, Hundred `85a482996e20d465`; live CPU `81b3d54bfe0ed362`, user
+`b12b68652253c070`; combined `fa1132e42d640731`.
 
 ---
 
