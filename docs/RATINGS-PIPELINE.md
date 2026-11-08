@@ -670,8 +670,10 @@ every player. It reads the shipped pools from the TypeScript modules themselves 
 `league-rosters.ts` through `league-players.ts`) and the extended pool from `app/public/pool/`, so re-run it after
 `generate-ratings-espn.ts`, `build-league-rosters.py` or `generate-ca-pool.ts` (which writes shards without format sets).
 Inputs: `ca_ratings_by_year.parquet`, `ca_cells.parquet`, `ca_lower_ratings.parquet`, `ca_lower_cells.parquet`,
-`ca_pool_stats.parquet`, `ca_comp_strength.csv`, `ca_validation.json`, `ca_espn_map.csv`, Cricsheet `deliveries.parquet` +
-`matches.parquet`, `people.parquet`. Outputs:
+`ca_pool_stats.parquet`, `ca_comp_strength.csv`, `ca_comp_seasons.parquet`, `ca_validation.json`, `ca_espn_map.csv`, Cricsheet
+`deliveries.parquet` + `matches.parquet`, `people.parquet`, and the engine's Test profiles (`test-profile-data.ts`, from
+`src/analysis/test-player-profiles.py`: a player's Test role comes from his Test bowling workload and batting position, so
+re-run this after that script). Outputs:
 
 - `packages/app/public/data/format-ratings.json` (committed; 8,058 players, 572 KB, 144 KB gzipped): `{ v, generated,
   players: { [sourceId]: [odi, test] } }`, each set `[battingIQ, timing, power, running, wicketTaking, economy, accuracy,
