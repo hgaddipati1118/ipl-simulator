@@ -12,6 +12,7 @@
 
 import { execFileSync } from "child_process";
 import {
+  DOM_COUNTRIES, fitWls, loadIntlEvidence,
   buildContext, doesSide, estimateFormat, fitTranslations, loadCaFormats, RANK_CONSERVATISM,
   type CaFormat, type CaPlayerFormats, type EstimateContext, type Gender, type Side,
 } from "./format-model.js";
@@ -201,4 +202,60 @@ export function validate(gender: Gender, format: "ListA" | "FC", side: Side, cac
     "T20 rating (no format ratings)": key => preds.t20.get(key),
   });
   return { gender, format, side, dataVar: best.dataVar, tuning, holdout, masked, pooled };
+}
+
+/**
+ * Is the format's own international record weighted enough against domestic cricket, and is any country's domestic
+ * cricket translated too generously? Out of sample on the same folds: the shipped estimate, then the estimate plus
+ * (a) the player's international-only residual (his ODI / Test adjusted value minus his List A / first-class rating,
+ * shrunk by balls / (balls + K)), (b) a term per domestic country on his share of balls there, fitted on the tuning
+ * folds (weighted least squares on target minus estimate) and scored on the held-out fold.
+ */
+export interface IntlEvidenceCheck {
+  gender: Gender; format: "ListA" | "FC"; side: Side;
+  tuneN: number; holdN: number;
+  base: { tune: number; hold: number };
+  /** Per K: the fitted weight on the shrunk international residual and the held-out correlation with it alone, and with the country terms */
+  byK: { K: number; beta: number; holdIntl: number; holdBoth: number }[];
+  /** The domestic-country terms (runs per 100 balls for a player whose balls were all there) and the held-out correlation with them alone */
+  countries: Record<string, number>;
+  holdCountries: number;
+}
+
+export function checkIntlEvidence(gender: Gender, format: "ListA" | "FC", side: Side, dataVar: number): IntlEvidenceCheck {
+  const COUNTRIES = [...DOM_COUNTRIES, "other"];
+  type R = { y: number; nI: number; dI: number; shares: number[]; t: number; w: number; est: number };
+  const rows: R[] = [];
+  for (const Y of [...TUNING_YEARS, HOLDOUT_YEAR]) {
+    const players = loadCaFormats(gender, Y);
+    loadIntlEvidence(players, gender, Y);
+    const ctx = buildContext(players, format, gender, Y, dataVar);
+    for (const [id, t] of intlRecords(gender, format, Y + 1, Y + 2)[side]) {
+      const p = players.get(id), r = p?.[format]?.[side];
+      if (t.balls < TARGET_BALLS[format] || !p || !doesSide(r)) continue;
+      const e = estimateFormat(p, format, side, ctx);
+      if (!e) continue;
+      rows.push({ y: Y, nI: r.intlBalls ?? 0, dI: r.intlAdj !== undefined ? r.intlAdj - r.rating : 0, shares: COUNTRIES.map(c => r.domShare?.[c] ?? 0), t: t.adj, w: t.balls, est: e.mean });
+    }
+  }
+  const tune = rows.filter(r => r.y !== HOLDOUT_YEAR), hold = rows.filter(r => r.y === HOLDOUT_YEAR);
+  const corr = (f: (r: R) => number, set: R[]) => weightedMetrics(set.map(f), set.map(r => r.t), set.map(r => r.w)).corr;
+  const byK = [250, 1000, 4000].map(K => {
+    const g = (r: R) => (r.nI / (r.nI + K)) * r.dI;
+    const fi = fitWls(tune.map(r => ({ xs: [g(r)], y: r.t - r.est, w: r.w })));
+    const fb = fitWls(tune.map(r => ({ xs: [g(r), ...r.shares], y: r.t - r.est, w: r.w })));
+    return {
+      K, beta: fi?.coef[1] ?? 0,
+      holdIntl: fi ? corr(r => r.est + fi.coef[1] * g(r), hold) : NaN,
+      holdBoth: fb ? corr(r => r.est + fb.coef[1] * g(r) + r.shares.reduce((t, x, i) => t + fb.coef[2 + i] * x, 0), hold) : NaN,
+    };
+  });
+  const fc = fitWls(tune.map(r => ({ xs: r.shares, y: r.t - r.est, w: r.w })));
+  return {
+    gender, format, side, tuneN: tune.length, holdN: hold.length,
+    base: { tune: corr(r => r.est, tune), hold: corr(r => r.est, hold) },
+    byK,
+    countries: Object.fromEntries(COUNTRIES.map((c, i) => [c, +(fc?.coef[1 + i] ?? 0).toFixed(1)])),
+    holdCountries: fc ? corr(r => r.est + r.shares.reduce((t, x, i) => t + fc.coef[1 + i] * x, 0), hold) : NaN,
+  };
 }
