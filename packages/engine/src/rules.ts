@@ -48,6 +48,8 @@ export interface RuleSet {
   minSquadSize?: number;               // smallest legal squad (default 18)
   draftType?: "snake" | "linear";      // season draft pick order (default "snake")
   draftPickSeconds?: number;           // season draft pick clock, 0 = off (default 45)
+  /** A scoring level fitted on its own real matches (T20 only): "t20i" = T20Is between full members (t20i-context.ts). Absent = the league's */
+  scoringContext?: "t20i";
 }
 
 /** 8 original IPL franchises (2014-2021 era) */

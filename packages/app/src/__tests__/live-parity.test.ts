@@ -1,6 +1,6 @@
 import { it } from "vitest";
 import {
-  EXTRA_LEAGUES, RULE_PRESETS, simulateMatch, createMatchState, simulateRemaining,
+  EXTRA_LEAGUES, RULE_PRESETS, simulateMatch, createMatchState, simulateRemaining, setAggression,
   type BallEvent, type RuleSet, type Team,
 } from "@ipl-sim/engine";
 import { createGameState } from "../game-state";
@@ -11,7 +11,8 @@ import { createGameState } from "../game-state";
  * CPU v CPU, and with a user side on default settings whose decisions the CPU takes). Per innings: runs, wickets, 4s, 6s,
  * extras, run rate by phase, all-out share; batting-first wins. docs/RULES-MATCH.md 12.4 / 13.8 has the table.
  *   LIVE_PARITY=1 PARITY_MATCHES=400 npx vitest run packages/app/src/__tests__/live-parity.test.ts --reporter=verbose
- * PARITY_ONLY=ipl,wpl limits the leagues. Rain stays off in the instant engine (the live engine's own rain is always on).
+ * A second table plays the IPL with the user side batting DEF / BAL / ATK (the live page's buttons: 20 / 50 / 80) all match.
+ * PARITY_ONLY=ipl,wpl limits the leagues. No rain in either engine (both take it only when asked: the rain option).
  */
 const N = Number(process.env.PARITY_MATCHES ?? 300);
 
@@ -69,5 +70,29 @@ it.skipIf(!process.env.LIVE_PARITY)("live v instant parity", () => {
     console.log(row(`${id} instant`, runEngine("instant")));
     console.log(row(`${id} live CPU`, runEngine("live")));
     console.log(row(`${id} live user`, runEngine("live-user")));
+  }
+}, 3_600_000);
+
+it.skipIf(!process.env.LIVE_PARITY)("live batting approach (IPL, the user side's innings)", () => {
+  const rules = { ...RULE_PRESETS.modern2026, injuriesEnabled: false } as RuleSet;
+  console.log("| approach | runs | wkts | RR | 4s | 6s | all out |");
+  for (const [label, level] of [["DEF (20)", 20], ["BAL (50)", 50], ["ATK (80)", 80]] as const) {
+    const teams = createGameState(rules).teams;
+    const a = acc();
+    let legal = 0;
+    for (let i = 0; i < N; i++) {
+      const home = teams[i % teams.length];
+      let away = teams[(i * 7 + 3) % teams.length];
+      if (away === home) away = teams[(i * 7 + 4) % teams.length];
+      const start = setAggression(createMatchState(home, away, rules, home.id, 5000 + i), home.id, level);
+      const { state } = simulateRemaining(start);
+      for (const raw of [state._internal.innings1Raw, state._internal.currentInningsRaw]) {
+        if (!raw || raw.teamId !== home.id) continue;
+        addInnings(a, raw);
+        legal += raw.totalBalls;
+      }
+    }
+    const f = (x: number, d = 1) => x.toFixed(d);
+    console.log(`| ${label} | ${f(a.runs / a.inns)} | ${f(a.wkts / a.inns, 2)} | ${f((6 * a.runs) / legal, 2)} | ${f(a.fours / a.inns)} | ${f(a.sixes / a.inns)} | ${f((100 * a.allOut) / a.inns)}% |`);
   }
 }, 3_600_000);

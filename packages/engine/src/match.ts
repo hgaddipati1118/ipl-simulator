@@ -56,6 +56,7 @@ import {
   type WicketKind,
 } from "./fielding.js";
 import { T20_FORMAT, hasOwnBallModel, matchFormatFor, phaseOver, type MatchFormatSpec } from "./format.js";
+import { applyScoringContext, scoringContextFor, type T20Context } from "./t20i-context.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
 import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
@@ -231,6 +232,8 @@ export interface VenueContext {
   chaseAdvantage: number;
   /** Men's or women's cricket (extras and dismissal mixes are fitted per gender) */
   gender?: Gender;
+  /** The competition's own fitted level (a T20I: t20i-context.ts); absent in league play */
+  context?: T20Context;
 }
 
 /* ───── Detailed scorecard types (from WT2) ───── */
@@ -500,6 +503,8 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
     for (const key of Object.keys(probs) as BallOutcome[]) {
       probs[key] *= phaseMult[key] ?? 1;
     }
+    // A competition with its own fitted level (T20Is) on top of the league tables
+    if (venue.context) applyScoringContext(probs, venue.context, phase);
   }
 
   // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel.
@@ -901,6 +906,8 @@ function getVenueContext(
     };
   }
   const leagueChase = getLeagueChaseAdvantage(rules.league, rules.gender);
+  // A T20I: its own fitted level (t20i-context.ts); league play has none
+  const context = scoringContextFor(rules, fmt);
   if (options?.neutralVenue) {
     return {
       stadiumBowlRating: 1.0 * (2 - rules.scoringMultiplier),
@@ -910,6 +917,7 @@ function getVenueContext(
       profile: getNeutralVenueProfile(rules.league),
       chaseAdvantage: leagueChase,
       gender: genderOf(rules),
+      ...(context ? { context } : {}),
     };
   }
 
@@ -922,6 +930,7 @@ function getVenueContext(
     profile,
     chaseAdvantage: profile?.chaseAdvantage ?? leagueChase,
     gender: genderOf(rules),
+    ...(context ? { context } : {}),
   };
 }
 
