@@ -88,7 +88,7 @@ export function DraftMatchViewer({ start, userSeatId, onDone, onSkip }: {
 }) {
   const { teams, matchState } = useMemo(() => {
     const [home, away] = teamsFromMatchStart(start, userSeatId);
-    return { teams: [home, away], matchState: createMatchState(home, away, draftMatchRules(start.maxOverseasInXI), userSeatId, start.seed) };
+    return { teams: [home, away], matchState: createMatchState(home, away, draftMatchRules(start.maxOverseasInXI, start.format, start.women), userSeatId, start.seed) };
   }, [start, userSeatId]);
   const [completed, setCompleted] = useState<MatchState | null>(null);
   const finished = completed !== null;
@@ -96,7 +96,7 @@ export function DraftMatchViewer({ start, userSeatId, onDone, onSkip }: {
   return (
     <div>
       <div className="max-w-6xl mx-auto px-4 pt-4">
-        <span className="text-xs font-display text-th-muted">Draft Match · Game {start.gameNo}</span>
+        <span className="text-xs font-display text-th-muted">Draft Match{start.format === "odi" ? " ODI" : ""} · Game {start.gameNo}</span>
       </div>
       {(finished || onSkip) && (
         // Fixed so it stays reachable while the live-match page scrolls
@@ -112,6 +112,7 @@ export function DraftMatchViewer({ start, userSeatId, onDone, onSkip }: {
         userTeamId={userSeatId}
         teams={teams}
         previousResults={[]}
+        headerLabel={`Draft Match${start.format === "odi" ? " ODI" : ""} · Game ${start.gameNo}`}
         onMatchComplete={(done) => setCompleted(done)}
       />
     </div>

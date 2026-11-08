@@ -19,6 +19,10 @@ interface WormChartProps {
   bowlingFirstTeam: WormChartTeam;
   /** Optional: compact mode for smaller rendering (default false) */
   compact?: boolean;
+  /** Overs in a full innings: the x axis spans them (default: the longest innings played) */
+  totalOvers?: number;
+  /** Runs at the end of each over, per innings, instead of the ball logs (a stored scorecard) */
+  overTotals?: [number[], number[]];
 }
 
 /** Build per-over cumulative run totals from a ball log */
@@ -43,13 +47,16 @@ export function WormChart({
   battingFirstTeam,
   bowlingFirstTeam,
   compact = false,
+  totalOvers,
+  overTotals,
 }: WormChartProps) {
-  const inn1Data = buildOverData(innings1BallLog);
-  const inn2Data = buildOverData(innings2BallLog);
+  const inn1Data = overTotals ? overTotals[0] : buildOverData(innings1BallLog);
+  const inn2Data = overTotals ? overTotals[1] : buildOverData(innings2BallLog);
 
   if (inn1Data.length === 0 && inn2Data.length === 0) return null;
 
-  const maxOvers = Math.max(inn1Data.length, inn2Data.length, 1);
+  const maxOvers = Math.max(inn1Data.length, inn2Data.length, totalOvers ?? 0, 1);
+  const labelEvery = maxOvers > 30 ? 10 : 5;
   const maxRuns = Math.max(...inn1Data, ...inn2Data, 1);
 
   const W = compact ? 280 : 500;
@@ -100,7 +107,7 @@ export function WormChart({
         ))}
         {/* X axis labels */}
         {Array.from({ length: maxOvers }, (_, i) => i + 1)
-          .filter(o => o % 5 === 0 || o === maxOvers)
+          .filter(o => o % labelEvery === 0 || o === maxOvers)
           .map(o => (
             <text key={o} x={x(o)} y={H - 3} style={{ fill: "rgba(255,255,255,0.3)" }} fontSize={fontSize} textAnchor="middle">{o}</text>
           ))}
