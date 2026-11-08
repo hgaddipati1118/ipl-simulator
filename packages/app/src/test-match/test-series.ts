@@ -10,7 +10,8 @@
  */
 
 import {
-  isTestOpener, keepingRating, pickTestXI, testBattingSlot, testCountryCode, testInningsScorecard, testPlayerOf,
+  TEST_RECENCY_WEIGHT, isTestOpener, pickTestXI, testBattingSlot, testCountryCode, testDropped, testInningsScorecard, testKeeps,
+  testPlayerOf, testProfileOf, testRecency,
   type Player, type Team, type TestMatchState,
 } from "@ipl-sim/engine";
 import type {
@@ -25,24 +26,34 @@ import { readableTeamColor, teamScoreLine } from "./test-view";
 /** Host countries where a side picks a second spinner (the engine's pickTestXI region) */
 const SUBCONTINENT = new Set(["IND", "PAK", "SL", "BDESH", "UAE"]);
 
-/** The squad's shape: two keepers, five seamers, two spinners, an all-rounder, two openers, four batters (16) */
-const SHAPE = { keepers: 2, pace: 5, spin: 2, allRounder: 1, openers: 2, batters: 4 };
+/** The squad's shape once the regulars are in: two keepers, five seamers, two spinners, an all-rounder, two openers (16 in all) */
+const SHAPE = { keepers: 2, pace: 5, spin: 2, allRounder: 1, openers: 2 };
+/** Regulars (this share of the country's recent Tests or more) come in first, up to REGULARS_MAX players */
+const REGULAR = 0.3;
+const REGULARS_MAX = 13;
 
 /**
- * A Test squad of 16 from a nation's players (their `ratings` the Test set): on the engine's Test values (testPlayerOf: batting
- * survival and scoring, bowling wickets and economy in fitted log-rate units), so a red-ball specialist is not left out for a
- * white-ball name. Seamer, spinner or batter comes from his first-class record (testPlayerOf: his bowling workload and
- * style; an opener by his usual place in the order, isTestOpener), not his T20 role, which the data leaves alone. Two
- * keepers, five seamers, two spinners, an all-rounder (the best batter of the front-line bowlers left who bats in the top
- * seven), two openers, then the four best batters; a small pool is filled with the best of the rest. Within each of these, players of a lower `tier` come
- * first (international.ts: 0 = a recent Test player, 1 = active at senior level, 2 = active three seasons ago).
+ * A Test squad of 16 from a nation's players (their `ratings` the Test set), picked the way selectors do:
+ * - the players who have retired or been dropped (none of the country's last six Tests, testDropped) are left out;
+ * - two keepers on the keeping record (testKeeps), the regular one first;
+ * - the regulars of the country's recent Tests, the most regular first (testRecency: the Cricsheet line-ups);
+ * - then the shape is covered: five seamers, two spinners, an all-rounder (a front-line bowler who bats in the top seven),
+ *   two openers;
+ * - then the best of the rest.
+ * Every choice ranks by the engine's Test value (testPlayerOf: batting survival and scoring, bowling wickets and economy)
+ * plus TEST_RECENCY_WEIGHT times the recent-Tests share, less a little for a stale activity `tier` (international.ts: 0 = a
+ * recent Test player, 1 = active at senior level, 2 = active three seasons ago). Seamer, spinner, opener or keeper comes from
+ * the first-class record, not the T20 role, which the data leaves alone. The squad's keepers are flagged on the keeping
+ * record only (markTestKeepers).
  */
 export function pickTestSquad(players: readonly Player[], size = 16, tier: (p: Player) => number = () => 0): Player[] {
-  const tp = new Map(players.map(p => [p.id, testPlayerOf(p)]));
+  const active = players.filter(p => !testDropped(p));
+  const pool = active.length >= size ? active : [...players];
+  const tp = new Map(pool.map(p => [p.id, testPlayerOf(p)]));
   const v = (p: Player) => tp.get(p.id)!;
+  const recent = (p: Player) => TEST_RECENCY_WEIGHT * testRecency(p) - 0.2 * tier(p);
   const bat = (p: Player) => v(p).batValue + 0.3 * Math.max(0, v(p).bowlValue);
-  // tier first, then the value
-  const by = (value: (p: Player) => number) => (a: Player, b: Player) => tier(a) - tier(b) || value(b) - value(a);
+  const by = (value: (p: Player) => number) => (a: Player, b: Player) => (value(b) + recent(b)) - (value(a) + recent(a));
   const squad: Player[] = [];
   const add = (list: Player[], n: number) => {
     for (const p of list) {
@@ -50,15 +61,25 @@ export function pickTestSquad(players: readonly Player[], size = 16, tier: (p: P
       if (!squad.includes(p)) { squad.push(p); n--; }
     }
   };
-  add(players.filter(p => p.isWicketKeeper).sort(by(p => v(p).batValue + 0.01 * keepingRating(p))), SHAPE.keepers);
-  const bowlers = () => players.filter(p => v(p).bowler && !squad.includes(p)).sort(by(p => v(p).bowlValue));
-  add(bowlers().filter(p => !v(p).spin), SHAPE.pace);
-  add(bowlers().filter(p => v(p).spin), SHAPE.spin);
-  add(bowlers().filter(p => testBattingSlot(p) <= 7.5).sort(by(p => v(p).batValue)), SHAPE.allRounder);
-  add(players.filter(p => !v(p).bowler && !squad.includes(p) && isTestOpener(p)).sort(by(bat)), SHAPE.openers - squad.filter(isTestOpener).length);
-  add(players.filter(p => !p.isWicketKeeper && !squad.includes(p)).sort(by(bat)), SHAPE.batters);
-  add([...players].sort(by(p => Math.max(bat(p), v(p).bowlValue))), size - squad.length);
+  const count = (f: (p: Player) => boolean) => squad.filter(f).length;
+  const seamer = (p: Player) => v(p).bowler && !v(p).spin;
+  const spinner = (p: Player) => v(p).bowler && v(p).spin;
+  const allRounder = (p: Player) => v(p).bowler && testBattingSlot(p) <= 7.5;
+  const opener = (p: Player) => !v(p).bowler && isTestOpener(p);
+  add(pool.filter(testKeeps).sort(by(p => v(p).batValue + (testProfileOf(p)?.keep ?? 0.5))), SHAPE.keepers);
+  add(pool.filter(p => testRecency(p) >= REGULAR).sort((a, b) => testRecency(b) - testRecency(a)), REGULARS_MAX - squad.length);
+  add(pool.filter(seamer).sort(by(p => v(p).bowlValue)), SHAPE.pace - count(seamer));
+  add(pool.filter(spinner).sort(by(p => v(p).bowlValue)), SHAPE.spin - count(spinner));
+  add(pool.filter(allRounder).sort(by(p => v(p).batValue)), SHAPE.allRounder - count(allRounder));
+  add(pool.filter(opener).sort(by(bat)), SHAPE.openers - count(opener));
+  add([...pool].sort(by(p => Math.max(bat(p), v(p).bowlValue))), size - squad.length);
+  markTestKeepers(squad);
   return squad;
+}
+
+/** A Test squad's keepers are the players who keep on the first-class record (testKeeps), not the T20 flag */
+export function markTestKeepers(squad: readonly Player[]): void {
+  for (const p of squad) p.isWicketKeeper = testKeeps(p);
 }
 
 /** "sub" when the series is played in the subcontinent (two spinners in the XI), else "other" */

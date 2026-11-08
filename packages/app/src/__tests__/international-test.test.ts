@@ -8,7 +8,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  advanceTest, autoResolveTestDecision, isTestOpener, setTestAutoCaptain, testBattingSlot, testPlayerOf, type TestMatchState,
+  advanceTest, autoResolveTestDecision, isTestOpener, pickTestXI, setTestAutoCaptain, testBattingSlot, testKeeperOf, testPlayerOf,
+  type TestMatchState,
 } from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
@@ -100,6 +101,39 @@ describe("Test squads and XIs", () => {
     expect(testLineupProblems(squad, { xi: xi(4), order: xi(4) })).toEqual([]);
     if (rest.length >= 7) expect(testLineupProblems(squad, { xi: xi(3), order: xi(3) })).toContain("3/4 bowlers");
     expect(testLineupProblems(squad, { xi: xi(4).slice(0, 10), order: [] })).toContain("10/11 players");
+  });
+});
+
+describe("the auto Test XI against the real ones (fixtures/test-recent-xis.json: each country's last 5 Tests)", () => {
+  const activity = JSON.parse(readFileSync(join(PUBLIC, "data", "player-activity.json"), "utf-8")) as PlayerActivityFile;
+  const real = JSON.parse(readFileSync(new URL("./fixtures/test-recent-xis.json", import.meta.url), "utf-8")) as {
+    countries: { team: string; gender: string; tests: { host: string | null; xi: string[] }[] }[];
+  };
+  const SUB = new Set(["IND", "PAK", "SL", "BDESH", "UAE"]);
+  const MAJORS = ["India", "England", "Australia", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies"];
+  const xiFor = (team: string, host: string | null) =>
+    pickTestXI(buildNationSquad(team, "men", "test", FILE, undefined, activity), host && SUB.has(host) ? "sub" : "other");
+
+  it("shares 8 or more of 11 with the real XIs of the major sides, on average", () => {
+    const means = MAJORS.map(team => {
+      const c = real.countries.find(x => x.team === team && x.gender === "male")!;
+      const shared = c.tests.map(t => xiFor(team, t.host).filter(p => t.xi.includes(p.id)).length);
+      return shared.reduce((a, b) => a + b, 0) / shared.length;
+    });
+    expect(means.reduce((a, b) => a + b, 0) / means.length).toBeGreaterThanOrEqual(8);
+    for (const m of means) expect(m).toBeGreaterThanOrEqual(6.5);
+  });
+
+  it("one designated keeper, on the keeping record: the squad's keepers are those who keep", () => {
+    const india = buildNationSquad("India", "men", "test", FILE, undefined, activity);
+    expect(india.find(p => p.name === "KL Rahul")?.isWicketKeeper ?? false).toBe(false);
+    expect(india.filter(p => p.isWicketKeeper).map(p => p.name)).toContain("Rishabh Pant");
+    const xi = pickTestXI(india, "sub");
+    expect(testKeeperOf(xi).name).toBe("Rishabh Pant");
+    expect(xi.map(p => p.name)).toContain("Shubman Gill");
+    expect(xi.map(p => p.name)).not.toContain("Virat Kohli");
+    const nz = pickTestXI(buildNationSquad("New Zealand", "men", "test", FILE, undefined, activity));
+    expect(testKeeperOf(nz).name).toBe("Tom Blundell");
   });
 });
 

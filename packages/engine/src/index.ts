@@ -294,7 +294,7 @@ export {
   pickTestXI, testBattingOrder, testPlayerOf, testBallProbs, oversLeftInMatch, testLead, testTarget, currentInnings as currentTestInnings,
   followOnMargin, followOnProbability, declarationHazard, testCountryCode, TEST_OUTCOMES, TEST_COUNTRIES,
   setNextBatter, testBatterQueue, nightwatchmanCandidate, NIGHTWATCHMAN_OVERS, NIGHTWATCHMAN_P,
-  testProfileOf, testBattingSlot, isTestOpener,
+  testProfileOf, testBattingSlot, isTestOpener, testKeeps, testRecency, testDropped, testKeeperOf, TEST_RECENCY_WEIGHT,
 } from "./test-match.js";
 export type {
   TestMatchOptions, TestMatchState, TestMatchResult, TestResult, TestInnings, TestInningsSummary, TestBallEvent, TestBatterLine,

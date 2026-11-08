@@ -19,7 +19,7 @@ import { attachFormatRatings, type FormatRatingsFile } from "@ipl-sim/ratings/di
 import { playerActivity, squadTier, type ActivityFormat, type PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { WPL_PLAYERS } from "@ipl-sim/ratings/dist/wpl-players.js";
-import { pickTestSquad, testSeriesFormat } from "./test-match/test-series";
+import { markTestKeepers, pickTestSquad, testSeriesFormat } from "./test-match/test-series";
 
 // ── Formats ────────────────────────────────────────────────────────────
 
@@ -270,6 +270,7 @@ export function buildNationSquad(
   if (ids && ids.length > 0) {
     const byId = new Map(inFormat.map(p => [p.id, p]));
     squad = ids.map(id => byId.get(id)).filter((p): p is Player => !!p);
+    if (ratingFormat === "test") markTestKeepers(squad);
   } else if (ratingFormat === "test") {
     // a Test squad is picked for its shape (keepers, seamers, spinners, batters), recent Test players first (test-series.ts)
     squad = pickTestSquad(inFormat, SQUAD_SIZE, p => tierOf.get(p.id) ?? 2);
