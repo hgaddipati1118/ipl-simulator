@@ -4,9 +4,9 @@
  * and factors), and it cuts the engine's collapses while the mean first innings stays where it was. Seeded.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WICKETS_IN_HAND } from "../wickets-in-hand-data.js";
+import { WICKETS_IN_HAND, WICKETS_IN_HAND_SET } from "../wickets-in-hand-data.js";
 import { WICKETS_IN_HAND_NORM } from "../wickets-in-hand-norm-data.js";
-import { applyWicketsInHand, wicketsInHandBand, wicketsInHandKey } from "../wickets-in-hand.js";
+import { applyWicketsInHand, setLevel, wicketsInHandBand, wicketsInHandKey } from "../wickets-in-hand.js";
 import { ballProbabilities, simulateMatch, type BallModelPlayer, type BallOutcome, type VenueContext } from "../match.js";
 import { T20_FORMAT } from "../format.js";
 import { RULE_PRESETS, type RuleSet } from "../rules.js";
@@ -30,6 +30,14 @@ describe("the fitted table", () => {
   it("late acceleration with wickets in hand: overs 16-18 two down hit more sixes than eight down", () => {
     expect(t[3][2][C.six]).toBeGreaterThan(t[3][8][C.six]);
     expect(t[3][2][C.four]).toBeGreaterThan(t[3][8][C.four]);
+  });
+  it("a new batter plays himself in, a set one takes risks: the set term rises with balls faced", () => {
+    const set = WICKETS_IN_HAND_SET.male;
+    expect([0, 1, 2, 3, 5, 6, 9, 10, 19, 20, 29, 30, 80].map(setLevel)).toEqual([0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6]);
+    expect(set[0][C.wicket]).toBeLessThan(0.8);
+    expect(set[6][C.wicket]).toBeGreaterThan(1.1);
+    expect(set[0][C.six]).toBeLessThan(set[3][C.six]);
+    expect(set[3][C.six]).toBeLessThan(set[6][C.six]);
   });
   it("bands: overs 1-6, 7-11, 12-15, 16-18, 19-20", () => {
     expect([0, 5, 6, 10, 11, 14, 15, 17, 18, 19].map(wicketsInHandBand)).toEqual([0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);

@@ -323,6 +323,6 @@ export { drawMatchConditions, applyMatchConditions, conditionsShapeFor } from ".
 export type { MatchConditions } from "./match-conditions.js";
 export { MATCH_CONDITIONS } from "./match-conditions-data.js";
 export type { ConditionsShape } from "./match-conditions-data.js";
-export { applyWicketsInHand, wicketsInHandBand, wicketsInHandKey } from "./wickets-in-hand.js";
-export { WICKETS_IN_HAND, WICKETS_IN_HAND_BANDS } from "./wickets-in-hand-data.js";
+export { applyWicketsInHand, setLevel, wicketsInHandBand, wicketsInHandKey } from "./wickets-in-hand.js";
+export { WICKETS_IN_HAND, WICKETS_IN_HAND_BANDS, WICKETS_IN_HAND_SET, WICKETS_IN_HAND_SET_EDGES } from "./wickets-in-hand-data.js";
 export { WICKETS_IN_HAND_NORM } from "./wickets-in-hand-norm-data.js";

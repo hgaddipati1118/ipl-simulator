@@ -688,6 +688,77 @@ Fingerprint: every line moves, the women's too (the women's table and default fa
 men with rain `c7eb7766f258c4a9`, women `bc0c2eaf9dd01cf8`, Hundred `85a482996e20d465`; live CPU `81b3d54bfe0ed362`, user
 `b12b68652253c070`; combined `fa1132e42d640731`.
 
+### 12.10 Wicket clustering: new batters play themselves in
+
+After 12.9 the IPL's first innings were still bowled out 12% of the time against a real 7.7%, though wickets per innings
+were right. The wickets came too close together.
+
+**What was measured** (first innings, IPL 2023+ real against 2,000 engine matches with the game's squads):
+- **Gap between wickets:** 6 legal balls or fewer 29.1% real, 32.8% engine.
+- **Opening stand:** 25.0 balls real, 20.5 engine.
+- **Eighth-wicket stand:** 6.4 real, 9.5 engine.
+- **Dismissal hazard by the striker's balls faced:** the decisive one.
+
+| balls faced | 0 | 1-2 | 3-5 | 6-9 | 10-19 | 20-29 | 30+ |
+|---|---|---|---|---|---|---|---|
+| real | 4.4% | 3.9% | 4.6% | 5.1% | 5.0% | 5.4% | 7.2% |
+| engine before | 5.2% | 5.3% | 4.9% | 5.1% | 5.1% | 5.4% | 5.8% |
+| engine after | 3.6% | 4.2% | 4.7% | 5.1% | 5.4% | 5.6% | 6.8% |
+
+Real new batters are the safest batters on the field and set ones the most exposed. The engine's hazard was flat, so a
+wicket brought in a batter as likely to fall at once as a set one, and wickets bunched. The two other candidates show
+nothing to fix. The engine's hazard by batting position rises smoothly from 4.7% (openers) to 8% (the tail), with no
+weak batter placed high; the order is the team's own. The T20 chain has no bowler-streak or pressure term (only the
+clutch window late in a close chase).
+
+**The term.** The wickets-in-hand fit (12.9) now also carries a set term: the striker's balls faced before the ball (0,
+1-2, 3-5, 6-9, 10-19, 20-29, 30+), with the situation, the batter and the bowler held fixed, mean 1 over the real
+deliveries (`WICKETS_IN_HAND_SET`). Men's wickets run 0.67 / 0.79 / 0.93 / 1.03 / 1.06 / 1.11 / 1.23; fours 0.59 to 1.19;
+sixes 0.26 to 1.30. A new batter plays himself in and a set one takes risks. Women's are similar. It applies in full
+wherever the table does (first innings). The powers and factors and the match conditions were all refitted on top. Powers:
+IPL 1, SA20 1, T20I men 1, WPL 1, WBBL 1, T20I women 1, women's Hundred 0.75, BBL / PSL / ILT20 / BPL / LPL / men's Hundred
+0.5. CPL and MLC fit best with neither the table nor the set term. The conditions came out one-sided: a day can only be
+better than the centre.
+
+**IPL first innings after:** all out 8.2% on 4,000 matches (real 7.7%). Wickets within 6 balls of the last 29.8% (real
+29.1%). Wickets per innings 2 to 10 come within two points of the real distribution in every bin (6 down: 19.1% against
+16.3%). Opening stand 20.4 balls (real 25.0): still short.
+
+Per league, 1,500 matches each. Columns: all out; wickets; under 120; 200+; sd. Real as in 12.9; before is main as of
+12.9.
+
+| league | real | before | after |
+|---|---|---|---|
+| IPL | 7.7%; 6.35; 3.6%; 25.0%; 33.9 | 12.4%; 6.41; 4.6%; 25.6%; 33.4 | 9.9%; 6.33; 5.1%; 26.3%; 34.1 |
+| BBL | 11.3%; 7.13; 3.8%; 11.3%; 29.5 | 15.5%; 6.78; 7.5%; 12.8%; 30.3 | 12.7%; 6.80; 8.0%; 14.3%; 32.3 |
+| PSL | 11.6%; 6.61; 5.3%; 21.3%; 33.3 | 17.3%; 6.78; 5.8%; 23.0%; 32.5 | 16.8%; 6.96; 6.3%; 26.7%; 35.3 |
+| SA20 | 15.3%; 6.38; 14.4%; 12.7%; 38.6 | 10.8%; 6.42; 14.4%; 12.5%; 36.0 | 8.2%; 6.23; 15.3%; 12.5%; 37.4 |
+| CPL | 12.1%; 6.83; 4.9%; 17.0%; 32.4 | 12.1%; 6.51; 6.3%; 16.4%; 31.1 | 13.3%; 6.22; 5.0%; 17.5%; 30.1 |
+| ILT20 | 10.6%; 6.66; 8.3%; 6.8%; 30.3 | 12.3%; 6.50; 8.9%; 9.2%; 30.1 | 12.3%; 6.62; 9.0%; 8.8%; 29.7 |
+| MLC | 18.4%; 6.99; 2.9%; 19.4%; 34.4 | 17.5%; 6.88; 6.1%; 19.6%; 31.9 | 17.9%; 6.58; 5.1%; 20.7%; 31.2 |
+| BPL | 14.9%; 6.78; 10.9%; 6.4%; 32.1 | 13.5%; 6.67; 10.1%; 6.7%; 30.5 | 12.1%; 6.68; 11.0%; 8.8%; 31.4 |
+| LPL | 13.5%; 6.87; 6.3%; 21.6%; 31.8 | 16.9%; 6.84; 5.7%; 23.7%; 32.8 | 14.8%; 6.92; 5.0%; 25.7%; 34.2 |
+| Hundred men | 8.4%; 6.56; 5.8%; 20.5%; 27.4 | 9.3%; 6.25; 5.7%; 20.3%; 27.4 | 8.4%; 6.24; 6.1%; 21.3%; 28.4 |
+| WPL | 14.8%; 6.79; 11.4%; 10.2%; 30.6 | 15.5%; 6.49; 7.7%; 4.7%; 26.4 | 12.2%; 6.50; 6.7%; 5.9%; 26.1 |
+| WBBL | 12.1%; 6.92; 13.4%; 3.9%; 28.1 | 17.4%; 6.65; 10.5%; 1.5%; 24.7 | 14.9%; 6.57; 10.4%; 3.1%; 25.7 |
+| Hundred women | 9.4%; 6.53; 11.0%; 3.9%; 23.6 | 8.0%; 6.04; 5.9%; 1.9%; 19.3 | 8.1%; 6.03; 7.1%; 1.9%; 19.6 |
+
+Most leagues come down another 1-3 points of all-outs, and the women's spreads widen a little. Left over:
+- PSL, LPL and BBL now have spreads 2-3 runs above the real ones, even with no or almost no conditions term. The set
+  term's late acceleration widens totals there.
+- SA20 is now bowled out less often than the real one (8% against 15%).
+
+**Chases (measured, not changed).** The men's leagues since 2021, second innings, against 400 engine matches a league.
+Hazard by phase and wickets down already follows the real one: middle overs 0-2 down 4.8% against 4.6%, 5-6 down 6.4%
+against 6.3%, 7-9 down 7.7% against 7.3%; death overs within a point. Real chasers do not consolidate the way first-innings
+sides do (their hazard rises with wickets down), and the engine's `chaseAdjustment` already plays it that way. Chases are
+all out 19.1% (engine) against 18.1% (real). Extending the table to chases would double-count the chase terms, so it
+stays first-innings only. The chase gaps that remain are phase rates (powerplay 9.7 an over against 8.4, middle overs 7.3
+against 8.4, in the leagues without a shape); those are league levels, not collapses.
+
+Fingerprint: every line moves. Instant men `fb77411d4def97b1`, men with rain `fcd1034152f2d622`, women `a620d4744798119a`,
+Hundred `19c5499b6b2e0689`; live CPU `affd24e1d22c9d81`, user `253902f78c7f51a5`; combined `8323aef815cac7df`.
+
 ---
 
 ## 13. Rain and DLS, DRS, fielding errors and the rarer plays

@@ -446,8 +446,9 @@ export interface BallRules {
   drs?: { batting: number; fielding: number };
   /** The slow over-rate restriction is on */
   overRatePenalty?: boolean;
-  /** Formats with their own ball model (the ODI): the striker's balls faced so far, the overs the innings is scheduled for */
+  /** The striker's balls faced so far (the ODI's model; a T20 first innings' set term, wickets-in-hand.ts) */
   batterBalls?: number;
+  /** Formats with their own ball model (the ODI): the overs the innings is scheduled for */
   scheduledOvers?: number;
 }
 
@@ -514,7 +515,7 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
     // The match's own conditions, shared by both innings
     if (venue.conditions) applyMatchConditions(probs, venue.conditions);
     // A first innings by wickets down and overs left (a chase has its own context below; a super over neither)
-    if (venue.wicketsInHandKey && !isSecondInnings && !rules.superOver) applyWicketsInHand(probs, rules.gender, venue.wicketsInHandKey, over, wicketsDown);
+    if (venue.wicketsInHandKey && !isSecondInnings && !rules.superOver) applyWicketsInHand(probs, rules.gender, venue.wicketsInHandKey, over, wicketsDown, rules.batterBalls ?? 0);
   }
 
   // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel.
@@ -1326,7 +1327,8 @@ function simulateInnings(
         fmt.totalBalls,
         {
           freeHit, fmt, gender, bench, superOver: !!so, drs, overRatePenalty: overRateFrom >= 0 && over >= overRateFrom,
-          ...(own ? { batterBalls: innings.batterStats.get(striker.id)!.balls, scheduledOvers: maxOvers } : {}),
+          batterBalls: innings.batterStats.get(striker.id)!.balls,
+          ...(own ? { scheduledOvers: maxOvers } : {}),
         },
         nonStriker,
       );
