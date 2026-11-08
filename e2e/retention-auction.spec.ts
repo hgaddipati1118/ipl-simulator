@@ -1,19 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-
-async function clearGameState(page: Page) {
-  await page.evaluate(async () => {
-    localStorage.clear();
-    const dbs = await indexedDB.databases();
-    for (const db of dbs) {
-      if (db.name) indexedDB.deleteDatabase(db.name);
-    }
-  });
-}
-
-async function waitForAppReady(page: Page) {
-  await page.waitForLoadState("networkidle");
-  await page.waitForSelector("nav", { timeout: 15000 });
-}
+import { freshGame, waitForAppReady } from "./helpers";
 
 async function pickTeam(page: Page, index = 0) {
   const teamButton = page
@@ -25,10 +11,7 @@ async function pickTeam(page: Page, index = 0) {
 
 test.describe("Auction Page", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
-    await clearGameState(page);
-    await page.reload();
-    await waitForAppReady(page);
+    await freshGame(page);
   });
 
   test("selecting a team navigates to auction or season (skips when rosters full)", async ({ page }) => {
@@ -94,10 +77,7 @@ test.describe("Retention Page", () => {
   test("retention page renders correctly when navigated to directly", async ({ page }) => {
     test.setTimeout(120000);
 
-    await page.goto("/");
-    await clearGameState(page);
-    await page.reload();
-    await waitForAppReady(page);
+    await freshGame(page);
 
     // Pick team → may go to auction or skip to season
     await pickTeam(page);

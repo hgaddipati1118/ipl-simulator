@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Team, type RuleSet, DEFAULT_RULES } from "@ipl-sim/engine";
 import { ovrBgClass, roleLabel, bowlingStyleLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
@@ -31,10 +31,14 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
   const navigate = useNavigate();
   const team = teams.find(t => t.id === teamId);
 
+  // Scout once per opposition team viewed. The callback is a new closure on every App render and scouting updates
+  // the game state, so depending on it re-ran the effect after every update: an endless render loop (as on PlayerPage)
+  const scoutTeamRef = useRef(onScoutTeam);
+  scoutTeamRef.current = onScoutTeam;
   useEffect(() => {
-    if (!teamId || teamId === userTeamId || !onScoutTeam) return;
-    onScoutTeam(teamId, 10);
-  }, [teamId, userTeamId, onScoutTeam]);
+    if (!teamId || teamId === userTeamId) return;
+    scoutTeamRef.current?.(teamId, 10);
+  }, [teamId, userTeamId]);
 
   const isUserTeam = team?.id === userTeamId;
   const teamAssignment = team ? getScoutingAssignment(scoutingAssignments, "team", team.id) : null;
