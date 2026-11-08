@@ -2424,6 +2424,10 @@ export function LiveMatchPage({
       {matchComplete && state.status === "completed" && (() => {
         const battingFirstTeam = state._internal.battingFirstId === state.homeTeam.id ? state.homeTeam : state.awayTeam;
         const bowlingFirstTeam = state._internal.bowlingFirstId === state.homeTeam.id ? state.homeTeam : state.awayTeam;
+        // Rain abandoned the match in the first innings: the live figures are the first innings, the second never began
+        // (the scores show that; the per-team performers below assume two innings and are left out)
+        const abandonedInFirst = state.innings === 1;
+        const liveOvers = state.balls > 0 ? `${state.overs}.${state.balls}` : `${state.overs}.0`;
 
         // Top scorer & bowler for batting-first team
         const inn1Batters = state.innings1Scorecard?.batters ?? [];
@@ -2454,9 +2458,9 @@ export function LiveMatchPage({
                     {battingFirstTeam.shortName}
                   </div>
                   <div className="font-display font-extrabold text-th-primary stat-num text-xl sm:text-2xl">
-                    {state.innings1Score}/{state.innings1Wickets}
+                    {abandonedInFirst ? `${state.score}/${state.wickets}` : `${state.innings1Score}/${state.innings1Wickets}`}
                   </div>
-                  <div className="text-[10px] text-th-faint font-display">({state.innings1Overs} ov)</div>
+                  <div className="text-[10px] text-th-faint font-display">({abandonedInFirst ? liveOvers : state.innings1Overs} ov)</div>
                 </div>
 
                 <div className="text-th-faint font-display font-bold text-sm">VS</div>
@@ -2466,14 +2470,16 @@ export function LiveMatchPage({
                   <div className="text-xs font-display font-bold mt-1" style={{ color: bowlingFirstTeam.primaryColor }}>
                     {bowlingFirstTeam.shortName}
                   </div>
-                  <div className="font-display font-extrabold text-th-primary stat-num text-xl sm:text-2xl">
-                    {state.score}/{state.wickets}
-                  </div>
-                  <div className="text-[10px] text-th-faint font-display">
-                    ({state.overs > 0 || state.balls > 0
-                      ? (state.balls > 0 ? `${state.overs}.${state.balls}` : `${state.overs}.0`)
-                      : "0.0"} ov)
-                  </div>
+                  {abandonedInFirst ? (
+                    <div className="text-sm font-display text-th-muted mt-2">Did not bat</div>
+                  ) : (
+                    <>
+                      <div className="font-display font-extrabold text-th-primary stat-num text-xl sm:text-2xl">
+                        {state.score}/{state.wickets}
+                      </div>
+                      <div className="text-[10px] text-th-faint font-display">({liveOvers} ov)</div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -2534,6 +2540,7 @@ export function LiveMatchPage({
             </div>
 
             {/* Top performers per team */}
+            {!abandonedInFirst && (
             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Batting-first team performers */}
               <div className="rounded-xl border border-th bg-th-raised p-3">
@@ -2585,6 +2592,7 @@ export function LiveMatchPage({
                 )}
               </div>
             </div>
+            )}
 
             {/* Narrative events */}
             {narrativeEvents.length > 0 && (
