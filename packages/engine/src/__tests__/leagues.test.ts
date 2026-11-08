@@ -192,11 +192,13 @@ describe("The Hundred: 100-ball innings", () => {
 
   it("every innings is at most 100 balls, 5-ball sets, bowlers at most 20 balls and 2 sets in a row", { timeout: 30000 }, () => {
     const teams = buildTeams(league);
+    // injuries off: the same squads play 60 matches with nobody healing, which could leave a side short of players
+    const rules: RuleSet = { ...league.rules, injuriesEnabled: false };
     let fullInnings = 0;
     for (let i = 0; i < 60; i++) {
       const home = teams[i % teams.length];
       const away = teams[(i + 3) % teams.length];
-      const result = simulateMatch(home, away, league.rules);
+      const result = simulateMatch(home, away, rules);
       for (const inn of result.innings) {
         expect(inn.totalBalls).toBeLessThanOrEqual(100);
         expect(inn.ballsPerOver).toBe(5);
@@ -221,9 +223,9 @@ describe("The Hundred: 100-ball innings", () => {
           expect(!(setBowler[s] === setBowler[s - 1] && setBowler[s] === setBowler[s - 2])).toBe(true);
         }
       }
-      // first innings runs the full 100 balls unless bowled out
+      // first innings runs the full 100 balls unless bowled out (or rain, or retirements left a batter without a partner)
       const first = result.innings[0];
-      if (first.wickets < 10 && !result.rain) { expect(first.totalBalls).toBe(100); fullInnings++; }
+      if (first.wickets < 10 && !result.rain && !first.offBall?.length) { expect(first.totalBalls).toBe(100); fullInnings++; }
     }
     expect(fullInnings).toBeGreaterThan(40);
   });
