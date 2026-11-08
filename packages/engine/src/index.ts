@@ -287,7 +287,7 @@ export { generateName, isRealName, nameGroupOf, normaliseName } from "./names.js
 export { attachCommentaryCues, withModelCommentary } from "./instant-commentary.js";
 export type { CommentaryCues, BallCommentaryCue, DetailedWithCues } from "./instant-commentary.js";
 
-// Test cricket: instant simulation, the live driver and the fitted model (docs/FORMATS-TEST.md)
+// Test cricket: instant simulation, the live driver and the fitted model (docs/FORMATS.md, Test section)
 export {
   simulateTestMatch, createTestMatch, stepTestBall, runTestToEnd, applyToss, applyFollowOn, applyTestDecision, autoResolveTestDecision,
   declareInnings, setTestApproach, takeNewBall, changeTestBowler, describeTestBall, testInningsScorecard, testMatchResult,

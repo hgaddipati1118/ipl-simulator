@@ -1,5 +1,5 @@
 /**
- * Test cricket (docs/FORMATS-TEST.md): the rules (two innings a side, the follow-on, declarations, the new ball at 80 overs,
+ * Test cricket (docs/FORMATS.md, Test section): the rules (two innings a side, the follow-on, declarations, the new ball at 80 overs,
  * days and overs, a draw when time runs out, a tie, DRS per innings, no consecutive overs), determinism and resuming, the
  * captains' fitted policies, and seeded statistical checks against the real targets with wide tolerances. Every match is
  * seeded, so these are deterministic.

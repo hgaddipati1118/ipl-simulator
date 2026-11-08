@@ -21,6 +21,7 @@ import { MatchPage } from "./pages/MatchPage";
 import { PlayerPage } from "./pages/PlayerPage";
 import { LineupPage } from "./pages/LineupPage";
 import { LiveMatchPage } from "./pages/LiveMatchPage";
+import { LiveTestDemoPage } from "./pages/LiveTestDemoPage";
 import { InboxPage } from "./pages/InboxPage";
 import { PowerRankingsPage } from "./pages/PowerRankingsPage";
 import { TrainingPage } from "./pages/TrainingPage";
@@ -912,6 +913,7 @@ export default function App() {
             previousResults={state.matchResults}
           />
         } />
+        <Route path="/live-test" element={<LiveTestDemoPage />} />
         <Route path="/power-rankings" element={
           <PowerRankingsPage teams={state.teams} />
         } />

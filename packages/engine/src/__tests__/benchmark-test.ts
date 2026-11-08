@@ -4,7 +4,7 @@
  *
  *   npx tsx packages/engine/src/__tests__/benchmark-test.ts [tests=3000]
  *   GENDER=female ...   the women's squads against real women's Tests
- *   MD=1 ...            print the table as markdown (docs/FORMATS-TEST.md)
+ *   MD=1 ...            print the table as markdown (docs/FORMATS.md, Test section)
  *   RATINGS=t20 ...     leave the Test ratings off: every player plays on his T20 ratings (the fallback)
  *   BAZBALL=0 ...       England bat without the fitted Bazball factor (on by default: the squads are 2023+ England)
  *
@@ -13,7 +13,7 @@
  *
  * Squads: the fixture's members from the shipped pools with format-ratings.json attached (test-pool-squads.ts).
  *
- * docs/FORMATS-TEST.md section 6 has the numbers.
+ * docs/FORMATS.md, Test section 6 has the numbers.
  */
 import { simulateTestMatch, type TestMatchState } from "../test-match.js";
 import { TEST_MODEL } from "../test-model-data.js";

@@ -1,7 +1,7 @@
 /**
  * Test cricket: two innings a side over up to five days of 90 six-ball overs (women's Tests: four days of 100), three
  * sessions a day, the new ball after 80 overs, declarations, the follow-on, draws when time runs out, ties, DRS (three
- * unsuccessful reviews per innings), time lost to weather and bad light, pitch wear and toss decisions (docs/FORMATS-TEST.md).
+ * unsuccessful reviews per innings), time lost to weather and bad light, pitch wear and toss decisions (docs/FORMATS.md, Test section).
  *
  * The ball model and every team decision are fitted from Cricsheet Tests (test-model-data.ts, built by
  * packages/ratings/src/analysis/test-match-model.py). Per delivery, each outcome class (1, 2, 3, 4, 6, wicket, wide,
@@ -60,7 +60,7 @@ const T_SET = lv(F.set, SET_BINS.length);
 const T_INN = lv(F.innings, 4);
 /**
  * Wickets down (0-2, 3-5, 6-7, 8-9), by innings: the tail goes quicker and swings harder than the batters' own terms say, and
- * a 4th-innings top order goes quicker than the innings and day factors alone say (FORMATS-TEST.md section 6.5)
+ * a 4th-innings top order goes quicker than the innings and day factors alone say (FORMATS.md, Test section 6.5)
  */
 const WD_BINS: readonly number[] = M.bins.wicketsDown;
 const T_WD = [0, 1, 2, 3].map(i => Array.from({ length: WD_BINS.length }, (_, b) => TEST_OUTCOMES.map(k => (F.wicketsDown as unknown as Record<string, number[][]>)[k]?.[i]?.[b] ?? 1)));
@@ -365,6 +365,8 @@ export interface TestMatchState {
   reviewsPerInnings: number;
   commentary: boolean;
   events: TestMatchEvent[];
+  /** Corpus commentary lines already used in this match (live commentary) */
+  commentaryUsed?: Record<string, 1>;
   result?: TestResult;
   injuries?: MatchInjuryEvent[];
 }
@@ -1785,17 +1787,26 @@ export function describeTestBall(st: TestMatchState, inn: TestInnings, index: nu
   const rng: RNG = () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const name = (id?: string) => (id ? st.players[id]?.name : undefined);
   const bat = inn.batters[ev.batter];
-  let text = generateDeliveryCommentary({
+  const out = generateDeliveryCommentary({
     detail, bowlerName: name(ev.bowler)!, batterName: name(ev.batter)!, nonStrikerName: name(ev.nonStriker),
     fielderName: name(ev.fielderId), fielder2Name: name(ev.fielder2Id), over: ev.over, ball: ev.ball, score: ev.score, wickets: ev.wickets,
     isSecondInnings: inn.number === 4, target: inn.number === 4 ? testTarget(st) : undefined, bowlingStyle: st.players[ev.bowler]?.bowlingStyle,
     battingHand: st.players[ev.batter]?.battingHand, gender: st.gender, batterRuns: bat?.runs, batterBalls: bat?.balls, rng,
-  }).text;
+    usedLines: st.commentaryUsed,
+  });
+  // corpus lines are not repeated within a match (the live T20 engine does the same)
+  if (out.key && st.commentary) (st.commentaryUsed ??= {})[out.key] = 1;
+  // the shared lines are written for limited overs: a Test has no free hit, powerplay or death overs, so those sentences go
+  let text = out.text.replace(LIMITED_OVERS_SENTENCE, "").replace(/^FREE HIT!\s*/i, "").trim();
+  if (!text) text = `${name(ev.bowler)} to ${name(ev.batter)}, ${ev.isWicket ? "OUT" : ev.runs + ev.extras === 0 ? "no run" : `${ev.runs + ev.extras} run${ev.runs + ev.extras === 1 ? "" : "s"}`}.`;
   if (!ev.isWicket && ev.fieldingNote === "dropped_catch") text += ` Dropped! ${name(ev.fielderId) ?? "The fielder"} puts down the chance.`;
   if (!ev.isWicket && ev.fieldingNote === "missed_stumping") text += ` ${name(ev.fielderId) ?? "The keeper"} misses the stumping.`;
   if (ev.review) text += " " + drsText(ev.review, st.teams[ev.review.by === "batting" ? inn.battingTeamId : inn.bowlingTeamId].name, rng);
   return text;
 }
+
+/** A sentence of the shared commentary that only fits limited overs (free hit, powerplay, fielding restrictions, death overs) */
+const LIMITED_OVERS_SENTENCE = /(^|\s)[^.!?]*(free hit|power ?play|fielding restrictions|death overs)[^.!?]*[.!?]/gi;
 
 /** An innings as a scorecard (the same shape as the limited-overs scorecards) */
 export function testInningsScorecard(st: TestMatchState, inn: TestInnings): InningsScorecard {

@@ -1,6 +1,6 @@
 /**
  * Live Test matches: the user plays ball by ball or skips ahead by over, session, day or innings, and makes the Test
- * decisions (docs/FORMATS-TEST.md section 4):
+ * decisions (docs/FORMATS.md, Test section 4):
  *
  *  - pauses for: the toss call, enforcing the follow-on, the new ball when it falls due, DRS reviews (his batter given out
  *    lbw / caught behind; an appeal of his bowlers turned down), the next batter when a wicket falls late in the day (send a
