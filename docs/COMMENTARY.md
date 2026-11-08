@@ -78,6 +78,12 @@ cat scraper.pid                 # the process
 
 State is `out/state.json` (done / failed matches), so re-running resumes where it stopped. The scraper uses its own tab in
 the dedicated Chrome (`BU_NAME=cricinfo-comm BU_CDP_URL=http://127.0.0.1:9224`) and never touches any other tab.
+`run.sh` loops: if the daemon's CDP connection to Chrome dies mid-run (`cdp_disconnected`), the scraper stops at once
+(rather than failing every remaining match), writes `RESTART`, and `run.sh` starts a fresh browser-harness run, whose
+`ensure_daemon` heals the daemon. Matches that failed with a lost connection can be retried by resetting their `n` in
+`out/state.json` `failed`. Some matches end in a tall editorial blurb and the page then ignores programmatic scrolling;
+`wheel_down()` (real mouse-wheel events) keeps the infinite scroll going. Known gap: ties decided by a super over come back
+with only a few balls (the innings dropdown does not cope with the super-over innings).
 
 Akamai: a challenge page or "Access Denied" raises `Blocked`; the scraper backs off 1, 2, 5, 10, 20 minutes and gives up
 (writes `STOPPED_BLOCKED`) if it has been blocked continuously for an hour.
