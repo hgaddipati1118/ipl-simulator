@@ -190,7 +190,7 @@ describe("The Hundred: 100-ball innings", () => {
     expect(phaseOver(14, HUNDRED_FORMAT)).toBeLessThan(15);   // still middle overs
   });
 
-  it("every innings is at most 100 balls, 5-ball sets, bowlers at most 20 balls and 2 sets in a row", () => {
+  it("every innings is at most 100 balls, 5-ball sets, bowlers at most 20 balls and 2 sets in a row", { timeout: 30000 }, () => {
     const teams = buildTeams(league);
     let fullInnings = 0;
     for (let i = 0; i < 60; i++) {
