@@ -14,6 +14,7 @@ import { createRNG, randomSeed, type RNG } from "./rng.js";
 import { getVenueProfileForTeam, getLeagueChaseAdvantage, getNeutralVenueProfile, getOdiVenueProfile, type VenueProfile } from "./venues.js";
 import { stadiumRatingFor, planRain, ballProbabilities, type RainPlan, type VenueContext } from "./match.js";
 import { scoringContextFor, type T20Context } from "./scoring-context.js";
+import { drawMatchConditions, type MatchConditions } from "./match-conditions.js";
 import {
   type BattingHand,
   type BowlingStyle,
@@ -353,6 +354,8 @@ interface MatchStateInternal {
   commentaryUsed?: Record<string, 1>;
   /** Settle a tie with super overs (absent = yes: T20; an ODI's tie stands unless createMatchState was asked for one) */
   superOverOnTie?: boolean;
+  /** The match's own conditions on the day (match-conditions.ts; T20 only, drawn at the start as in simulateMatch) */
+  conditions?: MatchConditions;
   /** Rain, drawn at the start from the fitted rates as in simulateMatch (a T20 league's, an ODI's): createMatchState's `rain` option */
   rainPlan?: RainPlan & { applied?: boolean };
   /** Resources (percent) the side batting first had, when rain cut its innings (DLS) */
@@ -550,6 +553,8 @@ interface LiveRulesCtx {
   freeHit: boolean;
   /** The competition's own fitted level (a T20I: scoring-context.ts) */
   context?: T20Context;
+  /** The match's own conditions (match-conditions.ts) */
+  conditions?: MatchConditions;
   /** The slow over-rate restriction is on (one fewer fielder outside the circle) */
   overRatePenalty?: boolean;
   /** A super over: wickets come faster (SUPER_OVER_CAL) */
@@ -636,6 +641,7 @@ function runOneBall(
   const venue: VenueContext = {
     stadiumBowlRating, pitchType, boundarySize, dewFactor, profile: venueProfile, chaseAdvantage: chaseAdvantage ?? 0, gender: rulesCtx.gender,
     ...(rulesCtx.context ? { context: rulesCtx.context } : {}),
+    ...(rulesCtx.conditions ? { conditions: rulesCtx.conditions } : {}),
   };
   const probs = ballProbabilities(batter, bowler, {
     over, isSecondInnings, target, currentScore, ballsRemaining, wicketsDown, venue, inningsBalls: fmt.totalBalls,
@@ -913,6 +919,8 @@ export function createMatchState(
     if (!playerDataMap[p.id]) playerDataMap[p.id] = serializePlayer(odi ? p.forFormat("odi") : p);
   }
 
+  // The match's own conditions on the day (as in simulateMatch; none in an ODI)
+  const conditions = odi ? undefined : drawMatchConditions(genderOf(rules), rng);
   // Rain: drawn now from the fitted rates, the league's or the ODI's, as in simulateMatch (a late start shortens both innings from the first ball)
   const rainPlan = options.rain ? planRain(rules, rng, fmt) : null;
   const startOvers = rainPlan && rainPlan.kind === "reduced" && rainPlan.when === "preMatch" ? rainPlan.overs : fmt.overs;
@@ -1048,6 +1056,7 @@ export function createMatchState(
       bowlerFieldSettings: { ...homeTeam.bowlerFieldSettings, ...awayTeam.bowlerFieldSettings },
       ...(odi ? { superOverOnTie: options.superOver ?? false } : options.superOver === false ? { superOverOnTie: false } : {}),
       ...(rainPlan ? { rainPlan: { ...rainPlan, applied: rainPlan.when === "preMatch" } } : {}),
+      ...(conditions ? { conditions } : {}),
     },
   };
 }
@@ -1173,7 +1182,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     },
     {
       freeHit: freeHitNow, gender: rulesGender, bench: benchPool, nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name,
-      overRatePenalty: overRateOn, context: scoringContextFor(int.rules, liveMatchFormat(int.rules)),
+      overRatePenalty: overRateOn, context: scoringContextFor(int.rules, liveMatchFormat(int.rules)), conditions: int.conditions,
       ...(odi ? {
         odi: {
           over: state.overs, wicketsDown: state.wickets, batterBalls: batterBallsPre, gender: rulesGender, scheduledOvers: maxOvers,
@@ -4041,7 +4050,7 @@ export function playLiveSuperOvers(state: MatchState): void {
         bat, pm[bowlerId], 19, target !== undefined, target ?? 0, runs, 6 - legal, wickets, ni.stadiumRating, 50, "standard",
         ni.pitchType, ni.boundarySize, ni.dewFactor, 0, 0, legal, 0, rng, batId === homeId, true,
         ni.venueProfile ?? null, ni.chaseAdvantage, unit, { gender: gender === "female" ? "female" : "male", nonStrikerName: pm[batters[non]]?.name },
-        { freeHit, gender, bench: [], nonStrikerName: pm[batters[non]]?.name, superOver: true, context: scoringContextFor(ni.rules, liveMatchFormat(ni.rules)) },
+        { freeHit, gender, bench: [], nonStrikerName: pm[batters[non]]?.name, superOver: true, context: scoringContextFor(ni.rules, liveMatchFormat(ni.rules)), conditions: ni.conditions },
       );
       const d = res.detail;
       runs += res.runs + res.extras;

@@ -1,0 +1,558 @@
+{
+ "source": "Cricsheet ball-by-ball (data/analysis/deliveries.parquet, matches.parquet); packages/ratings/src/analysis/t20-spread.py",
+ "generated": "2026-11-08",
+ "terms": [
+  "bat",
+  "bowl",
+  "ground",
+  "residual"
+ ],
+ "note": "r10 / w10: runs / wickets in each innings' first ten overs (sets); var: variance components; match: within-match covariance of the residuals (run, wicket) and their correlation",
+ "leagues": {
+  "ipl": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 416,
+    "mean": 182.4,
+    "sd": 35.9,
+    "p200": 33.2,
+    "under120": 3.6
+   },
+   "r10": {
+    "bat": 4.803,
+    "bowl": 0.537,
+    "ground": 11.961,
+    "residual": 299.574,
+    "n": 822,
+    "mean": 86.41
+   },
+   "w10": {
+    "bat": 0.053,
+    "bowl": 0.006,
+    "ground": 0.001,
+    "residual": 1.906,
+    "n": 822,
+    "mean": 2.39
+   },
+   "match": {
+    "run": 104.08,
+    "wicket": -0.1457,
+    "corr": 0.0,
+    "matches": 411
+   }
+  },
+  "bbl": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 265,
+    "mean": 165.7,
+    "sd": 29.6,
+    "p200": 12.5,
+    "under120": 4.2
+   },
+   "r10": {
+    "bat": 4.889,
+    "bowl": 0.577,
+    "ground": 12.409,
+    "residual": 234.999,
+    "n": 526,
+    "mean": 76.52
+   },
+   "w10": {
+    "bat": 0.012,
+    "bowl": 0.01,
+    "ground": 0.003,
+    "residual": 1.813,
+    "n": 526,
+    "mean": 2.62
+   },
+   "match": {
+    "run": 59.07,
+    "wicket": -0.0512,
+    "corr": 0.0,
+    "matches": 263
+   }
+  },
+  "psl": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 207,
+    "mean": 180.2,
+    "sd": 33.5,
+    "p200": 25.1,
+    "under120": 4.8
+   },
+   "r10": {
+    "bat": 13.697,
+    "bowl": 0.531,
+    "ground": 10.302,
+    "residual": 261.389,
+    "n": 410,
+    "mean": 82.74
+   },
+   "w10": {
+    "bat": 0.093,
+    "bowl": 0.006,
+    "ground": 0.0,
+    "residual": 1.958,
+    "n": 410,
+    "mean": 2.53
+   },
+   "match": {
+    "run": 52.34,
+    "wicket": -0.1526,
+    "corr": 0.0,
+    "matches": 205
+   }
+  },
+  "sa20": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 118,
+    "mean": 166.5,
+    "sd": 38.5,
+    "p200": 22.9,
+    "under120": 11.0
+   },
+   "r10": {
+    "bat": 19.585,
+    "bowl": 0.226,
+    "ground": 5.091,
+    "residual": 284.087,
+    "n": 232,
+    "mean": 76.0
+   },
+   "w10": {
+    "bat": 0.059,
+    "bowl": 0.003,
+    "ground": 0.01,
+    "residual": 2.114,
+    "n": 232,
+    "mean": 2.69
+   },
+   "match": {
+    "run": 59.4,
+    "wicket": -0.2512,
+    "corr": 0.0,
+    "matches": 116
+   }
+  },
+  "cpl": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 182,
+    "mean": 166.1,
+    "sd": 32.4,
+    "p200": 15.9,
+    "under120": 8.2
+   },
+   "r10": {
+    "bat": 0.93,
+    "bowl": 0.834,
+    "ground": 16.521,
+    "residual": 305.861,
+    "n": 362,
+    "mean": 76.16
+   },
+   "w10": {
+    "bat": 0.003,
+    "bowl": 0.017,
+    "ground": 0.0,
+    "residual": 2.167,
+    "n": 362,
+    "mean": 2.76
+   },
+   "match": {
+    "run": 67.1,
+    "wicket": -0.2835,
+    "corr": 0.0,
+    "matches": 181
+   }
+  },
+  "ilt20": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 132,
+    "mean": 162.4,
+    "sd": 30.2,
+    "p200": 8.3,
+    "under120": 6.8
+   },
+   "r10": {
+    "bat": 0.291,
+    "bowl": 0.604,
+    "ground": 0.019,
+    "residual": 252.512,
+    "n": 262,
+    "mean": 76.32
+   },
+   "w10": {
+    "bat": 0.003,
+    "bowl": 0.003,
+    "ground": 0.0,
+    "residual": 2.066,
+    "n": 262,
+    "mean": 2.65
+   },
+   "match": {
+    "run": 33.94,
+    "wicket": -0.4271,
+    "corr": 0.0,
+    "matches": 131
+   }
+  },
+  "mlc": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 103,
+    "mean": 173.1,
+    "sd": 35.1,
+    "p200": 21.4,
+    "under120": 3.9
+   },
+   "r10": {
+    "bat": 11.424,
+    "bowl": 2.882,
+    "ground": 152.982,
+    "residual": 386.215,
+    "n": 204,
+    "mean": 81.84
+   },
+   "w10": {
+    "bat": 0.037,
+    "bowl": 0.012,
+    "ground": 0.052,
+    "residual": 2.218,
+    "n": 204,
+    "mean": 2.79
+   },
+   "match": {
+    "run": 145.81,
+    "wicket": -0.4529,
+    "corr": 0.0,
+    "matches": 102
+   }
+  },
+  "bpl": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 202,
+    "mean": 159.2,
+    "sd": 32.4,
+    "p200": 8.4,
+    "under120": 9.4
+   },
+   "r10": {
+    "bat": 5.441,
+    "bowl": 0.377,
+    "ground": 0.176,
+    "residual": 238.183,
+    "n": 400,
+    "mean": 73.11
+   },
+   "w10": {
+    "bat": 0.011,
+    "bowl": 0.005,
+    "ground": 0.0,
+    "residual": 2.048,
+    "n": 400,
+    "mean": 2.71
+   },
+   "match": {
+    "run": 40.4,
+    "wicket": -0.252,
+    "corr": 0.0,
+    "matches": 200
+   }
+  },
+  "lpl": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 111,
+    "mean": 167.3,
+    "sd": 34.7,
+    "p200": 14.4,
+    "under120": 9.0
+   },
+   "r10": {
+    "bat": 0.322,
+    "bowl": 0.996,
+    "ground": 5.106,
+    "residual": 239.047,
+    "n": 218,
+    "mean": 78.49
+   },
+   "w10": {
+    "bat": 0.009,
+    "bowl": 0.069,
+    "ground": 0.008,
+    "residual": 2.328,
+    "n": 218,
+    "mean": 2.83
+   },
+   "match": {
+    "run": 18.34,
+    "wicket": -0.2627,
+    "corr": 0.0,
+    "matches": 109
+   }
+  },
+  "hundred-m": {
+   "gender": "men",
+   "hundred": true,
+   "firstInnings": {
+    "matches": 190,
+    "mean": 147.9,
+    "sd": 27.9,
+    "p200": 23.2,
+    "under120": 5.3
+   },
+   "r10": {
+    "bat": 7.795,
+    "bowl": 0.369,
+    "ground": 19.792,
+    "residual": 194.601,
+    "n": 376,
+    "mean": 69.66
+   },
+   "w10": {
+    "bat": 0.095,
+    "bowl": 0.003,
+    "ground": 0.001,
+    "residual": 1.566,
+    "n": 376,
+    "mean": 2.48
+   },
+   "match": {
+    "run": 22.4,
+    "wicket": -0.1864,
+    "corr": 0.0,
+    "matches": 188
+   }
+  },
+  "wpl": {
+   "gender": "women",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 88,
+    "mean": 160.6,
+    "sd": 30.7,
+    "p200": 11.4,
+    "under120": 9.1
+   },
+   "r10": {
+    "bat": 0.776,
+    "bowl": 2.91,
+    "ground": 0.155,
+    "residual": 268.864,
+    "n": 172,
+    "mean": 75.13
+   },
+   "w10": {
+    "bat": 0.008,
+    "bowl": 0.068,
+    "ground": 0.001,
+    "residual": 1.843,
+    "n": 172,
+    "mean": 2.49
+   },
+   "match": {
+    "run": 43.02,
+    "wicket": -0.228,
+    "corr": 0.0,
+    "matches": 86
+   }
+  },
+  "wbbl": {
+   "gender": "women",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 231,
+    "mean": 149.2,
+    "sd": 28.7,
+    "p200": 3.0,
+    "under120": 13.9
+   },
+   "r10": {
+    "bat": 5.15,
+    "bowl": 9.78,
+    "ground": 9.48,
+    "residual": 163.131,
+    "n": 456,
+    "mean": 67.02
+   },
+   "w10": {
+    "bat": 0.046,
+    "bowl": 0.016,
+    "ground": 0.002,
+    "residual": 1.939,
+    "n": 456,
+    "mean": 2.56
+   },
+   "match": {
+    "run": 10.71,
+    "wicket": -0.2548,
+    "corr": 0.0,
+    "matches": 228
+   }
+  },
+  "hundred-w": {
+   "gender": "women",
+   "hundred": true,
+   "firstInnings": {
+    "matches": 181,
+    "mean": 127.1,
+    "sd": 23.4,
+    "p200": 3.3,
+    "under120": 10.5
+   },
+   "r10": {
+    "bat": 13.373,
+    "bowl": 5.257,
+    "ground": 2.537,
+    "residual": 143.481,
+    "n": 360,
+    "mean": 61.0
+   },
+   "w10": {
+    "bat": 0.01,
+    "bowl": 0.09,
+    "ground": 0.066,
+    "residual": 1.692,
+    "n": 360,
+    "mean": 2.38
+   },
+   "match": {
+    "run": 32.19,
+    "wicket": -0.1046,
+    "corr": 0.0,
+    "matches": 180
+   }
+  },
+  "t20i-m": {
+   "gender": "men",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 582,
+    "mean": 169.5,
+    "sd": 37.3,
+    "p200": 19.2,
+    "under120": 7.7
+   },
+   "r10": {
+    "bat": 25.443,
+    "bowl": 0.907,
+    "ground": 45.815,
+    "residual": 271.323,
+    "n": 1156,
+    "mean": 79.4
+   },
+   "w10": {
+    "bat": 0.079,
+    "bowl": 0.017,
+    "ground": 0.005,
+    "residual": 2.166,
+    "n": 1156,
+    "mean": 2.68
+   },
+   "match": {
+    "run": 41.23,
+    "wicket": -0.2802,
+    "corr": 0.0,
+    "matches": 578
+   }
+  },
+  "t20i-w": {
+   "gender": "women",
+   "hundred": false,
+   "firstInnings": {
+    "matches": 434,
+    "mean": 142.2,
+    "sd": 34.6,
+    "p200": 5.1,
+    "under120": 27.2
+   },
+   "r10": {
+    "bat": 47.187,
+    "bowl": 0.507,
+    "ground": 11.342,
+    "residual": 175.616,
+    "n": 848,
+    "mean": 65.91
+   },
+   "w10": {
+    "bat": 0.071,
+    "bowl": 0.065,
+    "ground": 0.004,
+    "residual": 1.661,
+    "n": 848,
+    "mean": 2.35
+   },
+   "match": {
+    "run": 0.25,
+    "wicket": -0.1816,
+    "corr": 0.0,
+    "matches": 424
+   }
+  }
+ },
+ "pooled": {
+  "men": {
+   "r10": {
+    "bat": 8.576,
+    "bowl": 0.758,
+    "ground": 30.353,
+    "residual": 277.044,
+    "n": 4592,
+    "mean": 79.54
+   },
+   "w10": {
+    "bat": 0.032,
+    "bowl": 0.009,
+    "ground": 0.002,
+    "residual": 2.072,
+    "n": 4592,
+    "mean": 2.63
+   },
+   "match": {
+    "run": 60.29,
+    "wicket": -0.2316,
+    "corr": 0.0,
+    "matches": 2296
+   }
+  },
+  "women": {
+   "r10": {
+    "bat": 26.993,
+    "bowl": 2.225,
+    "ground": 10.692,
+    "residual": 186.008,
+    "n": 1476,
+    "mean": 67.33
+   },
+   "w10": {
+    "bat": 0.055,
+    "bowl": 0.045,
+    "ground": 0.003,
+    "residual": 1.776,
+    "n": 1476,
+    "mean": 2.43
+   },
+   "match": {
+    "run": 7.88,
+    "wicket": -0.2107,
+    "corr": 0.0,
+    "matches": 738
+   }
+  }
+ }
+}

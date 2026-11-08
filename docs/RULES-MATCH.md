@@ -530,6 +530,70 @@ First innings (sd), real / before / after (instant; live CPU after in brackets):
 (the WPL's targets are pulled a little toward the lower-scoring pool), all-out shares are a point or three high, and the
 spread of totals is narrow in every league (see 12.8).
 
+### 12.8 The spread of innings totals: match conditions
+
+Simulated totals were too even. T20Is between full members had a first-innings standard deviation of 24 against a real 37,
+and the men's leagues were 3-13 runs short, so 200 came up too rarely.
+
+**Where the real spread comes from** (`packages/ratings/src/analysis/t20-spread.py`, `docs/data/t20_spread.json`).
+The data is every full league match since 2021, and T20Is since 2019. Each innings' first ten overs are split into the
+batting side (per season), the bowling side (per season), the ground and the rest. The first ten overs are used because a
+chase almost never ends inside them. The match term is the covariance of the two innings' residuals within a match: what
+both have in common beyond the sides and the ground, which is the pitch and the weather on the day. Runs in overs 1-10,
+pooled over the men's T20 leagues: batting side 8.6, bowling side 0.8, ground 30.4, the rest 277. Of the rest, 60 is the
+match term. The engine on the same measure: the match term was 16 (a chase's response to its target makes some in both),
+and its innings' own variance was 174 against a real 217. Women's leagues pooled: the real match term is 7.9, the engine's
+already 6.5.
+
+**The term** (`match-conditions.ts`, both engines). Each T20 and Hundred match draws a run multiplier on the scoring
+classes, shared by both innings, lognormal like the Test engine's match conditions. Its spread is fitted so the engine's
+match term equals the real one, pooled per gender (`packages/app/src/__tests__/calibrate-spread.test.ts`): men 0.186,
+women 0.037. A centre (men +0.019) keeps the mean total where it was, because runs fall a little faster than they rise
+with the multiplier. The ODI has none: its fitted model already has the real spread. An innings' own multiplier, fitted to
+the innings-level gap, widened totals far past the real ones (IPL sd 43, a 4-run lower mean). It is kept in the code at
+zero.
+
+First innings, mean (sd) / 200+ / under 120, real (2021+) / engine before / after. The game's own squads, 1,500 instant
+matches each; The Hundred on 167+ / under 100.
+
+| league | real | before | after |
+|---|---|---|---|
+| IPL | 182.4 (35.9) / 33.2% / 3.6% | 175.6 (32.3) / 21.3% / 6.6% | 174.4 (35.9) / 24.3% / 9.2% |
+| BBL | 165.7 (29.6) / 12.5% / 4.2% | 165.5 (27.8) / 9.7% / 6.2% | 166.2 (31.9) / 14.1% / 7.7% |
+| PSL | 180.2 (33.5) / 25.1% / 4.8% | 178.1 (30.4) / 23.3% / 3.8% | 177.3 (33.2) / 25.2% / 6.3% |
+| SA20 | 166.5 (38.5) / 22.9% / 11.0% | 159.7 (25.6) / 4.9% / 6.9% | 159.5 (29.9) / 8.1% / 9.1% |
+| CPL | 166.1 (32.4) / 15.9% / 8.2% | 171.9 (26.8) / 13.3% / 4.2% | 171.5 (30.6) / 17.7% / 5.9% |
+| ILT20 | 162.4 (30.2) / 8.3% / 6.8% | 159.7 (26.7) / 5.3% / 7.1% | 160.2 (30.9) / 9.2% / 9.8% |
+| MLC | 173.1 (35.1) / 21.4% / 3.9% | 174.4 (27.4) / 17.0% / 3.5% | 174.9 (32.0) / 21.6% / 5.9% |
+| BPL | 159.2 (32.4) / 8.4% / 9.4% | 159.1 (26.3) / 5.3% / 7.1% | 159.2 (31.1) / 8.5% / 9.8% |
+| LPL | 167.3 (34.7) / 14.4% / 9.0% | 178.1 (29.5) / 22.9% / 4.3% | 177.7 (33.1) / 26.1% / 5.1% |
+| Hundred men | 147.9 (27.9) / 23.2% / 5.3% | 144.0 (23.6) / 16.5% / 3.3% | 143.9 (25.7) / 19.3% / 4.2% |
+| T20I men (fixture replays) | 169.5 (37.3) / 19.2% | 165.6 (24.3) / 6.6% | 166.1 (27.0) / 8.7% |
+| WPL | 160.6 (30.7) / 11.4% / 9.1% | 159.1 (23.6) / 3.0% / 5.2% | 157.5 (23.8) / 2.3% / 5.9% |
+| WBBL | 149.2 (28.7) / 3.0% / 13.9% | 151.3 (22.7) / 1.3% / 8.4% | 152.6 (22.7) / 0.8% / 8.0% |
+| Hundred women | 127.1 (23.4) / 3.3% / 10.5% | 126.2 (18.5) / 1.0% / 7.1% | 125.8 (18.2) / 0.9% / 7.5% |
+| T20I women | 142.2 (34.6) / 5.1% | 138.1 (18.4) / 0.0% | 138.4 (18.1) / 0.0% |
+
+The means here are the 2021+ seasons; the leagues' levels are fitted on 2024+ (LEAGUES.md), so compare spreads, not means.
+The men's league means moved by at most 1.2 runs. The men's spreads now sit within 0-3 runs of the real ones, except SA20
+(30 against 38.5) and the T20Is (27 against 37).
+
+Left over:
+- The lower tail grows with the spread. In the IPL, BBL, PSL and MLC, under 120 is now 6-9% against a real 4-5% (the IPL's
+  9.2% against 3.6%). The real distribution is skewed to the right; a multiplier on the run classes widens both sides.
+- T20Is and SA20 are short of spread for reasons that are not the day. The fit plays T20Is on neutral grounds, while the
+  real ground term is 46. National sides are further apart in reality than their ratings make them (batting side 25
+  against single figures in the leagues).
+- Women's totals stay narrow, by 5-12 runs of sd. The real match term is small; the gap is the sides (batting side 27
+  against single figures) and the innings' own variance. A term for either would be a ratings or a modelling change, not
+  conditions.
+- The match term is the real covariance less the engine's. It also takes in any way real chases answer their targets more
+  strongly than the engine's do; the data cannot separate the two.
+
+Fingerprint: every line moves (the draw comes before the first ball). Instant men `96d92c7268a40d3c`, men with rain
+`7879658a66718ab3`, women `8f4882ca77975e4f`, Hundred `c7b89ea837d208d5`; live CPU `58a6b982314dba6d`, user
+`e8f4a822eda4fb05`; combined `19f481c2f372457a`.
+
 
 ---
 
