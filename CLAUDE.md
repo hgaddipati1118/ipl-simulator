@@ -26,7 +26,8 @@ Test cricket has its own engine (`test-match.ts`: rules, ball model and captains
 (`packages/app/src/test-match/test-series.ts`), played live on `LiveTestPage` or instantly, with `TestScorecard`.
 The live engine plays the instant engine's ball (`ballProbabilities` in `match.ts`; the user's batting approach and field on top) and CPU captaincy, so
 both play at the same level (RULES-MATCH.md 12.4; `packages/app/src/__tests__/live-parity.test.ts`). A series' T20Is play at a T20I level fitted on real
-T20Is between full members (`RuleSet.scoringContext: "t20i"`, `t20i-context.ts`; docs/FORMATS.md, "T20I level"); leagues carry no context.
+T20Is between full members (`RuleSet.scoringContext: "t20i"`, `scoring-context.ts`; docs/FORMATS.md, "T20I level"); the women's leagues have contexts
+fitted on their own matches (RULES-MATCH.md 12.7); men's leagues carry none.
 
 Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ball text (scraper, templates, engine API: `docs/COMMENTARY.md`;
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).

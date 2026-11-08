@@ -493,6 +493,43 @@ Short runs; the slow over-rate in-field penalty; DLS and no-result in the instan
 no-ball); the Hundred's ends changing every ten balls (strike still changes every set); the live viewer has no Hundred; user decisions for a mid-over bowler
 replacement and for a returning retired-hurt batter (both automatic). **Section 13 adds all of these except bouncers per over and a live Hundred.**
 
+### 12.7 Women's league levels
+
+The women's leagues used to play on the league tables with a level fitted on runs, wickets and balls per innings only
+(`LEAGUE_LEVELS`, the WPL's scoring multiplier): totals near the real ones, but a powerplay two to three runs an over too
+fast, middle overs too slow and two to four times the real sixes. Each now has a scoring context on top of the tables,
+the same kind as the T20I's (`scoring-context.ts`; docs/FORMATS.md, "T20I level"): per phase (overs 1-6, 7-15, 16-20; the
+Hundred's sets 1-5, 6-15, 16-20, as `phaseOver` maps them) a multiplier on each outcome class, in both engines.
+
+- **Data** (`packages/ratings/src/analysis/t20i-level.py`, `docs/data/t20i_validation.json` `womensLeagues2024`): each
+  league's full matches since 2024 in Cricsheet: WPL 66, WBBL 77, women's Hundred 98.
+- **Fit** (`packages/app/src/__tests__/calibrate-contexts.test.ts`, `CALIBRATE_LEAGUES=1`): the game's own squads
+  (`createGameState`), 600 instant matches a round, six rounds of proportional fitting of each phase's class shares. A
+  league's real shares are shrunk toward the three leagues' pooled shares with the weight of 1,500 deliveries a phase (the
+  WPL's powerplay has about 4,700). Written to `womens-league-context-data.ts`.
+- **Which matches:** the WPL, WBBL and women's Hundred read their own table; any other women's T20 or Hundred (a custom
+  women's league) reads `default`, the delivery-weighted geometric mean of the three. Men's leagues, mixed leagues, the ODI
+  and T20Is (which have their own) read none: the men's T20 and Hundred fingerprint lines are unchanged; the women's line
+  (the IPL squads under women's rules, on the pooled table) moved from `44cb21795e248267` to `7d214ad967890a1c`.
+
+First innings (sd), real / before / after (instant; live CPU after in brackets):
+
+| | runs | RR 1-6 / 7-15 / 16-20 | wickets / all out | 4s / 6s an innings (all innings) |
+|---|---|---|---|---|
+| WPL real (66) | 162.0 (29.3) | 7.40 / 7.82 / 9.54 | 6.79 / 12.1% | 18.2 / 4.1 |
+| WPL before | 172.6 (29.9) | 10.62 / 7.40 / 9.96 | 7.28 / 26.5% | 16.2 / 7.4 |
+| WPL after | 158.8 (23.6) [158.6] | 7.28 / 7.94 / 9.43 | 6.40 / 15.8% | 17.7 / 3.7 |
+| WBBL real (77) | 155.0 (25.5) | 7.03 / 7.55 / 9.09 | 6.92 / 15.6% | 16.2 / 2.5 |
+| WBBL before | 147.8 (27.6) | 8.73 / 6.06 / 8.88 | 6.33 / 13.5% | 13.7 / 6.6 |
+| WBBL after | 151.2 (22.5) [151.6] | 6.99 / 7.61 / 8.97 | 6.68 / 16.8% | 16.1 / 2.5 |
+| Hundred women real (98) | 126.2 (24.5) | 6.97 / 7.42 / 8.61 | 6.53 / 11.2% | 13.3 / 1.8 |
+| Hundred women before | 124.1 (20.0) | 8.71 / 6.24 / 8.96 | 6.08 / 9.3% | 11.3 / 5.6 |
+| Hundred women after | 126.4 (17.7) | 7.15 / 7.45 / 8.67 | 6.13 / 10.5% | 13.5 / 1.9 |
+
+(The Hundred's run rates are per six legal balls.) Left: the WPL and WBBL first innings sit 3-4 runs under the real ones
+(the WPL's targets are pulled a little toward the lower-scoring pool), all-out shares are a point or three high, and the
+spread of totals is narrow in every league (see 12.8).
+
 
 ---
 

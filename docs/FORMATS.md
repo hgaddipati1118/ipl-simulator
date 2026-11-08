@@ -188,10 +188,13 @@ ball and a live ODI scored 8-10 runs more than an instant one.)
 
 **T20 and The Hundred unchanged**: `npx tsx packages/engine/src/__tests__/fingerprint-matches.ts 300` hashes every ball of 300
 instant T20 matches (men, men with rain, women), 300 Hundred matches with rain, and 100 live T20 matches each CPU v CPU and with
-a user side. The instant lines are the same as before the ODI work: men `81d0471a218f9e03`, men with rain `886e09f301bed9f4`,
-women `44cb21795e248267`, Hundred `c21a7f5308560ea1`. The live lines changed when the live engine moved to the instant engine's
-ball (RULES-MATCH.md 12.4): CPU v CPU `5fb19cfd90456037` (was `7976b1a6fb569b50`), user side `8701f337d6b4e5fc` (was
-`c52cfbcc19c0d6ce`); combined `657e769a9f784f1c` (was `90919c560ce4405b`).
+a user side. The ODI work left every line as it was. Since then, on purpose:
+
+| change | instant men / men rain / women / Hundred | live CPU / user | combined |
+|---|---|---|---|
+| before the ODI work | `81d0471a218f9e03` / `886e09f301bed9f4` / `44cb21795e248267` / `c21a7f5308560ea1` | `7976b1a6fb569b50` / `c52cfbcc19c0d6ce` | `90919c560ce4405b` |
+| live engine on the instant engine's ball (RULES-MATCH.md 12.4) | unchanged | `5fb19cfd90456037` / `8701f337d6b4e5fc` | `657e769a9f784f1c` |
+| women's league contexts (RULES-MATCH.md 12.7): the women's line only | women `7d214ad967890a1c` | unchanged | `c83288e1be6891af` |
 
 ### Refitting
 
@@ -1178,11 +1181,11 @@ Not done: no multiplayer series; the series does not feed career stats.
 
 ## T20I level
 
-A series' T20Is play at a level fitted on real T20Is, in both engines; every league stays on the league tables (the instant
-fingerprint lines are unchanged).
+A series' T20Is play at a level fitted on real T20Is, in both engines; men's leagues stay on the league tables (the instant
+fingerprint's men's lines are unchanged); women's leagues have contexts of their own (RULES-MATCH.md 12.7).
 
 **Where it hooks in.** `t20iRules` (international.ts) sets `RuleSet.scoringContext: "t20i"`. `scoringContextFor(rules, fmt)`
-(`t20i-context.ts`) returns the gender's table from `t20i-context-data.ts` for a T20 with that field and nothing otherwise
+(`scoring-context.ts`) returns the gender's table from `t20i-context-data.ts` for a T20 with that field and nothing otherwise
 (leagues, The Hundred, the ODI). The instant engine puts it in the match's `VenueContext`, the live engine in each ball's rules
 context; `ballProbabilities` multiplies it in after the T20 phase multipliers: per phase (overs 1-6, 7-15, 16-20) a
 multiplier on each outcome class (dot, 1, 2, 3, 4, 6, wicket, wide, no-ball, bye / leg bye). A live user's batting approach
@@ -1193,7 +1196,7 @@ two of the twelve full members, full 20-over matches (no overs lost, no DLS or a
 gender: first-innings totals, run rate by phase, wickets and all-out share, the chase, batting-first wins, extras, fours and
 sixes, each phase's share of deliveries by outcome class, and the fixtures (pairings and counts).
 
-**Fit** (`packages/app/src/__tests__/calibrate-t20i.test.ts`): the real fixtures replayed twice by the instant engine with the
+**Fit** (`packages/app/src/__tests__/calibrate-contexts.test.ts`): the real fixtures replayed twice by the instant engine with the
 series' own sides (`createSeries` / `seriesSquads`: national squads of active players on T20 ratings, the extended pool's
 senior players among the candidates; neutral venues, no rain); each round multiplies every class's weight by real share /
 simulated share in its phase (six rounds, half steps after the third). The largest class error after the last round is under
@@ -1233,24 +1236,11 @@ innings to 2. The live rows match the instant ones within a run. What the contex
 - Chasing sides win 2-5 points more often than real (batting first 45-47% against 48-50%).
 
 Refit: `python3 -I src/analysis/t20i-level.py` (from packages/ratings, needs `duckdb`), then
-`CALIBRATE_T20I=1 CAL_ITER=6 CALIBRATE_WRITE=1 npx vitest run packages/app/src/__tests__/calibrate-t20i.test.ts --reporter=verbose`
+`CALIBRATE_T20I=1 CAL_ITER=6 CALIBRATE_WRITE=1 npx vitest run packages/app/src/__tests__/calibrate-contexts.test.ts -t "T20I" --reporter=verbose`
 (about 15 minutes; `CAL_LIVE=1` adds the live rows; it starts from the current table, `CAL_NOCONTEXT=1` from none), rebuild the
-engine, then `npx vitest run packages/engine/src/__tests__/t20i-context.test.ts`. Refit after the T20 ratings or the national
+engine, then `npx vitest run packages/engine/src/__tests__/scoring-context.test.ts`. Refit after the T20 ratings or the national
 squads change.
 
-**The women's leagues** (`CAL_LEAGUES=1` in the same file: the game's own squads, 600 instant matches each, against the
-league's real matches since 2024 in the same measures; not changed this round):
-
-| | 1st inns (sd) | 200+ | RR 1-6 / 7-15 / 16-20 | 1st inns wkts / all out | 2nd inns | bat 1st wins | extras / inn | 4s / 6s per inn |
-|---|---|---|---|---|---|---|---|---|
-| WPL real (66) | 162.0 (29.3) | 9.1% | 7.40 / 7.82 / 9.54 | 6.79 / 12.1% | 153.6 | 43.1% | 7.6 | 18.2 / 4.1 |
-| WPL instant | 172.6 (29.9) | 18.3% | 10.62 / 7.40 / 9.96 | 7.28 / 26.5% | 154.8 | 51.9% | 7.0 | 16.2 / 7.4 |
-| WBBL real (77) | 155.0 (25.5) | 3.9% | 7.03 / 7.55 / 9.09 | 6.92 / 15.6% | 139.9 | 51.4% | 8.2 | 16.2 / 2.5 |
-| WBBL instant | 147.8 (27.6) | 2.0% | 8.73 / 6.06 / 8.88 | 6.33 / 13.5% | 134.4 | 49.9% | 6.6 | 13.7 / 6.6 |
-
-The WPL is off the same way the T20Is were: 10 runs (6.5%) too many first-innings runs, a powerplay three runs an over too
-fast (10.6 against 7.4) with the middle overs a little slow, more than twice the real all-out share and almost twice the
-sixes. The WBBL is 7 runs short overall with the same shape (powerplay 1.7 an over fast, middle overs 1.5 slow, sixes 6.6
-against 2.5). Both leagues' levels come from `LEAGUE_LEVELS` / the WPL multiplier, fitted on runs, wickets and balls per
-innings only (docs/LEAGUES.md, "Calibration"); a context like the T20I's would fit their shape.
+**The women's leagues** (WPL, WBBL, the women's Hundred) were off the same way and now have contexts of their own, fitted
+the same way on their matches since 2024: docs/RULES-MATCH.md 12.7.
 
