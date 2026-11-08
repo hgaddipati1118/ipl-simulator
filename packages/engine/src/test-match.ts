@@ -423,7 +423,15 @@ function isSpinStyle(style: string | undefined): boolean {
   return !!style && (style.includes("spin") || style.includes("orthodox") || style.endsWith("-slow"));
 }
 
-type Term = { readonly weights: Readonly<Record<string, number>>; readonly knots: readonly (readonly number[])[]; readonly c?: number | Readonly<Record<string, number>> };
+type Term = {
+  readonly weights: Readonly<Record<string, number>>;
+  /** A calibration curve over the weighted attributes; absent = the term is linear in them (a per-outcome regression) */
+  readonly knots?: readonly (readonly number[])[];
+  /** Regression terms: the batting-position group offsets (1-3, 4-6, 7-11) and their own attribute pool */
+  readonly pos?: readonly number[];
+  readonly pool?: Pool | Readonly<Record<"pace" | "spin", Pool>>;
+  readonly c?: number | Readonly<Record<string, number>>;
+};
 type TermMap = Readonly<Record<string, Term>>;
 type Pool = { readonly mean: Readonly<Record<string, number>>; readonly sd: Readonly<Record<string, number>> };
 
@@ -432,13 +440,18 @@ type Pool = { readonly mean: Readonly<Record<string, number>>; readonly sd: Read
  * players' ratings; bowlers against their own type) read off the fitted calibration curve (test-match-model.py rating_map:
  * what real players with that mix did, stretched to the term's true spread where ratings rank players), flat beyond its ends.
  */
-function termLog(ratings: PlayerRatings, term: Term | undefined, pool: Pool, type?: "pace" | "spin"): number {
-  if (!term || term.knots.length === 0) return 0;
+function termLog(ratings: PlayerRatings, term: Term | undefined, mapPool: Pool, type?: "pace" | "spin", posGroup?: number): number {
+  if (!term) return 0;
+  const own = term.pool as (Pool & Record<string, unknown>) | Readonly<Record<string, Pool>> | undefined;
+  const pool: Pool = own ? ("mean" in own ? (own as Pool) : (own as Readonly<Record<string, Pool>>)[type ?? "pace"]) : mapPool;
   let x = 0;
   for (const [a, w] of Object.entries(term.weights)) {
     const r = (ratings as unknown as Record<string, number>)[a] ?? pool.mean[a];
     x += w * (r - pool.mean[a]) / (pool.sd[a] || 1);
   }
+  const c = typeof term.c === "number" ? term.c : (type && term.c?.[type]) ?? 0;
+  if (!term.knots) return Math.max(-2.5, Math.min(2.5, x + c + (term.pos && posGroup !== undefined ? term.pos[posGroup] ?? 0 : 0)));
+  if (term.knots.length === 0) return 0;
   const k = term.knots;
   let y = k[0][1];
   if (x >= k[k.length - 1][0]) y = k[k.length - 1][1];
@@ -447,8 +460,12 @@ function termLog(ratings: PlayerRatings, term: Term | undefined, pool: Pool, typ
       if (x <= k[i + 1][0]) { y = k[i][1] + (k[i + 1][1] - k[i][1]) * (x - k[i][0]) / ((k[i + 1][0] - k[i][0]) || 1); break; }
     }
   }
-  const c = typeof term.c === "number" ? term.c : (type && term.c?.[type]) ?? 0;
-  return Math.max(-2.5, Math.min(2.5, y + c));
+  return Math.max(-2.5, Math.min(2.5, y + c + (term.pos && posGroup !== undefined ? term.pos[posGroup] ?? 0 : 0)));
+}
+
+/** Batting-position group of a place in the order: 1-3, 4-6, 7-11 */
+function posGroupOf(slot: number): number {
+  return slot < 3 ? 0 : slot < 6 ? 1 : 2;
 }
 
 type RatingMap = { readonly bat: TermMap; readonly bowl: TermMap; readonly pool: { readonly bat: Pool; readonly bowl: Readonly<Record<"pace" | "spin", Pool>> } };
@@ -458,14 +475,16 @@ const MAPS = M.players as unknown as { readonly t20: RatingMap; readonly test?: 
  * The Test view of a player, with his outcome multipliers. A player with Test ratings is mapped with the mix fitted on Test
  * ratings; one without plays on his T20 ratings through the mix fitted on those (test-match-model.py fits both).
  */
-export function testPlayerOf(player: Player): TestPlayer {
+export function testPlayerOf(player: Player, slot?: number): TestPlayer {
   const view = player.forFormat("test");
   const ratings = { ...view.ratings };
   const source: TestPlayer["ratingsSource"] = player.formatRatings?.test ? "test" : "t20";
   const P = (source === "test" && MAPS.test) || MAPS.t20;
   const spin = isSpinStyle(player.bowlingStyle);
   const type = spin ? "spin" : "pace";
-  const batLog = TEST_OUTCOMES.map(k => (BAT_TERMS as readonly string[]).includes(k) ? termLog(ratings, P.bat[k], P.pool.bat) : 0);
+  // the position group: his place in the order when known, else what his role suggests
+  const group = slot !== undefined ? posGroupOf(slot) : player.role === "bowler" ? 2 : 1;
+  const batLog = TEST_OUTCOMES.map(k => (BAT_TERMS as readonly string[]).includes(k) ? termLog(ratings, P.bat[k], P.pool.bat, undefined, group) : 0);
   const bowlLog = TEST_OUTCOMES.map(k => (BOWL_TERMS as readonly string[]).includes(k) ? termLog(ratings, P.bowl[k], P.pool.bowl[type], type) : 0);
   // quality in log-rate units: surviving and scoring for a batter, taking wickets and not conceding for a bowler
   const batValue = -batLog[IW] + 0.6 * batLog[0] + 0.5 * batLog[3];
@@ -625,7 +644,8 @@ export function createTestMatch(home: Team, away: Team, options: TestMatchOption
   const oversPerDay = options.oversPerDay ?? (gender === "female" ? 100 : 90);
 
   const players: Record<string, TestPlayer> = {};
-  for (const p of [...homeXI, ...awayXI]) players[p.id] = testPlayerOf(p);
+  homeXI.forEach((p, i) => { players[p.id] = testPlayerOf(p, i); });
+  awayXI.forEach((p, i) => { players[p.id] = testPlayerOf(p, i); });
   const teamState = (t: Team, xi: Player[], isHome: boolean): TestTeamState => ({
     id: t.id, name: t.name, shortName: t.shortName, xi: xi.map(p => p.id),
     keeperId: (xi.find(p => p.isWicketKeeper) ?? [...xi].sort((a, b) => keepingRating(b) - keepingRating(a))[0]).id,

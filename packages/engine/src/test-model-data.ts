@@ -1283,273 +1283,228 @@ export const TEST_MODEL = {
    "bat": {
     "1": {
      "weights": {
-      "battingIQ": 0.3433,
-      "timing": 0.6567
+      "battingIQ": 0.0342,
+      "timing": 0.0718,
+      "power": 0.0122,
+      "running": -0.0028,
+      "wicketTaking": 0.0002,
+      "economy": -0.0051,
+      "accuracy": -0.0075,
+      "clutch": 0.0544
      },
-     "knots": [
-      [
-       -1.437,
-       -0.1164
-      ],
-      [
-       -0.188,
-       -0.0548
-      ],
-      [
-       0.163,
-       0.0387
-      ],
-      [
-       0.37,
-       0.0587
-      ],
-      [
-       0.571,
-       0.0769
-      ],
-      [
-       0.704,
-       0.1266
-      ],
-      [
-       0.835,
-       0.1371
-      ],
-      [
-       0.925,
-       0.1371
-      ],
-      [
-       1.225,
-       0.1794
-      ],
-      [
-       1.413,
-       0.1794
-      ]
+     "pos": [
+      0.0,
+      0.0413,
+      0.0219
      ],
-     "c": -0.0759,
-     "tau": 0.238,
-     "spread": 0.0973,
+     "c": -0.0934,
+     "tau": 0.2383,
+     "spread": 0.1313,
      "stretch": 1.0,
-     "r": 0.491,
-     "n": 416
+     "n": 290,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 67.98,
+       "timing": 69.17,
+       "power": 65.04,
+       "running": 63.62,
+       "wicketTaking": 48.92,
+       "economy": 43.79,
+       "accuracy": 46.06,
+       "clutch": 76.01
+      },
+      "sd": {
+       "battingIQ": 20.87,
+       "timing": 19.26,
+       "power": 19.42,
+       "running": 18.71,
+       "wicketTaking": 28.0,
+       "economy": 26.63,
+       "accuracy": 24.19,
+       "clutch": 10.79
+      }
+     }
     },
     "2": {
      "weights": {
-      "battingIQ": 0.1856,
-      "timing": 0.7644,
-      "running": 0.0499
+      "battingIQ": 0.0119,
+      "timing": 0.0467,
+      "power": -0.0078,
+      "running": 0.0026,
+      "wicketTaking": -0.0268,
+      "economy": 0.0011,
+      "accuracy": -0.0127,
+      "clutch": 0.0323
      },
-     "knots": [
-      [
-       -1.499,
-       -0.0378
-      ],
-      [
-       -0.258,
-       -0.0135
-      ],
-      [
-       0.069,
-       -0.0135
-      ],
-      [
-       0.322,
-       0.0584
-      ],
-      [
-       0.508,
-       0.0584
-      ],
-      [
-       0.664,
-       0.0836
-      ],
-      [
-       0.787,
-       0.0836
-      ],
-      [
-       0.938,
-       0.1499
-      ],
-      [
-       1.186,
-       0.1499
-      ],
-      [
-       1.419,
-       0.1499
-      ]
+     "pos": [
+      0.0,
+      0.0239,
+      0.0155
      ],
-     "c": -0.0675,
-     "tau": 0.1892,
-     "spread": 0.063,
+     "c": -0.0627,
+     "tau": 0.1865,
+     "spread": 0.0861,
      "stretch": 1.0,
-     "r": 0.314,
-     "n": 417
+     "n": 291,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 67.98,
+       "timing": 69.17,
+       "power": 65.04,
+       "running": 63.62,
+       "wicketTaking": 48.92,
+       "economy": 43.79,
+       "accuracy": 46.06,
+       "clutch": 76.01
+      },
+      "sd": {
+       "battingIQ": 20.87,
+       "timing": 19.26,
+       "power": 19.42,
+       "running": 18.71,
+       "wicketTaking": 28.0,
+       "economy": 26.63,
+       "accuracy": 24.19,
+       "clutch": 10.79
+      }
+     }
     },
     "3": {
      "weights": {
-      "timing": 0.0098,
-      "running": 0.9902
+      "battingIQ": 0.0182,
+      "timing": -0.0012,
+      "power": -0.0762,
+      "running": 0.0633,
+      "wicketTaking": -0.029,
+      "economy": 0.0172,
+      "accuracy": -0.0314,
+      "clutch": 0.0049
      },
-     "knots": [
-      [
-       -1.467,
-       -0.0734
-      ],
-      [
-       -0.852,
-       -0.0734
-      ],
-      [
-       -0.384,
-       0.0316
-      ],
-      [
-       0.121,
-       0.0316
-      ],
-      [
-       0.413,
-       0.0475
-      ],
-      [
-       0.766,
-       0.0693
-      ],
-      [
-       0.932,
-       0.1237
-      ],
-      [
-       1.219,
-       0.1237
-      ],
-      [
-       1.643,
-       0.1237
-      ],
-      [
-       1.847,
-       0.1763
-      ]
+     "pos": [
+      0.0,
+      -0.0222,
+      0.0342
      ],
-     "c": -0.0607,
-     "tau": 0.2584,
-     "spread": 0.074,
+     "c": -0.0464,
+     "tau": 0.2418,
+     "spread": 0.0994,
      "stretch": 1.0,
-     "r": 0.178,
-     "n": 416
+     "n": 290,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 67.98,
+       "timing": 69.17,
+       "power": 65.04,
+       "running": 63.62,
+       "wicketTaking": 48.92,
+       "economy": 43.79,
+       "accuracy": 46.06,
+       "clutch": 76.01
+      },
+      "sd": {
+       "battingIQ": 20.87,
+       "timing": 19.26,
+       "power": 19.42,
+       "running": 18.71,
+       "wicketTaking": 28.0,
+       "economy": 26.63,
+       "accuracy": 24.19,
+       "clutch": 10.79
+      }
+     }
     },
     "4": {
      "weights": {
-      "timing": 0.5746,
-      "power": 0.4254
+      "battingIQ": -0.0045,
+      "timing": 0.0882,
+      "power": 0.0442,
+      "running": -0.0544,
+      "wicketTaking": 0.0158,
+      "economy": -0.0081,
+      "accuracy": -0.0133,
+      "clutch": 0.0486
      },
-     "knots": [
-      [
-       -1.283,
-       -0.108
-      ],
-      [
-       -0.029,
-       -0.0055
-      ],
-      [
-       0.152,
-       0.0209
-      ],
-      [
-       0.245,
-       0.0209
-      ],
-      [
-       0.336,
-       0.0209
-      ],
-      [
-       0.41,
-       0.0403
-      ],
-      [
-       0.551,
-       0.0403
-      ],
-      [
-       0.685,
-       0.1003
-      ],
-      [
-       0.808,
-       0.1003
-      ],
-      [
-       1.03,
-       0.255
-      ]
+     "pos": [
+      0.0,
+      0.0398,
+      -0.0092
      ],
-     "c": -0.0476,
-     "tau": 0.2306,
-     "spread": 0.0783,
+     "c": -0.0507,
+     "tau": 0.2303,
+     "spread": 0.1239,
      "stretch": 1.0,
-     "r": 0.42,
-     "n": 417
+     "n": 291,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 67.98,
+       "timing": 69.17,
+       "power": 65.04,
+       "running": 63.62,
+       "wicketTaking": 48.92,
+       "economy": 43.79,
+       "accuracy": 46.06,
+       "clutch": 76.01
+      },
+      "sd": {
+       "battingIQ": 20.87,
+       "timing": 19.26,
+       "power": 19.42,
+       "running": 18.71,
+       "wicketTaking": 28.0,
+       "economy": 26.63,
+       "accuracy": 24.19,
+       "clutch": 10.79
+      }
+     }
     },
     "6": {
      "weights": {
-      "power": 1.0
+      "battingIQ": -0.1353,
+      "timing": 0.1341,
+      "power": 0.3685,
+      "running": -0.0849,
+      "wicketTaking": 0.077,
+      "economy": 0.0427,
+      "accuracy": -0.071,
+      "clutch": 0.1894
      },
-     "knots": [
-      [
-       -1.835,
-       -0.578
-      ],
-      [
-       -0.828,
-       -0.3207
-      ],
-      [
-       -0.513,
-       -0.3207
-      ],
-      [
-       -0.259,
-       -0.3207
-      ],
-      [
-       0.062,
-       -0.3207
-      ],
-      [
-       0.253,
-       -0.1214
-      ],
-      [
-       0.523,
-       0.2237
-      ],
-      [
-       0.794,
-       0.2237
-      ],
-      [
-       1.085,
-       0.484
-      ],
-      [
-       1.494,
-       0.6322
-      ]
+     "pos": [
+      0.0,
+      0.089,
+      -0.0406
      ],
-     "c": -0.0179,
-     "tau": 0.8228,
-     "spread": 0.3727,
+     "c": -0.1407,
+     "tau": 0.8039,
+     "spread": 0.4202,
      "stretch": 1.0,
-     "r": 0.436,
-     "n": 417
+     "n": 291,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 67.98,
+       "timing": 69.17,
+       "power": 65.04,
+       "running": 63.62,
+       "wicketTaking": 48.92,
+       "economy": 43.79,
+       "accuracy": 46.06,
+       "clutch": 76.01
+      },
+      "sd": {
+       "battingIQ": 20.87,
+       "timing": 19.26,
+       "power": 19.42,
+       "running": 18.71,
+       "wicketTaking": 28.0,
+       "economy": 26.63,
+       "accuracy": 24.19,
+       "clutch": 10.79
+      }
+     }
     },
     "W": {
      "weights": {
@@ -1598,126 +1553,155 @@ export const TEST_MODEL = {
        0.3473
       ]
      ],
-     "c": 0.2399,
+     "c": 0.2645,
      "tau": 0.2274,
      "spread": 0.2274,
      "stretch": 1.22,
      "r": 0.535,
-     "n": 417
+     "n": 417,
+     "pos": [
+      0.0,
+      0.0087,
+      -0.0663
+     ]
     }
    },
    "bowl": {
     "1": {
      "weights": {
-      "economy": -0.4075,
-      "accuracy": -0.3383,
-      "wicketTaking": -0.2541
+      "battingIQ": 0.0079,
+      "timing": 0.0015,
+      "power": -0.0066,
+      "running": -0.0101,
+      "wicketTaking": -0.0224,
+      "economy": -0.0217,
+      "accuracy": -0.0277,
+      "clutch": 0.0
      },
-     "knots": [
-      [
-       -1.172,
-       -0.1793
-      ],
-      [
-       -0.804,
-       -0.1793
-      ],
-      [
-       -0.615,
-       -0.0954
-      ],
-      [
-       -0.533,
-       -0.0954
-      ],
-      [
-       -0.37,
-       -0.0954
-      ],
-      [
-       -0.21,
-       -0.0895
-      ],
-      [
-       -0.055,
-       -0.0396
-      ],
-      [
-       0.215,
-       -0.0392
-      ],
-      [
-       0.673,
-       -0.0392
-      ],
-      [
-       2.062,
-       0.0895
-      ]
-     ],
      "c": {
-      "pace": 0.0907,
-      "spin": 0.0816
+      "pace": 0.0201,
+      "spin": 0.0146
      },
-     "tau": 0.1565,
-     "spread": 0.0594,
+     "tau": 0.1591,
+     "spread": 0.055,
      "stretch": 1.0,
-     "r": 0.291,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 45.48,
+        "timing": 50.14,
+        "power": 56.52,
+        "running": 53.14,
+        "wicketTaking": 75.39,
+        "economy": 55.38,
+        "accuracy": 58.2,
+        "clutch": 75.13
+       },
+       "sd": {
+        "battingIQ": 22.0,
+        "timing": 20.27,
+        "power": 24.98,
+        "running": 17.27,
+        "wicketTaking": 13.35,
+        "economy": 21.7,
+        "accuracy": 18.5,
+        "clutch": 9.35
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 57.84,
+        "timing": 59.71,
+        "power": 57.27,
+        "running": 59.36,
+        "wicketTaking": 71.15,
+        "economy": 68.49,
+        "accuracy": 65.2,
+        "clutch": 73.38
+       },
+       "sd": {
+        "battingIQ": 22.82,
+        "timing": 21.95,
+        "power": 21.88,
+        "running": 19.83,
+        "wicketTaking": 17.28,
+        "economy": 22.31,
+        "accuracy": 21.11,
+        "clutch": 14.12
+       }
+      }
+     }
     },
     "2": {
      "weights": {
-      "economy": -0.567,
-      "accuracy": -0.3435,
-      "wicketTaking": -0.0895
+      "battingIQ": -0.0114,
+      "timing": 0.0056,
+      "power": 0.0064,
+      "running": -0.0219,
+      "wicketTaking": -0.0039,
+      "economy": -0.0228,
+      "accuracy": -0.0254,
+      "clutch": 0.009
      },
-     "knots": [
-      [
-       -1.359,
-       -0.0692
-      ],
-      [
-       -0.892,
-       -0.0542
-      ],
-      [
-       -0.723,
-       -0.0542
-      ],
-      [
-       -0.578,
-       -0.0319
-      ],
-      [
-       -0.408,
-       -0.0319
-      ],
-      [
-       -0.155,
-       -0.0319
-      ],
-      [
-       0.047,
-       -0.027
-      ],
-      [
-       0.495,
-       0.008
-      ],
-      [
-       1.324,
-       0.0495
-      ]
-     ],
      "c": {
-      "pace": 0.0307,
-      "spin": 0.0253
+      "pace": 0.0089,
+      "spin": 0.0139
      },
-     "tau": 0.078,
-     "spread": 0.0333,
+     "tau": 0.0782,
+     "spread": 0.0429,
      "stretch": 1.0,
-     "r": 0.218,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 45.48,
+        "timing": 50.14,
+        "power": 56.52,
+        "running": 53.14,
+        "wicketTaking": 75.39,
+        "economy": 55.38,
+        "accuracy": 58.2,
+        "clutch": 75.13
+       },
+       "sd": {
+        "battingIQ": 22.0,
+        "timing": 20.27,
+        "power": 24.98,
+        "running": 17.27,
+        "wicketTaking": 13.35,
+        "economy": 21.7,
+        "accuracy": 18.5,
+        "clutch": 9.35
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 57.84,
+        "timing": 59.71,
+        "power": 57.27,
+        "running": 59.36,
+        "wicketTaking": 71.15,
+        "economy": 68.49,
+        "accuracy": 65.2,
+        "clutch": 73.38
+       },
+       "sd": {
+        "battingIQ": 22.82,
+        "timing": 21.95,
+        "power": 21.88,
+        "running": 19.83,
+        "wicketTaking": 17.28,
+        "economy": 22.31,
+        "accuracy": 21.11,
+        "clutch": 14.12
+       }
+      }
+     }
     },
     "3": {
      "weights": {
@@ -1778,116 +1762,139 @@ export const TEST_MODEL = {
     },
     "4": {
      "weights": {
-      "economy": -0.436,
-      "accuracy": -0.564
+      "battingIQ": -0.0067,
+      "timing": -0.0282,
+      "power": 0.0112,
+      "running": -0.018,
+      "wicketTaking": -0.0017,
+      "economy": -0.0224,
+      "accuracy": -0.0049,
+      "clutch": -0.0189
      },
-     "knots": [
-      [
-       -1.537,
-       -0.1265
-      ],
-      [
-       -1.092,
-       -0.0499
-      ],
-      [
-       -0.859,
-       -0.0499
-      ],
-      [
-       -0.684,
-       -0.0156
-      ],
-      [
-       -0.563,
-       0.0169
-      ],
-      [
-       -0.266,
-       0.0169
-      ],
-      [
-       0.114,
-       0.0169
-      ],
-      [
-       0.32,
-       0.0169
-      ],
-      [
-       0.739,
-       0.0169
-      ],
-      [
-       1.554,
-       0.1114
-      ]
-     ],
      "c": {
-      "pace": 0.0103,
-      "spin": 0.003
+      "pace": 0.0088,
+      "spin": 0.0137
      },
-     "tau": 0.1362,
-     "spread": 0.0467,
+     "tau": 0.1451,
+     "spread": 0.0516,
      "stretch": 1.0,
-     "r": 0.172,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 45.48,
+        "timing": 50.14,
+        "power": 56.52,
+        "running": 53.14,
+        "wicketTaking": 75.39,
+        "economy": 55.38,
+        "accuracy": 58.2,
+        "clutch": 75.13
+       },
+       "sd": {
+        "battingIQ": 22.0,
+        "timing": 20.27,
+        "power": 24.98,
+        "running": 17.27,
+        "wicketTaking": 13.35,
+        "economy": 21.7,
+        "accuracy": 18.5,
+        "clutch": 9.35
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 57.84,
+        "timing": 59.71,
+        "power": 57.27,
+        "running": 59.36,
+        "wicketTaking": 71.15,
+        "economy": 68.49,
+        "accuracy": 65.2,
+        "clutch": 73.38
+       },
+       "sd": {
+        "battingIQ": 22.82,
+        "timing": 21.95,
+        "power": 21.88,
+        "running": 19.83,
+        "wicketTaking": 17.28,
+        "economy": 22.31,
+        "accuracy": 21.11,
+        "clutch": 14.12
+       }
+      }
+     }
     },
     "6": {
      "weights": {
-      "accuracy": -1.0
+      "battingIQ": -0.0514,
+      "timing": -0.0317,
+      "power": -0.0494,
+      "running": 0.0171,
+      "wicketTaking": 0.003,
+      "economy": -0.0062,
+      "accuracy": -0.1099,
+      "clutch": 0.0549
      },
-     "knots": [
-      [
-       -1.599,
-       -0.1471
-      ],
-      [
-       -1.373,
-       -0.1471
-      ],
-      [
-       -1.128,
-       0.0615
-      ],
-      [
-       -0.697,
-       0.0615
-      ],
-      [
-       -0.506,
-       0.0615
-      ],
-      [
-       -0.247,
-       0.0615
-      ],
-      [
-       0.207,
-       0.0615
-      ],
-      [
-       0.469,
-       0.1317
-      ],
-      [
-       0.773,
-       0.1317
-      ],
-      [
-       1.856,
-       0.1375
-      ]
-     ],
      "c": {
-      "pace": -0.039,
-      "spin": -0.0362
+      "pace": -0.0119,
+      "spin": 0.005
      },
-     "tau": 0.3712,
-     "spread": 0.0881,
+     "tau": 0.3387,
+     "spread": 0.1417,
      "stretch": 1.0,
-     "r": 0.233,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 45.48,
+        "timing": 50.14,
+        "power": 56.52,
+        "running": 53.14,
+        "wicketTaking": 75.39,
+        "economy": 55.38,
+        "accuracy": 58.2,
+        "clutch": 75.13
+       },
+       "sd": {
+        "battingIQ": 22.0,
+        "timing": 20.27,
+        "power": 24.98,
+        "running": 17.27,
+        "wicketTaking": 13.35,
+        "economy": 21.7,
+        "accuracy": 18.5,
+        "clutch": 9.35
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 57.84,
+        "timing": 59.71,
+        "power": 57.27,
+        "running": 59.36,
+        "wicketTaking": 71.15,
+        "economy": 68.49,
+        "accuracy": 65.2,
+        "clutch": 73.38
+       },
+       "sd": {
+        "battingIQ": 22.82,
+        "timing": 21.95,
+        "power": 21.88,
+        "running": 19.83,
+        "wicketTaking": 17.28,
+        "economy": 22.31,
+        "accuracy": 21.11,
+        "clutch": 14.12
+       }
+      }
+     }
     },
     "W": {
      "weights": {
@@ -1948,59 +1955,71 @@ export const TEST_MODEL = {
     },
     "wide": {
      "weights": {
-      "accuracy": -1.0
+      "battingIQ": -0.0599,
+      "timing": 0.1225,
+      "power": -0.0271,
+      "running": -0.0487,
+      "wicketTaking": -0.063,
+      "economy": 0.0389,
+      "accuracy": -0.1555,
+      "clutch": 0.004
      },
-     "knots": [
-      [
-       -1.924,
-       -0.1203
-      ],
-      [
-       -1.495,
-       -0.1203
-      ],
-      [
-       -1.027,
-       -0.1203
-      ],
-      [
-       -0.675,
-       -0.1195
-      ],
-      [
-       -0.52,
-       -0.1195
-      ],
-      [
-       -0.211,
-       -0.1195
-      ],
-      [
-       0.268,
-       0.106
-      ],
-      [
-       0.534,
-       0.3544
-      ],
-      [
-       0.963,
-       0.4815
-      ],
-      [
-       1.937,
-       0.4871
-      ]
-     ],
      "c": {
-      "pace": -0.0761,
-      "spin": -0.0535
+      "pace": 0.0296,
+      "spin": 0.0532
      },
-     "tau": 0.2681,
-     "spread": 0.2482,
+     "tau": 0.2881,
+     "spread": 0.168,
      "stretch": 1.0,
-     "r": 0.14,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 45.48,
+        "timing": 50.14,
+        "power": 56.52,
+        "running": 53.14,
+        "wicketTaking": 75.39,
+        "economy": 55.38,
+        "accuracy": 58.2,
+        "clutch": 75.13
+       },
+       "sd": {
+        "battingIQ": 22.0,
+        "timing": 20.27,
+        "power": 24.98,
+        "running": 17.27,
+        "wicketTaking": 13.35,
+        "economy": 21.7,
+        "accuracy": 18.5,
+        "clutch": 9.35
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 57.84,
+        "timing": 59.71,
+        "power": 57.27,
+        "running": 59.36,
+        "wicketTaking": 71.15,
+        "economy": 68.49,
+        "accuracy": 65.2,
+        "clutch": 73.38
+       },
+       "sd": {
+        "battingIQ": 22.82,
+        "timing": 21.95,
+        "power": 21.88,
+        "running": 19.83,
+        "wicketTaking": 17.28,
+        "economy": 22.31,
+        "accuracy": 21.11,
+        "clutch": 14.12
+       }
+      }
+     }
     },
     "nb": {
      "weights": {
@@ -2103,275 +2122,324 @@ export const TEST_MODEL = {
       }
      }
     }
+   },
+   "holdout": {
+    "bat": {
+     "1": {
+      "players": 116,
+      "devianceNoMap": 591.3,
+      "devianceRegression": 463.8,
+      "gain": 0.2157
+     },
+     "2": {
+      "players": 115,
+      "devianceNoMap": 196.8,
+      "devianceRegression": 188.5,
+      "gain": 0.042
+     },
+     "3": {
+      "players": 104,
+      "devianceNoMap": 147.9,
+      "devianceRegression": 139.1,
+      "gain": 0.0595
+     },
+     "4": {
+      "players": 116,
+      "devianceNoMap": 499.6,
+      "devianceRegression": 443.6,
+      "gain": 0.1122
+     },
+     "6": {
+      "players": 101,
+      "devianceNoMap": 497.7,
+      "devianceRegression": 326.2,
+      "gain": 0.3447
+     },
+     "W": {
+      "players": 116,
+      "devianceNoMap": 241.9,
+      "devianceRegression": 160.3,
+      "gain": 0.3375
+     }
+    },
+    "bowl": {
+     "1": {
+      "players": 92,
+      "devianceNoMap": 534.4,
+      "devianceRegression": 454.2,
+      "gain": 0.15
+     },
+     "2": {
+      "players": 90,
+      "devianceNoMap": 123.7,
+      "devianceRegression": 118.8,
+      "gain": 0.0397
+     },
+     "3": {
+      "players": 85,
+      "devianceNoMap": 103.0,
+      "devianceRegression": 102.1,
+      "gain": 0.0094
+     },
+     "4": {
+      "players": 90,
+      "devianceNoMap": 239.0,
+      "devianceRegression": 229.3,
+      "gain": 0.0403
+     },
+     "6": {
+      "players": 74,
+      "devianceNoMap": 168.9,
+      "devianceRegression": 151.9,
+      "gain": 0.1009
+     },
+     "W": {
+      "players": 88,
+      "devianceNoMap": 128.6,
+      "devianceRegression": 110.7,
+      "gain": 0.1387
+     },
+     "wide": {
+      "players": 56,
+      "devianceNoMap": 160.4,
+      "devianceRegression": 157.3,
+      "gain": 0.0197
+     },
+     "nb": {
+      "players": 77,
+      "devianceNoMap": 683.4,
+      "devianceRegression": 740.9,
+      "gain": -0.0841
+     }
+    }
    }
   },
   "test": {
    "bat": {
     "1": {
      "weights": {
-      "running": 1.0
+      "battingIQ": -0.0411,
+      "timing": 0.022,
+      "power": 0.0284,
+      "running": 0.1259,
+      "wicketTaking": -0.0228,
+      "economy": 0.0143,
+      "accuracy": 0.0059,
+      "clutch": 0.0316
      },
-     "knots": [
-      [
-       -1.382,
-       -0.1388
-      ],
-      [
-       -0.264,
-       -0.0555
-      ],
-      [
-       0.291,
-       -0.0491
-      ],
-      [
-       0.506,
-       0.0468
-      ],
-      [
-       0.664,
-       0.0756
-      ],
-      [
-       0.785,
-       0.0756
-      ],
-      [
-       0.898,
-       0.0959
-      ],
-      [
-       1.049,
-       0.1811
-      ],
-      [
-       1.286,
-       0.2151
-      ],
-      [
-       1.66,
-       0.3045
-      ]
+     "pos": [
+      0.0,
+      0.032,
+      0.0374
      ],
-     "c": -0.0741,
-     "tau": 0.238,
-     "spread": 0.1174,
+     "c": -0.1082,
+     "tau": 0.2383,
+     "spread": 0.1425,
      "stretch": 1.0,
-     "r": 0.587,
-     "n": 416
+     "n": 290,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 64.8,
+       "timing": 64.94,
+       "power": 61.45,
+       "running": 57.26,
+       "wicketTaking": 44.74,
+       "economy": 40.16,
+       "accuracy": 41.46,
+       "clutch": 77.69
+      },
+      "sd": {
+       "battingIQ": 27.71,
+       "timing": 25.51,
+       "power": 15.06,
+       "running": 23.2,
+       "wicketTaking": 27.68,
+       "economy": 23.32,
+       "accuracy": 21.07,
+       "clutch": 8.78
+      }
+     }
     },
     "2": {
      "weights": {
-      "running": 1.0
+      "battingIQ": -0.0855,
+      "timing": -0.0043,
+      "power": 0.0005,
+      "running": 0.1506,
+      "wicketTaking": -0.0441,
+      "economy": -0.0141,
+      "accuracy": 0.018,
+      "clutch": 0.0169
      },
-     "knots": [
-      [
-       -1.428,
-       -0.0703
-      ],
-      [
-       -0.305,
-       -0.0282
-      ],
-      [
-       0.284,
-       -0.0272
-      ],
-      [
-       0.478,
-       0.0163
-      ],
-      [
-       0.656,
-       0.0393
-      ],
-      [
-       0.784,
-       0.0492
-      ],
-      [
-       0.902,
-       0.1509
-      ],
-      [
-       1.075,
-       0.1691
-      ],
-      [
-       1.345,
-       0.184
-      ],
-      [
-       1.741,
-       0.2367
-      ]
+     "pos": [
+      0.0,
+      0.0103,
+      0.0167
      ],
-     "c": -0.0705,
-     "tau": 0.1892,
-     "spread": 0.0872,
+     "c": -0.0613,
+     "tau": 0.1865,
+     "spread": 0.1045,
      "stretch": 1.0,
-     "r": 0.45,
-     "n": 417
+     "n": 291,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 64.8,
+       "timing": 64.94,
+       "power": 61.45,
+       "running": 57.26,
+       "wicketTaking": 44.74,
+       "economy": 40.16,
+       "accuracy": 41.46,
+       "clutch": 77.69
+      },
+      "sd": {
+       "battingIQ": 27.71,
+       "timing": 25.51,
+       "power": 15.06,
+       "running": 23.2,
+       "wicketTaking": 27.68,
+       "economy": 23.32,
+       "accuracy": 21.07,
+       "clutch": 8.78
+      }
+     }
     },
     "3": {
      "weights": {
-      "running": 1.0
+      "battingIQ": -0.0209,
+      "timing": 0.0122,
+      "power": -0.0552,
+      "running": 0.1109,
+      "wicketTaking": -0.0198,
+      "economy": -0.0013,
+      "accuracy": 0.04,
+      "clutch": -0.017
      },
-     "knots": [
-      [
-       -1.335,
-       0.0031
-      ],
-      [
-       -0.137,
-       0.0031
-      ],
-      [
-       0.327,
-       0.0031
-      ],
-      [
-       0.521,
-       0.0031
-      ],
-      [
-       0.684,
-       0.0041
-      ],
-      [
-       0.827,
-       0.0045
-      ],
-      [
-       0.946,
-       0.0398
-      ],
-      [
-       1.171,
-       0.1781
-      ],
-      [
-       1.55,
-       0.1781
-      ],
-      [
-       1.762,
-       0.5267
-      ]
+     "pos": [
+      0.0,
+      -0.0333,
+      0.0109
      ],
-     "c": -0.0687,
-     "tau": 0.2584,
-     "spread": 0.0727,
+     "c": -0.0192,
+     "tau": 0.2418,
+     "spread": 0.0752,
      "stretch": 1.0,
-     "r": 0.115,
-     "n": 416
+     "n": 290,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 64.8,
+       "timing": 64.94,
+       "power": 61.45,
+       "running": 57.26,
+       "wicketTaking": 44.74,
+       "economy": 40.16,
+       "accuracy": 41.46,
+       "clutch": 77.69
+      },
+      "sd": {
+       "battingIQ": 27.71,
+       "timing": 25.51,
+       "power": 15.06,
+       "running": 23.2,
+       "wicketTaking": 27.68,
+       "economy": 23.32,
+       "accuracy": 21.07,
+       "clutch": 8.78
+      }
+     }
     },
     "4": {
      "weights": {
-      "timing": 0.051,
-      "power": 0.949
+      "battingIQ": -0.108,
+      "timing": 0.0046,
+      "power": 0.0744,
+      "running": 0.0997,
+      "wicketTaking": -0.0521,
+      "economy": 0.0134,
+      "accuracy": 0.0078,
+      "clutch": 0.0319
      },
-     "knots": [
-      [
-       -1.446,
-       -0.0927
-      ],
-      [
-       -0.441,
-       -0.0608
-      ],
-      [
-       -0.173,
-       -0.0608
-      ],
-      [
-       0.027,
-       -0.0148
-      ],
-      [
-       0.297,
-       0.03
-      ],
-      [
-       0.507,
-       0.0358
-      ],
-      [
-       0.691,
-       0.1161
-      ],
-      [
-       0.923,
-       0.1161
-      ],
-      [
-       1.162,
-       0.1747
-      ],
-      [
-       1.59,
-       0.223
-      ]
+     "pos": [
+      0.0,
+      0.0292,
+      -0.0105
      ],
-     "c": -0.0485,
-     "tau": 0.2306,
-     "spread": 0.0996,
+     "c": -0.0551,
+     "tau": 0.2303,
+     "spread": 0.1286,
      "stretch": 1.0,
-     "r": 0.477,
-     "n": 417
+     "n": 291,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 64.8,
+       "timing": 64.94,
+       "power": 61.45,
+       "running": 57.26,
+       "wicketTaking": 44.74,
+       "economy": 40.16,
+       "accuracy": 41.46,
+       "clutch": 77.69
+      },
+      "sd": {
+       "battingIQ": 27.71,
+       "timing": 25.51,
+       "power": 15.06,
+       "running": 23.2,
+       "wicketTaking": 27.68,
+       "economy": 23.32,
+       "accuracy": 21.07,
+       "clutch": 8.78
+      }
+     }
     },
     "6": {
      "weights": {
-      "power": 1.0
+      "battingIQ": -0.239,
+      "timing": -0.0689,
+      "power": 0.5361,
+      "running": 0.0083,
+      "wicketTaking": -0.0948,
+      "economy": 0.0648,
+      "accuracy": -0.0032,
+      "clutch": 0.1095
      },
-     "knots": [
-      [
-       -1.725,
-       -0.8562
-      ],
-      [
-       -0.721,
-       -0.3949
-      ],
-      [
-       -0.345,
-       -0.1647
-      ],
-      [
-       -0.135,
-       -0.1647
-      ],
-      [
-       0.115,
-       -0.1647
-      ],
-      [
-       0.346,
-       -0.1647
-      ],
-      [
-       0.598,
-       -0.0265
-      ],
-      [
-       0.809,
-       0.1664
-      ],
-      [
-       1.102,
-       0.2312
-      ],
-      [
-       1.58,
-       0.8264
-      ]
+     "pos": [
+      0.0,
+      0.0438,
+      -0.0257
      ],
-     "c": -0.0278,
-     "tau": 0.8228,
-     "spread": 0.3961,
+     "c": -0.1436,
+     "tau": 0.8039,
+     "spread": 0.5021,
      "stretch": 1.0,
-     "r": 0.541,
-     "n": 417
+     "n": 291,
+     "pool": {
+      "n": 290,
+      "mean": {
+       "battingIQ": 64.8,
+       "timing": 64.94,
+       "power": 61.45,
+       "running": 57.26,
+       "wicketTaking": 44.74,
+       "economy": 40.16,
+       "accuracy": 41.46,
+       "clutch": 77.69
+      },
+      "sd": {
+       "battingIQ": 27.71,
+       "timing": 25.51,
+       "power": 15.06,
+       "running": 23.2,
+       "wicketTaking": 27.68,
+       "economy": 23.32,
+       "accuracy": 21.07,
+       "clutch": 8.78
+      }
+     }
     },
     "W": {
      "weights": {
@@ -2419,128 +2487,155 @@ export const TEST_MODEL = {
        0.35
       ]
      ],
-     "c": 0.2455,
+     "c": 0.3016,
      "tau": 0.2274,
      "spread": 0.2274,
      "stretch": 1.045,
      "r": 0.648,
-     "n": 417
+     "n": 417,
+     "pos": [
+      0.0,
+      -0.0242,
+      -0.1282
+     ]
     }
    },
    "bowl": {
     "1": {
      "weights": {
-      "economy": -0.6925,
-      "accuracy": -0.3075
+      "battingIQ": -0.005,
+      "timing": -0.0061,
+      "power": -0.0096,
+      "running": 0.0172,
+      "wicketTaking": 0.0262,
+      "economy": -0.0806,
+      "accuracy": -0.0353,
+      "clutch": 0.0036
      },
-     "knots": [
-      [
-       -1.502,
-       -0.2577
-      ],
-      [
-       -1.326,
-       -0.1857
-      ],
-      [
-       -1.091,
-       -0.1696
-      ],
-      [
-       -0.78,
-       -0.0985
-      ],
-      [
-       -0.577,
-       -0.0985
-      ],
-      [
-       -0.313,
-       -0.0398
-      ],
-      [
-       -0.04,
-       0.0096
-      ],
-      [
-       0.508,
-       0.0417
-      ],
-      [
-       1.289,
-       0.0417
-      ],
-      [
-       1.834,
-       0.0417
-      ]
-     ],
      "c": {
-      "pace": 0.0745,
-      "spin": 0.0916
+      "pace": 0.0332,
+      "spin": 0.0487
      },
-     "tau": 0.1565,
-     "spread": 0.0876,
+     "tau": 0.1591,
+     "spread": 0.0908,
      "stretch": 1.0,
-     "r": 0.587,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 33.27,
+        "timing": 36.76,
+        "power": 53.31,
+        "running": 34.15,
+        "wicketTaking": 73.12,
+        "economy": 58.3,
+        "accuracy": 56.2,
+        "clutch": 76.44
+       },
+       "sd": {
+        "battingIQ": 23.14,
+        "timing": 21.48,
+        "power": 16.96,
+        "running": 20.41,
+        "wicketTaking": 19.93,
+        "economy": 17.52,
+        "accuracy": 18.99,
+        "clutch": 8.05
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 50.72,
+        "timing": 51.48,
+        "power": 52.88,
+        "running": 48.37,
+        "wicketTaking": 60.91,
+        "economy": 55.22,
+        "accuracy": 53.73,
+        "clutch": 75.84
+       },
+       "sd": {
+        "battingIQ": 26.95,
+        "timing": 25.57,
+        "power": 17.58,
+        "running": 22.66,
+        "wicketTaking": 21.54,
+        "economy": 22.93,
+        "accuracy": 19.14,
+        "clutch": 10.93
+       }
+      }
+     }
     },
     "2": {
      "weights": {
-      "economy": -0.8563,
-      "accuracy": -0.1437
+      "battingIQ": -0.0134,
+      "timing": -0.0116,
+      "power": 0.0075,
+      "running": -0.0047,
+      "wicketTaking": 0.007,
+      "economy": -0.0397,
+      "accuracy": -0.0207,
+      "clutch": 0.0098
      },
-     "knots": [
-      [
-       -1.554,
-       -0.0922
-      ],
-      [
-       -1.279,
-       -0.0922
-      ],
-      [
-       -1.103,
-       -0.0693
-      ],
-      [
-       -0.848,
-       -0.0472
-      ],
-      [
-       -0.652,
-       -0.0292
-      ],
-      [
-       -0.352,
-       -0.0176
-      ],
-      [
-       -0.074,
-       0.0192
-      ],
-      [
-       0.391,
-       0.0192
-      ],
-      [
-       1.144,
-       0.0192
-      ],
-      [
-       1.83,
-       0.1212
-      ]
-     ],
      "c": {
-      "pace": 0.0242,
-      "spin": 0.0292
+      "pace": 0.01,
+      "spin": 0.0227
      },
-     "tau": 0.078,
-     "spread": 0.0526,
+     "tau": 0.0782,
+     "spread": 0.0494,
      "stretch": 1.0,
-     "r": 0.293,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 33.27,
+        "timing": 36.76,
+        "power": 53.31,
+        "running": 34.15,
+        "wicketTaking": 73.12,
+        "economy": 58.3,
+        "accuracy": 56.2,
+        "clutch": 76.44
+       },
+       "sd": {
+        "battingIQ": 23.14,
+        "timing": 21.48,
+        "power": 16.96,
+        "running": 20.41,
+        "wicketTaking": 19.93,
+        "economy": 17.52,
+        "accuracy": 18.99,
+        "clutch": 8.05
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 50.72,
+        "timing": 51.48,
+        "power": 52.88,
+        "running": 48.37,
+        "wicketTaking": 60.91,
+        "economy": 55.22,
+        "accuracy": 53.73,
+        "clutch": 75.84
+       },
+       "sd": {
+        "battingIQ": 26.95,
+        "timing": 25.57,
+        "power": 17.58,
+        "running": 22.66,
+        "wicketTaking": 21.54,
+        "economy": 22.93,
+        "accuracy": 19.14,
+        "clutch": 10.93
+       }
+      }
+     }
     },
     "3": {
      "weights": {
@@ -2600,116 +2695,139 @@ export const TEST_MODEL = {
     },
     "4": {
      "weights": {
-      "economy": -0.6162,
-      "accuracy": -0.3838
+      "battingIQ": -0.0299,
+      "timing": -0.0088,
+      "power": 0.0096,
+      "running": 0.0004,
+      "wicketTaking": 0.0528,
+      "economy": -0.0542,
+      "accuracy": -0.0369,
+      "clutch": -0.0017
      },
-     "knots": [
-      [
-       -1.581,
-       -0.1552
-      ],
-      [
-       -1.342,
-       -0.1217
-      ],
-      [
-       -1.156,
-       -0.0526
-      ],
-      [
-       -0.877,
-       -0.045
-      ],
-      [
-       -0.651,
-       -0.018
-      ],
-      [
-       -0.39,
-       0.051
-      ],
-      [
-       -0.132,
-       0.0709
-      ],
-      [
-       0.255,
-       0.0709
-      ],
-      [
-       1.088,
-       0.0709
-      ],
-      [
-       1.673,
-       0.0709
-      ]
-     ],
      "c": {
-      "pace": 0.0002,
-      "spin": 0.0162
+      "pace": 0.0085,
+      "spin": 0.0214
      },
-     "tau": 0.1362,
-     "spread": 0.0647,
+     "tau": 0.1451,
+     "spread": 0.0712,
      "stretch": 1.0,
-     "r": 0.361,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 33.27,
+        "timing": 36.76,
+        "power": 53.31,
+        "running": 34.15,
+        "wicketTaking": 73.12,
+        "economy": 58.3,
+        "accuracy": 56.2,
+        "clutch": 76.44
+       },
+       "sd": {
+        "battingIQ": 23.14,
+        "timing": 21.48,
+        "power": 16.96,
+        "running": 20.41,
+        "wicketTaking": 19.93,
+        "economy": 17.52,
+        "accuracy": 18.99,
+        "clutch": 8.05
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 50.72,
+        "timing": 51.48,
+        "power": 52.88,
+        "running": 48.37,
+        "wicketTaking": 60.91,
+        "economy": 55.22,
+        "accuracy": 53.73,
+        "clutch": 75.84
+       },
+       "sd": {
+        "battingIQ": 26.95,
+        "timing": 25.57,
+        "power": 17.58,
+        "running": 22.66,
+        "wicketTaking": 21.54,
+        "economy": 22.93,
+        "accuracy": 19.14,
+        "clutch": 10.93
+       }
+      }
+     }
     },
     "6": {
      "weights": {
-      "economy": -1.0
+      "battingIQ": -0.0011,
+      "timing": -0.0218,
+      "power": -0.074,
+      "running": 0.0374,
+      "wicketTaking": 0.1041,
+      "economy": -0.0632,
+      "accuracy": -0.0357,
+      "clutch": 0.0024
      },
-     "knots": [
-      [
-       -1.58,
-       -0.1359
-      ],
-      [
-       -1.166,
-       -0.1359
-      ],
-      [
-       -1.092,
-       0.0663
-      ],
-      [
-       -0.84,
-       0.0663
-      ],
-      [
-       -0.663,
-       0.0663
-      ],
-      [
-       -0.326,
-       0.0663
-      ],
-      [
-       -0.029,
-       0.1057
-      ],
-      [
-       0.486,
-       0.1057
-      ],
-      [
-       1.268,
-       0.1057
-      ],
-      [
-       2.071,
-       0.1981
-      ]
-     ],
      "c": {
-      "pace": -0.0341,
-      "spin": -0.0482
+      "pace": 0.0092,
+      "spin": 0.0072
      },
-     "tau": 0.3712,
-     "spread": 0.0798,
+     "tau": 0.3387,
+     "spread": 0.1112,
      "stretch": 1.0,
-     "r": 0.073,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 33.27,
+        "timing": 36.76,
+        "power": 53.31,
+        "running": 34.15,
+        "wicketTaking": 73.12,
+        "economy": 58.3,
+        "accuracy": 56.2,
+        "clutch": 76.44
+       },
+       "sd": {
+        "battingIQ": 23.14,
+        "timing": 21.48,
+        "power": 16.96,
+        "running": 20.41,
+        "wicketTaking": 19.93,
+        "economy": 17.52,
+        "accuracy": 18.99,
+        "clutch": 8.05
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 50.72,
+        "timing": 51.48,
+        "power": 52.88,
+        "running": 48.37,
+        "wicketTaking": 60.91,
+        "economy": 55.22,
+        "accuracy": 53.73,
+        "clutch": 75.84
+       },
+       "sd": {
+        "battingIQ": 26.95,
+        "timing": 25.57,
+        "power": 17.58,
+        "running": 22.66,
+        "wicketTaking": 21.54,
+        "economy": 22.93,
+        "accuracy": 19.14,
+        "clutch": 10.93
+       }
+      }
+     }
     },
     "W": {
      "weights": {
@@ -2770,59 +2888,71 @@ export const TEST_MODEL = {
     },
     "wide": {
      "weights": {
-      "accuracy": -1.0
+      "battingIQ": 0.0051,
+      "timing": 0.0184,
+      "power": -0.0387,
+      "running": -0.0494,
+      "wicketTaking": 0.0812,
+      "economy": -0.1111,
+      "accuracy": -0.2424,
+      "clutch": -0.0124
      },
-     "knots": [
-      [
-       -1.927,
-       -0.8837
-      ],
-      [
-       -1.528,
-       -0.3803
-      ],
-      [
-       -0.927,
-       -0.1265
-      ],
-      [
-       -0.728,
-       -0.1265
-      ],
-      [
-       -0.633,
-       -0.1245
-      ],
-      [
-       -0.373,
-       0.1803
-      ],
-      [
-       -0.108,
-       0.2993
-      ],
-      [
-       0.191,
-       0.3811
-      ],
-      [
-       1.282,
-       0.3811
-      ],
-      [
-       1.799,
-       0.7532
-      ]
-     ],
      "c": {
-      "pace": -0.1259,
-      "spin": 0.0191
+      "pace": 0.0636,
+      "spin": 0.1393
      },
-     "tau": 0.2681,
-     "spread": 0.3679,
+     "tau": 0.2881,
+     "spread": 0.2779,
      "stretch": 1.0,
-     "r": 0.368,
-     "n": 308
+     "n": 243,
+     "pool": {
+      "pace": {
+       "n": 143,
+       "mean": {
+        "battingIQ": 33.27,
+        "timing": 36.76,
+        "power": 53.31,
+        "running": 34.15,
+        "wicketTaking": 73.12,
+        "economy": 58.3,
+        "accuracy": 56.2,
+        "clutch": 76.44
+       },
+       "sd": {
+        "battingIQ": 23.14,
+        "timing": 21.48,
+        "power": 16.96,
+        "running": 20.41,
+        "wicketTaking": 19.93,
+        "economy": 17.52,
+        "accuracy": 18.99,
+        "clutch": 8.05
+       }
+      },
+      "spin": {
+       "n": 100,
+       "mean": {
+        "battingIQ": 50.72,
+        "timing": 51.48,
+        "power": 52.88,
+        "running": 48.37,
+        "wicketTaking": 60.91,
+        "economy": 55.22,
+        "accuracy": 53.73,
+        "clutch": 75.84
+       },
+       "sd": {
+        "battingIQ": 26.95,
+        "timing": 25.57,
+        "power": 17.58,
+        "running": 22.66,
+        "wicketTaking": 21.54,
+        "economy": 22.93,
+        "accuracy": 19.14,
+        "clutch": 10.93
+       }
+      }
+     }
     },
     "nb": {
      "weights": {
@@ -2925,14 +3055,127 @@ export const TEST_MODEL = {
       }
      }
     }
+   },
+   "holdout": {
+    "bat": {
+     "1": {
+      "players": 116,
+      "devianceNoMap": 591.3,
+      "devianceRegression": 340.3,
+      "gain": 0.4245
+     },
+     "2": {
+      "players": 115,
+      "devianceNoMap": 196.8,
+      "devianceRegression": 162.6,
+      "gain": 0.1736
+     },
+     "3": {
+      "players": 104,
+      "devianceNoMap": 147.9,
+      "devianceRegression": 140.6,
+      "gain": 0.0497
+     },
+     "4": {
+      "players": 116,
+      "devianceNoMap": 499.6,
+      "devianceRegression": 371.0,
+      "gain": 0.2574
+     },
+     "6": {
+      "players": 101,
+      "devianceNoMap": 497.7,
+      "devianceRegression": 290.1,
+      "gain": 0.4172
+     },
+     "W": {
+      "players": 116,
+      "devianceNoMap": 241.9,
+      "devianceRegression": 131.7,
+      "gain": 0.4556
+     }
+    },
+    "bowl": {
+     "1": {
+      "players": 92,
+      "devianceNoMap": 534.4,
+      "devianceRegression": 377.6,
+      "gain": 0.2933
+     },
+     "2": {
+      "players": 90,
+      "devianceNoMap": 123.7,
+      "devianceRegression": 112.6,
+      "gain": 0.0901
+     },
+     "3": {
+      "players": 85,
+      "devianceNoMap": 103.0,
+      "devianceRegression": 116.1,
+      "gain": -0.1273
+     },
+     "4": {
+      "players": 90,
+      "devianceNoMap": 239.0,
+      "devianceRegression": 197.4,
+      "gain": 0.1738
+     },
+     "6": {
+      "players": 74,
+      "devianceNoMap": 168.9,
+      "devianceRegression": 153.3,
+      "gain": 0.0923
+     },
+     "W": {
+      "players": 88,
+      "devianceNoMap": 128.6,
+      "devianceRegression": 111.4,
+      "gain": 0.1334
+     },
+     "wide": {
+      "players": 56,
+      "devianceNoMap": 160.4,
+      "devianceRegression": 137.3,
+      "gain": 0.1445
+     },
+     "nb": {
+      "players": 77,
+      "devianceNoMap": 683.4,
+      "devianceRegression": 693.4,
+      "gain": -0.0145
+     }
+    }
    }
   }
  },
  "dismissal": {
+  "male": {
+   "spin": {
+    "bowled": 0.1686,
+    "caught": 0.4267,
+    "caught_and_bowled": 0.0291,
+    "caught_keeper": 0.093,
+    "hit_wicket": 0.0002,
+    "lbw": 0.203,
+    "run_out": 0.0325,
+    "stumped": 0.0468
+   },
+   "pace": {
+    "bowled": 0.1817,
+    "caught": 0.3889,
+    "caught_and_bowled": 0.0147,
+    "caught_keeper": 0.2525,
+    "hit_wicket": 0.0007,
+    "lbw": 0.1397,
+    "other": 0.0001,
+    "run_out": 0.0212,
+    "stumped": 0.0005
+   }
+  },
   "female": {
    "pace": {
     "bowled": 0.1954,
-    "caught": 0.4052,
+    "caught": 0.4051,
     "caught_and_bowled": 0.0104,
     "caught_keeper": 0.1686,
     "hit_wicket": 0.0003,
@@ -2943,36 +3186,13 @@ export const TEST_MODEL = {
    },
    "spin": {
     "bowled": 0.2154,
-    "caught": 0.3977,
+    "caught": 0.3978,
     "caught_and_bowled": 0.035,
-    "caught_keeper": 0.0589,
+    "caught_keeper": 0.0588,
     "hit_wicket": 0.0001,
     "lbw": 0.2183,
     "run_out": 0.047,
     "stumped": 0.0275
-   }
-  },
-  "male": {
-   "spin": {
-    "bowled": 0.1686,
-    "caught": 0.4264,
-    "caught_and_bowled": 0.0291,
-    "caught_keeper": 0.0933,
-    "hit_wicket": 0.0002,
-    "lbw": 0.203,
-    "run_out": 0.0325,
-    "stumped": 0.0468
-   },
-   "pace": {
-    "bowled": 0.1817,
-    "caught": 0.3891,
-    "caught_and_bowled": 0.0147,
-    "caught_keeper": 0.2523,
-    "hit_wicket": 0.0007,
-    "lbw": 0.1397,
-    "other": 0.0001,
-    "run_out": 0.0212,
-    "stumped": 0.0005
    }
   }
  },
@@ -3014,7 +3234,7 @@ export const TEST_MODEL = {
   "legalBallsPerInnings": 466.7,
   "dotShare": 0.6993,
   "wicketsPerInnings": {
-   "caught": 1.605,
+   "caught": 1.604,
    "lbw": 1.375
   },
   "reviewsPerInnings": 3.362,
@@ -3040,27 +3260,27 @@ export const TEST_MODEL = {
   "toss": {
    "all": 0.681,
    "byCountry": {
-    "AUS": 0.769,
-    "UAE": 0.861,
-    "IRELAND": 0.524,
     "BDESH": 0.85,
     "PAK": 0.806,
+    "AUS": 0.769,
+    "WI": 0.544,
     "ENG": 0.509,
     "SL": 0.889,
-    "NZ": 0.229,
     "IND": 0.886,
-    "RSA": 0.698,
     "ZIM": 0.786,
-    "WI": 0.544
+    "RSA": 0.698,
+    "UAE": 0.861,
+    "IRELAND": 0.524,
+    "NZ": 0.229
    }
   },
   "declare": {
    "inn1": {
     "coef": {
-     "intercept": -14.7797,
-     "runs/100": 1.5714,
-     "matchOvers/90": 0.7635,
-     "wickets": 0.3168
+     "intercept": -14.7826,
+     "runs/100": 1.5708,
+     "matchOvers/90": 0.7682,
+     "wickets": 0.3167
     },
     "overs": 13055,
     "declared": 82
@@ -3493,14 +3713,31 @@ export const TEST_MODEL = {
     0.042
    ],
    "wicketShareByRank": [
-    0.338,
-    0.263,
+    0.336,
+    0.265,
     0.193,
-    0.133,
+    0.132,
     0.065,
     0.029
    ],
    "inningsWins": 0.186,
+   "byPosition": {
+    "1-3": {
+     "runsPer6": 3.05,
+     "ballsPerDismissal": 68.2,
+     "ballShare": 0.393
+    },
+    "4-6": {
+     "runsPer6": 3.234,
+     "ballsPerDismissal": 68.6,
+     "ballShare": 0.365
+    },
+    "7-11": {
+     "runsPer6": 3.127,
+     "ballsPerDismissal": 37.0,
+     "ballShare": 0.242
+    }
+   },
    "oversPerDayUsed": 79.6,
    "strongVsWeak": {
     "strong": [
@@ -3551,11 +3788,11 @@ export const TEST_MODEL = {
     "Pakistan": 22,
     "Zimbabwe": 19,
     "New Zealand": 46,
-    "Bangladesh": 38,
+    "Australia": 60,
     "Ireland": 3,
+    "Bangladesh": 38,
     "England": 77,
-    "South Africa": 47,
-    "Australia": 60
+    "South Africa": 47
    }
   },
   "male2023": {
@@ -3674,14 +3911,31 @@ export const TEST_MODEL = {
     0.045
    ],
    "wicketShareByRank": [
-    0.343,
-    0.255,
-    0.193,
-    0.13,
-    0.071,
-    0.028
+    0.346,
+    0.253,
+    0.192,
+    0.128,
+    0.073,
+    0.027
    ],
    "inningsWins": 0.185,
+   "byPosition": {
+    "1-3": {
+     "runsPer6": 3.362,
+     "ballsPerDismissal": 59.1,
+     "ballShare": 0.373
+    },
+    "4-6": {
+     "runsPer6": 3.489,
+     "ballsPerDismissal": 62.3,
+     "ballShare": 0.366
+    },
+    "7-11": {
+     "runsPer6": 3.227,
+     "ballsPerDismissal": 35.9,
+     "ballShare": 0.261
+    }
+   },
    "oversPerDayUsed": 78.6,
    "strongVsWeak": {
     "strong": [
@@ -3724,17 +3978,17 @@ export const TEST_MODEL = {
     "West Indies": 30
    },
    "hostTests": {
+    "Zimbabwe": 8,
     "India": 18,
     "Sri Lanka": 12,
     "West Indies": 13,
     "Pakistan": 10,
-    "New Zealand": 14,
-    "England": 24,
-    "South Africa": 11,
-    "Australia": 18,
-    "Ireland": 2,
     "Bangladesh": 14,
-    "Zimbabwe": 8
+    "New Zealand": 14,
+    "Ireland": 2,
+    "Australia": 18,
+    "England": 24,
+    "South Africa": 11
    }
   },
   "female": {
@@ -3842,13 +4096,30 @@ export const TEST_MODEL = {
    ],
    "wicketShareByRank": [
     0.349,
-    0.236,
-    0.163,
-    0.103,
-    0.079,
-    0.067
+    0.228,
+    0.168,
+    0.113,
+    0.075,
+    0.064
    ],
    "inningsWins": 0.118,
+   "byPosition": {
+    "1-3": {
+     "runsPer6": 3.04,
+     "ballsPerDismissal": 67.2,
+     "ballShare": 0.377
+    },
+    "4-6": {
+     "runsPer6": 3.055,
+     "ballsPerDismissal": 76.2,
+     "ballShare": 0.385
+    },
+    "7-11": {
+     "runsPer6": 2.496,
+     "ballsPerDismissal": 40.1,
+     "ballShare": 0.238
+    }
+   },
    "oversPerDayUsed": 87.1
   }
  }

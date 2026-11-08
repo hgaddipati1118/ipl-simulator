@@ -66,7 +66,12 @@ for (let i = 0; i < N; i++) {
     add("runs", inn.runs); add("balls", inn.legalBalls); add("wkts", inn.wickets);
     if (inn.closed === "declared") add(`dec${inn.number}`);
     if (inn.followOn) add("followOn");
-    for (const b of Object.values(inn.batters)) { if (b.runs >= 100) add("c100"); if (b.runs >= 50) add("c50"); }
+    for (const b of Object.values(inn.batters)) {
+      if (b.runs >= 100) add("c100");
+      if (b.runs >= 50) add("c50");
+      const g = b.arrived <= 3 ? "p13" : b.arrived <= 6 ? "p46" : "p711";
+      add(`${g}_runs`, b.runs); add(`${g}_balls`, b.balls); if (b.out && b.kind !== "run_out") add(`${g}_out`); if (b.out && b.kind === "run_out") add(`${g}_ro`);
+    }
     for (const l of Object.values(inn.bowlers)) if (l.wickets >= 5) add("f5");
     if (inn.legalBalls >= 300) {
       const ranked = Object.values(inn.bowlers).sort((a, b) => b.balls - a.balls);
@@ -151,6 +156,17 @@ CH.forEach((lo, b) => {
   row(`4th-inn target ${lo}${b < CH.length - 1 ? `-${CH[b + 1] - 1}` : "+"}: win / draw / loss`,
     c ? `${pct((sum[`ch${b}_win`] ?? 0) / c)} / ${pct((sum[`ch${b}_draw`] ?? 0) / c)} / ${pct((sum[`ch${b}_loss`] ?? 0) / c)} (n ${c})` : "-", fmt(rr), rr2 ? fmt(rr2) : undefined);
 });
+{
+  const bp = (R as unknown as { byPosition?: Record<string, { runsPer6: number; ballsPerDismissal: number; ballShare: number }> }).byPosition;
+  const bp2 = (R2 as unknown as { byPosition?: Record<string, { runsPer6: number; ballsPerDismissal: number; ballShare: number }> } | undefined)?.byPosition;
+  const gs = [["p13", "1-3"], ["p46", "4-6"], ["p711", "7-11"]] as const;
+  const balls = gs.reduce((a, [g]) => a + (sum[`${g}_balls`] ?? 0), 0);
+  const fmt = (b?: Record<string, { runsPer6: number; ballsPerDismissal: number; ballShare: number }>, k?: "runsPer6" | "ballsPerDismissal" | "ballShare") =>
+    b ? gs.map(([, p]) => k === "ballShare" ? pct(b[p][k]) : b[p][k!].toFixed(k === "runsPer6" ? 2 : 1)).join(" / ") : undefined;
+  row("batting 1-3 / 4-6 / 7-11: runs per 6 balls faced", gs.map(([g]) => f2(6 * (sum[`${g}_runs`] ?? 0) / Math.max(1, sum[`${g}_balls`] ?? 0))).join(" / "), fmt(bp, "runsPer6"), fmt(bp2, "runsPer6"));
+  row("batting 1-3 / 4-6 / 7-11: balls faced per dismissal", gs.map(([g]) => f1((sum[`${g}_balls`] ?? 0) / Math.max(1, (sum[`${g}_out`] ?? 0) + (sum[`${g}_ro`] ?? 0)))).join(" / "), fmt(bp, "ballsPerDismissal"), fmt(bp2, "ballsPerDismissal"));
+  row("batting 1-3 / 4-6 / 7-11: share of balls faced", gs.map(([g]) => pct((sum[`${g}_balls`] ?? 0) / balls)).join(" / "), fmt(bp, "ballShare"), fmt(bp2, "ballShare"));
+}
 row("innings victories", pct((sum.innWin ?? 0) / n), pct(R.inningsWins), R2 ? pct(R2.inningsWins) : undefined);
 row("centuries per Test", f2((sum.c100 ?? 0) / n), R.centuriesPerTest, R2?.centuriesPerTest);
 row("50+ scores per Test", f2((sum.c50 ?? 0) / n), R.fiftiesPlusPerTest, R2?.fiftiesPlusPerTest);
