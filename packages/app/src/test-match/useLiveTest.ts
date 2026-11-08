@@ -1,7 +1,8 @@
 /**
  * The live Test in React: the engine's state mutates in place (copying ~1,800 deliveries per ball would be quadratic), so the
  * hook keeps it in a ref and bumps a version on every action; the page re-renders on the version. With a `saveKey` the state
- * is written to IndexedDB after each action (a little later, batched), so the match resumes where it stopped.
+ * is written to IndexedDB at the start and after each action (a little later, batched; at once when the page is left), so
+ * the match resumes where it stopped.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,15 +14,29 @@ export function useLiveTest(initial: TestMatchState, saveKey?: string) {
   const [version, setVersion] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => { ref.current = initial; setVersion(v => v + 1); }, [initial]);
+  // a new match is saved at once, so it resumes even if left before the first ball
+  useEffect(() => {
+    ref.current = initial;
+    setVersion(v => v + 1);
+    if (saveKey) void saveLiveTest(saveKey, initial);
+  }, [initial, saveKey]);
 
   const persist = useCallback(() => {
     if (!saveKey) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => { void saveLiveTest(saveKey, ref.current); }, 400);
+    saveTimer.current = setTimeout(() => { saveTimer.current = null; void saveLiveTest(saveKey, ref.current); }, 400);
   }, [saveKey]);
 
-  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+  /** Write a save still waiting on its timer now (leaving the page) */
+  const flush = useCallback(async () => {
+    if (!saveTimer.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    if (saveKey) await saveLiveTest(saveKey, ref.current);
+  }, [saveKey]);
+
+  // unmounted with a save pending (the page left by a link): write it rather than drop it
+  useEffect(() => () => { void flush(); }, [flush]);
 
   /** Run an engine action on the state, then re-render and save */
   const act = useCallback(<T,>(fn: (st: TestMatchState) => T): T => {
@@ -31,5 +46,5 @@ export function useLiveTest(initial: TestMatchState, saveKey?: string) {
     return out;
   }, [persist]);
 
-  return { st: ref.current, version, act };
+  return { st: ref.current, version, act, flush };
 }

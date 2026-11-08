@@ -1,5 +1,5 @@
 /**
- * View model for the live Test screen and the Test scorecard (docs/FORMATS-TEST.md): score lines, the state of play, the
+ * View model for the live Test screen and the Test scorecard (docs/FORMATS.md, Test section): score lines, the state of play, the
  * partnership, the last balls, the commentary feed with its day / session / innings markers, and the wording of every
  * decision. Pure functions of the engine's TestMatchState, so the page stays thin and this file is unit-tested.
  */
@@ -16,6 +16,26 @@ export function playerName(st: TestMatchState, id: string | undefined): string {
 }
 
 /** Short name of a team in the match */
+/**
+ * A team colour readable as text on both themes: a near-black primary (New Zealand) is lightened and a pale one (Australia's
+ * yellow) darkened, toward white or black, until its relative luminance is within 0.15-0.45; the hue is kept.
+ */
+export function readableTeamColor(hex: string): string {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const h = m[1].length === 3 ? m[1].split("").map(c => c + c).join("") : m[1];
+  const rgb = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  const lum = (c: number[]) => {
+    const lin = c.map(v => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+  };
+  const mix = (to: number, t: number) => rgb.map(v => Math.round(v + (to - v) * t));
+  let out = rgb;
+  for (let t = 0.05; t <= 1 && lum(out) < 0.15; t += 0.05) out = mix(255, t);
+  for (let t = 0.05; t <= 1 && lum(out) > 0.45; t += 0.05) out = mix(0, t);
+  return `#${out.map(v => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
 export function teamShort(st: TestMatchState, teamId: string): string {
   return st.teams[teamId]?.shortName ?? teamId;
 }

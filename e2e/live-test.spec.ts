@@ -1,5 +1,6 @@
 /**
- * Smoke test for the live Test screen (dev route /live-test, pages/LiveTestPage.tsx): a seeded India v England Test with the
+ * Smoke test for the live Test screen on its dev route (/live-test: unlinked, kept for this seeded test; the game reaches Tests
+ * through the International series, e2e/international-test.spec.ts), pages/LiveTestPage.tsx: a seeded India v England Test with the
  * user captaining India. The toss call, ball by ball and skipping ahead, the user's decisions, the captain panel, the
  * scorecard tab, saving and resuming, playing to a result; and an instant Test's scorecard.
  */
@@ -60,9 +61,8 @@ test.describe("Live Test", () => {
     await expect(page.getByTestId("test-innings-card")).toBeVisible();
     await page.getByTestId("test-tab-commentary").click();
 
-    // saved automatically: leave, resume from the setup screen, same score
+    // saved automatically (at once on leaving): leave, resume from the setup screen, same score
     const score = await page.getByTestId("test-score").innerText();
-    await page.waitForTimeout(800);
     await page.getByRole("button", { name: "Leave" }).click();
     await expect(page.getByTestId("live-test-resume")).toBeVisible();
     await page.getByTestId("live-test-resume").click();

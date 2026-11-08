@@ -2,11 +2,11 @@
  * Entry points for playing a Test from anywhere in the app (the International series page, the dev route): two sides, the
  * venue and options in; a whole Test instantly (result, scorecards, events, the final state), or a live match state that
  * LiveTestPage plays with the user captaining one side. The engine does the cricket (packages/engine/src/test-match.ts,
- * test-live.ts; docs/FORMATS-TEST.md).
+ * test-live.ts; docs/FORMATS.md, Test section).
  */
 
 import {
-  simulateTestMatch, startLiveTest, Team,
+  createTestMatch, simulateTestMatch, startLiveTest, Team,
   type TestMatchOptions, type TestMatchResult, type TestMatchState,
 } from "@ipl-sim/engine";
 
@@ -44,8 +44,10 @@ export function playTestInstantly(setup: TestFixtureSetup): TestMatchResult {
 
 /**
  * A live Test for LiveTestPage: the user captains `userTeamId` (commentary on every ball; waits for his toss call if he wins
- * it). `pickBatters` asks him for the next batter at every wicket (the nightwatchman call is always his).
+ * it), or watches with `null` (CPU captains on both sides). `pickBatters` asks him for the next batter at every wicket (the
+ * nightwatchman call is always his).
  */
-export function startTestLive(setup: TestFixtureSetup, userTeamId: string, opts: { pickBatters?: boolean } = {}): TestMatchState {
+export function startTestLive(setup: TestFixtureSetup, userTeamId: string | null, opts: { pickBatters?: boolean } = {}): TestMatchState {
+  if (userTeamId === null) return createTestMatch(setup.home, setup.away, { ...engineOptions(setup), commentary: true });
   return startLiveTest(setup.home, setup.away, { ...engineOptions(setup), userTeamId, pickBatters: opts.pickBatters });
 }

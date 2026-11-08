@@ -1,5 +1,5 @@
 /**
- * International series: two national sides, a format (T20I, ODI; Test later), 1, 3 or 5 matches, home grounds or neutral,
+ * International series: two national sides, a format (T20I, ODI, Test), 1 to 5 matches, home grounds or neutral,
  * the user captaining a side or watching. Pure logic (no React): formats, national squads, the series state and its
  * persistence, playing a match (instantly or from a finished live match) and the series stats.
  *
@@ -18,6 +18,7 @@ import {
 import { attachFormatRatings, type FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { WPL_PLAYERS } from "@ipl-sim/ratings/dist/wpl-players.js";
+import { pickTestSquad, testSeriesFormat } from "./test-match/test-series";
 
 // ── Formats ────────────────────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ export interface SeriesMatchContext {
   gender: SeriesGender;
   seed: number;
   venue: SeriesVenue;
+  /** The match's stable key (series id and match number, seriesMatchKey), for a format that keeps more than the record */
+  key?: string;
 }
 
 /**
@@ -63,6 +66,10 @@ export interface SeriesFormatDef {
   simulate(ctx: SeriesMatchContext): SeriesMatchRecord;
   /** The live screen, if the format has one (absent = instant only) */
   live?: SeriesLiveDef<any>;
+  /** The format's own XI and batting order for a squad (absent: the engine's limited-overs pick, autoLineup) */
+  autoLineup?(squad: Player[], series: IntlSeries): SeriesLineup;
+  /** The format's check of a user's XI (absent: lineupProblems) */
+  lineupProblems?(squad: Player[], lineup: SeriesLineup): string[];
 }
 
 /** A limited-overs format played by the engine's simulateMatch / createMatchState (rain on, as in a season) */
@@ -119,6 +126,8 @@ export const SERIES_FORMATS: SeriesFormatDef[] = [
     id: "t20i", label: "T20I", desc: "20 overs a side, four overs a bowler", ratingFormat: "t20", overs: 20, lengths: [1, 3, 5],
     rules: t20iRules,
   }),
+  // the Test engine and LiveTestPage (test-match/test-series.ts)
+  testSeriesFormat(),
 ];
 
 export function registerSeriesFormat(def: SeriesFormatDef): void {
@@ -233,6 +242,9 @@ export function buildNationSquad(country: string, gender: SeriesGender, ratingFo
   if (ids && ids.length > 0) {
     const byId = new Map(inFormat.map(p => [p.id, p]));
     squad = ids.map(id => byId.get(id)).filter((p): p is Player => !!p);
+  } else if (ratingFormat === "test") {
+    // a Test squad is picked for its shape: keepers, seamers, spinners, batters (test-match/test-series.ts)
+    squad = pickTestSquad(inFormat, SQUAD_SIZE);
   } else {
     const ranked = [...inFormat].sort((a, b) => xiSelectionValue(b) - xiSelectionValue(a));
     squad = ranked.slice(0, SQUAD_SIZE);
@@ -323,6 +335,8 @@ export interface SeriesMatchRecord {
   /** Runs at the end of each over, per innings (the worm chart) */
   worm: number[][];
   potm?: { playerId: string; playerName: string; reason: string };
+  /** The score line the series shows when the innings list says it badly ("IND 312 & 245/4d · ENG 280 & 101" in a Test) */
+  summary?: string;
 }
 
 export type SeriesHost = "a" | "b" | "neutral";
@@ -467,10 +481,18 @@ export function matchSeed(series: IntlSeries, n: number): number {
   return (series.seedBase + n * 7919) >>> 0;
 }
 
+/** A match's stable key: the series id and the match number */
+export function seriesMatchKey(series: Pick<IntlSeries, "id">, n: number): string {
+  return `${series.id}-${n}`;
+}
+
 export function matchContext(series: IntlSeries, n: number, squads: [Player[], Player[]]): SeriesMatchContext {
   const { home, away, venue } = teamsForMatch(series, n, squads);
   const def = seriesFormat(series.format);
-  return { home, away, venue, ...(def.rules ? { rules: def.rules(series.gender) } : {}), gender: series.gender, seed: matchSeed(series, n) };
+  return {
+    home, away, venue, ...(def.rules ? { rules: def.rules(series.gender) } : {}), gender: series.gender, seed: matchSeed(series, n),
+    key: seriesMatchKey(series, n),
+  };
 }
 
 /** Play match n instantly and add its record */
@@ -549,6 +571,9 @@ export function seriesScore(series: IntlSeries): SeriesScore {
   if (played === 0) text = `${series.length === 1 ? "One-off" : `${series.length}-match`} series`;
   else if (done) text = lead === null ? `Series drawn ${hi}-${lo}` : `${series.sides[lead].name} win the series ${hi}-${lo}`;
   else text = lead === null ? `Series level ${hi}-${lo}` : `${series.sides[lead].name} lead ${hi}-${lo}`;
+  // a Test series counts its draws: "India lead 1-0 (2 Tests drawn)"
+  const drawn = series.format === "test" ? series.results.filter(r => !r.winnerId && /drawn/i.test(r.result)).length : 0;
+  if (drawn > 0) text += ` (${drawn} Test${drawn > 1 ? "s" : ""} drawn)`;
   void a; void b;
   return { wins, shared, played, text, winner: done && lead !== null ? lead : null, done };
 }
@@ -560,7 +585,7 @@ export function isSeriesDecidedEarly(series: IntlSeries): boolean {
 }
 
 export interface BattingLine { playerId: string; name: string; sideId: string; innings: number; notOuts: number; runs: number; balls: number; fours: number; sixes: number; high: number; highNotOut: boolean; fifties: number; hundreds: number; average: number | null; strikeRate: number | null }
-export interface BowlingLine { playerId: string; name: string; sideId: string; balls: number; runs: number; wickets: number; best: string; average: number | null; economy: number | null }
+export interface BowlingLine { playerId: string; name: string; sideId: string; balls: number; runs: number; wickets: number; best: string; average: number | null; economy: number | null; /** Innings with five wickets or more */ fiveFors: number }
 
 function oversToBalls(overs: string): number {
   const [o, b] = overs.split(".").map(Number);
@@ -583,8 +608,9 @@ export function seriesStats(series: IntlSeries): { batting: BattingLine[]; bowli
         bat.set(b.playerId, line);
       }
       for (const b of inn.bowlers) {
-        const line = bowl.get(b.playerId) ?? { playerId: b.playerId, name: b.playerName, sideId: inn.bowlingTeamId, balls: 0, runs: 0, wickets: 0, best: "", average: null, economy: null, bestW: -1, bestR: 0 };
+        const line = bowl.get(b.playerId) ?? { playerId: b.playerId, name: b.playerName, sideId: inn.bowlingTeamId, balls: 0, runs: 0, wickets: 0, best: "", average: null, economy: null, fiveFors: 0, bestW: -1, bestR: 0 };
         line.balls += oversToBalls(b.overs); line.runs += b.runs; line.wickets += b.wickets;
+        if (b.wickets >= 5) line.fiveFors++;
         if (b.wickets > line.bestW || (b.wickets === line.bestW && b.runs < line.bestR)) { line.bestW = b.wickets; line.bestR = b.runs; line.best = `${b.wickets}/${b.runs}`; }
         bowl.set(b.playerId, line);
       }

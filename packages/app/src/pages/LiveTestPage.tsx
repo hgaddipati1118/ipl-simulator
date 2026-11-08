@@ -1,5 +1,5 @@
 /**
- * Live Test match (docs/FORMATS-TEST.md section 7): ball by ball, or skip ahead by over, session, day, innings or to the end;
+ * Live Test match (docs/FORMATS.md, Test section 7): ball by ball, or skip ahead by over, session, day, innings or to the end;
  * the user's decisions (toss, follow-on, new ball, DRS, next batter / nightwatchman) pause the match, and between deliveries he
  * captains (approach, declaring, bowling changes, the new ball). Commentary and the scorecard as tabs; the state saves to
  * IndexedDB with `saveKey` and resumes exactly.
@@ -8,7 +8,7 @@
  * page, the dev route) can play a Test here.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   advanceTest, autoResolveTestDecision, decideTest, finishLiveTest,
   type TestAdvanceUntil, type TestMatchResult, type TestMatchState,
@@ -31,8 +31,11 @@ export interface LiveTestPageProps {
   colors?: Record<string, string>;
   /** Heading, e.g. "1st Test" */
   title?: string;
+  /** The match has just ended (once; also when a finished match is opened): record the result here */
+  onMatchEnd?: (st: TestMatchState) => void;
   /** The match is over and the user moves on */
   onComplete?: (result: TestMatchResult) => void;
+  /** A "Leave" button (the save is written first) */
   onExit?: () => void;
 }
 
@@ -42,8 +45,8 @@ const SKIPS: { until: TestAdvanceUntil; label: string }[] = [
 ];
 const SPEEDS = { "1x": 900, "3x": 300, "10x": 90 } as const;
 
-export function LiveTestPage({ state, saveKey, colors = {}, title = "Test match", onComplete, onExit }: LiveTestPageProps) {
-  const { st, act } = useLiveTest(state, saveKey);
+export function LiveTestPage({ state, saveKey, colors = {}, title = "Test match", onMatchEnd, onComplete, onExit }: LiveTestPageProps) {
+  const { st, act, flush } = useLiveTest(state, saveKey);
   const [tab, setTab] = useState<"commentary" | "scorecard">("commentary");
   const [autoDecide, setAutoDecide] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -69,6 +72,11 @@ export function LiveTestPage({ state, saveKey, colors = {}, title = "Test match"
 
   const pending = st.status === "waiting_for_decision" ? st.pending : undefined;
   const done = st.status === "completed";
+
+  const ended = useRef(false);
+  useEffect(() => {
+    if (done && !ended.current) { ended.current = true; onMatchEnd?.(st); }
+  });
   const home = st.teams[st.teamOrder[0]];
   const away = st.teams[st.teamOrder[1]];
 
@@ -84,7 +92,7 @@ export function LiveTestPage({ state, saveKey, colors = {}, title = "Test match"
         <div className="flex items-center gap-2">
           {saveKey && <span className="text-[11px] text-th-faint font-display">Saved automatically</span>}
           {onExit && (
-            <button onClick={onExit} className="px-3 py-1.5 bg-th-hover text-th-secondary font-display font-semibold rounded-lg border border-th text-xs hover:bg-th-body">
+            <button onClick={() => { void flush().then(onExit); }} className="px-3 py-1.5 bg-th-hover text-th-secondary font-display font-semibold rounded-lg border border-th text-xs hover:bg-th-body">
               Leave
             </button>
           )}
@@ -165,7 +173,7 @@ export function LiveTestPage({ state, saveKey, colors = {}, title = "Test match"
                 View scorecard
               </button>
               {onComplete && (
-                <button onClick={() => onComplete(finishLiveTest(st))}
+                <button onClick={() => onComplete(finishLiveTest(st))} data-testid="test-continue"
                   className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-display font-semibold rounded-xl text-sm">
                   Continue
                 </button>
