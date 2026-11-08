@@ -81,15 +81,15 @@ export interface OdiBallContext {
  * faced for the batting composites, balls bowled for the bowling ones), so an average matchup has rating_k = 1.
  */
 export const ODI_REF: Record<"male" | "female", { bat: number; timing: number; power: number; bowl: number; wicketTaking: number; accuracy: number }> = {
-  male: { bat: 0.718, timing: 0.721, power: 0.7, bowl: 0.749, wicketTaking: 0.795, accuracy: 0.725 },
-  female: { bat: 0.724, timing: 0.74, power: 0.639, bowl: 0.755, wicketTaking: 0.708, accuracy: 0.765 },
+  male: { bat: 0.688, timing: 0.696, power: 0.671, bowl: 0.704, wicketTaking: 0.805, accuracy: 0.657 },
+  female: { bat: 0.675, timing: 0.693, power: 0.591, bowl: 0.732, wicketTaking: 0.734, accuracy: 0.724 },
 };
 
 /**
  * Scale on every rating slope, per gender. Women's ODI sides are further apart than men's (the real spread of team win
  * shares over the same fixtures is about half as wide again), the T20 ratings of the women's pool are not.
  */
-export const ODI_RATING_SCALE: Record<"male" | "female", number> = { male: 1, female: 1.5 };
+export const ODI_RATING_SCALE: Record<"male" | "female", number> = { male: 0.9, female: 1.25 };
 
 /**
  * Weight of a batter's shortfall below REF against his excess above it. The T20 batting ratings of tail-enders are on the
@@ -124,14 +124,14 @@ export const ODI_RATING_SLOPES: Record<(typeof ODI_OUTCOMES)[number], { balance?
 export const ODI_CAL: Record<"male" | "female", number[][]> = {
   //     dot    1      2      3      4      6      wicket wide   noball legbye
   male: [
-    [1.066, 0.833, 1.024, 1.159, 0.916, 0.637, 0.972, 1.257, 0.813, 1.223],
-    [1.026, 1.035, 0.952, 0.961, 0.859, 0.805, 0.892, 0.839, 0.892, 1.000],
-    [1.018, 1.027, 1.020, 0.951, 1.002, 0.864, 0.834, 1.003, 1.049, 1.077],
+    [1.069, 0.865, 0.980, 1.151, 0.875, 0.583, 1.001, 1.211, 0.896, 1.281],
+    [1.031, 1.036, 0.944, 0.978, 0.842, 0.770, 0.886, 0.853, 0.839, 0.999],
+    [1.018, 1.023, 1.023, 0.886, 1.041, 0.845, 0.823, 1.020, 1.148, 1.083],
   ],
   female: [
-    [1.045, 0.905, 0.912, 1.067, 0.874, 0.456, 0.945, 1.204, 1.001, 1.255],
-    [1.039, 1.015, 0.931, 0.920, 0.858, 0.698, 0.930, 0.806, 0.932, 0.980],
-    [1.034, 1.032, 0.945, 0.984, 0.990, 0.901, 0.803, 0.918, 0.726, 0.997],
+    [1.054, 0.887, 0.905, 0.978, 0.859, 0.387, 0.914, 1.258, 0.972, 1.277],
+    [1.042, 1.014, 0.928, 0.934, 0.857, 0.651, 0.891, 0.814, 0.926, 0.990],
+    [1.042, 1.032, 0.959, 1.083, 0.960, 0.861, 0.825, 0.845, 0.881, 1.016],
   ],
 };
 

@@ -15,6 +15,11 @@ import { dlsGFor, dlsTarget, inningsResources, resourcesPct, odiRevisedTarget, D
 import { ODI_OUTCOMES, odiBallProbabilities, odiBowlerChoices, odiContextWeights, odiTableOver } from "../odi-model.js";
 import { ODI_MODEL_DATA, ODI_RAIN } from "../odi-model-data.js";
 import { getOdiVenueProfile } from "../venues.js";
+import { createPlayerFromData } from "../create-player.js";
+import { ALL_PLAYERS } from "../../../ratings/src/all-players.js";
+import { attachFormatRatings, type FormatRatingsFile } from "../../../ratings/src/format-ratings.js";
+import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 vi.setConfig({ testTimeout: 240000 });
 
@@ -451,5 +456,52 @@ describe("ODI rules, live engine", () => {
       expect(ODI_RAIN[g].pReduced).toBeGreaterThan(0);
       expect(Object.keys(ODI_RAIN[g].oversPerSide).every(k => Number(k) >= 20)).toBe(true);
     }
+  });
+});
+
+describe("ODI scoring on the real national pools, seeded (benchmark-odi.ts in small)", () => {
+  // the 2019+ fixture list and pools (docs/data/odi_validation.json), players built as the game builds them, on ODI ratings
+  const V = JSON.parse(readFileSync(fileURLToPath(new URL("../../../../docs/data/odi_validation.json", import.meta.url)), "utf8"));
+  const frPath = fileURLToPath(new URL("../../../app/public/data/format-ratings.json", import.meta.url));
+  const FR: FormatRatingsFile | null = existsSync(frPath) ? JSON.parse(readFileSync(frPath, "utf8")) : null;
+  const byEspn = new Map((ALL_PLAYERS as unknown as { id: string }[]).map(p => [Number(p.id.replace("espn_", "")), p as never as Player & { ratings: Player["ratings"] }]));
+  const teams = new Map<string, Team>();
+  for (const [name, pool] of Object.entries(V.male.pools as Record<string, [number, number, number][]>)) {
+    const found = pool.map(([e]) => byEspn.get(e)).filter(Boolean).slice(0, 20) as (Player & { ratings: Player["ratings"] })[];
+    if (found.length < 13) continue;
+    const t = new Team({ id: name, name, shortName: name.slice(0, 3), city: name, primaryColor: "#333333", secondaryColor: "#999999" }, 100);
+    for (const d of found) {
+      const r = d.ratings;
+      t.addPlayer(createPlayerFromData({
+        id: d.id, name: d.name, age: d.age, country: d.country, role: d.role, isWicketKeeper: d.isWicketKeeper,
+        bowlingStyle: d.bowlingStyle, battingHand: d.battingHand, battingIQ: r.battingIQ, timing: r.timing, power: r.power,
+        running: r.running, wicketTaking: r.wicketTaking, economy: r.economy, accuracy: r.accuracy, clutch: r.clutch,
+      }), 1);
+    }
+    attachFormatRatings(t.roster, FR);
+    if (t.getPlayingXI(11).length === 11) teams.set(name, t);
+  }
+  const fixtures = (V.male.fixtures as [string, string, string | null][]).filter(([a, b, w]) => w !== null && teams.has(a) && teams.has(b)).slice(0, 240);
+  const results = fixtures.map(([a, b], i) => ({ a, b, r: simulateMatch(teams.get(a)!, teams.get(b)!, men, 31000 + i, { countTowardStandings: false, neutralVenue: true }) }));
+  const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+
+  it("first innings, 300+ share and all-outs near the real 2019+ ODIs (253, 25%, 41%)", () => {
+    const first = results.map(x => x.r.innings[0]);
+    expect(mean(first.map(i => i.runs))).toBeGreaterThan(228);
+    expect(mean(first.map(i => i.runs))).toBeLessThan(278);
+    const p300 = mean(first.map(i => (i.runs >= 300 ? 1 : 0)));
+    expect(p300).toBeGreaterThan(0.12);
+    expect(p300).toBeLessThan(0.4);
+    const allOut = mean(first.map(i => (i.wickets >= 10 ? 1 : 0)));
+    expect(allOut).toBeGreaterThan(0.28);
+    expect(allOut).toBeLessThan(0.6);
+  });
+
+  it("full members beat associates far more often than not", () => {
+    const fm = new Set(["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies", "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]);
+    const mixed = results.filter(x => fm.has(x.a) !== fm.has(x.b));
+    expect(mixed.length).toBeGreaterThan(10);
+    const fmWins = mixed.filter(x => x.r.winnerId !== null && fm.has(x.r.winnerId)).length;
+    expect(fmWins / mixed.length).toBeGreaterThan(0.55);
   });
 });

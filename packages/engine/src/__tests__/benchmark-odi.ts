@@ -7,19 +7,21 @@
  *   ENGINE=live ...      play the matches in the live engine (CPU v CPU) instead of the instant one
  *   CALIBRATE=1 ...      also print what refitting needs: per-outcome rates sim vs real (-> ODI_CAL), the
  *                        involvement-weighted rating composites (-> ODI_REF) and the rating spread vs the real one (-> slopes)
- *   FORMAT_RATINGS=/path/format-ratings.json ...   play the players on their ODI ratings (the ratings pipeline's
- *                        packages/app/public/data/format-ratings.json, sourceId -> [odi, test] sets; default: that file if it
- *                        exists, else everyone on his T20 ratings). FORMAT_RATINGS=none forces the T20 ratings.
+ *   FORMAT_RATINGS=none ...  everyone on his T20 ratings (the engine's fallback when a player has no ODI set);
+ *                        FORMAT_RATINGS=/path/format-ratings.json another ratings file (default: the app's)
  *   ODI_TUNE='{"cal":{"male":[[...]]},"slopes":{"wicket":{"balance":-1.2}},"ref":{"male":{...}},"scale":{"female":1.4},"tail":0.5}' ...
  *                        try parameters before writing them into odi-model.ts (merged over the shipped ones)
  *
  * A national pool is everyone in the game's pool (ALL_PLAYERS men, WPL_PLAYERS women; Cricinfo ids) who batted or bowled
- * in the side's 2019+ ODIs; the squad is its 20 most involved, the XI the engine's own pick. Every match is seeded.
+ * in the side's 2019+ ODIs, made into game players the way the game makes them (createPlayerFromData) and given their ODI
+ * ratings the way the app does (attachFormatRatings with packages/app/public/data/format-ratings.json); the squad is its 20
+ * most involved, the XI the engine's own pick. Every match is seeded.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ALL_PLAYERS } from "../../../ratings/src/all-players.js";
 import { WPL_PLAYERS } from "../../../ratings/src/wpl-players.js";
+import { attachFormatRatings, type FormatRatingsFile } from "../../../ratings/src/format-ratings.js";
 import * as E from "../index.js";
 
 if (process.env.ODI_TUNE) {
@@ -36,15 +38,7 @@ const LIVE = process.env.ENGINE === "live";
 const CALIBRATE = !!process.env.CALIBRATE;
 const V = JSON.parse(readFileSync(fileURLToPath(new URL("../../../../docs/data/odi_validation.json", import.meta.url)), "utf8"));
 const FR_PATH = process.env.FORMAT_RATINGS ?? fileURLToPath(new URL("../../../app/public/data/format-ratings.json", import.meta.url));
-const FR: { players: Record<string, number[][]> } | null = FR_PATH !== "none" && existsSync(FR_PATH) ? JSON.parse(readFileSync(FR_PATH, "utf8")) : null;
-const CORE = ["battingIQ", "timing", "power", "running", "wicketTaking", "economy", "accuracy", "clutch"] as const;
-/** The player's ODI set from the ratings file (fielding / keeping stay his T20 values), if it has one */
-function odiSet(d: E.PlayerData): E.PlayerData["formatRatings"] {
-  const set = FR?.players[d.id]?.[0];
-  if (!set || set.length < 9) return undefined;
-  const ratings = { ...d.ratings, ...Object.fromEntries(CORE.map((k, i) => [k, set[i]])) } as E.PlayerData["ratings"];
-  return { odi: { ratings, source: set[8] === 1 ? "data" : "derived" } };
-}
+const FR: FormatRatingsFile | null = FR_PATH !== "none" && existsSync(FR_PATH) ? JSON.parse(readFileSync(FR_PATH, "utf8")) : null;
 const MODEL_REPORT = JSON.parse(readFileSync(fileURLToPath(new URL("../../../../docs/data/odi_ball_model.json", import.meta.url)), "utf8"));
 
 type G = "male" | "female";
@@ -67,9 +61,16 @@ function nationalTeams(gender: G): Map<string, E.Team> {
     const id = name.toLowerCase().replace(/[^a-z]+/g, "-");
     const team = new E.Team({ id, name, shortName: name.slice(0, 3).toUpperCase(), city: name, primaryColor: "#333333", secondaryColor: "#999999" }, 100);
     for (const d of found) {
-      const fr = odiSet(d);
-      team.addPlayer(new E.Player({ ...d, id: `${id}_${d.id}`, ...(fr ? { formatRatings: fr } : {}), injured: false, injuryGamesLeft: 0 }), 1);
+      const r = d.ratings;
+      team.addPlayer(E.createPlayerFromData({
+        id: d.id, name: d.name, age: d.age, country: d.country, role: d.role, isWicketKeeper: d.isWicketKeeper,
+        bowlingStyle: d.bowlingStyle, battingHand: d.battingHand,
+        battingIQ: r.battingIQ, timing: r.timing, power: r.power, running: r.running,
+        wicketTaking: r.wicketTaking, economy: r.economy, accuracy: r.accuracy, clutch: r.clutch,
+        ...(r.fielding !== undefined ? { fielding: r.fielding } : {}), ...(r.keeping !== undefined ? { keeping: r.keeping } : {}),
+      }), 1);
     }
+    attachFormatRatings(team.roster, FR);
     if (team.getPlayingXI(11).length === 11) teams.set(name, team);
   }
   return teams;
