@@ -505,3 +505,24 @@ describe("ODI scoring on the real national pools, seeded (benchmark-odi.ts in sm
     expect(fmWins / mixed.length).toBeGreaterThan(0.55);
   });
 });
+
+describe("ODI win probability (fitted on Cricsheet ODIs)", () => {
+  it("a chase of 306 in 48 overs at 11/1 is an uphill one; T20 numbers are unchanged", async () => {
+    const { calculateWinProbability, odiWinProbability } = await import("../win-probability.js");
+    const steep = calculateWinProbability({ score: 11, wickets: 1, overs: 1, balls: 2, innings: 2, target: 306, battingTeamPower: 80, bowlingTeamPower: 80, totalOvers: 50, inningsOvers: 48 });
+    expect(steep).toBeGreaterThan(5);
+    expect(steep).toBeLessThan(35);
+    const easy = odiWinProbability({ score: 200, wickets: 2, ballsBowled: 240, innings: 2, target: 230, inningsOvers: 50, gender: "male" });
+    expect(easy).toBeGreaterThan(90);
+    const late = odiWinProbability({ score: 250, wickets: 9, ballsBowled: 294, innings: 2, target: 270, inningsOvers: 50, gender: "male" });
+    expect(late).toBeLessThan(10);
+    // first innings: on par is about even, 60 above par well ahead
+    const par = odiWinProbability({ score: 130, wickets: 3, ballsBowled: 180, innings: 1, inningsOvers: 50, gender: "male" });
+    const ahead = odiWinProbability({ score: 190, wickets: 2, ballsBowled: 180, innings: 1, inningsOvers: 50, gender: "male" });
+    expect(Math.abs(par - 50)).toBeLessThan(20);
+    expect(ahead).toBeGreaterThan(par + 15);
+    // the T20 path does not change: the same call without totalOvers
+    expect(calculateWinProbability({ score: 80, wickets: 2, overs: 10, balls: 0, innings: 2, target: 170, battingTeamPower: 80, bowlingTeamPower: 80 }))
+      .toBe(calculateWinProbability({ score: 80, wickets: 2, overs: 10, balls: 0, innings: 2, target: 170, battingTeamPower: 80, bowlingTeamPower: 80, totalOvers: 20 }));
+  });
+});
