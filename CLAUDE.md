@@ -18,6 +18,8 @@ Formats: T20, The Hundred and the ODI (`format.ts`; `odiRules()` starts an ODI i
 from its own model fitted on Cricsheet ODIs, in both engines (`odi-model.ts`; generated `odi-model-data.ts` / `odi-venue-data.ts` from
 `packages/ratings/src/analysis/odi-ball-model.py`; players on their ODI ratings via `Player.forFormat("odi")`); rules, model, validation
 (`__tests__/benchmark-odi.ts`) and refitting: `docs/FORMATS.md`. `__tests__/fingerprint-matches.ts` shows an engine change leaves T20 / Hundred play unchanged.
+In the app, `/international` plays international series (ODI, T20I; men and women; `packages/app/src/international.ts`, a pluggable
+`SERIES_FORMATS` list a Test entry joins) and Draft Match has a T20 / ODI option (docs/FORMATS.md, "In the app").
 
 Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ball text (scraper, templates, engine API: `docs/COMMENTARY.md`;
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).
