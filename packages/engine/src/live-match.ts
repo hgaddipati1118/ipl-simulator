@@ -1063,8 +1063,10 @@ export function createMatchState(
 
   const stadiumRating = (odi ? 1 : stadiumRatingFor(homeTeam, venueProfile)) * (2 - rules.scoringMultiplier);
 
-  const firstXI = battingFirst === homeTeam ? homeXI : awayXI;
-  const firstBowlXI = battingFirst === homeTeam ? awayXI : homeXI;
+  // An ODI orders its batters and bowlers on their ODI ratings (the XIs as they play the format, Player.forFormat)
+  const asPlayed = (xi: Player[]) => (odi ? xi.map(p => p.forFormat("odi")) : xi);
+  const firstXI = asPlayed(battingFirst === homeTeam ? homeXI : awayXI);
+  const firstBowlXI = asPlayed(battingFirst === homeTeam ? awayXI : homeXI);
 
   const battingOrder = battingFirst.getBattingOrder(firstXI);
   const bowlingOrder = bowlingFirst.getBowlingOrder(firstBowlXI);
@@ -1126,14 +1128,15 @@ export function createMatchState(
   const startOvers = odiRain && odiRain.kind === "reduced" && odiRain.when === "preMatch" ? odiRain.overs : fmt.overs;
 
   // Second innings orders (computed now for later use)
-  const secondXI = bowlingFirst === homeTeam ? homeXI : awayXI;
-  const secondBowlXI = bowlingFirst === homeTeam ? awayXI : homeXI;
+  const secondXI = asPlayed(bowlingFirst === homeTeam ? homeXI : awayXI);
+  const secondBowlXI = asPlayed(bowlingFirst === homeTeam ? awayXI : homeXI);
   const inn2BattingOrder = bowlingFirst.getBattingOrder(secondXI);
   const inn2BowlingOrder = battingFirst.getBowlingOrder(secondBowlXI);
 
   // Build bowling plans: use user's plan if set, otherwise auto-generate based on bowling style
-  const homeBowlingPlan = homeTeam.getBowlingPlan() ?? autoGenerateBowlingPlan(homeXI, playerDataMap);
-  const awayBowlingPlan = awayTeam.getBowlingPlan() ?? autoGenerateBowlingPlan(awayXI, playerDataMap);
+  // (an ODI keeps only a user's own plan: the CPU bowls its best bowlers, see pickNextBowler)
+  const homeBowlingPlan = homeTeam.getBowlingPlan() ?? (odi ? undefined : autoGenerateBowlingPlan(homeXI, playerDataMap));
+  const awayBowlingPlan = awayTeam.getBowlingPlan() ?? (odi ? undefined : autoGenerateBowlingPlan(awayXI, playerDataMap));
 
   // If user wins the toss, pause for their decision
   const initialStatus: MatchState["status"] = isUserTossWinner ? "waiting_for_decision" : "in_progress";
@@ -4085,6 +4088,13 @@ function pickNextBowler(
 
   // If a bowling plan is set, prefer bowlers assigned to the current phase
   const phase = currentOver !== undefined ? getMatchPhase(odi ? phaseOver(currentOver, ODI_FORMAT) : currentOver) : undefined;
+  if (odi) {
+    // An ODI captain bowls his best: the user's own plan first if he set one, then by rating, one of the top three (as
+    // the instant engine does)
+    const planned = new Set(bowlingPlan && phase ? bowlingPlan[phase] ?? [] : []);
+    eligibleIndices.sort((a, b) => ((planned.has(a.id) ? 0 : 1) - (planned.has(b.id) ? 0 : 1)) || (pm[b.id]?.bowlingOvr ?? 0) - (pm[a.id]?.bowlingOvr ?? 0));
+    return eligibleIndices[Math.floor(rng() * Math.min(3, eligibleIndices.length))].idx;
+  }
   let planIds: string[] = [];
   if (bowlingPlan && phase) {
     planIds = bowlingPlan[phase] ?? [];
