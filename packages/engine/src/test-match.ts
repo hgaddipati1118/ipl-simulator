@@ -246,8 +246,9 @@ export interface TestInnings {
   retiredHurt?: string[];
   /** A CPU batting side went into its pre-declaration push at this over */
   pushFrom?: number;
-  /** The innings' own scoring conditions (a multiplier on the scoring classes) */
+  /** The innings' own conditions: multipliers on the scoring classes and on the wicket */
   cond?: number;
+  condW?: number;
   /** Overs of pace / spin bowled in this innings on each day */
   dayTypeOvers?: [number, number][];
 }
@@ -403,22 +404,32 @@ function isSpinStyle(style: string | undefined): boolean {
   return !!style && (style.includes("spin") || style.includes("orthodox") || style.endsWith("-slow"));
 }
 
-type TermMap = Readonly<Record<string, { readonly weights: Readonly<Record<string, number>>; readonly c?: number | Readonly<Record<string, number>> }>>;
+type Term = { readonly weights: Readonly<Record<string, number>>; readonly knots: readonly (readonly number[])[]; readonly c?: number | Readonly<Record<string, number>> };
+type TermMap = Readonly<Record<string, Term>>;
 type Pool = { readonly mean: Readonly<Record<string, number>>; readonly sd: Readonly<Record<string, number>> };
 
 /**
- * A player's log multiplier on one outcome class from his ratings: the fitted attribute mix (z-scored against the real
- * Test players' ratings; bowlers against their own type) scaled to the real spread of that player term (reduced major axis,
- * test-match-model.py).
+ * A player's log multiplier on one outcome class from his ratings: the fitted attribute mix (z-scored against the real Test
+ * players' ratings; bowlers against their own type) read off the fitted calibration curve (test-match-model.py rating_map:
+ * what real players with that mix did, stretched to the term's true spread where ratings rank players), flat beyond its ends.
  */
-function termLog(ratings: PlayerRatings, term: TermMap[string] | undefined, pool: Pool, type?: "pace" | "spin"): number {
-  if (!term) return 0;
-  let z = typeof term.c === "number" ? term.c : (type && term.c?.[type]) ?? 0;
+function termLog(ratings: PlayerRatings, term: Term | undefined, pool: Pool, type?: "pace" | "spin"): number {
+  if (!term || term.knots.length === 0) return 0;
+  let x = 0;
   for (const [a, w] of Object.entries(term.weights)) {
     const r = (ratings as unknown as Record<string, number>)[a] ?? pool.mean[a];
-    z += w * (r - pool.mean[a]) / (pool.sd[a] || 1);
+    x += w * (r - pool.mean[a]) / (pool.sd[a] || 1);
   }
-  return Math.max(-2.5, Math.min(2.5, z));
+  const k = term.knots;
+  let y = k[0][1];
+  if (x >= k[k.length - 1][0]) y = k[k.length - 1][1];
+  else if (x > k[0][0]) {
+    for (let i = 0; i + 1 < k.length; i++) {
+      if (x <= k[i + 1][0]) { y = k[i][1] + (k[i + 1][1] - k[i][1]) * (x - k[i][0]) / ((k[i + 1][0] - k[i][0]) || 1); break; }
+    }
+  }
+  const c = typeof term.c === "number" ? term.c : (type && term.c?.[type]) ?? 0;
+  return Math.max(-2.5, Math.min(2.5, y + c));
 }
 
 type RatingMap = { readonly bat: TermMap; readonly bowl: TermMap; readonly pool: { readonly bat: Pool; readonly bowl: Readonly<Record<"pace" | "spin", Pool>> } };
@@ -657,9 +668,13 @@ function startInnings(st: TestMatchState, battingTeamId: string, followOn: boole
     ends: [null, null], end: 0, overBalls: 0, overRuns: 0,
     ...(followOn ? { followOn: true } : {}),
   };
-  // the innings' own scoring conditions (fitted spread beyond the match's), mean 1
-  const sd = M.inningsSpread.run;
-  inn.cond = Math.exp(sd * normal(rngOf(st)) - sd * sd / 2);
+  // the innings' own conditions within the match (fitted spread of runs and wickets), mean 1
+  const S = M.inningsSpread as { run: number; wicket?: number; corr?: number };
+  const r = rngOf(st);
+  const z1 = normal(r), z2 = normal(r);
+  const sw = S.wicket ?? 0, c = S.corr ?? 0;
+  inn.cond = Math.exp(S.run * z1 - S.run * S.run / 2);
+  inn.condW = Math.exp(sw * (c * z1 + Math.sqrt(1 - c * c) * z2) - sw * sw / 2);
   inn.batters[order[0]] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, arrived: 1 };
   inn.batters[order[1]] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, arrived: 2 };
   st.innings.push(inn);
@@ -815,6 +830,7 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
       * bat.batMul[k] * bowl.bowlMul[k] * st.cond[k];
     if (team.bazball) v *= T_BAZ[k];
     if (k < IW && inn.cond) v *= inn.cond;
+    else if (k === IW && inn.condW) v *= inn.condW;
     if (k === IW) v *= fat.wkts; else v *= fat.runs;
     p[k] = v;
   }

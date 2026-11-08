@@ -283,12 +283,20 @@ def write_espn_styles():
 # ── 3. The ball model: IPF on the log-linear Poisson rates ─────────────────────────────────────────────────────────
 
 COUNTRY_IDX = {c: i for i, c in enumerate(COUNTRIES)}
-FACTORS = ["age", "set", "inn", "dt", "spell", "sit", "home", "ct", "era", "baz", "match", "bat", "bowl"]
+# INNINGS_TERM adds an innings-within-match random effect. Tried and left out: it soaks up collapses (a wicket brings in a new,
+# vulnerable batter, so the set-ness effect vanishes into "a bad innings"), and its large wicket spread drawn per innings in
+# the engine runs into exposure (bad innings are short), which put the benchmark further from the real Tests.
+INNINGS_TERM = bool(os.environ.get("INNINGS_TERM"))
+FACTORS = ["age", "set", "inn", "dt", "spell", "sit", "home", "ct", "era", "baz", "match"] + (["innid"] if INNINGS_TERM else []) + ["bat", "bowl"]
 PLAYER_FACTORS = {"bat", "bowl"}
 # a match's own conditions (pitch, weather, ball) beyond its country: a random effect shrunk with a 1500-ball prior
 MATCH_PRIOR_BALLS = 1500
+# an innings' own conditions within its match (so the situation factors are measured within innings: a chase going well is
+# not mistaken for the effect of needing few runs an over), shrunk with a 400-ball prior
+INNINGS_PRIOR_BALLS = 400
 # which factors each outcome class is fitted with (extras do not depend on the batter; byes not on the bowler either)
 OUTCOME_FACTORS = {k: FACTORS for k in ["1", "2", "3", "4", "6", "W"]}
+OUTCOME_FACTORS.update({k: [f for f in FACTORS] for k in ["1", "2", "3", "4", "6", "W"]})
 OUTCOME_FACTORS.update({
     "wide": ["age", "set", "inn", "dt", "spell", "sit", "home", "ct", "era", "match", "bowl"],
     "nb": ["age", "inn", "dt", "spell", "home", "ct", "era", "match", "bowl"],
@@ -313,7 +321,7 @@ SELECT row_number() OVER () rid, gender, yr, mid, inn,
   CASE home WHEN 'home' THEN 0 WHEN 'away' THEN 1 ELSE 2 END f_home,
   coalesce(CASE country {ct_case} END, {len(COUNTRIES)}) * 2 + CASE WHEN btype = 'spin' THEN 1 ELSE 0 END f_ct,
   era f_era, baz f_baz,
-  dense_rank() OVER (ORDER BY mid) - 1 f_match, dense_rank() OVER (ORDER BY bat) - 1 f_bat, dense_rank() OVER (ORDER BY bowl) - 1 f_bowl,
+  dense_rank() OVER (ORDER BY mid) - 1 f_match, dense_rank() OVER (ORDER BY mid, inn) - 1 f_innid, dense_rank() OVER (ORDER BY bat) - 1 f_bat, dense_rank() OVER (ORDER BY bowl) - 1 f_bowl,
   CASE WHEN wides > 0 THEN 'wide' WHEN noballs > 0 THEN 'nb'
        WHEN is_wicket = 1 AND coalesce(wk, '') NOT IN ('retired hurt', 'retired not out') THEN 'W'
        WHEN byes + legbyes > 0 AND rb = 0 THEN 'bye'
@@ -333,7 +341,8 @@ def fit_outcome(k):
   ln({rate}) lm FROM fb WHERE gender = 'male';"""]
     for it in range(ITERS):
         for f in facs:
-            a = PRIOR_BALLS * rate if f in PLAYER_FACTORS else MATCH_PRIOR_BALLS * rate if f == "match" else 0.5
+            a = (PRIOR_BALLS * rate if f in PLAYER_FACTORS else MATCH_PRIOR_BALLS * rate if f == "match"
+                 else INNINGS_PRIOR_BALLS * rate if f == "innid" else 0.5)
             sql.append(f"""CREATE OR REPLACE TABLE u AS SELECT f_{f} lv, ln((sum(y) + {a}) / (sum(exp(lm - l_{f})) + {a})) nl FROM w GROUP BY 1;
 UPDATE w SET lm = w.lm - w.l_{f} + u.nl, l_{f} = u.nl FROM u WHERE w.f_{f} = u.lv;""")
     sql.append(f"CREATE OR REPLACE TABLE fit_{k} AS SELECT * FROM w;")
@@ -375,6 +384,8 @@ FROM fit_{k} w JOIN fb USING(rid) WHERE fb.gender = 'male';""", json_out=False)
   (SELECT *, {'wt' if where else '1.0'} wt2 FROM z {where}) GROUP BY 1;
 UPDATE z SET a_{term} = z.a_{term} - c.c, a_{parent} = z.a_{parent} + c.c FROM c WHERE z.{group} = c.g;""", json_out=False)
 
+    if "innid" in facs:
+        move("innid", "match", "mid")
     if "match" in facs:
         for _ in range(3):
             move("match", "ct", "cty")
@@ -418,6 +429,10 @@ def extract(k):
     sum(exp({norm})) e_norm FROM z GROUP BY 1)
   SELECT mid, cty, isref, o, e, ln((o + 0.5) / (e + 0.5)) raw FROM t""")
         out["match"] = {x["mid"]: [int(x["cty"]), bool(x["isref"]), x["o"], x["e"], x["raw"]] for x in rows}
+    if "innid" in facs:
+        # an innings' own conditions: observed / expected without the innings term, per (match, innings)
+        rows = duck("""SELECT mid, f_innid, sum(y) o, sum(exp(lm - a_innid)) e FROM z GROUP BY 1, 2""")
+        out["innings"] = {f"{x['mid']}|{int(x['f_innid'])}": [x["o"], x["e"]] for x in rows}
     out["means"] = means
     return out
 
@@ -449,6 +464,9 @@ BOWL_MIX.update({"W": {"wicketTaking": 1, "economy": 1, "accuracy": 1}, "wide": 
 MIN_BALLS_MAP = 300
 CURVE_MIN_BALLS = 30
 CURVE_BINS = 10
+STRETCH_MIN_R = 0.2
+STRETCH_MAX = 2.0
+STRETCH_TERMS = {"W"}
 RIDGE = 0.05
 
 
@@ -588,6 +606,14 @@ def rating_map(model, gp):
             ky = [math.log((sum(x[5] for _, x in b) + 0.5) / (sum(x[6] for _, x in b) + 0.5)) for b in bins]
             kw = [sum(x[6] for _, x in b) for b in bins]
             ky = pav(ky, kw, increasing=True)  # the mix is oriented so a higher value means a higher rate
+            # In the game a rating is the player's skill. For the wicket term (a batter's survival, a bowler's wicket-taking)
+            # the measured curve, which regresses to the mean as far as the ratings are noisy, is stretched about its centre to
+            # the term's true spread (at most STRETCH_MAX times) where the ratings do rank players (r >= STRETCH_MIN_R). The
+            # scoring terms keep their measured curves: stretching every term at once (all driven by the same ratings) made
+            # strong sides far too dominant (benchmark-test.ts, docs/FORMATS-TEST.md section 5).
+            ybar = sum(y_ * w_ for y_, w_ in zip(ky, kw)) / sum(kw)
+            stretch = 1.0
+            ky0 = list(ky)
             curve = lambda c_: ky[0] if c_ <= kx[0] else ky[-1] if c_ >= kx[-1] else next(
                 ky[i] + (ky[i + 1] - ky[i]) * (c_ - kx[i]) / (kx[i + 1] - kx[i]) for i in range(len(kx) - 1) if kx[i] <= c_ <= kx[i + 1])
             cs_ = {}
@@ -601,8 +627,18 @@ def rating_map(model, gp):
             sp = math.sqrt(sum((v - mp) ** 2 for v in pred) / N) or 1
             sy = math.sqrt(sum((v - my) ** 2 for v in dev) / N)
             corr = sum((a_ - mp) * (b_ - my) for a_, b_ in zip(pred, dev)) / N / sp / sy
+            if k in STRETCH_TERMS and corr >= STRETCH_MIN_R and sp < math.sqrt(tau2):
+                stretch = min(STRETCH_MAX, math.sqrt(tau2) / sp)
+                ky = [ybar + stretch * (y_ - ybar) for y_ in ky0]
+                for g in pools:
+                    xs = [x for _, x in pts if x[4] == g]
+                    tot = sum(x[1] for x in xs)
+                    cs_[g] = r(-math.log(sum(x[1] * math.exp(curve(comp(x))) for x in xs) / tot))
+                pred = [curve(comp(x)) for x in reg]
+                mp = sum(pred) / N
+                sp = math.sqrt(sum((v - mp) ** 2 for v in pred) / N) or 1
             res[f][k] = {"weights": {a: r(w_) for a, w_ in wts.items()}, "knots": [[r(a_, 3), r(b_)] for a_, b_ in zip(kx, ky)],
-                         "c": cs_["all"] if f == "bat" else cs_, "tau": r(math.sqrt(tau2)), "spread": r(sp), "r": r(corr, 3), "n": len(rows)}
+                         "c": cs_["all"] if f == "bat" else cs_, "tau": r(math.sqrt(tau2)), "spread": r(sp), "stretch": r(stretch, 3), "r": r(corr, 3), "n": len(rows)}
         res["pool"][f] = pools["all"] if f == "bat" else pools
     return res
 
@@ -973,17 +1009,60 @@ def match_spread(model):
     return {"run": r(math.sqrt(max(vr, 0))), "wicket": r(math.sqrt(max(vw, 0))), "corr": r(cov / math.sqrt(max(vr, 1e-6) * max(vw, 1e-6)), 3), "matches": N}
 
 
-def innings_spread():
+def innings_spread(model):
+    if not INNINGS_TERM:
+        return innings_spread_residual()
+    return innings_spread_term(model)
+
+
+def innings_spread_residual():
     """An innings' own scoring conditions beyond everything else (match term included): the spread of the observed / expected
     runs per innings less its sampling noise (Poisson-like: the expected sum of squared runs), for innings of 60+ expected runs.
-    The same test finds no extra spread in the wicket rate per innings, nor in either rate per match beyond the match term."""
+    The wickets are left alone: per innings their observed / expected ratio is no more spread than chance."""
     x = duck(f"""CREATE OR REPLACE TABLE er AS SELECT f.mid, f.inn, f.yr,
   exp(a.lm) + 2 * exp(b.lm) + 3 * exp(c.lm) + 4 * exp(d.lm) + 6 * exp(e.lm) mu_r, exp(a.lm) + 4 * exp(b.lm) + 9 * exp(c.lm) + 16 * exp(d.lm) + 36 * exp(e.lm) mu_r2,
   CASE f.cls WHEN '1' THEN 1 WHEN '2' THEN 2 WHEN '3' THEN 3 WHEN '4' THEN 4 WHEN '6' THEN 6 ELSE 0 END y_r
 FROM fb f JOIN fit_1 a USING(rid) JOIN fit_2 b USING(rid) JOIN fit_3 c USING(rid) JOIN fit_4 d USING(rid) JOIN fit_6 e USING(rid) WHERE f.gender = 'male';
 WITH t AS (SELECT mid, inn, sum(y_r) o, sum(mu_r) e, sum(mu_r2) v FROM er WHERE yr >= 2010 GROUP BY ALL HAVING sum(mu_r) > 60)
 SELECT count(*) n, var_pop(ln(o / e)) raw, avg(v / (e * e)) samp FROM t""")[0]
-    return {"run": r(math.sqrt(max(0, x["raw"] - x["samp"]))), "innings": int(x["n"])}
+    return {"run": r(math.sqrt(max(0, x["raw"] - x["samp"]))), "wicket": 0, "corr": 0, "innings": int(x["n"])}
+
+
+def innings_spread_term(model):
+    """An innings' own conditions within its match: the spread of the observed / expected runs and wickets per innings
+    (expected without the innings term), centred within the match, less the sampling noise; innings of 60+ expected runs."""
+    runs = {"1": 1, "2": 2, "3": 3, "4": 4, "6": 6}
+    per = {}
+    for k in list(runs) + ["W"]:
+        for key, (o, e) in model[k]["innings"].items():
+            per.setdefault(key, {})[k] = (o, e)
+    pts = []
+    for key, d in per.items():
+        if not all(k in d for k in list(runs) + ["W"]):
+            continue
+        orr = sum(v * d[k][0] for k, v in runs.items())
+        err = sum(v * d[k][1] for k, v in runs.items())
+        if err < 60:
+            continue
+        svr = sum(v * v * d[k][1] for k, v in runs.items()) / err ** 2
+        ow, ew = d["W"]
+        pts.append((key.split("|")[0], math.log((orr + 1) / (err + 1)), math.log((ow + 0.5) / (ew + 0.5)), svr, 1 / (ew + 0.5)))
+    for mid in set(x[0] for x in pts):
+        xs = [x for x in pts if x[0] == mid]
+        if len(xs) < 2:
+            continue
+        mr = sum(x[1] for x in xs) / len(xs)
+        mw = sum(x[2] for x in xs) / len(xs)
+        n_ = len(xs)
+        # centring within the match takes 1/n of the variance out: scale back up
+        f_ = math.sqrt(n_ / (n_ - 1))
+        pts = [(x[0], (x[1] - mr) * f_, (x[2] - mw) * f_, x[3], x[4]) if x[0] == mid else x for x in pts]
+    N = len(pts)
+    vr = sum(x[1] ** 2 for x in pts) / N - sum(x[3] for x in pts) / N
+    vw = sum(x[2] ** 2 for x in pts) / N - sum(x[4] for x in pts) / N
+    cov = sum(x[1] * x[2] for x in pts) / N
+    return {"run": r(math.sqrt(max(vr, 0))), "wicket": r(math.sqrt(max(vw, 0))),
+            "corr": r(cov / math.sqrt(max(vr, 1e-6) * max(vw, 1e-6)), 3) if vr > 0 and vw > 0 else 0, "innings": N}
 
 
 def women_base(model):
@@ -1028,7 +1107,7 @@ def write(model, rmap, dx, pol, real, spread, wbase):
         "bins": {"age": AGE_BINS, "set": SET_BINS, "spell": SPELL_MAX, "chaseRate": RR_BINS, "pushOvers": PUSH_OVERS},
         "factors": tables(model),
         "matchSpread": spread,
-        "inningsSpread": innings_spread(),
+        "inningsSpread": innings_spread(model),
         "players": rmap,
         **dx,
         "policy": pol,

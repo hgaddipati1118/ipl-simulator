@@ -5,20 +5,28 @@
  *   npx tsx packages/engine/src/__tests__/benchmark-test.ts [tests=3000]
  *   GENDER=female ...   the women's squads against real women's Tests
  *   MD=1 ...            print the table as markdown (docs/FORMATS-TEST.md)
- *   RATINGS=t20 ...     drop the squads' Test ratings: every player plays on his T20 ratings
+ *   RATINGS=t20 ...     leave the Test ratings off: every player plays on his T20 ratings (the fallback)
+ *
+ * Squads: the fixture's members from the shipped pools with format-ratings.json attached (test-pool-squads.ts).
  *
  * docs/FORMATS-TEST.md section 6 has the numbers.
  */
 import { simulateTestMatch, type TestMatchState } from "../test-match.js";
 import { TEST_MODEL } from "../test-model-data.js";
-import { TEST_SQUADS, testTeam } from "./test-squads.js";
+import { TEST_SQUADS } from "./test-squads.js";
+import { poolTestTeam, HAS_FORMAT_RATINGS } from "./test-pool-squads.js";
 
 const N = Number(process.argv[2] ?? 3000);
 const gender = (process.env.GENDER === "female" ? "female" : "male") as "male" | "female";
 const real = gender === "female" ? TEST_MODEL.real.female : TEST_MODEL.real.male;
 const recent = gender === "female" ? undefined : TEST_MODEL.real.male2023;
 const squads = TEST_SQUADS.filter(s => s.gender === gender);
-const teams = new Map(squads.map(s => [s.team, testTeam(s.team, gender, { t20Only: process.env.RATINGS === "t20" })]));
+const t20Only = process.env.RATINGS === "t20" || !HAS_FORMAT_RATINGS;
+const built = squads.map(s => ({ s, ...poolTestTeam(s.team, gender, { t20Only }) }));
+const missing = built.flatMap(b => b.missing.map(n => `${n} (${b.s.team})`));
+const teams = new Map(built.map(b => [b.s.team, b.team]));
+const withTest = built.reduce((a, b) => a + b.team.roster.filter(p => p.formatRatings?.test).length, 0);
+const rosterSize = built.reduce((a, b) => a + b.team.roster.length, 0);
 const country = new Map(squads.map(s => [s.team, s.country]));
 
 // fixtures: host by the real number of home Tests, opponent by the real number of Tests played
@@ -156,7 +164,7 @@ if (gender === "male") {
 }
 row("DRS reviews per innings", f2((sum.reviews ?? 0) / (sum.inn1 + sum.inn2 + (sum.inn3 ?? 0) + (sum.inn4 ?? 0))), TEST_MODEL.drs.reviewsPerInnings);
 
-console.log(`${N} ${gender} Tests, ${ms.toFixed(1)} ms each`);
+console.log(`${N} ${gender} Tests, ${ms.toFixed(1)} ms each; squads from the shipped pool, ${withTest}/${rosterSize} players on Test ratings${t20Only ? " (T20 ratings only)" : ""}${missing.length ? `; not in the pool: ${missing.join(", ")}` : ""}`);
 if (process.env.MD) {
   console.log(`| metric | sim | real ${gender === "male" ? "2015+" : "(all)"} | real 2023+ |\n|---|---|---|---|`);
   for (const r of rows) console.log(`| ${r.join(" | ")} |`);
