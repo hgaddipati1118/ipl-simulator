@@ -1796,13 +1796,17 @@ export function describeTestBall(st: TestMatchState, inn: TestInnings, index: nu
   });
   // corpus lines are not repeated within a match (the live T20 engine does the same)
   if (out.key && st.commentary) (st.commentaryUsed ??= {})[out.key] = 1;
-  // Tests have no free hit: the shared no-ball lines may announce one
-  let text = out.text.replace(/(^|\s)[^.!?]*free hit[^.!?]*[.!?]/gi, "").replace(/^FREE HIT!\s*/i, "").trim();
+  // the shared lines are written for limited overs: a Test has no free hit, powerplay or death overs, so those sentences go
+  let text = out.text.replace(LIMITED_OVERS_SENTENCE, "").replace(/^FREE HIT!\s*/i, "").trim();
+  if (!text) text = `${name(ev.bowler)} to ${name(ev.batter)}, ${ev.isWicket ? "OUT" : ev.runs + ev.extras === 0 ? "no run" : `${ev.runs + ev.extras} run${ev.runs + ev.extras === 1 ? "" : "s"}`}.`;
   if (!ev.isWicket && ev.fieldingNote === "dropped_catch") text += ` Dropped! ${name(ev.fielderId) ?? "The fielder"} puts down the chance.`;
   if (!ev.isWicket && ev.fieldingNote === "missed_stumping") text += ` ${name(ev.fielderId) ?? "The keeper"} misses the stumping.`;
   if (ev.review) text += " " + drsText(ev.review, st.teams[ev.review.by === "batting" ? inn.battingTeamId : inn.bowlingTeamId].name, rng);
   return text;
 }
+
+/** A sentence of the shared commentary that only fits limited overs (free hit, powerplay, fielding restrictions, death overs) */
+const LIMITED_OVERS_SENTENCE = /(^|\s)[^.!?]*(free hit|power ?play|fielding restrictions|death overs)[^.!?]*[.!?]/gi;
 
 /** An innings as a scorecard (the same shape as the limited-overs scorecards) */
 export function testInningsScorecard(st: TestMatchState, inn: TestInnings): InningsScorecard {

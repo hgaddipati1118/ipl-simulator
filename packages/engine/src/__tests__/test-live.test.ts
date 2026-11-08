@@ -246,13 +246,13 @@ describe("live Test: skipping ahead and saving", () => {
 });
 
 describe("live Test commentary", () => {
-  it("never announces a free hit (there are none in Tests)", () => {
+  it("never announces a free hit, a powerplay or the death overs (there are none in Tests)", () => {
     const st = startLiveTest(IND, ENG, { seed: 44, userTeamId: IND.id, country: "IND" });
     setTestAutoCaptain(st, true);
     advanceTest(st, "match", { autoDecide: true });
     const lines = st.innings.flatMap(i => i.ballLog.map(e => e.commentary ?? ""));
     expect(lines.length).toBeGreaterThan(500);
-    expect(lines.filter(l => /free hit/i.test(l))).toEqual([]);
+    expect(lines.filter(l => /free hit|power ?play|fielding restrictions|death overs/i.test(l))).toEqual([]);
     expect(lines.every(l => l.length > 0)).toBe(true);
   });
 });
