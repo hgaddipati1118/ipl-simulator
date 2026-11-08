@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { type Team, type Player, type TradeOffer } from "@ipl-sim/engine";
 import { GameState } from "../game-state";
 import { ovrColorClass, roleLabel, bowlingStyleLabel } from "../ui-utils";
@@ -317,10 +317,14 @@ function ProposeTrade({ state, scouting, recruitment, onPropose, onScoutTeam }: 
   const [shortlistFirst, setShortlistFirst] = useState(true);
   const [lastResult, setLastResult] = useState<{ accepted: boolean; reason: string; counterOffer?: TradeOffer } | null>(null);
 
+  // Scout once per target team picked. The callback is a new closure on every App render and scouting updates
+  // the game state, so depending on it re-ran the effect after every update: an endless render loop (as on PlayerPage)
+  const scoutTeamRef = useRef(onScoutTeam);
+  scoutTeamRef.current = onScoutTeam;
   useEffect(() => {
     if (!selectedTarget) return;
-    onScoutTeam(selectedTarget, 10);
-  }, [selectedTarget, onScoutTeam]);
+    scoutTeamRef.current(selectedTarget, 10);
+  }, [selectedTarget]);
 
   if (!userTeam) return null;
 
@@ -693,10 +697,15 @@ export function TradePage({
     .filter(offer => offer.status === "pending")
     .flatMap(offer => [...offer.playersOffered, ...offer.playersRequested]);
 
+  // Scout the players in pending offers once per set of offers. The callback is a new closure on every App render
+  // and scouting updates the game state, so depending on it re-ran the effect after every update: an endless render
+  // loop (as on PlayerPage)
+  const scoutPlayersRef = useRef(onScoutPlayers);
+  scoutPlayersRef.current = onScoutPlayers;
   useEffect(() => {
     if (pendingOfferPlayerIds.length === 0) return;
-    onScoutPlayers(pendingOfferPlayerIds, 8);
-  }, [pendingOfferPlayerIds.join(","), onScoutPlayers]);
+    scoutPlayersRef.current(pendingOfferPlayerIds, 8);
+  }, [pendingOfferPlayerIds.join(",")]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-fade-in">
