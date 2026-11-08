@@ -469,14 +469,30 @@ BOWL_ATTRS = ["wicketTaking", "economy", "accuracy"]
 # attributes allowed for each player term, with the sign a better player must have (a wrong-signed weight is dropped)
 BAT_MIX = {"1": {"battingIQ": 1, "timing": 1, "running": 1}, "2": {"battingIQ": 1, "timing": 1, "running": 1},
            "3": {"battingIQ": 1, "timing": 1, "running": 1}, "4": {"timing": 1, "power": 1, "battingIQ": 1},
-           "6": {"power": 1, "timing": 1}, "W": {"battingIQ": -1, "timing": -1, "running": -1}}
+           "6": {"power": 1, "timing": 1}, "W": {"battingIQ": -1}}
 BOWL_MIX = {k: {"economy": -1, "accuracy": -1, "wicketTaking": -1} for k in ["1", "2", "3", "4", "6"]}
 BOWL_MIX.update({"W": {"wicketTaking": 1, "economy": 1, "accuracy": 1}, "wide": {"accuracy": -1}, "nb": {"accuracy": -1}})
 MIN_BALLS_MAP = 300
+# The maps' level (docs/FORMATS.md, Test section 6.10). The game plays each country's regulars (the benchmark squads,
+# CENTRE_IDS), so each term's intercept puts their mean mapped term (weighted by their balls since CENTRE_FROM) on the mean
+# fitted term of every ball since CENTRE_FROM: the national sides play at the real modern level, outcome by outcome, and
+# the ratings spread the players about it. The batter's wicket term is levelled so per batting-position group. Centring on
+# the 2015+ pool instead carried the ratings' drift against the fitted terms into the sim (the round-2 format ratings put
+# today's bowlers below that pool on wicket-taking, today's regulars above their Test six-hitting on power, and tail-enders'
+# battingIQ up).
+CENTRE_FROM = 2023
+CENTRE_MIN_BALLS = 2000
+CENTRE_IDS: set = set()
+# Level calibration (section 6.10): fed player terms at the real modern level, the engine scores about 3% faster and takes
+# wickets about 6% more slowly than real men's Tests since 2023 (benchmark-test.ts); the men's base rates are scaled to close
+# that. Set against the benchmark's runs per over and balls per wicket only; its other rows (innings shape, batting positions,
+# results, chases, strong v weak, five-fors, spin, days) stay out-of-sample checks. (Up to round 2 of the format ratings the
+# maps' own drift happened to do the same.)
+LEVEL = {"W": 1.06, "1": 0.97, "2": 0.97, "3": 0.97, "4": 0.97, "6": 0.97}
 CURVE_MIN_BALLS = 30
 CURVE_BINS = 10
 STRETCH_MIN_R = 0.2
-STRETCH_MAX = 2.0
+STRETCH_MAX = 2.5
 STRETCH_TERMS = {"W"}
 RIDGE = 0.05
 
@@ -547,6 +563,27 @@ def pav(xs, ws, increasing):
     return res
 
 
+def recent_balls(f, k):
+    """Per player (Cricsheet id): his balls in outcome k's fit since CENTRE_FROM"""
+    col = "bat" if f == "bat" else "bowl"
+    return {x["id"]: int(x["n"]) for x in duck(f"""SELECT f.{col} id, count(*) n FROM fit_{k} w JOIN fb f USING(rid)
+WHERE f.gender = 'male' AND f.yr >= {CENTRE_FROM} GROUP BY 1""")}
+
+
+def centred(items):
+    """The intercept that puts the regulars' mean mapped term on the mean fitted term of every recent ball (both weighted by
+    balls since CENTRE_FROM): items are (recent balls, fitted log term, mapped log term, balls since 2015, a regular). Every
+    recent player stands in for the regulars when they have too few balls; with too few recent balls at all, the old
+    centring (mean mapped term 1 over the balls since 2015)."""
+    if sum(n for n, _, _, _, _ in items) < CENTRE_MIN_BALLS:
+        tot = sum(fw for _, _, _, fw, _ in items)
+        return -math.log(sum(fw * math.exp(q) for _, _, q, fw, _ in items) / tot)
+    reg = [x for x in items if x[4]]
+    use = reg if sum(n for n, _, _, _, _ in reg) >= CENTRE_MIN_BALLS else items
+    target = sum(x[0] * math.exp(x[1]) for x in items) / sum(x[0] for x in items)
+    return math.log(target) - math.log(sum(x[0] * math.exp(x[2]) for x in use) / sum(x[0] for x in use))
+
+
 def rating_map(model, gp):
     """For each player term: an attribute mix and a calibration curve from it to the term.
     The mix is a sign-constrained ridge regression of the player's raw observed / expected ratio on his z-scored ratings
@@ -560,6 +597,7 @@ def rating_map(model, gp):
         pools = {}
         for k in mixes:
             rows = []
+            rb = recent_balls(f, k)
             for cs, v in model[k][f].items():
                 ci, spin, n, nref, l, o, e = v
                 if nref < CURVE_MIN_BALLS or not ci:
@@ -567,7 +605,7 @@ def rating_map(model, gp):
                 p = gp.get(f"espn_{int(ci)}")
                 if p:
                     g = ("spin" if spin else "pace") if f == "bowl" else "all"
-                    rows.append((p, nref, math.log((o + 0.5) / (e + 0.5)), 1 / (e + 0.5), g, o, e))
+                    rows.append((p, nref, math.log((o + 0.5) / (e + 0.5)), 1 / (e + 0.5), g, o, e, rb.get(cs, 0), l))
             reg = [x for x in rows if x[1] >= MIN_BALLS_MAP]
             if not pools:
                 for g in sorted(set(x[4] for x in reg)):
@@ -630,8 +668,7 @@ def rating_map(model, gp):
             cs_ = {}
             for g in pools:
                 xs = [x for _, x in pts if x[4] == g]
-                tot = sum(x[1] for x in xs)
-                cs_[g] = r(-math.log(sum(x[1] * math.exp(curve(comp(x))) for x in xs) / tot))
+                cs_[g] = r(centred([(x[7], x[8], curve(comp(x)), x[1], x[0]["id"] in CENTRE_IDS) for x in xs]))
             pred = [curve(comp(x)) for x in reg]
             mp = sum(pred) / N
             my = sum(dev) / N
@@ -643,8 +680,7 @@ def rating_map(model, gp):
                 ky = [ybar + stretch * (y_ - ybar) for y_ in ky0]
                 for g in pools:
                     xs = [x for _, x in pts if x[4] == g]
-                    tot = sum(x[1] for x in xs)
-                    cs_[g] = r(-math.log(sum(x[1] * math.exp(curve(comp(x))) for x in xs) / tot))
+                    cs_[g] = r(centred([(x[7], x[8], curve(comp(x)), x[1], x[0]["id"] in CENTRE_IDS) for x in xs]))
                 pred = [curve(comp(x)) for x in reg]
                 mp = sum(pred) / N
                 sp = math.sqrt(sum((v - mp) ** 2 for v in pred) / N) or 1
@@ -711,7 +747,7 @@ def rating_regression(model, gp, ratings_kind):
                     continue
                 g = ("spin" if spin else "pace") if f == "bowl" else "all"
                 grp = pos_group(pos.get(cs, 7)) if f == "bat" else 0
-                rows.append({"p": p, "g": g, "grp": grp, "o": o, "e": e, "n": n, "nref": nref, "per": per.get(cs, {})})
+                rows.append({"p": p, "g": g, "grp": grp, "o": o, "e": e, "n": n, "nref": nref, "per": per.get(cs, {}), "l": l})
             if not pools:
                 for g in sorted(set(x["g"] for x in rows)):
                     xs = [x for x in rows if x["g"] == g and x["n"] >= REG_MIN_BALLS]
@@ -767,8 +803,7 @@ def rating_regression(model, gp, ratings_kind):
             cs_ = {}
             for g in pools:
                 xs = [x for x in rows if x["g"] == g and x["nref"] >= 30]
-                tot = sum(x["nref"] for x in xs)
-                cs_[g] = r(-math.log(sum(x["nref"] * math.exp(lin(x)) for x in xs) / tot))
+                cs_[g] = r(centred([(x["per"].get("test", (0, 0, 0))[2], x["l"], lin(x), x["nref"], x["p"]["id"] in CENTRE_IDS) for x in xs]))
             xs = [x for x in rows if x["n"] >= REG_MIN_BALLS]
             pred = [lin(x) for x in xs]
             mp = sum(pred) / len(pred)
@@ -803,14 +838,16 @@ def curve_value(term, pool, ratings):
 
 
 def curve_position_offsets(model, gp, curves):
-    """Batting-position offsets on top of the batter's wicket curve: the curve's precision-weighted mean residual (observed /
-    expected against the curve) by the group the player usually bats in (1-3, 4-6, 7-11), relative to 1-3; then the intercept
-    is reset so the ball-weighted mean term is 1 again."""
+    """Batting-position offsets on top of the batter's wicket curve, by the group the player usually bats in (1-3, 4-6, 7-11):
+    each group's intercept levelled on its regulars (centred()), the offsets relative to 1-3. Where a group has too few
+    regulars' balls: the curve's precision-weighted mean residual by group, the intercept making the ball-weighted mean term 1."""
     pos = usual_positions()
     term = curves["bat"]["W"]
     pool = curves["pool"]["bat"]
     acc = [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]
     pts = []
+    pts_c = []
+    rb = recent_balls("bat", "W")
     for cs, v in model["W"]["bat"].items():
         ci, spin, n, nref, l, o, e = v
         p = gp.get(f"espn_{int(ci)}") if ci else None
@@ -822,10 +859,24 @@ def curve_position_offsets(model, gp, curves):
         acc[g][0] += w * res_
         acc[g][1] += w
         pts.append((p, g, nref))
+        pts_c.append((p, g, nref, rb.get(cs, 0), l))
     means = [a / b if b else 0 for a, b in acc]
     offs = [0.0, r(means[1] - means[0], 4), r(means[2] - means[0], 4)]
     tot = sum(q[2] for q in pts)
     c = -math.log(sum(q[2] * math.exp(curve_value(term, pool, q[0]["r"]) + offs[q[1]]) for q in pts) / tot)
+    # level each position group on its regulars (centred(): their mean mapped term on their mean fitted term): the round-2
+    # ratings raised tail-enders' battingIQ, and the offsets fitted over every player left the regular tail surviving too long
+    groups = [[], [], []]
+    for p_, g, nref, rb_, l_ in pts_c:
+        groups[g].append((rb_, l_, curve_value(term, pool, p_["r"]), nref, p_["id"] in CENTRE_IDS))
+    lv = []
+    for g in range(3):
+        items = groups[g]
+        regs = [x for x in items if x[4]]
+        lv.append(centred(items) if sum(x[0] for x in regs) >= CENTRE_MIN_BALLS // 4 else None)
+    if all(v is not None for v in lv):
+        c = lv[0]
+        offs = [0.0, r(lv[1] - lv[0], 4), r(lv[2] - lv[0], 4)]
     return offs, r(c)
 
 
@@ -1165,7 +1216,7 @@ def squads(gp_all, test_sets):
     for g, since in (("male", 2023), ("female", 2021)):
         rows = duck(f"""WITH a AS (SELECT DISTINCT tb.mid, bteam team, bat_ci ci FROM tb WHERE gender = '{g}' AND yr >= {since}
   UNION SELECT DISTINCT tb.mid, fteam, bowl_ci FROM tb WHERE gender = '{g}' AND yr >= {since})
-SELECT team, ci, count(*) n FROM a WHERE ci IS NOT NULL GROUP BY 1, 2 ORDER BY 1, 3 DESC""")
+SELECT team, ci, count(*) n FROM a WHERE ci IS NOT NULL GROUP BY 1, 2 ORDER BY 1, 3 DESC, 2""")
         for t in teams[g]:
             picked = []
             for x in rows:
@@ -1283,6 +1334,50 @@ FROM m WHERE ee > 5 AND el > 5""")[0]
     return {"wicket": r(math.sqrt(max(0, x["raw"] - x["samp"]))), "matches": int(x["n"])}
 
 
+def mapped_log(term, mpool, ratings, spin, group):
+    """A player's log term from a fitted map entry, as the engine's termLog reads it (test-match.ts)"""
+    if not term or not term.get("weights"):
+        return 0.0
+    own = term.get("pool")
+    pool = (own if "mean" in own else own["spin" if spin else "pace"]) if own else (mpool if "mean" in mpool else mpool["spin" if spin else "pace"])
+    c = term["c"] if isinstance(term["c"], (int, float)) else term["c"].get("spin" if spin else "pace", 0)
+    pos = term.get("pos")
+    off = pos[group] if pos and group is not None and group < len(pos) else 0.0
+    x = sum(w * (ratings.get(a, pool["mean"][a]) - pool["mean"][a]) / (pool["sd"][a] or 1) for a, w in term["weights"].items())
+    if "knots" not in term:
+        return max(-2.5, min(2.5, x + c + off))
+    k = term["knots"]
+    if not k:
+        return 0.0
+    y = k[0][1] if x <= k[0][0] else k[-1][1] if x >= k[-1][0] else next(
+        k[i][1] + (k[i + 1][1] - k[i][1]) * (x - k[i][0]) / ((k[i + 1][0] - k[i][0]) or 1) for i in range(len(k) - 1) if k[i][0] <= x <= k[i + 1][0])
+    return max(-2.5, min(2.5, y + c + off))
+
+
+def women_level(wbase, rmap, test_sets):
+    """The women's base assumes players' terms average 1, but the maps are levelled on the men's regulars (CENTRE_*): put the
+    women's squads' mean mapped term (batters weighted by how much they bat, bowlers equally) back to 1 in the base."""
+    gp = {p["id"]: p for p in json.load(open(DATA / "game_players.json"))}
+    women = [p for s_ in squads(gp, test_sets) if s_["gender"] == "female" for p in s_["players"]]
+    if not women:
+        return
+    spin_styles = ("spin", "orthodox", "break", "chinaman", "wrist")
+    for k in wbase:
+        logs = {"bat": [], "bowl": []}
+        for p in women:
+            kind = "test" if p.get("formatRatings", {}).get("test") and "test" in rmap else "t20"
+            ratings = p["formatRatings"]["test"]["ratings"] if kind == "test" else p["ratings"]
+            m_ = rmap[kind]
+            spin = any(t in str(p.get("bowlingStyle", "")) for t in spin_styles)
+            group = 2 if p["role"] == "bowler" else 1
+            wbat = {"batsman": 3, "all-rounder": 2}.get(p["role"], 1)
+            logs["bat"].append((wbat, mapped_log(m_["bat"].get(k), m_["pool"]["bat"], ratings, spin, group)))
+            if p["role"] != "batsman":
+                logs["bowl"].append((1, mapped_log(m_["bowl"].get(k), m_["pool"]["bowl"], ratings, spin, None)))
+        mean = lambda xs: sum(w * math.exp(v) for w, v in xs) / sum(w for w, _ in xs) if xs else 1.0
+        wbase[k] /= mean(logs["bat"]) * mean(logs["bowl"])
+
+
 def women_base(model):
     """Women's base rate per outcome with every men's context factor as an offset (players and the match term at 1)."""
     out = {}
@@ -1323,7 +1418,7 @@ def write(model, rmap, dx, pol, real, spread, wbase):
     data = {
         "source": f"Cricsheet ball-by-ball men's Tests {FIT_FROM}-, IPF fit (packages/ratings/src/analysis/test-match-model.py)",
         "outcomes": OUTCOMES,
-        "base": {"male": {k: r(model[k]["base"], 5) for k in OUTCOMES}, "female": {k: r(wbase[k], 5) for k in OUTCOMES}},
+        "base": {"male": {k: r(model[k]["base"] * LEVEL.get(k, 1.0), 5) for k in OUTCOMES}, "female": {k: r(wbase[k], 5) for k in OUTCOMES}},
         "bins": {"age": AGE_BINS, "set": SET_BINS, "wicketsDown": WD_BINS, "spell": SPELL_MAX, "chaseRate": RR_BINS, "pushOvers": PUSH_OVERS},
         "factors": tables(model),
         "matchSpread": spread,
@@ -1361,6 +1456,9 @@ def main():
     build_fit_table()
     model = fit_all()
     test_sets = load_test_sets()
+    # the regulars the maps are levelled on: the men's benchmark squads
+    CENTRE_IDS.update(p["id"] for s_ in squads({p["id"]: p for p in json.load(open(DATA / "game_players.json"))}, test_sets)
+                      if s_["gender"] == "male" for p in s_["players"])
     gp_t20 = load_game_players("t20", test_sets)
     rmap = {"t20": with_regressions(rating_map(model, gp_t20), rating_regression(model, gp_t20, "t20"), model, gp_t20)}
     if test_sets:
@@ -1372,6 +1470,7 @@ def main():
             "female": real_targets("female", 2014)}
     spread = match_spread(model)
     wbase = women_base(model)
+    women_level(wbase, rmap, test_sets)
     write(model, rmap, dx, pol, real, spread, wbase)
     gp_all = {p["id"]: p for p in json.load(open(DATA / "game_players.json"))}
     sq = squads(gp_all, test_sets)
