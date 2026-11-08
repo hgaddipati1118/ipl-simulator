@@ -1067,6 +1067,18 @@ def innings_spread_term(model):
             "corr": r(cov / math.sqrt(max(vr, 1e-6) * max(vw, 1e-6)), 3) if vr > 0 and vw > 0 else 0, "innings": N}
 
 
+def pitch_wear():
+    """How differently pitches wear: per match, the wicket rate on days 4-5 against days 1-2 (observed / expected under the full
+    model, the match term included), its spread less the Poisson noise of both halves. Matches with 5+ expected wickets in each."""
+    x = duck("""CREATE OR REPLACE TABLE rw2 AS SELECT f.mid, least(t.dy, 5) dy, w.y, exp(w.lm) mu FROM fit_W w JOIN fb f USING(rid)
+  JOIN (SELECT row_number() OVER () rid, dy FROM tb WHERE yr >= 2006) t USING(rid) WHERE f.gender = 'male';
+WITH m AS (SELECT mid, sum(CASE WHEN dy <= 2 THEN y END) oe, sum(CASE WHEN dy <= 2 THEN mu END) ee, sum(CASE WHEN dy >= 4 THEN y END) ol,
+  sum(CASE WHEN dy >= 4 THEN mu END) el FROM rw2 GROUP BY 1)
+SELECT count(*) n, var_pop(ln((ol + 0.5) / (el + 0.5)) - ln((oe + 0.5) / (ee + 0.5))) raw, avg(1 / (el + 0.5) + 1 / (ee + 0.5)) samp
+FROM m WHERE ee > 5 AND el > 5""")[0]
+    return {"wicket": r(math.sqrt(max(0, x["raw"] - x["samp"]))), "matches": int(x["n"])}
+
+
 def women_base(model):
     """Women's base rate per outcome with every men's context factor as an offset (players and the match term at 1)."""
     out = {}
@@ -1111,6 +1123,7 @@ def write(model, rmap, dx, pol, real, spread, wbase):
         "factors": tables(model),
         "matchSpread": spread,
         "inningsSpread": innings_spread(model),
+        "wearSpread": pitch_wear(),
         "players": rmap,
         **dx,
         "policy": pol,

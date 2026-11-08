@@ -348,6 +348,8 @@ export interface TestMatchState {
   matchBalls: number;
   /** The match's own conditions (multipliers per outcome class) */
   cond: number[];
+  /** How the pitch wears: log wicket-rate change from days 1-2 to days 4-5 (drawn per match) */
+  wear?: number;
   status: "awaiting_toss" | "in_progress" | "waiting_for_decision" | "completed";
   pending?: TestPendingDecision;
   /** A delivery held while a DRS decision is pending */
@@ -641,6 +643,8 @@ export function createTestMatch(home: Team, away: Team, options: TestMatchOption
   const r = rngOf(st);
   planWeather(st, r, options.weather ?? true);
   st.cond = drawConditions(r);
+  // how this pitch wears: a wicket-rate slope across the days (days 4-5 against 1-2 has the fitted spread)
+  st.wear = (M as { wearSpread?: { wicket: number } }).wearSpread?.wicket ? M.wearSpread.wicket * normal(r) : 0;
   st.dayCap = st.dayPlan[0];
   // the toss: a CPU winner follows the host country's fitted bat-first share; a user winner is asked
   const winner = r() < 0.5 ? home.id : away.id;
@@ -841,6 +845,8 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
   const home = st.neutral ? T_HOME.neutral : team.home ? T_HOME.home : T_HOME.away;
   const cty = (CTY[st.country] ?? CTY.other)[type];
   const fat = fatigue(line, bowl, st.day);
+  // (day - 3) / 3: -2/3 on day 1 to +2/3 on day 5, so days 4-5 against 1-2 differ by the drawn wear; mean 1 over a match
+  const wearMul = st.wear ? Math.exp(st.wear * (Math.min(st.day, 5) - 3) / 3) : 1;
   const p = new Array<number>(K);
   for (let k = 0; k < K; k++) {
     let v = base[k] * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_WD[wd][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
@@ -848,7 +854,7 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
     if (team.bazball) v *= T_BAZ[k];
     if (k < IW && inn.cond) v *= inn.cond;
     else if (k === IW && inn.condW) v *= inn.condW;
-    if (k === IW) v *= fat.wkts; else v *= fat.runs;
+    if (k === IW) v *= fat.wkts * wearMul; else v *= fat.runs;
     p[k] = v;
   }
   return p;

@@ -1094,6 +1094,10 @@ export const TEST_MODEL = {
   "corr": 0,
   "innings": 2462
  },
+ "wearSpread": {
+  "wicket": 0.1109,
+  "matches": 651
+ },
  "players": {
   "t20": {
    "bat": {
@@ -2749,12 +2753,35 @@ export const TEST_MODEL = {
   }
  },
  "dismissal": {
+  "male": {
+   "spin": {
+    "bowled": 0.1686,
+    "caught": 0.427,
+    "caught_and_bowled": 0.0291,
+    "caught_keeper": 0.0927,
+    "hit_wicket": 0.0002,
+    "lbw": 0.203,
+    "run_out": 0.0325,
+    "stumped": 0.0468
+   },
+   "pace": {
+    "bowled": 0.1817,
+    "caught": 0.389,
+    "caught_and_bowled": 0.0147,
+    "caught_keeper": 0.2524,
+    "hit_wicket": 0.0007,
+    "lbw": 0.1397,
+    "other": 0.0001,
+    "run_out": 0.0212,
+    "stumped": 0.0005
+   }
+  },
   "female": {
    "pace": {
     "bowled": 0.1954,
-    "caught": 0.4053,
+    "caught": 0.4051,
     "caught_and_bowled": 0.0104,
-    "caught_keeper": 0.1684,
+    "caught_keeper": 0.1686,
     "hit_wicket": 0.0003,
     "lbw": 0.1956,
     "other": 0.0001,
@@ -2763,36 +2790,13 @@ export const TEST_MODEL = {
    },
    "spin": {
     "bowled": 0.2154,
-    "caught": 0.3973,
+    "caught": 0.398,
     "caught_and_bowled": 0.035,
-    "caught_keeper": 0.0592,
+    "caught_keeper": 0.0587,
     "hit_wicket": 0.0001,
     "lbw": 0.2183,
     "run_out": 0.047,
     "stumped": 0.0275
-   }
-  },
-  "male": {
-   "spin": {
-    "bowled": 0.1686,
-    "caught": 0.4258,
-    "caught_and_bowled": 0.0291,
-    "caught_keeper": 0.0939,
-    "hit_wicket": 0.0002,
-    "lbw": 0.203,
-    "run_out": 0.0325,
-    "stumped": 0.0468
-   },
-   "pace": {
-    "bowled": 0.1817,
-    "caught": 0.3894,
-    "caught_and_bowled": 0.0147,
-    "caught_keeper": 0.252,
-    "hit_wicket": 0.0007,
-    "lbw": 0.1397,
-    "other": 0.0001,
-    "run_out": 0.0212,
-    "stumped": 0.0005
    }
   }
  },
@@ -2834,8 +2838,8 @@ export const TEST_MODEL = {
   "legalBallsPerInnings": 466.7,
   "dotShare": 0.6993,
   "wicketsPerInnings": {
-   "caught": 1.604,
-   "lbw": 1.375
+   "lbw": 1.375,
+   "caught": 1.6
   },
   "reviewsPerInnings": 3.362,
   "battingShare": 0.431,
@@ -2860,27 +2864,27 @@ export const TEST_MODEL = {
   "toss": {
    "all": 0.681,
    "byCountry": {
-    "UAE": 0.861,
-    "IRELAND": 0.524,
     "BDESH": 0.85,
     "PAK": 0.806,
-    "AUS": 0.769,
-    "NZ": 0.229,
-    "WI": 0.544,
-    "RSA": 0.698,
+    "UAE": 0.861,
+    "IRELAND": 0.524,
     "ZIM": 0.786,
+    "NZ": 0.229,
+    "RSA": 0.698,
+    "AUS": 0.769,
     "SL": 0.889,
-    "IND": 0.886,
-    "ENG": 0.509
+    "WI": 0.544,
+    "ENG": 0.509,
+    "IND": 0.886
    }
   },
   "declare": {
    "inn1": {
     "coef": {
-     "intercept": -14.7796,
-     "runs/100": 1.5714,
-     "matchOvers/90": 0.7635,
-     "wickets": 0.3168
+     "intercept": -14.7801,
+     "runs/100": 1.5712,
+     "matchOvers/90": 0.7647,
+     "wickets": 0.3167
     },
     "overs": 13055,
     "declared": 82
@@ -3313,12 +3317,12 @@ export const TEST_MODEL = {
     0.042
    ],
    "wicketShareByRank": [
-    0.338,
-    0.261,
-    0.195,
+    0.336,
+    0.263,
+    0.194,
     0.132,
     0.065,
-    0.028
+    0.029
    ],
    "inningsWins": 0.186,
    "oversPerDayUsed": 79.6,
@@ -3369,11 +3373,11 @@ export const TEST_MODEL = {
     "India": 53,
     "Sri Lanka": 46,
     "Pakistan": 22,
-    "Zimbabwe": 19,
     "New Zealand": 46,
-    "Australia": 60,
+    "Zimbabwe": 19,
     "England": 77,
     "South Africa": 47,
+    "Australia": 60,
     "Bangladesh": 38,
     "Ireland": 3
    }
@@ -3494,10 +3498,10 @@ export const TEST_MODEL = {
     0.045
    ],
    "wicketShareByRank": [
-    0.343,
+    0.344,
     0.255,
-    0.19,
-    0.131,
+    0.191,
+    0.13,
     0.072,
     0.027
    ],
@@ -3548,13 +3552,13 @@ export const TEST_MODEL = {
     "Sri Lanka": 12,
     "West Indies": 13,
     "Pakistan": 10,
-    "Zimbabwe": 8,
-    "Bangladesh": 14,
     "New Zealand": 14,
-    "Ireland": 2,
+    "Bangladesh": 14,
+    "Zimbabwe": 8,
     "Australia": 18,
     "England": 24,
-    "South Africa": 11
+    "South Africa": 11,
+    "Ireland": 2
    }
   },
   "female": {
@@ -3662,11 +3666,11 @@ export const TEST_MODEL = {
    ],
    "wicketShareByRank": [
     0.349,
-    0.224,
-    0.178,
-    0.106,
-    0.075,
-    0.067
+    0.238,
+    0.161,
+    0.113,
+    0.072,
+    0.064
    ],
    "inningsWins": 0.118,
    "oversPerDayUsed": 87.1
