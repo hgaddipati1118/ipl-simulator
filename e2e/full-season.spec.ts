@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { finishLiveMatch } from "./live-helpers";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,9 +22,7 @@ async function waitForAppReady(page: Page) {
 
 async function handleLiveMatch(page: Page) {
   if (!page.url().includes("/live-match")) return;
-  await page.getByText("Sim Rest").click({ timeout: 10000 });
-  await page.getByText("Back to Season").waitFor({ timeout: 30000 });
-  await page.getByText("Back to Season").click();
+  await finishLiveMatch(page);
   await page.waitForTimeout(500);
 }
 

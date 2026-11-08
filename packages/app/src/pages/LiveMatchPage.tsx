@@ -1101,6 +1101,8 @@ export function LiveMatchPage({
                   battingTeamPower: 80,
                   bowlingTeamPower: 80,
                   totalOvers: fullOvers,
+                  inningsOvers: state.maxOvers,
+                  gender: state._internal.rules.gender === "women" ? "female" : "male",
                 });
                 const battingProb = state.innings === 1 ? winProb : winProb;
                 const fieldingProb = 100 - battingProb;

@@ -46,7 +46,8 @@ export type { TeamConfig, BowlingPlan } from "./team.js";
 export { getMatchupModifiers, getMatchPhase, isPaceBowler, isFastBowler, isSpinBowler, isSlowBowler, getBatterAffinityModifier } from "./matchups.js";
 export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";
 
-export { calculateWinProbability } from "./win-probability.js";
+export { calculateWinProbability, odiWinProbability } from "./win-probability.js";
+export { ODI_WIN_PROBABILITY } from "./odi-win-probability-data.js";
 export { getDLSResource, calculateDLSTarget, checkRainInterruption, canProduceResult, getRainDelayNarrative, resources50, resourcesPct, inningsResources, dlsTarget, dlsPar, DLS_G_T20, DLS_G_ODI, dlsGFor, odiRevisedTarget } from "./dls.js";
 export { DRS_REVIEWS_PER_INNINGS, drsAtDismissal, drsAtDot, drsKindOf, drsText, reviewLost } from "./drs.js";
 export type { DrsReview, DrsKind, DrsResult, DrsSide } from "./drs.js";

@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { simulateRemaining } from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
+import { playerActivity, squadTier, type PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import {
   SERIES_FORMATS, SERIES_STORAGE_KEY, addResult, autoLineup, buildNationSquad, createSeries, homeGrounds, isSeriesDecidedEarly,
   lineupProblems, loadSeries, matchContext, matchName, nextMatchNumber, registerSeriesFormat, saveSeries, seriesFormat,
@@ -18,6 +19,7 @@ import {
 
 const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "public");
 const FILE = JSON.parse(readFileSync(join(PUBLIC, "data", "format-ratings.json"), "utf-8")) as FormatRatingsFile;
+const ACTIVITY = JSON.parse(readFileSync(join(PUBLIC, "data", "player-activity.json"), "utf-8")) as PlayerActivityFile;
 
 const memory = () => {
   const m = new Map<string, string>();
@@ -45,6 +47,30 @@ describe("nations and squads", () => {
     const again = buildNationSquad("India", "men", "odi", FILE, odi.map(p => p.id));
     expect(again.map(p => p.id)).toEqual(odi.map(p => p.id));
     expect(t20.length).toBe(16);
+  });
+
+  it("squads are picked from active players: recent internationals in the format first, never anyone inactive for 3+ seasons", () => {
+    const aus = buildNationSquad("Australia", "men", "odi", FILE, undefined, ACTIVITY);
+    const names = aus.map(p => p.name);
+    expect(names).not.toContain("James Faulkner"); // last ODI 2017, last senior game 2022
+    expect(names).not.toContain("David Warner");   // retired from ODIs (last 2023), still in the BBL
+    const tiers = aus.map(p => squadTier(playerActivity(ACTIVITY, p.sourceId ?? p.id), "odi", ACTIVITY.asOf));
+    expect(tiers.every(t => t === 0 || t === 1)).toBe(true);
+    expect(tiers.filter(t => t === 0).length).toBeGreaterThanOrEqual(12);
+    // every format and gender keeps to the rule
+    for (const [c, g, f] of [["India", "men", "t20"], ["England", "women", "odi"], ["South Africa", "men", "test"]] as const) {
+      const sq = buildNationSquad(c, g, f, FILE, undefined, ACTIVITY);
+      expect(sq).toHaveLength(16);
+      for (const p of sq) expect(squadTier(playerActivity(ACTIVITY, p.sourceId ?? p.id), f, ACTIVITY.asOf)).not.toBe(3);
+    }
+    // without the activity file the age rule stands in (40 or under)
+    expect(buildNationSquad("Australia", "men", "odi", FILE).every(p => p.age <= 40)).toBe(true);
+  });
+
+  it("squadTier: recent in the format, recent at senior level, fill-in, inactive", () => {
+    const file: PlayerActivityFile = { v: 1, generated: "", asOf: 2026, players: { a: [0, 2025, 0, 2026], b: [2024, 2023, 0, 2026], c: [0, 2024, 0, 2024], d: [0, 2017, 0, 2022] } };
+    const tier = (id: string) => squadTier(playerActivity(file, id), "odi", 2026);
+    expect([tier("a"), tier("b"), tier("c"), tier("d"), tier("nobody")]).toEqual([0, 1, 2, 3, null]);
   });
 
   it("women's squads get a keeper even where the data flags none", () => {
