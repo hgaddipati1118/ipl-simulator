@@ -131,6 +131,17 @@ function normalizeClutch(ratings: PlayerRatings, role: PlayerRole, isWicketKeepe
   return Math.max(ratings.clutch, clamp(Math.round(bowlOvr - 8), 35, 95));
 }
 
+/**
+ * The secondary-discipline and clutch normalisation createPlayerFromData applies to imported ratings, for a known role.
+ * The ratings pipeline runs a player's ODI / Test sets through it with his (T20) role, which his format views share.
+ */
+export function normalizeRatingsForRole(ratings: PlayerRatings, role: PlayerRole, isWicketKeeper = false): PlayerRatings {
+  let out = normalizeSecondaryDiscipline(ratings, role);
+  out.clutch = normalizeClutch(out, role, isWicketKeeper);
+  out = normalizeSecondaryDiscipline(out, role);
+  return out;
+}
+
 /** Create a player from raw rating data (for importing real players) */
 export function createPlayerFromData(data: {
   /** The source record's id (`espn_<id>` / `ca_<id>`); kept as the player's sourceId */
@@ -176,9 +187,7 @@ export function createPlayerFromData(data: {
     ...(typeof data.keeping === "number" ? { keeping: data.keeping } : {}),
   };
   const role = inferRuntimeRole(rawRatings, data.role, isWicketKeeper);
-  let ratings = normalizeSecondaryDiscipline(rawRatings, role);
-  ratings.clutch = normalizeClutch(ratings, role, isWicketKeeper);
-  ratings = normalizeSecondaryDiscipline(ratings, role);
+  const ratings = normalizeRatingsForRole(rawRatings, role, isWicketKeeper);
 
   return new Player({
     id: nextPlayerId(),

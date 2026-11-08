@@ -8,7 +8,7 @@
    "tier": "senior",
    "level": "senior",
    "count": 18573,
-   "bytes": 922435,
+   "bytes": 922293,
    "topOverall": 89,
    "minOverall": 15
   },
@@ -18,7 +18,7 @@
    "tier": "tier0",
    "level": "senior",
    "count": 40000,
-   "bytes": 1534981,
+   "bytes": 1534832,
    "topOverall": 77,
    "minOverall": 30
   },
@@ -28,7 +28,7 @@
    "tier": "tier0",
    "level": "senior",
    "count": 40000,
-   "bytes": 977397,
+   "bytes": 977396,
    "topOverall": 30,
    "minOverall": 27
   },
@@ -38,7 +38,7 @@
    "tier": "tier0",
    "level": "senior",
    "count": 40000,
-   "bytes": 732018,
+   "bytes": 731995,
    "topOverall": 27,
    "minOverall": 26
   },
@@ -48,7 +48,7 @@
    "tier": "tier0",
    "level": "senior",
    "count": 9313,
-   "bytes": 225087,
+   "bytes": 225081,
    "topOverall": 26,
    "minOverall": 16
   },
@@ -58,7 +58,7 @@
    "tier": "tier2",
    "level": "club",
    "count": 506,
-   "bytes": 11288,
+   "bytes": 11292,
    "topOverall": 69,
    "minOverall": 21
   },
@@ -88,7 +88,7 @@
    "tier": "senior",
    "level": "senior",
    "count": 12406,
-   "bytes": 543955,
+   "bytes": 543710,
    "topOverall": 81,
    "minOverall": 18
   },
@@ -98,7 +98,7 @@
    "tier": "tier0",
    "level": "senior",
    "count": 4560,
-   "bytes": 116721,
+   "bytes": 116726,
    "topOverall": 71,
    "minOverall": 26
   }

@@ -28,7 +28,8 @@
  *     by percentile among the format's regulars onto the T20 attribute distribution of T20 regulars; a side without a
  *     usable record keeps the T20 mix. The side's attributes are then shifted together to its overall (model-ratings.ts
  *     shiftTo); clutch, fielding and keeping are the T20 values. Finally the set is normalised the way
- *     createPlayerFromData normalises T20 ratings (secondary discipline, clutch), so it is runtime-ready.
+ *     createPlayerFromData normalises T20 ratings (secondary discipline, clutch), with the player's T20 role (his format
+ *     views share it), so it is runtime-ready.
  *  A set is "data" when the player's main discipline (his better T20 side) is measured in the format, else "derived".
  */
 
@@ -37,7 +38,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { gunzipSync, gzipSync } from "zlib";
 import { join } from "path";
 import {
-  createPlayerFromData, calculateBattingOverall, calculateBowlingOverall, calculateOverallRating,
+  createPlayerFromData, normalizeRatingsForRole, calculateBattingOverall, calculateBowlingOverall, calculateOverallRating,
   type PlayerRatings, type PlayerRole,
 } from "@ipl-sim/engine";
 import { ALL_PLAYERS } from "../all-players.js";
@@ -186,6 +187,8 @@ function shippedPlayers(gender: Gender, pool: PoolFile[] | null): Shipped[] {
 // ── format stats for the attribute mix ────────────────────────────────
 
 interface FormatStats {
+  /** Last season in the format */
+  lastYear: number;
   bat?: { balls: number; runs: number; outs: number; fours: number; sixes: number; bndBalls: number; matches: number; dots?: number; dotBalls?: number };
   bowl?: { balls: number; runs: number; wkts: number; inns: number; matches: number; dots?: number; extras?: number; legal?: number };
 }
@@ -201,18 +204,19 @@ function duck<T>(sql: string): T[] {
 function loadFormatStats(gender: Gender): Record<LongFmt, Map<number, FormatStats>> {
   const rows = duck<{
     player_id: number; format: LongFmt; senior: boolean; bat_balls: number; bat_runs: number; bat_outs_b: number; fours: number; sixes: number;
-    bnd_balls: number; bat_matches: number; bowl_balls: number; bowl_runs: number; bowl_wkts: number; bowl_inns: number; matches: number;
+    bnd_balls: number; bat_matches: number; bowl_balls: number; bowl_runs: number; bowl_wkts: number; bowl_inns: number; matches: number; last_year: number;
   }>(`
     WITH s AS (SELECT *, level = 'senior' AS senior FROM 'data/analysis/ca_pool_stats.parquet' WHERE gender = '${gender}' AND format IN ('ListA', 'FC')),
     pick AS (SELECT player_id, format, bool_or(senior) AS has_senior FROM s GROUP BY ALL)
     SELECT s.player_id, s.format, p.has_senior AS senior, sum(bat_balls) AS bat_balls, sum(bat_runs) AS bat_runs, sum(bat_outs_b) AS bat_outs_b,
            sum(coalesce(fours, 0)) AS fours, sum(coalesce(sixes, 0)) AS sixes, sum(coalesce(bnd_balls, 0)) AS bnd_balls,
            sum(bat_inns_b) AS bat_matches, sum(bowl_balls) AS bowl_balls, sum(bowl_runs) AS bowl_runs, sum(bowl_wkts) AS bowl_wkts,
-           sum(bowl_inns) AS bowl_inns, sum(matches) AS matches
+           sum(bowl_inns) AS bowl_inns, sum(matches) AS matches, max(coalesce(last_year, 0)) AS last_year
     FROM s JOIN pick p USING (player_id, format) WHERE s.senior = p.has_senior GROUP BY ALL`);
   const out: Record<LongFmt, Map<number, FormatStats>> = { ListA: new Map(), FC: new Map() };
   for (const r of rows) {
     out[r.format].set(Number(r.player_id), {
+      lastYear: Number(r.last_year),
       bat: r.bat_balls > 0 ? { balls: r.bat_balls, runs: r.bat_runs, outs: r.bat_outs_b, fours: r.fours, sixes: r.sixes, bndBalls: r.bnd_balls, matches: r.bat_matches } : undefined,
       bowl: r.bowl_balls > 0 ? { balls: r.bowl_balls, runs: r.bowl_runs, wkts: r.bowl_wkts, inns: r.bowl_inns, matches: r.matches } : undefined,
     });
@@ -245,6 +249,8 @@ function loadFormatStats(gender: Gender): Record<LongFmt, Map<number, FormatStat
 const MIX_PRIOR_BALLS: Record<LongFmt, { bat: number; bowl: number }> = { ListA: { bat: 120, bowl: 180 }, FC: { bat: 300, bowl: 360 } };
 /** Cricsheet dot-ball / extras rates count once a player has this many balls of them */
 const MIN_CRICSHEET_BALLS = 200;
+/** The attribute-mix reference: regulars who played the format in the last this many seasons */
+const MIX_CURRENT_SEASONS = 4;
 /** A side's attributes come from its format stats once it has this many balls in the format (else the T20 mix) */
 const MIN_MIX_BALLS = 200;
 
@@ -263,7 +269,7 @@ function populationRates(stats: Map<number, FormatStats>): PopRates {
   };
 }
 
-function batFeatures(s: NonNullable<FormatStats["bat"]>, pop: PopRates, n0: number, age: number): Features {
+function batFeatures(s: NonNullable<FormatStats["bat"]>, pop: PopRates, n0: number): Features {
   const balls = s.balls + n0, runs = s.runs + n0 * pop.rpb, outs = s.outs + n0 * pop.opb;
   const share = s.bndBalls > 0 ? Math.min(1, s.bndBalls / s.balls) : 0;
   const bndBalls = s.bndBalls + n0, fours = s.fours + n0 * pop.four, sixes = s.sixes + n0 * pop.six;
@@ -275,7 +281,7 @@ function batFeatures(s: NonNullable<FormatStats["bat"]>, pop: PopRates, n0: numb
     avg: runs / Math.max(0.5, outs), sr: (100 * runs) / balls, bpo: balls / Math.max(0.5, outs),
     bdry: (fours + sixes) / bndBalls, six: sixes / bndBalls, srnb: (100 * nonBnd) / balls,
     dot: hasDots ? ((s.dots ?? 0) + n0 * pop.dot) / (s.dotBalls! + n0) : undefined,
-    exp: Math.log1p(s.matches), age,
+    exp: Math.log1p(s.matches),
   };
 }
 
@@ -295,7 +301,8 @@ const BAT_BLEND: Record<(typeof BAT_KEYS)[number], [string, number][]> = {
   battingIQ: [["avg", 0.40], ["bpo", 0.25], ["srnb", 0.20], ["exp", 0.05], ["-dot", 0.10]],
   timing: [["avg", 0.25], ["bpo", 0.20], ["srnb", 0.20], ["sr", 0.20], ["bdry", 0.15]],
   power: [["sr", 0.2], ["bdry", 0.4], ["six", 0.4]],
-  running: [["sr", 0.2], ["srnb", 0.4], ["-age", 0.3], ["-dot", 0.1]],
+  // The game's T20 running is the ratings model's running component, not age: here non-boundary scoring and strike rotation
+  running: [["sr", 0.3], ["srnb", 0.5], ["-dot", 0.2]],
 };
 const BOWL_BLEND: Record<(typeof BOWL_KEYS)[number], [string, number][]> = {
   wicketTaking: [["wpb", 0.6], ["-rpb", 0.2], ["bpi", 0.1], ["exp", 0.1]],
@@ -379,6 +386,9 @@ interface SideResult {
   source: "data" | "derived";
   capped?: string;
   mix: "format" | "t20";
+  /** Career matches in the format and T20 balls in the side (diagnostics) */
+  matches: number;
+  t20Balls: number;
 }
 
 interface PlayerResult {
@@ -416,14 +426,18 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
     const fstats = stats[fmt.ca];
     const pop = populationRates(fstats);
     const n0 = MIX_PRIOR_BALLS[fmt.ca];
-    // Attribute-mix populations: senior regulars of the format
-    const batRegs = [...fstats.values()].filter(s => (s.bat?.balls ?? 0) >= REGULAR_BALLS[gender][fmt.ca]).map(s => batFeatures(s.bat!, pop, n0.bat, 28));
-    const bowlRegs = [...fstats.values()].filter(s => (s.bowl?.balls ?? 0) >= REGULAR_BALLS[gender][fmt.ca]).map(s => bowlFeatures(s.bowl!, pop, n0.bowl));
+    // Attribute-mix populations: regulars of the format who still play it (career rates are not era-adjusted, and
+    // scoring has risen since 2000: against every regular since then, today's bowlers would all look expensive)
+    const current = [...fstats.values()].filter(s => s.lastYear >= AS_OF - MIX_CURRENT_SEASONS);
+    const batRegs = current.filter(s => (s.bat?.balls ?? 0) >= REGULAR_BALLS[gender][fmt.ca]).map(s => batFeatures(s.bat!, pop, n0.bat));
+    const bowlRegs = current.filter(s => (s.bowl?.balls ?? 0) >= REGULAR_BALLS[gender][fmt.ca]).map(s => bowlFeatures(s.bowl!, pop, n0.bowl));
     const batM = moments(batRegs), bowlM = moments(bowlRegs);
     const batBlends = Object.fromEntries(BAT_KEYS.map(k => [k, batRegs.map(f => blend(f, batM, BAT_BLEND[k])).sort((a, b) => a - b)]));
     const bowlBlends = Object.fromEntries(BOWL_KEYS.map(k => [k, bowlRegs.map(f => blend(f, bowlM, BOWL_BLEND[k])).sort((a, b) => a - b)]));
 
     const sideOut = {} as Record<Side, SideResult[]>;
+    const regularsOf = {} as Record<Side, number[]>;
+    const linkedOf = {} as Record<Side, number[]>;
     for (const side of SIDES) {
       const v = validation.find(x => x.format === fmt.ca && x.side === side);
       const dataVar = UNTUNED_DATA_VAR[`${gender}/${fmt.ca}`] ?? v?.dataVar ?? 1;
@@ -435,9 +449,11 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
         return shipped[i].group === "espn" && est[i]?.source === "data" && doesSide(r, REGULAR_BALLS[gender][fmt.ca]) && AS_OF - r.year <= REGULAR_MAX_AGE;
       };
       const regIdx = shipped.map((_, i) => i).filter(isRegular);
+      regularsOf[side] = regIdx;
       // Link on players who are regulars of both; fall back to all format regulars vs all T20 regulars
       const linked = regIdx.filter(i => t20Regular(shipped[i], side));
       const useLinked = linked.length >= MIN_LINK_PLAYERS;
+      linkedOf[side] = useLinked ? linked : [];
       const curve = useLinked
         ? linkCurve(linked.map(i => score[i]!), linked.map(i => ovr(side, shipped[i].t20)))
         : linkCurve(regIdx.map(i => score[i]!), t20Ref[side].overalls);
@@ -471,6 +487,7 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
         return {
           est: e, score: score[i], raw: raw[i] ?? value, overall: Math.round(Math.max(1, Math.min(99, value))), source, capped,
           mix: source === "data" && st && st.balls >= MIN_MIX_BALLS ? "format" : "t20",
+          matches: formatsOf(p)[fmt.ca]?.[side]?.matches ?? 0, t20Balls: formatsOf(p).T20?.[side]?.balls ?? 0,
         };
       });
       summary[`${fmt.key}/${side}`] = {
@@ -489,7 +506,7 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
       const r: PlayerRatings = { ...p.t20 };
       const bat = sideOut.bat[i], bowl = sideOut.bowl[i];
       if (bat.mix === "format" && st?.bat) {
-        const f = batFeatures(st.bat, pop, n0.bat, p.age);
+        const f = batFeatures(st.bat, pop, n0.bat);
         for (const k of BAT_KEYS) r[k] = quantile(t20Ref.bat.attrs[k], percentile(batBlends[k], blend(f, batM, BAT_BLEND[k])));
       }
       if (bowl.mix === "format" && st?.bowl) {
@@ -497,16 +514,14 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
         for (const k of BOWL_KEYS) r[k] = quantile(t20Ref.bowl.attrs[k], percentile(bowlBlends[k], blend(f, bowlM, BOWL_BLEND[k])));
       }
       // Shift to the targets, normalise like createPlayerFromData, repeat once (the clutch floor moves bowling overall)
+      // With the player's T20 role: his format views share it (a derived all-rounder capped at the medians must not be
+      // squashed into a bowler)
       let ratings = r;
-      let role = p.role;
+      const role = p.role;
       for (let pass = 0; pass < 2; pass++) {
         shiftTo(ratings as GameRatings, [...BAT_KEYS], calculateBattingOverall, bat.overall);
         shiftTo(ratings as GameRatings, [...BOWL_SHIFT_KEYS], calculateBowlingOverall, bowl.overall);
-        const made = createPlayerFromData({
-          name: p.name, age: p.age, country: p.country, role: p.role, isWicketKeeper: p.isWicketKeeper, ...ratings,
-        });
-        ratings = { ...made.ratings };
-        role = made.role;
+        ratings = normalizeRatingsForRole(ratings, role, p.isWicketKeeper);
       }
       // A tail-ender's batting can be shifted to the bottom of the scale: floor it where the runtime squash floors T20 sets
       for (const k of CORE_KEYS) ratings[k] = Math.max(ATTRIBUTE_FLOOR, Math.min(99, Math.round(ratings[k])));
@@ -514,6 +529,20 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
       const main: Side = ovr("bat", p.t20) >= ovr("bowl", p.t20) ? "bat" : "bowl";
       res.formats[fmt.key] = { bat, bowl, ratings, source: (main === "bat" ? bat : bowl).source, role };
     });
+    // Distribution check: final discipline overall of the format's regulars against T20 regulars' T20 overall
+    const qs = (xs: number[]) => [0.1, 0.25, 0.5, 0.75, 0.9, 1].map(q => quantile([...xs].sort((a, b) => a - b), q));
+    for (const side of SIDES) {
+      const sum = summary[`${fmt.key}/${side}`] as Record<string, unknown>;
+      sum.distribution = {
+        format: qs(regularsOf[side].map(i => ovr(side, results[i].formats[fmt.key].ratings))),
+        t20: qs(t20Ref[side].overalls),
+        formatAttrs: Object.fromEntries((side === "bat" ? BAT_KEYS : BOWL_KEYS).map(k => [k, qs(regularsOf[side].map(i => results[i].formats[fmt.key].ratings[k]))])),
+        t20Attrs: Object.fromEntries((side === "bat" ? BAT_KEYS : BOWL_KEYS).map(k => [k, qs(t20Ref[side].attrs[k])])),
+        // The linked players (regulars of both): their format set against their own T20 set
+        linked: Object.fromEntries([["overall", (r: PlayerRatings) => ovr(side, r)] as const, ...(side === "bat" ? BAT_KEYS : BOWL_KEYS).map(k => [k, (r: PlayerRatings) => r[k]] as const)]
+          .map(([k, get]) => [k, { format: qs(linkedOf[side].map(i => get(results[i].formats[fmt.key].ratings))), t20: qs(linkedOf[side].map(i => get(results[i].p.t20))) }])),
+      };
+    }
   }
   return { results, summary };
 }
@@ -530,6 +559,7 @@ function setsOf(res: PlayerResult): [EncodedSet, EncodedSet] {
 
 function diagnostics(res: PlayerResult) {
   const side = (s: SideResult) => ({
+    matches: s.matches, t20Balls: s.t20Balls,
     mean: s.est ? +s.est.mean.toFixed(2) : null, sd: s.est ? +s.est.sd.toFixed(2) : null, w: s.est ? +s.est.dataWeight.toFixed(2) : 0,
     from: s.est?.from ?? null, balls: s.est?.balls ?? 0, raw: +s.raw.toFixed(1), overall: s.overall, source: s.source, capped: s.capped ?? null, mix: s.mix,
   });
@@ -542,7 +572,7 @@ function diagnostics(res: PlayerResult) {
   const b = calculateBattingOverall(p.t20), w = calculateBowlingOverall(p.t20);
   return {
     id: p.id, name: p.name, country: p.country, age: p.age, group: p.group, tier: p.tier ?? null, caId: p.caId ?? null, role: p.role,
-    t20: { batOvr: b, bowlOvr: w, overall: calculateOverallRating(b, w) }, odi: f("odi"), test: f("test"),
+    t20: { batOvr: b, bowlOvr: w, overall: calculateOverallRating(b, w), ratings: core(p.t20) }, odi: f("odi"), test: f("test"),
   };
 }
 
