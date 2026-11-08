@@ -149,18 +149,18 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
     });
   }, [team]);
 
+  // The new XI from the current one, then the orders synced to it: outside a state updater, which must not queue other
+  // updates (React calls an updater twice in StrictMode)
   const handleToggle = useCallback((playerId: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(playerId)) {
-        next.delete(playerId);
-      } else {
-        next.add(playerId);
-      }
-      syncOrders(next);
-      return next;
-    });
-  }, [syncOrders]);
+    const next = new Set(selectedIds);
+    if (next.has(playerId)) {
+      next.delete(playerId);
+    } else {
+      next.add(playerId);
+    }
+    setSelectedIds(next);
+    syncOrders(next);
+  }, [selectedIds, syncOrders]);
 
   // Auto-select best XI
   const handleAutoSelect = useCallback(() => {
