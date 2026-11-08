@@ -233,6 +233,8 @@ export interface TestInnings {
   newBalls: number;
   /** The fielding side may take the new ball (80 overs with this one) */
   newBallDue?: boolean;
+  /** The user was asked about the new ball due after the ball taken at this over */
+  newBallAsked?: number;
   /** Unsuccessful reviews left */
   drs: { batting: number; fielding: number };
   /** The bowler at each end (the next over is bowled from end `end`) */
@@ -721,9 +723,11 @@ function endDay(st: TestMatchState): void {
     noteWeather(st);
     if (st.dayCap > 0) break;
   }
-  // overnight: every bowler is rested and starts a new spell
-  for (const b of Object.values(inn.bowlers)) { b.spellOvers = 0; b.spellPlan = 0; b.lastOver = -99; }
-  inn.ends = [null, null];
+  // overnight every bowler is rested and starts a new spell; the one who bowled the last over still may not bowl the next
+  // (Law 17.8: no two consecutive overs in an innings, intervals included)
+  const lastId = inn.ends[inn.end === 0 ? 1 : 0];
+  for (const [id, b] of Object.entries(inn.bowlers)) { b.spellOvers = 0; b.spellPlan = 0; if (id !== lastId) b.lastOver = -99; }
+  inn.ends[inn.end] = null;
   st.events.push({ day: st.day, inn: inn.number, overs: Math.floor(inn.legalBalls / 6), kind: "day_start", text: `Day ${st.day}: ${scoreLine(st, inn)}.` });
 }
 
@@ -963,8 +967,12 @@ function newEvent(st: TestMatchState, inn: TestInnings): TestBallEvent {
   };
 }
 
+/** Test hook: force the outcome class of every delivery (a forced wicket is bowled: no fielding, no review). Never used by the game. */
+export const TEST_MATCH_HOOKS: { forceClass?: TestOutcomeClass } = {};
+
 /** Draw the delivery; returns the event, or a held event when a user DRS decision is pending */
 function deliver(st: TestMatchState, inn: TestInnings, rng: RNG): TestBallEvent | null {
+  if (TEST_MATCH_HOOKS.forceClass) return forced(st, inn, TEST_MATCH_HOOKS.forceClass);
   const p = testBallProbs(st, inn);
   const bowlerId = inn.ends[inn.end]!;
   const type = st.players[bowlerId].spin ? "spin" : "pace";
@@ -1073,6 +1081,16 @@ function deliver(st: TestMatchState, inn: TestInnings, rng: RNG): TestBallEvent 
       }
     }
   }
+  return ev;
+}
+
+function forced(st: TestMatchState, inn: TestInnings, cls: TestOutcomeClass): TestBallEvent {
+  const ev = newEvent(st, inn);
+  if (cls === "W") { ev.outcome = "wicket"; ev.isWicket = true; ev.wicketType = "bowled"; ev.playerOutId = inn.strikerId; }
+  else if (cls === "wide") { ev.outcome = "wide"; ev.wides = 1; ev.extras = 1; }
+  else if (cls === "nb") { ev.outcome = "noball"; ev.noBalls = 1; ev.extras = 1; }
+  else if (cls === "bye") { ev.outcome = "legbye"; ev.legByes = 1; ev.extras = 1; }
+  else if (cls !== "dot") { ev.outcome = cls; ev.runs = Number(cls); if (cls === "4" || cls === "6") ev.boundary = cls === "4" ? 4 : 6; }
   return ev;
 }
 
@@ -1499,8 +1517,9 @@ export function stepTestBall(st: TestMatchState): TestBallEvent | null {
     }
     if (inn.newBallDue) {
       if (!isUserSide(st, inn.bowlingTeamId)) takeNewBallNow(st, inn);
-      else if (inn.newBalls === inn.ballTakenAt / 80 + 1 && !(inn as { asked?: number }).asked) {
-        (inn as { asked?: number }).asked = inn.ballTakenAt;
+      else if (inn.newBallAsked !== inn.ballTakenAt) {
+        // the user's call once per ball; after "wait" he can still take it any time (takeNewBall)
+        inn.newBallAsked = inn.ballTakenAt;
         st.status = "waiting_for_decision";
         st.pending = { type: "new_ball", teamId: inn.bowlingTeamId, options: ["take", "wait"] };
         return null;

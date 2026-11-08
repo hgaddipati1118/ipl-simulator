@@ -277,3 +277,21 @@ export { generateName, isRealName, nameGroupOf, normaliseName } from "./names.js
 // Model commentary for instantly simulated matches, generated when a match is viewed (docs/COMMENTARY.md section 9)
 export { attachCommentaryCues, withModelCommentary } from "./instant-commentary.js";
 export type { CommentaryCues, BallCommentaryCue, DetailedWithCues } from "./instant-commentary.js";
+
+// Test cricket: instant simulation, the live driver and the fitted model (docs/FORMATS-TEST.md)
+export {
+  simulateTestMatch, createTestMatch, stepTestBall, runTestToEnd, applyToss, applyFollowOn, applyTestDecision, autoResolveTestDecision,
+  declareInnings, setTestApproach, takeNewBall, changeTestBowler, describeTestBall, testInningsScorecard, testMatchResult,
+  pickTestXI, testBattingOrder, testPlayerOf, testBallProbs, oversLeftInMatch, testLead, testTarget, currentInnings as currentTestInnings,
+  followOnMargin, followOnProbability, declarationHazard, testCountryCode, TEST_OUTCOMES, TEST_COUNTRIES,
+} from "./test-match.js";
+export type {
+  TestMatchOptions, TestMatchState, TestMatchResult, TestResult, TestInnings, TestInningsSummary, TestBallEvent, TestBatterLine,
+  TestBowlerLine, TestTeamState, TestPlayer, TestPendingDecision, TestDecisionType, TestMatchEvent, TestApproach, TestGender, TestOutcomeClass,
+} from "./test-match.js";
+export {
+  startLiveTest, advanceTest, decideTest, declareTest, setTestBattingApproach, takeTestNewBall, changeTestBowlerTo, setTestAutoCaptain,
+  testBowlingOptions, testSituation, finishLiveTest, serializeTestState, deserializeTestState,
+} from "./test-live.js";
+export type { TestAdvanceUntil, TestAdvanceResult, TestBowlingOption, TestSituation } from "./test-live.js";
+export { TEST_MODEL } from "./test-model-data.js";
