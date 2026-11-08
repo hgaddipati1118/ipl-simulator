@@ -63,6 +63,11 @@ for (const key of Object.keys(validation)) {
   out();
   const m = (x?: Metric) => (x ? [x.n, f3(x.corr), f0(x.mse)] : ["", "", ""]);
   table(["predictor", "players", "corr", "mse", "common players", "corr", "mse"], v.holdout.map(h => [h.predictor, ...m(h.all), ...m(h.common)]));
+  if (v.pooled?.length) {
+    out(`All four folds pooled (rated through 2014, 2017, 2020, 2023; ${v.pooled[0].all.n} player-folds): ` +
+      v.pooled.map(h => `${h.predictor} ${f3(h.all.corr)}`).join("; ") + ".");
+    out();
+  }
   out(`Derived ratings, checked by hiding each player's ${FMT_NAME[CA_NAME[fmt]]} record (same players):`);
   out();
   table(["predictor", "players", "corr", "mse", "mean target - prediction"], v.masked.map(h => [h.predictor, h.all.n, f3(h.all.corr), f0(h.all.mse), h.all.bias.toFixed(1)]));

@@ -99,6 +99,8 @@ export interface FormatValidation {
    * translated prior shrunk toward the below-average prior). `bias` > 0: they did better than the derived rating said.
    */
   masked: FoldResult[];
+  /** All four folds pooled (the tuning folds chose DATA_VAR from a flat grid, so mildly in-sample): more players */
+  pooled: FoldResult[];
 }
 
 const DATA_VAR_GRID = [0.25, 0.5, 1, 2, 4, 1e9];
@@ -162,7 +164,7 @@ export function validate(gender: Gender, format: "ListA" | "FC", side: Side, cac
     },
     "format rating, own record only": (_id, p) => doesSide(p[format]?.[side]) ? p[format]![side]!.rating : undefined,
     "T20 rating (no format ratings)": t20Rating,
-    "T20 rating translated (with T20 style)": (_id, p) => {
+    [side === "bowl" ? "T20 rating translated (with T20 style)" : "T20 rating translated"]: (_id, p) => {
       if (!doesSide(p.T20?.[side]) || !t20) return undefined;
       const st = t20.c && p.style?.[side];
       return t20.a + t20.b * p.T20![side]!.rating + (st ? t20.c![0] * st[0] + t20.c![1] * st[1] : 0);
@@ -177,5 +179,26 @@ export function validate(gender: Gender, format: "ListA" | "FC", side: Side, cac
     "translated, not shrunk": (_id, p) => estimateFormat(withoutFormat(p, format, side), format, side, noShrink)?.mean,
     "T20 rating (no format ratings)": t20Rating,
   }, hasData);
-  return { gender, format, side, dataVar: best.dataVar, tuning, holdout, masked };
+  // Pooled over every fold with the chosen DATA_VAR
+  const pooledPlayers = new Map<number, CaPlayerFormats>(), pooledTarget = new Map<number, IntlRecord>();
+  const preds: Record<string, Map<number, number>> = { final: new Map(), own: new Map(), t20: new Map() };
+  for (const f of [...folds, { y: HOLDOUT_YEAR, players, target, translations }]) {
+    const c = buildContext(f.players, format, gender, f.y, best.dataVar, f.translations);
+    for (const [id, t] of f.target) {
+      const p = f.players.get(id);
+      if (t.balls < minBalls || !p || !hasData(id, p)) continue;
+      const key = f.y * 10_000_000 + id; // a player in two folds counts twice, once per fold
+      pooledPlayers.set(key, p); pooledTarget.set(key, t);
+      const e = estimateFormat(p, format, side, c);
+      if (e) preds.final.set(key, e.mean);
+      preds.own.set(key, p[format]![side]!.rating);
+      if (doesSide(p.T20?.[side])) preds.t20.set(key, p.T20![side]!.rating);
+    }
+  }
+  const pooled = evaluate(pooledPlayers, pooledTarget, minBalls, {
+    "format rating (own record + translated prior)": key => preds.final.get(key),
+    "format rating, own record only": key => preds.own.get(key),
+    "T20 rating (no format ratings)": key => preds.t20.get(key),
+  });
+  return { gender, format, side, dataVar: best.dataVar, tuning, holdout, masked, pooled };
 }
