@@ -15,8 +15,8 @@ export type LeagueType = "ipl" | "wpl" | "custom" | ExtraLeagueId;
  * - "wbbl": top 4, 1st goes straight to the final; Knockout 3v4, Challenger 2nd v Knockout winner, Final
  */
 export type PlayoffFormat = "eliminator" | "simple" | "none" | "top3" | "wbbl";
-/** "hundred": 100-ball innings of 20 five-ball sets, a bowler delivers at most 20 balls (see format.ts) */
-export type MatchFormatId = "t20" | "hundred";
+/** "hundred": 100-ball innings of 20 five-ball sets, a bowler delivers at most 20 balls; "odi": 50 overs a side (see format.ts) */
+export type MatchFormatId = "t20" | "hundred" | "odi";
 export type GenderOption = "men" | "women" | "combined";
 export type PlayerSource = "real" | "generated";
 
@@ -44,7 +44,7 @@ export interface RuleSet {
   maxRetentions?: number;        // max players retained at mega auction (default 6)
   maxMiniRetentions?: number;    // max players retained at mini auction (default 4)
   squadBuilding?: "auction" | "draft"; // how squads are built (default "auction")
-  matchFormat?: MatchFormatId;         // innings format (default "t20"; The Hundred = "hundred")
+  matchFormat?: MatchFormatId;         // innings format (default "t20"; The Hundred = "hundred"; one-day international = "odi")
   minSquadSize?: number;               // smallest legal squad (default 18)
   draftType?: "snake" | "linear";      // season draft pick order (default "snake")
   draftPickSeconds?: number;           // season draft pick clock, 0 = off (default 45)
@@ -146,6 +146,25 @@ export const RULE_PRESETS = {
 };
 
 export const DEFAULT_RULES: RuleSet = RULE_PRESETS.modern2026;
+
+/**
+ * Rules for a one-day international: 50 overs a side (format.ts ODI_FORMAT), no Impact Player, the men's or women's ODI
+ * model (its scoring level is fitted, so the scoring multiplier is 1), no overseas limit in a national XI. Squad and
+ * auction fields come from `base`. Play it with simulateMatch(home, away, odiRules()) or createMatchState(...).
+ */
+export function odiRules(gender: "men" | "women" = "men", base: RuleSet = DEFAULT_RULES): RuleSet {
+  return {
+    ...base,
+    name: gender === "women" ? "Women's ODI" : "ODI",
+    league: "custom",
+    leagueName: gender === "women" ? "Women's ODI" : "ODI",
+    matchFormat: "odi",
+    impactPlayer: false,
+    scoringMultiplier: 1.0,
+    gender,
+    maxOverseasInXI: 11,
+  };
+}
 
 export type AuctionType = "mega" | "mini";
 

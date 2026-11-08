@@ -75,6 +75,28 @@ export function dlsPar(team1Score: number, r1: number, r2Used: number, g: number
 export const DLS_G_T20 = 160;
 
 /**
+ * G for a 50-over innings: men 245, the Standard Edition's G50 for men's ODIs between full members; women 225, the
+ * 2019+ average first-innings score of full women's ODIs in Cricsheet (docs/FORMATS.md).
+ */
+export const DLS_G_ODI = { male: 245, female: 225 } as const;
+
+/** G for a format with a full DLS table (the ODI); the T20 / Hundred value is scaled in the match engine */
+export function dlsGFor(fmt: { overs: number; totalBalls: number }, gender: "male" | "female" = "male"): number {
+  if (fmt.overs >= 50) return DLS_G_ODI[gender];
+  return DLS_G_T20 * (fmt.totalBalls / 120);
+}
+
+/**
+ * Revised target for the side batting second in a 50-over match after an interruption in its innings (live engine): team 1
+ * made `team1Score` with `r1` percent of resources; the chase lost `oversLost` overs when it had `oversLeft` overs to go and
+ * `wickets` down.
+ */
+export function odiRevisedTarget(team1Score: number, r1: number, oversLeft: number, wickets: number, oversLost: number, g: number): number {
+  const r2 = inningsResources(50, [{ oversLeft, wickets, oversLost }], 50);
+  return dlsTarget(team1Score, r1, r2, g);
+}
+
+/**
  * Legacy helper (live engine before section 13): target for team 2 with `team2OversAvailable` overs, `team2WicketsLost`
  * down at the point the overs were set, after team 1 batted `team1OversCompleted` overs.
  */
