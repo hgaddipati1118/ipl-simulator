@@ -16,6 +16,8 @@ import {
   type IntlSeries, type SeriesGender, type SeriesHost, type SeriesLineup, type SeriesMatchRecord,
 } from "../international";
 import { loadFormatRatings } from "../format-ratings";
+import { loadPlayerActivity } from "../player-activity";
+import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import { LiveMatchPage } from "./LiveMatchPage";
 import { BattingCard, BowlingCard } from "./MatchPage";
 import { LineupEditor } from "../components/DraftMatchParts";
@@ -52,7 +54,11 @@ export function InternationalPage() {
     return s.liveMatch !== undefined ? { kind: "live", n: s.liveMatch, state: null } : { kind: "hub" };
   });
 
-  useEffect(() => { loadFormatRatings().then(f => setFile(f ?? null)); }, []);
+  // when the players last played (squads are picked from active players); null = unavailable, an age rule stands in
+  const [activity, setActivity] = useState<PlayerActivityFile | null | undefined>(undefined);
+  useEffect(() => {
+    void Promise.all([loadFormatRatings(), loadPlayerActivity()]).then(([f, a]) => { setActivity(a ?? null); setFile(f ?? null); });
+  }, []);
 
   const update = (s: IntlSeries | null) => { setSeries(s); saveSeries(s); };
   const squads = useMemo(() => (series && file !== undefined ? seriesSquads(series, file) : null), [series?.id, file]);
@@ -65,6 +71,7 @@ export function InternationalPage() {
     return (
       <SeriesSetup
         file={file}
+        activity={activity ?? null}
         existing={series}
         onResume={() => setView({ kind: "hub" })}
         onStart={async s => { await clearSeriesLiveSaves(); update(s); setView({ kind: "hub" }); }}
@@ -151,15 +158,16 @@ export function InternationalPage() {
 
 // ── Setup ───────────────────────────────────────────────────────────────
 
-function SeriesSetup({ file, existing, onStart, onResume, onBack }: {
+function SeriesSetup({ file, activity, existing, onStart, onResume, onBack }: {
   file: FormatRatingsFile | null;
+  activity: PlayerActivityFile | null;
   existing: IntlSeries | null;
   onStart: (s: IntlSeries) => void;
   onResume: () => void;
   onBack: () => void;
 }) {
   const [gender, setGender] = useState<SeriesGender>("men");
-  const nations = useMemo(() => seriesNations(gender), [gender]);
+  const nations = useMemo(() => seriesNations(gender, activity), [gender, activity]);
   const [a, setA] = useState("India");
   const [b, setB] = useState("Australia");
   const [format, setFormat] = useState(SERIES_FORMATS[0].id);
@@ -183,7 +191,7 @@ function SeriesSetup({ file, existing, onStart, onResume, onBack }: {
     setBusy(true);
     // building squads and the first match is quick, but let the button repaint first
     setTimeout(() => {
-      onStart(createSeries({ format, gender, nations: [a, b], length, host, userSide: role === "watch" ? null : role === "a" ? 0 : 1 }, file));
+      onStart(createSeries({ format, gender, nations: [a, b], length, host, userSide: role === "watch" ? null : role === "a" ? 0 : 1 }, file, activity));
       setBusy(false);
     }, 0);
   };
