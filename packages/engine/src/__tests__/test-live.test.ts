@@ -244,3 +244,15 @@ describe("live Test: skipping ahead and saving", () => {
     expect(res.scorecards[0].batters.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("live Test commentary", () => {
+  it("never announces a free hit (there are none in Tests)", () => {
+    const st = startLiveTest(IND, ENG, { seed: 44, userTeamId: IND.id, country: "IND" });
+    setTestAutoCaptain(st, true);
+    advanceTest(st, "match", { autoDecide: true });
+    const lines = st.innings.flatMap(i => i.ballLog.map(e => e.commentary ?? ""));
+    expect(lines.length).toBeGreaterThan(500);
+    expect(lines.filter(l => /free hit/i.test(l))).toEqual([]);
+    expect(lines.every(l => l.length > 0)).toBe(true);
+  });
+});

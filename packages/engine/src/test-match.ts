@@ -365,6 +365,8 @@ export interface TestMatchState {
   reviewsPerInnings: number;
   commentary: boolean;
   events: TestMatchEvent[];
+  /** Corpus commentary lines already used in this match (live commentary) */
+  commentaryUsed?: Record<string, 1>;
   result?: TestResult;
   injuries?: MatchInjuryEvent[];
 }
@@ -1785,12 +1787,17 @@ export function describeTestBall(st: TestMatchState, inn: TestInnings, index: nu
   const rng: RNG = () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const name = (id?: string) => (id ? st.players[id]?.name : undefined);
   const bat = inn.batters[ev.batter];
-  let text = generateDeliveryCommentary({
+  const out = generateDeliveryCommentary({
     detail, bowlerName: name(ev.bowler)!, batterName: name(ev.batter)!, nonStrikerName: name(ev.nonStriker),
     fielderName: name(ev.fielderId), fielder2Name: name(ev.fielder2Id), over: ev.over, ball: ev.ball, score: ev.score, wickets: ev.wickets,
     isSecondInnings: inn.number === 4, target: inn.number === 4 ? testTarget(st) : undefined, bowlingStyle: st.players[ev.bowler]?.bowlingStyle,
     battingHand: st.players[ev.batter]?.battingHand, gender: st.gender, batterRuns: bat?.runs, batterBalls: bat?.balls, rng,
-  }).text;
+    usedLines: st.commentaryUsed,
+  });
+  // corpus lines are not repeated within a match (the live T20 engine does the same)
+  if (out.key && st.commentary) (st.commentaryUsed ??= {})[out.key] = 1;
+  // Tests have no free hit: the shared no-ball lines may announce one
+  let text = out.text.replace(/(^|\s)[^.!?]*free hit[^.!?]*[.!?]/gi, "").replace(/^FREE HIT!\s*/i, "").trim();
   if (!ev.isWicket && ev.fieldingNote === "dropped_catch") text += ` Dropped! ${name(ev.fielderId) ?? "The fielder"} puts down the chance.`;
   if (!ev.isWicket && ev.fieldingNote === "missed_stumping") text += ` ${name(ev.fielderId) ?? "The keeper"} misses the stumping.`;
   if (ev.review) text += " " + drsText(ev.review, st.teams[ev.review.by === "batting" ? inn.battingTeamId : inn.bowlingTeamId].name, rng);
