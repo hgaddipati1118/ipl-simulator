@@ -8,10 +8,11 @@
  * counts an ODI against a strong side for more than a domestic one-day match.
  *
  * Per player, format (ListA = ODI, FC = Test) and side:
- *   - data: the format's latest CA rating (as of `asOf`), its sd widened for staleness (x 2^(years since / half-life),
- *     the CA model's own half-life) and scaled by DATA_VAR (tuned out of sample, format-ratings-report.ts);
+ *   - data: the format's latest CA rating (as of `asOf`), its sd widened for staleness (x 2^(seasons since / half-life),
+ *     the CA model's own half-life, at most two seasons) and scaled by DATA_VAR (tuned out of sample, format-validation.ts);
  *   - prior: the best translation from another format (T20 or the other long format; weighted least squares over
- *     players rated in both, residual variance added to the sd, as ca-model.ts does for T20);
+ *     players rated in both, residual variance added to the sd, as ca-model.ts does for T20; bowling from T20 also uses
+ *     the player's T20 economy and strike rate, T20Style);
  *   - both: inverse-variance blend (`dataWeight` = the record's share);
  *   - prior only ("derived"): shrunk toward a below-average prior (the 35th percentile of the format's regulars).
  * A side the player barely does (< 6 balls a match in the format) has no data, the same rule as ca-model.ts.
@@ -76,7 +77,13 @@ export interface SideRating {
   /** Matches in the format (the larger of innings batted and bowled), for the balls-a-match rule */
   matches: number;
 }
-export type CaPlayerFormats = Partial<Record<CaFormat, Partial<Record<Side, SideRating>>>>;
+/**
+ * T20 style of a player, as z-scores against T20 regulars (500+ balls): batting [strike rate, log balls per dismissal],
+ * bowling [runs per ball, wickets per ball]. Translations from T20 use it: a T20 rating earned by hitting (or by
+ * economy) carries over to List A and, more so, to first-class cricket less than one earned by staying in (or by wickets).
+ */
+export type T20Style = Partial<Record<Side, [number, number]>>;
+export type CaPlayerFormats = Partial<Record<CaFormat, Partial<Record<Side, SideRating>>>> & { style?: T20Style };
 
 interface Params { half_life: number; K: number }
 
@@ -145,6 +152,10 @@ export function loadCaFormats(gender: Gender, asOf: number, opts: { lower?: bool
     LEFT JOIN car b ON b.player_id = l.player_id AND b.format = l.format AND b.side = 'bat'
     LEFT JOIN car w ON w.player_id = l.player_id AND w.format = l.format AND w.side = 'bowl'`;
   const out = toFormats(duck<Row>(sql));
+  for (const r of loadT20Style(gender, asOf)) {
+    const p = out.get(Number(r.player_id));
+    if (p) (p.style ??= {})[r.side] = [r.z1, r.z2];
+  }
   if (opts.lower && existsSync(LOWER_FILE) && existsSync(LOWER_CELLS_FILE)) {
     const lsql = `
       WITH car AS (
@@ -164,9 +175,39 @@ export function loadCaFormats(gender: Gender, asOf: number, opts: { lower?: bool
   return out;
 }
 
+/**
+ * Sides whose translation from T20 uses the T20 style. Bowling only: out of sample (format-validation.ts) the style term
+ * lifts the T20 -> ODI / Test bowling prior (held-out correlation 0.32 -> 0.36 ODI, 0.20 -> 0.24 Test) but lowers the
+ * batting one (0.31 -> 0.30 ODI, 0.24 -> 0.19 Test): in 2024-25 the hitters who were picked for Tests did well.
+ */
+const STYLE_SIDES: Side[] = ["bowl"];
+/** Pseudo-balls of the T20 average added to a player's T20 rates before they are turned into style z-scores */
+const STYLE_PRIOR_BALLS = 120;
+const STYLE_MIN_BALLS = 60;
+const STYLE_REGULAR_BALLS = 500;
+
+/** T20 style z-scores per player and side from the CA cells up to asOf (see T20Style) */
+function loadT20Style(gender: Gender, asOf: number): { player_id: number; side: Side; z1: number; z2: number }[] {
+  const n0 = STYLE_PRIOR_BALLS;
+  return duck(`
+    WITH c AS (SELECT player_id, side, sum(balls) AS balls, sum(runs) AS runs, sum(outs) AS outs FROM '${CELLS_FILE}'
+               WHERE gender = '${gender}' AND format = 'T20' AND year <= ${asOf} GROUP BY ALL),
+    pop AS (SELECT side, sum(runs) / sum(balls) AS rpb, sum(outs) / sum(balls) AS opb FROM c GROUP BY ALL),
+    f AS (SELECT c.player_id, c.side, c.balls,
+                 CASE WHEN c.side = 'bat' THEN 100 * (c.runs + ${n0} * p.rpb) / (c.balls + ${n0}) ELSE (c.runs + ${n0} * p.rpb) / (c.balls + ${n0}) END AS s1,
+                 CASE WHEN c.side = 'bat' THEN ln((c.balls + ${n0}) / (c.outs + ${n0} * p.opb)) ELSE (c.outs + ${n0} * p.opb) / (c.balls + ${n0}) END AS s2
+          FROM c JOIN pop p USING (side)),
+    m AS (SELECT side, avg(s1) AS m1, stddev_pop(s1) AS d1, avg(s2) AS m2, stddev_pop(s2) AS d2 FROM f WHERE balls >= ${STYLE_REGULAR_BALLS} GROUP BY ALL)
+    SELECT f.player_id, f.side, (s1 - m1) / d1 AS z1, (s2 - m2) / d2 AS z2 FROM f JOIN m USING (side) WHERE f.balls >= ${STYLE_MIN_BALLS}`);
+}
+
 // ── translations between formats ──────────────────────────────────────
 
-export interface Translation { a: number; b: number; residVar: number; n: number }
+export interface Translation {
+  a: number; b: number; residVar: number; n: number;
+  /** Coefficients on the T20 style z-scores (translations from T20 only) */
+  c?: [number, number];
+}
 export type TranslationKey = `${Side}/${CaFormat}>${CaFormat}`;
 export type Translations = Partial<Record<TranslationKey, Translation>>;
 
@@ -184,6 +225,34 @@ export function fitLine(pairs: { x: number; y: number; w: number }[]): Translati
   return { a, b, residVar, n: pairs.length };
 }
 
+/** Weighted least squares of y on [1, ...xs] (normal equations); undefined if singular */
+export function fitWls(rows: { xs: number[]; y: number; w: number }[]): { coef: number[]; residVar: number } | undefined {
+  const k = (rows[0]?.xs.length ?? 0) + 1;
+  const A = Array.from({ length: k }, () => new Array(k + 1).fill(0));
+  for (const r of rows) {
+    const x = [1, ...r.xs];
+    for (let i = 0; i < k; i++) {
+      for (let j = 0; j < k; j++) A[i][j] += r.w * x[i] * x[j];
+      A[i][k] += r.w * x[i] * r.y;
+    }
+  }
+  for (let col = 0; col < k; col++) {
+    let piv = col;
+    for (let i = col + 1; i < k; i++) if (Math.abs(A[i][col]) > Math.abs(A[piv][col])) piv = i;
+    if (Math.abs(A[piv][col]) < 1e-12) return undefined;
+    [A[col], A[piv]] = [A[piv], A[col]];
+    for (let i = 0; i < k; i++) {
+      if (i === col) continue;
+      const f = A[i][col] / A[col][col];
+      for (let j = col; j <= k; j++) A[i][j] -= f * A[col][j];
+    }
+  }
+  const coef = A.map((row, i) => row[k] / row[i]);
+  const sw = rows.reduce((t, r) => t + r.w, 0);
+  const residVar = rows.reduce((t, r) => t + r.w * (r.y - coef[0] - r.xs.reduce((u, x, i) => u + coef[i + 1] * x, 0)) ** 2, 0) / sw;
+  return { coef, residVar };
+}
+
 /** A side counts as one the player does in a format: rated, enough balls, and enough of them a match */
 export function doesSide(r: SideRating | undefined, minBalls = MIN_EVIDENCE_BALLS): r is SideRating {
   return !!r && r.balls >= minBalls && (r.matches > 0 ? r.balls / r.matches : 0) >= MIN_BALLS_PER_MATCH;
@@ -198,14 +267,21 @@ export function fitTranslations(players: Iterable<CaPlayerFormats>, gender: Gend
     for (const to of CA_FORMATS) {
       for (const from of CA_FORMATS) {
         if (from === to) continue;
-        const pairs: { x: number; y: number; w: number }[] = [];
+        const pairs: { x: number; y: number; w: number; s?: [number, number] }[] = [];
         for (const p of list) {
           const x = p[from]?.[side], y = p[to]?.[side];
           if (!doesSide(x, minBalls[from]) || !doesSide(y, minBalls[to])) continue;
           if (Math.abs(x.year - y.year) > TRANSLATE_MAX_GAP) continue;
-          pairs.push({ x: x.rating, y: y.rating, w: (2 * x.balls * y.balls) / (x.balls + y.balls) });
+          pairs.push({ x: x.rating, y: y.rating, w: (2 * x.balls * y.balls) / (x.balls + y.balls), s: p.style?.[side] });
         }
-        out[`${side}/${from}>${to}`] = fitLine(pairs);
+        let t = fitLine(pairs);
+        // From T20: add the player's T20 style (fitted on players who have it; a missing style counts as average)
+        const styled = pairs.filter(q => q.s);
+        if (from === "T20" && STYLE_SIDES.includes(side) && styled.length >= 100) {
+          const fit = fitWls(styled.map(q => ({ xs: [q.x, q.s![0], q.s![1]], y: q.y, w: q.w })));
+          if (fit) t = { a: fit.coef[0], b: fit.coef[1], c: [fit.coef[2], fit.coef[3]], residVar: fit.residVar, n: styled.length };
+        }
+        out[`${side}/${from}>${to}`] = t;
       }
     }
   }
@@ -239,9 +315,16 @@ export interface EstimateContext {
   dataBalls: number;
 }
 
+/**
+ * A rating's sd is widened for at most this many seasons without the format (held-out correlation: unlimited 0.621,
+ * 2 seasons 0.624, none 0.618 for Test batting; the other sides are within 0.001): an old but long record keeps
+ * some weight against the translated prior
+ */
+const MAX_STALE_SEASONS = 2;
+
 /** Variance of a rating, widened for the years since it was last updated (the CA model's half-life) */
 function staleVar(r: SideRating, fmt: CaFormat, side: Side, ctx: EstimateContext): number {
-  const gap = Math.max(0, ctx.asOf - r.year);
+  const gap = Math.min(MAX_STALE_SEASONS, Math.max(0, ctx.asOf - r.year));
   return r.sd ** 2 * 2 ** (gap / ctx.params[`${side}/${fmt}`].half_life);
 }
 
@@ -254,7 +337,8 @@ export function translatedPrior(p: CaPlayerFormats, target: CaFormat, side: Side
     const t = ctx.translations[`${side}/${from}>${target}`];
     if (!doesSide(r) || !t || t.n < 30) continue;
     const v = t.b ** 2 * staleVar(r, from, side, ctx) + t.residVar;
-    const cand = { mean: t.a + t.b * r.rating, var: v, from };
+    const st = t.c && p.style?.[side];
+    const cand = { mean: t.a + t.b * r.rating + (st ? t.c![0] * st[0] + t.c![1] * st[1] : 0), var: v, from };
     if (!best || cand.var < best.var) best = cand;
   }
   return best;

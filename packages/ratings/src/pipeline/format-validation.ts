@@ -162,7 +162,11 @@ export function validate(gender: Gender, format: "ListA" | "FC", side: Side, cac
     },
     "format rating, own record only": (_id, p) => doesSide(p[format]?.[side]) ? p[format]![side]!.rating : undefined,
     "T20 rating (no format ratings)": t20Rating,
-    "T20 rating translated": (_id, p) => doesSide(p.T20?.[side]) && t20 ? t20.a + t20.b * p.T20![side]!.rating : undefined,
+    "T20 rating translated (with T20 style)": (_id, p) => {
+      if (!doesSide(p.T20?.[side]) || !t20) return undefined;
+      const st = t20.c && p.style?.[side];
+      return t20.a + t20.b * p.T20![side]!.rating + (st ? t20.c![0] * st[0] + t20.c![1] * st[1] : 0);
+    },
     "naive: career international value": id => { const h = hist.career[side].get(id); return h && h.balls >= 100 ? h.raw : undefined; },
     "naive: last season international value": id => { const h = hist.last[side].get(id); return h && h.balls >= 60 ? h.raw : undefined; },
   }, hasData);
