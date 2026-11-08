@@ -41,6 +41,12 @@ A set is "data" when the player's main discipline (his better T20 side) is measu
   k-th best of their T20 discipline overalls. Everyone else is read off that score -> overall curve (interpolated, clamped
   to its ends), ranked by mean - 0.5 sd as in model-ratings.ts. So among players who play both, a format rating sits where
   a T20 rating does and the engines' balance terms see the same spread; the format's ranking is its own.
+- **Sides a player doesn't do.** A side with fewer than 6 balls a match in the format, over his career or over his last
+  three seasons of it (the T20 pipeline's rule, plus recency: a batter who bowled leg-spin a decade ago is not a bowler
+  now), keeps his T20 level at most. Without it, established batters with a few part-time overs (Pujara, Kohli, Gill,
+  Smith) rose from about 30 bowling in T20 to 44-46 in ODIs and Tests, which matters because the engines pick bowlers by
+  bowling overall. Batsmen who do bowl part-time in the format (Root, Head) sit at the batsman's secondary-discipline
+  ceiling (about 44-46), as part-timers do in T20.
 - **Caps** (as the T20 pipeline): below 7/3 K career balls in the format (K = the CA model's shrinkage) a side can't rate
   above the 95th percentile of established players; a derived side can't rate above the median of the format's regulars;
   extended-pool players rated only from lower-level cricket keep the T20 pipeline's tier ceilings; a side with no CA
@@ -239,8 +245,8 @@ Final discipline overall (after attributes and normalisation) among each format'
 | ODI batting | 1144 | 872 | 30 | 50 | 68 | 75 | 80 | 93 |
 | Test batting | 1123 | 730 | 30 | 40 | 67 | 74 | 79 | 93 |
 | T20 batting | 1582 |  | 43 | 53 | 67 | 74 | 79 | 93 |
-| ODI bowling | 1126 | 913 | 32 | 40 | 66 | 74 | 77 | 96 |
-| Test bowling | 894 | 705 | 32 | 39 | 63 | 74 | 77 | 95 |
+| ODI bowling | 1126 | 913 | 32 | 39 | 66 | 74 | 77 | 96 |
+| Test bowling | 894 | 705 | 31 | 38 | 63 | 74 | 77 | 95 |
 | T20 bowling | 1639 |  | 32 | 52 | 68 | 74 | 76 | 97 |
 
 Attributes, p25 / p50 / p75 among the same regulars (men):
@@ -249,11 +255,11 @@ Attributes, p25 / p50 / p75 among the same regulars (men):
 |---|---|---|---|
 | battingIQ | 48 / 68 / 78 | 36 / 68 / 81 | 54 / 67 / 78 |
 | timing | 49 / 71 / 79 | 40 / 70 / 78 | 54 / 67 / 77 |
-| power | 51 / 63 / 74 | 48 / 59 / 69 | 48 / 61 / 74 |
-| running | 45 / 60 / 72 | 37 / 58 / 68 | 46 / 57 / 69 |
-| wicketTaking | 36 / 70 / 84 | 34 / 63 / 80 | 55 / 74 / 81 |
-| economy | 31 / 45 / 62 | 32 / 47 / 67 | 34 / 54 / 71 |
-| accuracy | 25 / 48 / 60 | 27 / 49 / 60 | 38 / 51 / 61 |
+| power | 50 / 63 / 74 | 48 / 59 / 69 | 48 / 61 / 74 |
+| running | 46 / 60 / 72 | 37 / 58 / 68 | 46 / 57 / 69 |
+| wicketTaking | 35 / 70 / 84 | 33 / 63 / 80 | 55 / 74 / 81 |
+| economy | 31 / 45 / 62 | 31 / 47 / 67 | 34 / 54 / 71 |
+| accuracy | 25 / 47 / 60 | 26 / 48 / 60 | 38 / 51 / 61 |
 
 **Women**
 
@@ -262,7 +268,7 @@ Attributes, p25 / p50 / p75 among the same regulars (men):
 | ODI batting | 331 | 263 | 30 | 44 | 58 | 68 | 76 | 95 |
 | Test batting | 60 | 55 | 32 | 47 | 66 | 78 | 85 | 95 |
 | T20 batting | 652 |  | 32 | 40 | 50 | 64 | 72 | 95 |
-| ODI bowling | 308 | 281 | 32 | 37 | 69 | 73 | 76 | 87 |
+| ODI bowling | 308 | 281 | 32 | 36 | 69 | 73 | 76 | 87 |
 | Test bowling | 67 | 64 | 41 | 71 | 73 | 75 | 77 | 82 |
 | T20 bowling | 688 |  | 31 | 45 | 62 | 71 | 74 | 87 |
 
@@ -270,13 +276,13 @@ Attributes, p25 / p50 / p75 among the same regulars (women):
 
 | attribute | ODI | Test | T20 |
 |---|---|---|---|
-| battingIQ | 43 / 59 / 75 | 51 / 70 / 84 | 42 / 53 / 68 |
+| battingIQ | 42 / 59 / 75 | 51 / 70 / 84 | 42 / 53 / 68 |
 | timing | 44 / 60 / 74 | 48 / 66 / 79 | 41 / 52 / 67 |
-| power | 40 / 49 / 61 | 43 / 64 / 76 | 35 / 44 / 56 |
+| power | 39 / 49 / 61 | 43 / 64 / 76 | 35 / 44 / 56 |
 | running | 44 / 56 / 69 | 45 / 60 / 77 | 39 / 49 / 63 |
-| wicketTaking | 33 / 68 / 75 | 65 / 71 / 78 | 41 / 60 / 69 |
-| economy | 36 / 66 / 77 | 66 / 77 / 89 | 45 / 65 / 76 |
-| accuracy | 40 / 60 / 70 | 45 / 60 / 69 | 51 / 60 / 69 |
+| wicketTaking | 31 / 68 / 75 | 65 / 71 / 78 | 41 / 60 / 69 |
+| economy | 35 / 66 / 77 | 66 / 77 / 89 | 45 / 65 / 76 |
+| accuracy | 36 / 59 / 69 | 45 / 60 / 69 | 51 / 60 / 69 |
 
 ### Top 25 (ESPN pool)
 
@@ -292,7 +298,7 @@ Attributes, p25 / p50 / p75 among the same regulars (women):
 
 **Women, ODI batting**: Shafali Verma (India) 95 [T20 92], Beth Mooney (Australia) 94 [T20 87], Nat Sciver-Brunt (England) 92 [T20 95], Smriti Mandhana (India) 92 [T20 92], Phoebe Litchfield (Australia) 87 [T20 94], Grace Harris (Australia) 87 [T20 87], Alyssa Healy (Australia) 87 [T20 79], Danni Wyatt-Hodge (England) 85 [T20 85], Annabel Sutherland (Australia) 85 [T20 80], Meg Lanning (Australia) 85 [T20 81], Georgia Voll (Australia) 85 [T20 81], Sophie Devine (New Zealand) 83 [T20 82], Ellyse Perry (Australia) 82 [T20 87], Ashleigh Gardner (Australia) 82 [T20 85], Laura Wolvaardt (South Africa) 82 [T20 82], Marizanne Kapp (South Africa) 81 [T20 78], Freya Kemp (England) 81 [T20 79], Jemimah Rodrigues (India) 81 [T20 80], Harmanpreet Kaur (India) 81 [T20 79], Rachael Haynes (Australia) 81 [T20 77], Georgia Wareham (Australia) 80 [T20 85], Hayley Matthews (West Indies) 80 [T20 80], Lizelle Lee (South Africa) 80 [T20 83], Maia Bouchier (England) 80 [T20 79], Amelia Kerr (New Zealand) 79 [T20 80]
 
-**Women, ODI bowling**: Sophie Ecclestone (England) 87 [T20 82], Jess Jonassen (Australia) 82 [T20 76], Alana King (Australia) 81 [T20 77], Amanda-Jade Wellington (Australia) 80 [T20 78], Sophie Molineux (Australia) 79* [T20 79], Marizanne Kapp (South Africa) 79 [T20 87], Ashleigh Gardner (Australia) 79 [T20 76], Megan Schutt (Australia) 79 [T20 78], Georgia Wareham (Australia) 78 [T20 81], Hayley Matthews (West Indies) 78 [T20 77], Annabel Sutherland (Australia) 78 [T20 77], Poonam Yadav (India) 78 [T20 75], Molly Strano (Australia) 78 [T20 77], Anesu Mushangwe (Zimbabwe) 78 [T20 74], Amelia Kerr (New Zealand) 77 [T20 79], Deepti Sharma (India) 77 [T20 79], Dane van Niekerk (South Africa) 77 [T20 76], Kim Garth (Australia) 77 [T20 77], Charlie Dean (England) 77 [T20 78], Shabnim Ismail (South Africa) 77 [T20 81], Shaquana Quintyne (West Indies) 77 [T20 77], Leigh Kasperek (New Zealand) 77 [T20 75], Linsey Smith (England) 77 [T20 75], Anya Shrubsole (England) 77 [T20 76], Rajeshwari Gayakwad (India) 77 [T20 74]
+**Women, ODI bowling**: Sophie Ecclestone (England) 87 [T20 82], Jess Jonassen (Australia) 82 [T20 76], Alana King (Australia) 81 [T20 77], Amanda-Jade Wellington (Australia) 80 [T20 78], Sophie Molineux (Australia) 79* [T20 79], Marizanne Kapp (South Africa) 79 [T20 87], Ashleigh Gardner (Australia) 79 [T20 76], Megan Schutt (Australia) 79 [T20 78], Georgia Wareham (Australia) 78 [T20 81], Hayley Matthews (West Indies) 78 [T20 77], Annabel Sutherland (Australia) 78 [T20 77], Poonam Yadav (India) 78 [T20 75], Molly Strano (Australia) 78 [T20 77], Anesu Mushangwe (Zimbabwe) 78 [T20 74], Amelia Kerr (New Zealand) 77 [T20 79], Deepti Sharma (India) 77 [T20 79], Kim Garth (Australia) 77 [T20 77], Charlie Dean (England) 77 [T20 78], Shabnim Ismail (South Africa) 77 [T20 81], Shaquana Quintyne (West Indies) 77 [T20 77], Leigh Kasperek (New Zealand) 77 [T20 75], Linsey Smith (England) 77 [T20 75], Anya Shrubsole (England) 77 [T20 76], Rajeshwari Gayakwad (India) 77 [T20 74], Ekta Bisht (India) 77 [T20 75]
 
 **Women, Test batting**: Nat Sciver-Brunt (England) 95 [T20 95], Shafali Verma (India) 94 [T20 92], Smriti Mandhana (India) 92 [T20 92], Beth Mooney (Australia) 92 [T20 87], Phoebe Litchfield (Australia) 87 [T20 94], Ellyse Perry (Australia) 87 [T20 87], Danni Wyatt-Hodge (England) 85 [T20 85], Annabel Sutherland (Australia) 85 [T20 80], Laura Wolvaardt (South Africa) 85 [T20 82], Meg Lanning (Australia) 85 [T20 81], Heather Knight (England) 82 [T20 82], Jemimah Rodrigues (India) 82 [T20 80], Harmanpreet Kaur (India) 81 [T20 79], Sophia Dunkley (England) 80 [T20 85], Alyssa Healy (Australia) 80 [T20 79], Marizanne Kapp (South Africa) 79 [T20 78], Ashleigh Gardner (Australia) 79 [T20 85], Richa Ghosh (India) 78 [T20 81], Alice Capsey (England) 77 [T20 76], Tahlia McGrath (Australia) 77 [T20 75], Maia Bouchier (England) 77 [T20 79], Anneke Bosch (South Africa) 76 [T20 78], Jess Jonassen (Australia) 76 [T20 76], Rachael Haynes (Australia) 76 [T20 77], Tazmin Brits (South Africa) 75 [T20 75]
 
@@ -302,51 +308,58 @@ Attributes, p25 / p50 / p75 among the same regulars (women):
 
 | player | T20 bat / bowl (overall) | ODI | Test |
 |---|---|---|---|
-| Cheteshwar Pujara | 76 / 28 (76) | 79 / 45 (80) | 82 / 44 (83) |
+| Cheteshwar Pujara | 76 / 28 (76) | 79 / 28 (79) | 82 / 28 (82) |
 | Nathan Lyon | 53 / 78 (80) | 42 / 78 (79) | 30 / 80 (80) |
 | Joe Root | 72 / 44 (73) | 89 / 46 (89) | 92 / 46 (92) |
-| Steven Smith | 84 / 31 (84) | 87 / 46 (88) | 89 / 46 (89) |
-| Kane Williamson | 78 / 31 (78) | 82 / 46 (83) | 87 / 46 (88) |
+| Steven Smith | 84 / 31 (84) | 87 / 31 (87) | 89 / 31 (89) |
+| Kane Williamson | 78 / 31 (78) | 82 / 31 (82) | 87 / 31 (87) |
 | Marnus Labuschagne | 68 / 40 (69) | 82 / 45 (83) | 82 / 45 (83) |
-| Usman Khawaja | 82 / 30 (82) | 81 / 45 (82) | 86 / 45 (87) |
-| Ajinkya Rahane | 76 / 31 (76) | 79 / 45 (80) | 77 / 46 (78) |
-| Tom Latham | 72 / 31 (72) | 78 / 45 (79) | 82 / 45 (83) |
+| Usman Khawaja | 82 / 30 (82) | 81 / 30 (81) | 86 / 30 (86) |
+| Ajinkya Rahane | 76 / 31 (76) | 79 / 31 (79) | 77 / 31 (77) |
+| Tom Latham | 72 / 31 (72) | 78 / 31 (78) | 82 / 31 (82) |
 | Scott Boland | 49 / 73 (75) | 40 / 84 (84) | 30 / 86 (86) |
-| Josh Hazlewood | 27 / 84 (84) | 43 / 88 (88) | 30 / 85 (85) |
+| Josh Hazlewood | 27 / 84 (84) | 27 / 88 (88) | 30 / 85 (85) |
 | Andre Russell | 88 / 71 (91) | 69 / 71 (78, derived) | 68 / 71 (77, derived) |
-| Sunil Narine | 34 / 93 (93) | 54 / 85 (86) | 47 / 71 (72, derived) |
+| Sunil Narine | 34 / 93 (93) | 34 / 85 (85) | 47 / 71 (72, derived) |
 | Kieron Pollard | 89 / 71 (92) | 87 / 75 (91) | 68 / 71 (77, derived) |
-| Nicholas Pooran | 89 / 31 (89) | 87 / 45 (88) | 68 / 40 (69, derived) |
-| Tim David | 92 / 30 (92) | 84 / 45 (85) | 68 / 40 (69, derived) |
+| Nicholas Pooran | 89 / 31 (89) | 87 / 31 (87) | 68 / 31 (68, derived) |
+| Tim David | 92 / 30 (92) | 84 / 45 (85) | 68 / 30 (68, derived) |
 | Rovman Powell | 86 / 30 (86) | 81 / 46 (82) | 68 / 40 (69, derived) |
-| Sherfane Rutherford | 87 / 30 (87) | 82 / 46 (83) | 68 / 39 (69, derived) |
+| Sherfane Rutherford | 87 / 30 (87) | 82 / 30 (82) | 68 / 39 (69, derived) |
 | Romario Shepherd | 88 / 45 (88) | 76 / 46 (77) | 68 / 41 (69, derived) |
 | Abhishek Sharma | 92 / 45 (92) | 89 / 37 (89) | 83 / 37 (83) |
 | Rinku Singh | 87 / 29 (87) | 84 / 39 (84) | 82 / 35 (82) |
-| Varun Chakravarthy | 21 / 87 (87) | 24 / 85 (85) | 22 / 71 (71, derived) |
+| Varun Chakravarthy | 21 / 87 (87) | 21 / 85 (85) | 21 / 71 (71, derived) |
 | Liam Livingstone | 83 / 68 (87) | 83 / 74 (88) | 77 / 72 (83) |
 
 | player | T20 bat / bowl (overall) | ODI | Test |
 |---|---|---|---|
 | Ellyse Perry | 87 / 74 (91) | 82 / 76 (88) | 87 / 75 (91) |
 | Nat Sciver-Brunt | 95 / 73 (96) | 92 / 74 (94) | 95 / 73 (96) |
-| Smriti Mandhana | 92 / 31 (92) | 92 / 45 (92) | 92 / 45 (92) |
-| Beth Mooney | 87 / 31 (87) | 94 / 45 (94) | 92 / 45 (92) |
-| Meg Lanning | 81 / 32 (81) | 85 / 45 (86) | 85 / 46 (86) |
-| Heather Knight | 82 / 72 (87) | 79 / 74 (85) | 82 / 73 (87) |
+| Smriti Mandhana | 92 / 31 (92) | 92 / 31 (92) | 92 / 31 (92) |
+| Beth Mooney | 87 / 31 (87) | 94 / 31 (94) | 92 / 31 (92) |
+| Meg Lanning | 81 / 32 (81) | 85 / 32 (85) | 85 / 32 (85) |
+| Heather Knight | 82 / 72 (87) | 79 / 72 (85) | 82 / 72 (87) |
 | Sophie Ecclestone | 47 / 82 (83) | 43 / 87 (87) | 30 / 79 (79) |
 | Deepti Sharma | 77 / 79 (86) | 76 / 77 (85) | 73 / 82 (87) |
-| Chinelle Henry | 79 / 46 (80) | 76 / 45 (77) | 68 / 40 (69, derived) |
+| Chinelle Henry | 79 / 46 (80) | 76 / 45 (77) | 68 / 39 (69, derived) |
 | Deandra Dottin | 75 / 72 (82) | 74 / 72 (81) | 68 / 71 (77, derived) |
+
+Bowling overall of specialist batsmen (T20 role batsman; 3834 men, 324 of them with a T20 batting overall of 75+), p10 / p25 / p50 / p75 / p90 / max. A side the player doesn't do in the format (under 6 balls a match over his career or his last three seasons of it) keeps his T20 level; batsmen who do bowl part-time in the format sit at the batsman's secondary-discipline ceiling (about 44-46), as part-timers do in T20.
+
+|  | T20 | ODI | Test |
+|---|---|---|---|
+| all specialist batsmen | 26 / 28 / 30 / 31 / 32 / 46 | 27 / 29 / 30 / 30 / 32 / 46 | 27 / 29 / 30 / 30 / 32 / 46 |
+| T20 batting 75+ | 28 / 28 / 30 / 32 / 45 / 46 | 28 / 28 / 30 / 37 / 45 / 46 | 28 / 29 / 30 / 35 / 44 / 46 |
 
 Men, by group (mean rating of the group in each format). The T20 ratings of first-class specialists with a thin T20 record were themselves rated from their first-class cricket by the T20 pipeline (T20-unproven sides), so those groups' T20 and Test means coincide; the players above show the movement for specialists with a real T20 record.
 
 | group | players | T20 | ODI | Test | rating |
 |---|---|---|---|---|---|
 | Test batting specialists: 4000+ first-class balls at 40+ a match, under 1500 T20 balls | 300 | 66.0 | 65.7 | 66.3 | batting |
-| Test bowling specialists: 6000+ first-class balls bowled, under 1200 T20 balls | 150 | 58.7 | 59.0 | 58.0 | bowling |
-| White-ball only: T20 overall 75+, no first-class ball (94 derived in Tests) | 94 | 77.8 | 65.7 | 61.2 | overall |
-| T20 only: T20 overall 75+, no List A or first-class ball (45 derived in ODIs) | 45 | 77.9 | 65.2 | 63.6 | overall |
+| Test bowling specialists: 6000+ first-class balls bowled, under 1200 T20 balls | 150 | 58.7 | 58.9 | 57.9 | bowling |
+| White-ball only: T20 overall 75+, no first-class ball (94 derived in Tests) | 94 | 77.8 | 65.5 | 61.1 | overall |
+| T20 only: T20 overall 75+, no List A or first-class ball (45 derived in ODIs) | 45 | 77.9 | 65.0 | 63.4 | overall |
 
 ### Attribute mix
 
@@ -361,12 +374,12 @@ Men with 1,000+ Cricsheet balls in the format (career, so in-sample: a consisten
 | ODI | 147 | battingIQ | average | 0.669 | 0.460 |
 | ODI | 147 | running | fewer dot balls | 0.714 | 0.304 |
 | ODI | 147 | batting overall | average | 0.558 | 0.460 |
-| Test | 163 | power | six % | 0.385 | 0.249 |
-| Test | 163 | power | boundary % | 0.573 | 0.294 |
-| Test | 163 | timing | boundary % | 0.008 | 0.173 |
-| Test | 163 | battingIQ | balls per dismissal | 0.745 | 0.538 |
-| Test | 163 | battingIQ | average | 0.732 | 0.669 |
-| Test | 163 | running | fewer dot balls | 0.569 | 0.183 |
+| Test | 163 | power | six % | 0.380 | 0.249 |
+| Test | 163 | power | boundary % | 0.568 | 0.294 |
+| Test | 163 | timing | boundary % | 0.007 | 0.173 |
+| Test | 163 | battingIQ | balls per dismissal | 0.744 | 0.538 |
+| Test | 163 | battingIQ | average | 0.730 | 0.669 |
+| Test | 163 | running | fewer dot balls | 0.572 | 0.183 |
 | Test | 163 | batting overall | average | 0.740 | 0.660 |
 
 ### ICC rankings (validation only)

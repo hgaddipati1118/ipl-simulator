@@ -92,6 +92,21 @@ describe("format ratings: the shipped file", () => {
     }
   });
 
+  it("established batters who barely bowl keep a non-bowler's bowling in ODIs and Tests", () => {
+    for (const name of ["Cheteshwar Pujara", "Virat Kohli", "Shubman Gill", "Steven Smith"]) {
+      const p = byName(ALL_PLAYERS, name);
+      const t20 = bowl(createPlayerFromData({ ...p, ...p.ratings, role: p.role }).ratings);
+      for (const k of ["odi", "test"] as const) expect(bowl(sets(p.id)[k]!.ratings), `${name} ${k}`).toBeLessThanOrEqual(t20 + 2);
+    }
+    // specialist batsmen as a group: format bowling sits where their T20 bowling does
+    const batsmen = ALL_PLAYERS.filter(p => p.role === "batsman").map(p => ({ p, t20: bowl(createPlayerFromData({ ...p, ...p.ratings, role: p.role }).ratings) }));
+    const q = (xs: number[], f: number) => [...xs].sort((a, b) => a - b)[Math.round(f * (xs.length - 1))];
+    for (const k of ["odi", "test"] as const) {
+      const fmt = batsmen.map(x => bowl(sets(x.p.id)[k]!.ratings));
+      for (const f of [0.5, 0.75, 0.9]) expect(q(fmt, f), `${k} p${f * 100}`).toBeLessThanOrEqual(q(batsmen.map(x => x.t20), f) + 2);
+    }
+  });
+
   it("the best ODI and Test bowlers and batters are the established internationals", () => {
     const men = ALL_PLAYERS.map(p => ({ p, s: sets(p.id) }));
     const top = (k: "odi" | "test", f: typeof bat) => men.sort((a, b) => f(b.s[k]!.ratings) - f(a.s[k]!.ratings)).slice(0, 15).map(x => x.p.name);

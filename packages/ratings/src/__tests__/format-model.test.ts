@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  doesSide, estimateFormat, fitLine, fitWls, linkCurve, percentile, quantile, readCurve, translatedPrior,
+  doesSide, doesSideNow, estimateFormat, fitLine, fitWls, linkCurve, percentile, quantile, readCurve, translatedPrior,
   type CaPlayerFormats, type EstimateContext, type SideRating,
 } from "../pipeline/format-model.js";
 
@@ -46,6 +46,13 @@ describe("format model: the estimate", () => {
     expect(doesSide(side(10, 8, 2026, 600, 50))).toBe(true);
     expect(doesSide(side(10, 8, 2026, 250, 50))).toBe(false); // 5 balls a match: a part-timer
     expect(doesSide(side(10, 8, 2026, 40, 2))).toBe(false); // below the evidence floor
+  });
+
+  it("a side done over a career but not in the last seasons of the format is not one he does now", () => {
+    expect(doesSideNow({ ...side(5, 9, 2026, 2000, 200), recentPerMatch: 1.5 })).toBe(false); // a batter's old leg-spin
+    expect(doesSideNow({ ...side(5, 9, 2026, 2000, 200), recentPerMatch: 12 })).toBe(true);
+    expect(doesSideNow(side(5, 9, 2026, 2000, 200))).toBe(true); // no recent figure (lower-level records): career rule
+    expect(doesSideNow({ ...side(5, 9, 2026, 250, 50), recentPerMatch: 30 })).toBe(false); // career rule still applies
   });
 
   it("blends the format's own record with the translated prior by precision", () => {

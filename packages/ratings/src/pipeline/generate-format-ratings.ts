@@ -18,7 +18,9 @@
  *     k-th best of them in the format gets the k-th best of their T20 overalls, so among players who play both a
  *     format rating sits where his T20 rating would. Everyone else is read off that score -> overall curve
  *     (interpolated, clamped to its ends), without moving anyone on it.
- *  3. Caps, as the T20 pipeline: a format record below 7/3 K balls (K = the CA model's shrinkage for the format) can't
+ *  3. Caps. A side the player doesn't do in the format (fewer than 6 balls a match over his career or his last three
+ *     seasons of it: format-model.ts doesSideNow) keeps his T20 level at most, so established batters' few part-time overs
+ *     don't make them bowlers. Then, as the T20 pipeline: a format record below 7/3 K balls (K = the CA model's shrinkage for the format) can't
  *     rate above the 95th percentile of established players; a derived side (no usable record) can't rate above the
  *     median of the format's regulars; extended-pool players rated only from lower-level cricket have the T20 pipeline's
  *     tier ceilings. A side with no CA evidence anywhere (a batter who never bowls) follows his T20 overall through a
@@ -48,7 +50,7 @@ import { decodeShard, encodeShard, POOL_VERSION, type PoolManifest, type PoolRow
 import { CORE_KEYS, encodeSet, FORMAT_RATINGS_VERSION, type EncodedSet, type FormatRatingsFile } from "../format-ratings.js";
 import { shiftTo, type GameRatings } from "./model-ratings.js";
 import {
-  buildContext, caParams, doesSide, estimateFormat, fitLine, fitTranslations, linkCurve, loadCaFormats, percentile, quantile, RANK_CONSERVATISM, readCurve, REGULAR_BALLS,
+  buildContext, caParams, doesSide, doesSideNow, estimateFormat, fitLine, fitTranslations, linkCurve, loadCaFormats, percentile, quantile, RANK_CONSERVATISM, readCurve, REGULAR_BALLS,
   type CaPlayerFormats, type EstimateContext, type FormatScore, type Gender, type Side, SIDES,
 } from "./format-model.js";
 import { validate, type FormatValidation } from "./format-validation.js";
@@ -441,13 +443,17 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
         const source: "data" | "derived" = e?.source ?? "derived";
         let capped: string | undefined;
         const capTo = (c: number, why: string) => { if (value > c) { value = c; capped = why; } };
+        // A side he doesn't do in the format (no record of 6+ balls a match, over his career and his last seasons of it)
+        // keeps his T20 level: a batter's part-time bowling must not be lifted by a translation or the line fitted on bowlers
+        const doesNow = doesSideNow(formatsOf(p)[fmt.ca]?.[side]);
+        if (!doesNow) capTo(ovr(side, p.t20), "not-done");
         if (source === "derived") capTo(median, "derived");
         else if (e!.balls < threshold) capTo(cap95, "small-sample");
         if (p.group === "extended" && p.tier && p.tier !== "senior") capTo(tierCeil[Number(p.tier.slice(4))] ?? median, "tier");
         const st = side === "bat" ? (p.caId !== undefined ? fstats.get(p.caId)?.bat : undefined) : (p.caId !== undefined ? fstats.get(p.caId)?.bowl : undefined);
         return {
           est: e, score: score[i], raw: raw[i] ?? value, overall: Math.round(Math.max(1, Math.min(99, value))), source, capped,
-          mix: source === "data" && st && st.balls >= MIN_MIX_BALLS ? "format" : "t20",
+          mix: doesNow && source === "data" && st && st.balls >= MIN_MIX_BALLS ? "format" : "t20",
           matches: formatsOf(p)[fmt.ca]?.[side]?.matches ?? 0, t20Balls: formatsOf(p).T20?.[side]?.balls ?? 0,
         };
       });

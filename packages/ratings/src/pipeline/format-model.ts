@@ -77,6 +77,8 @@ export interface SideRating {
   balls: number;
   /** Matches in the format (the larger of innings batted and bowled), for the balls-a-match rule */
   matches: number;
+  /** Balls a match in the side over the player's last RECENT_SEASONS seasons in the format (senior cells), see doesSideNow */
+  recentPerMatch?: number;
 }
 /**
  * T20 style of a player, as z-scores against T20 regulars (500+ balls): batting [strike rate, log balls per dismissal],
@@ -158,6 +160,10 @@ export function loadCaFormats(gender: Gender, asOf: number, opts: { lower?: bool
     LEFT JOIN car w ON w.player_id = l.player_id AND w.format = l.format AND w.side = 'bowl'`;
   const out = toFormats(duck<Row>(sql));
   for (const p of out.values()) p.last = lastRated(p);
+  for (const r of loadRecentUse(gender, asOf)) {
+    const side = out.get(Number(r.player_id))?.[r.format]?.[r.side];
+    if (side) side.recentPerMatch = r.matches > 0 ? r.balls / r.matches : 0;
+  }
   for (const r of loadT20Style(gender, asOf)) {
     const p = out.get(Number(r.player_id));
     if (p) (p.style ??= {})[r.side] = [r.z1, r.z2];
@@ -188,6 +194,24 @@ export function loadCaFormats(gender: Gender, asOf: number, opts: { lower?: bool
  * batting one (0.31 -> 0.30 ODI, 0.24 -> 0.19 Test): in 2024-25 the hitters who were picked for Tests did well.
  */
 const STYLE_SIDES: Side[] = ["bowl"];
+/** Seasons of a format, counted back from the player's last one, that say whether he still does a side in it */
+export const RECENT_SEASONS = 3;
+
+/** Balls per side and matches over each player's last RECENT_SEASONS seasons in each format (senior cells, up to asOf) */
+function loadRecentUse(gender: Gender, asOf: number): { player_id: number; format: CaFormat; side: Side; balls: number; matches: number }[] {
+  return duck(`
+    WITH c AS (SELECT player_id, format, year, side, sum(balls) AS balls, sum(inns) AS inns FROM '${CELLS_FILE}'
+               WHERE gender = '${gender}' AND year <= ${asOf} GROUP BY ALL),
+    y AS (SELECT player_id, format, year, max(inns) AS matches,
+                 row_number() OVER (PARTITION BY player_id, format ORDER BY year DESC) AS k FROM c GROUP BY player_id, format, year),
+    recent AS (SELECT player_id, format, year FROM y WHERE k <= ${RECENT_SEASONS}),
+    m AS (SELECT y.player_id, y.format, sum(y.matches) AS matches FROM y JOIN recent USING (player_id, format, year) GROUP BY ALL)
+    SELECT m.player_id, m.format, s.side, coalesce(sum(c.balls), 0) AS balls, any_value(m.matches) AS matches
+    FROM m CROSS JOIN (VALUES ('bat'), ('bowl')) s(side)
+    LEFT JOIN (SELECT c.* FROM c JOIN recent USING (player_id, format, year)) c ON c.player_id = m.player_id AND c.format = m.format AND c.side = s.side
+    GROUP BY ALL`);
+}
+
 /** Pseudo-balls of the T20 average added to a player's T20 rates before they are turned into style z-scores */
 const STYLE_PRIOR_BALLS = 120;
 const STYLE_MIN_BALLS = 60;
@@ -263,6 +287,15 @@ export function fitWls(rows: { xs: number[]; y: number; w: number }[]): { coef: 
 /** A side counts as one the player does in a format: rated, enough balls, and enough of them a match */
 export function doesSide(r: SideRating | undefined, minBalls = MIN_EVIDENCE_BALLS): r is SideRating {
   return !!r && r.balls >= minBalls && (r.matches > 0 ? r.balls / r.matches : 0) >= MIN_BALLS_PER_MATCH;
+}
+
+/**
+ * Does the side in the format now: doesSide over the career and the same 6 balls a match over his last RECENT_SEASONS
+ * seasons of it (a batter who bowled leg-spin a decade ago and no longer does is not a bowler). Without the recent figure
+ * (lower-level records), the career rule alone.
+ */
+export function doesSideNow(r: SideRating | undefined): r is SideRating {
+  return doesSide(r) && (r.recentPerMatch === undefined || r.recentPerMatch >= MIN_BALLS_PER_MATCH);
 }
 
 /** Translations from every format to every other, per side, over players rated in both */

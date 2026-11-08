@@ -165,6 +165,25 @@ for (const gender of ["male"] as const) {
     [`T20 only: T20 overall 75+, no List A or first-class ball (${t20Only.filter(p => p.odi.source === "derived").length} derived in ODIs)`, t20Only.length,
       mean(t20Only.map(p => p.t20.overall)).toFixed(1), mean(t20Only.map(p => p.odi.overall)).toFixed(1), mean(t20Only.map(p => p.test.overall)).toFixed(1), "overall"],
   ];
+  // Batsmen's part-time bowling (the engines pick bowlers by bowling overall)
+  const q = (xs: number[]) => [0.1, 0.25, 0.5, 0.75, 0.9, 1].map(f => [...xs].sort((a, b) => a - b)[Math.round(f * (xs.length - 1))]);
+  const batsmen = espn.filter(p => p.role === "batsman");
+  const est = batsmen.filter(p => p.t20.batOvr >= 75);
+  out(`Bowling overall of specialist batsmen (T20 role batsman; ${batsmen.length} men, ${est.length} of them with a T20 batting overall of 75+), p10 / p25 / p50 / p75 / p90 / max. ` +
+    "A side the player doesn't do in the format (under 6 balls a match over his career or his last three seasons of it) keeps his T20 level; " +
+    "batsmen who do bowl part-time in the format sit at the batsman's secondary-discipline ceiling (about 44-46), as part-timers do in T20.");
+  out();
+  table(["", "T20", "ODI", "Test"], [
+    ["all specialist batsmen", ...(["t20", "odi", "test"] as const).map(k => q(batsmen.map(p => ovrOf(p, k, "bowl"))).join(" / "))],
+    ["T20 batting 75+", ...(["t20", "odi", "test"] as const).map(k => q(est.map(p => ovrOf(p, k, "bowl"))).join(" / "))],
+  ]);
+  for (const k of ["odi", "test"] as const) {
+    if (q(batsmen.map(p => ovrOf(p, k, "bowl")))[2] > q(batsmen.map(p => ovrOf(p, "t20", "bowl")))[2] + 3) failures.push(`specialist batsmen bowl better in ${FMT_NAME[k]}s than in T20`);
+  }
+  for (const name of ["Cheteshwar Pujara", "Virat Kohli", "Shubman Gill", "Steven Smith"]) {
+    const p = espn.find(x => x.name === name);
+    if (p && Math.max(p.odi.bowlOvr, p.test.bowlOvr) > p.t20.bowlOvr + 2) failures.push(`${name}: part-time bowling lifted above T20`);
+  }
   out("Men, by group (mean rating of the group in each format). The T20 ratings of first-class specialists with a thin T20 record were " +
     "themselves rated from their first-class cricket by the T20 pipeline (T20-unproven sides), so those groups' T20 and Test means coincide; " +
     "the players above show the movement for specialists with a real T20 record.");
