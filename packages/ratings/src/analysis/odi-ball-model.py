@@ -321,6 +321,20 @@ report["rain"] = {"source": "Cricsheet ODIs 2012+: no result = result 'no result
                   "when as in match-rules-extra.py; oversPerSide = the chase's overs in 5-over bands (20 = 20-24 ...)", **rain}
 print("rain:", json.dumps(rain))
 
+# ── dismissal mix on legal balls (2019+; as match-rules.py does for T20: free hits are not an ODI issue at this level) ─
+KIND_KEY = {"caught": "caught", "bowled": "bowled", "lbw": "lbw", "run out": "run_out", "caught and bowled": "caught_and_bowled",
+            "stumped": "stumped", "hit wicket": "hit_wicket", "obstructing the field": "obstructing_the_field",
+            "handled the ball": "handled_the_ball", "hit the ball twice": "hit_the_ball_twice"}
+mix = {}
+for gender in GENDERS:
+    rows = run(f"""SELECT wicket_kind k, count(*) n FROM raw WHERE gender='{gender}' AND y >= {VALID_FROM} AND is_wicket=1
+      AND wides=0 AND noballs=0 AND wicket_kind IN ({", ".join("'" + k + "'" for k in KIND_KEY)}) GROUP BY 1""")
+    tot = sum(x["n"] for x in rows)
+    mix[gender] = {KIND_KEY[x["k"]]: r(x["n"] / tot, 6) for x in sorted(rows, key=lambda x: -x["n"])}
+    for k in KIND_KEY.values():
+        mix[gender].setdefault(k, 5e-06)
+report["dismissalMix"] = mix
+
 # ── toss: how often the winner fields first (2019+), chase advantage (venue analysis) ─
 toss = {}
 for gender in GENDERS:
@@ -395,6 +409,12 @@ import type {{ OdiModelTables, OdiRainRates }} from "./odi-model.js";
 
 export const ODI_MODEL_DATA: Record<"men" | "women", OdiModelTables> = {{
 {chr(10).join(lines)}
+}};
+
+/** Dismissal kinds on legal balls in 2019+ ODIs (shares; the T20 mix is match-rules-data.ts dismissalMix) */
+export const ODI_DISMISSAL_MIX: Record<"male" | "female", Record<string, number>> = {{
+  male: {json.dumps(mix["male"])},
+  female: {json.dumps(mix["female"])},
 }};
 
 /**
@@ -477,6 +497,10 @@ for gender in GENDERS:
     v["results"] = {k: r(x, 4) for k, x in res.items()}
     tons = run(f"""SELECT count(DISTINCT match_id) m, sum((runs>=100)::INT) h, sum((runs BETWEEN 50 AND 99)::INT) f FROM bat WHERE {G}""")[0]
     v["perMatch"] = {"hundreds": r(tons["h"] / tons["m"]), "fifties": r(tons["f"] / tons["m"])}
+    # per-delivery class rates by phase (overs 1-10, 11-40, 41-50), both innings, in the model's classes
+    ph = run(f"""SELECT CASE WHEN over < 10 THEN 0 WHEN over < 40 THEN 1 ELSE 2 END p, count(*) n,
+        {', '.join(f'avg((cls={k})::INT) c{k}' for k in range(K))} FROM b0 WHERE {G} AND full_match AND y >= {VALID_FROM} GROUP BY 1 ORDER BY 1""")
+    v["phaseRates"] = [[r(x[f"c{k}"], 5) for k in range(K)] for x in ph]
     dm = run(f"""SELECT wicket_kind k, count(*) n FROM raw WHERE {G} AND y >= {VALID_FROM} AND is_wicket=1 GROUP BY 1""")
     t = sum(x["n"] for x in dm)
     v["dismissals"] = {x["k"]: r(x["n"] / t, 4) for x in sorted(dm, key=lambda x: -x["n"])}

@@ -77,10 +77,25 @@ export interface OdiBallContext {
 }
 
 /**
- * Reference ratings: the involvement-weighted average of the international XIs the benchmark replays (balls faced for
- * the batting composites, balls bowled for the bowling ones), so an average matchup has rating_k = 1.
+ * Reference ratings per gender: the involvement-weighted average of the international XIs the benchmark replays (balls
+ * faced for the batting composites, balls bowled for the bowling ones), so an average matchup has rating_k = 1.
  */
-export const ODI_REF = { bat: 0.582, timing: 0.585, power: 0.538, bowl: 0.606, wicketTaking: 0.62, accuracy: 0.62 };
+export const ODI_REF: Record<"male" | "female", { bat: number; timing: number; power: number; bowl: number; wicketTaking: number; accuracy: number }> = {
+  male: { bat: 0.718, timing: 0.721, power: 0.7, bowl: 0.749, wicketTaking: 0.795, accuracy: 0.725 },
+  female: { bat: 0.724, timing: 0.74, power: 0.639, bowl: 0.755, wicketTaking: 0.708, accuracy: 0.765 },
+};
+
+/**
+ * Scale on every rating slope, per gender. Women's ODI sides are further apart than men's (the real spread of team win
+ * shares over the same fixtures is about half as wide again), the T20 ratings of the women's pool are not.
+ */
+export const ODI_RATING_SCALE: Record<"male" | "female", number> = { male: 1, female: 1.5 };
+
+/**
+ * Weight of a batter's shortfall below REF against his excess above it. The T20 batting ratings of tail-enders are on the
+ * T20 scale (they barely bat in a T20): taken at full weight a number ten would score at half the real ODI tail's rate.
+ */
+export const ODI_TAIL_WEIGHT = { value: 0.5 };
 
 /**
  * Slopes of log rating_k per unit of composite (ratings / 100). They start from the T20 model's own sensitivities at REF
@@ -100,10 +115,24 @@ export const ODI_RATING_SLOPES: Record<(typeof ODI_OUTCOMES)[number], { balance?
   legbye: {},
 };
 
-/** Per-outcome calibration of the full engine (venue, matchups, fielding layers) to the real 2019+ rates, per gender */
-export const ODI_CAL: Record<"male" | "female", number[]> = {
-  male: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-  female: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+/**
+ * Calibration of the full engine to the real 2019+ per-delivery rates, per gender, per phase (overs 1-10, 11-40, 41-50)
+ * and outcome: what the shared layers (hand matchups, fielding, free hits) and the game's ratings (their spread is not the
+ * real ODI spread, and the states they lead to differ: more tail-enders batting at the death) add or take away.
+ * From a replay of the real fixture list (benchmark-odi.ts CALIBRATE=1, repeated until it settles).
+ */
+export const ODI_CAL: Record<"male" | "female", number[][]> = {
+  //     dot    1      2      3      4      6      wicket wide   noball legbye
+  male: [
+    [1.066, 0.833, 1.024, 1.159, 0.916, 0.637, 0.972, 1.257, 0.813, 1.223],
+    [1.026, 1.035, 0.952, 0.961, 0.859, 0.805, 0.892, 0.839, 0.892, 1.000],
+    [1.018, 1.027, 1.020, 0.951, 1.002, 0.864, 0.834, 1.003, 1.049, 1.077],
+  ],
+  female: [
+    [1.045, 0.905, 0.912, 1.067, 0.874, 0.456, 0.945, 1.204, 1.001, 1.255],
+    [1.039, 1.015, 0.931, 0.920, 0.858, 0.698, 0.930, 0.806, 0.932, 0.980],
+    [1.034, 1.032, 0.945, 0.984, 0.990, 0.901, 0.803, 0.918, 0.726, 0.997],
+  ],
 };
 
 const SET_EDGES = [0, 1, 5, 10, 20, 35, 60, 100];
@@ -137,19 +166,22 @@ export function odiTableOver(over: number, scheduled = 50): number {
 }
 
 /** rating_k: the batter's and bowler's quality against the reference matchup */
-export function odiRatingMultipliers(batter: OdiPlayerLike, bowler: OdiPlayerLike): number[] {
-  const bal = ((batter.battingOvr + batter.ratings.timing) / 200 - ODI_REF.bat) - ((bowler.bowlingOvr + bowler.ratings.accuracy) / 200 - ODI_REF.bowl);
+export function odiRatingMultipliers(batter: OdiPlayerLike, bowler: OdiPlayerLike, gender: "male" | "female" = "male"): number[] {
+  const ref = ODI_REF[gender];
+  const scale = ODI_RATING_SCALE[gender];
+  const tail = (x: number) => (x < 0 ? ODI_TAIL_WEIGHT.value * x : x);
+  const bal = tail((batter.battingOvr + batter.ratings.timing) / 200 - ref.bat) - ((bowler.bowlingOvr + bowler.ratings.accuracy) / 200 - ref.bowl);
   const dx = {
     balance: bal,
-    timing: batter.ratings.timing / 100 - ODI_REF.timing,
-    power: batter.ratings.power / 100 - ODI_REF.power,
-    wicketTaking: bowler.ratings.wicketTaking / 100 - ODI_REF.wicketTaking,
-    accuracy: bowler.ratings.accuracy / 100 - ODI_REF.accuracy,
+    timing: tail(batter.ratings.timing / 100 - ref.timing),
+    power: tail(batter.ratings.power / 100 - ref.power),
+    wicketTaking: bowler.ratings.wicketTaking / 100 - ref.wicketTaking,
+    accuracy: bowler.ratings.accuracy / 100 - ref.accuracy,
   };
   return ODI_OUTCOMES.map(k => {
     const s = ODI_RATING_SLOPES[k];
     let x = 0;
-    for (const [term, slope] of Object.entries(s) as [keyof typeof dx, number][]) x += slope * dx[term];
+    for (const [term, slope] of Object.entries(s) as [keyof typeof dx, number][]) x += scale * slope * dx[term];
     // a hard limit keeps impossible rating gaps (a number 11 against an all-time great) from leaving the data
     return Math.exp(Math.max(-1.6, Math.min(1.6, x)));
   });
@@ -174,8 +206,9 @@ export function odiContextWeights(ctx: OdiBallContext, bowlingStyle: BowlingStyl
 /** Outcome weights of one ODI delivery before the shared layers (venue, matchups, fielding ...); not normalised */
 export function odiBallProbabilities(batter: OdiPlayerLike, bowler: OdiPlayerLike, ctx: OdiBallContext): Record<BallOutcome, number> {
   const c = odiContextWeights(ctx, bowler.bowlingStyle);
-  const m = odiRatingMultipliers(batter, bowler);
-  const cal = ODI_CAL[ctx.gender];
+  const m = odiRatingMultipliers(batter, bowler, ctx.gender);
+  const o = odiTableOver(ctx.over, ctx.scheduledOvers);
+  const cal = ODI_CAL[ctx.gender][o < 10 ? 0 : o < 40 ? 1 : 2];
   const p = {} as Record<BallOutcome, number>;
   ODI_OUTCOMES.forEach((k, i) => { p[k] = c[i] * m[i] * cal[i]; });
   return p;

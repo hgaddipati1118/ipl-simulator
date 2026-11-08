@@ -47,6 +47,7 @@ import { describeDelivery, retiredHurtLine, retiredOutLine, superOverLine, timed
 import { ODI_FORMAT, T20_FORMAT, phaseOver, type MatchFormatSpec } from "./format.js";
 import { odiBallProbabilities, odiBowlerChoices, type OdiBallContext } from "./odi-model.js";
 import { ODI_CONDITIONS } from "./odi-venue-data.js";
+import { ODI_DISMISSAL_MIX } from "./odi-model-data.js";
 import { commentarySeed } from "./commentary-model.js";
 import {
   applyFieldingToProbs,
@@ -865,7 +866,8 @@ function runOneBall(
   if (rulesCtx.freeHit) applyFreeHitToProbs(probs);
 
   // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down)
-  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle, rulesCtx.gender);
+  const mix = odi ? ODI_DISMISSAL_MIX[rulesCtx.gender] : undefined; // an ODI's own dismissal mix
+  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle, rulesCtx.gender, mix);
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
@@ -876,7 +878,7 @@ function runOneBall(
   let resolution: ReturnType<typeof resolveWicketChance> | undefined;
   if (outcome === "wicket") {
     resolution = resolveWicketChance(fieldingUnit, bowler.id, bowler.bowlingStyle, probs, rng, {
-      gender: rulesCtx.gender, freeHit: rulesCtx.freeHit, bench: rulesCtx.bench,
+      gender: rulesCtx.gender, freeHit: rulesCtx.freeHit, bench: rulesCtx.bench, ...(mix ? { mix } : {}),
     });
     if (resolution.outcome !== "wicket") outcome = resolution.outcome;
   }

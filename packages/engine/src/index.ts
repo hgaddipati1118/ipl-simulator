@@ -145,7 +145,7 @@ export type { LeagueDef, LeagueDefData } from "./leagues.js";
 export { T20_FORMAT, HUNDRED_FORMAT, ODI_FORMAT, matchFormatFor, phaseOver, hasOwnBallModel, maxFieldersOutside, ballAgeOvers } from "./format.js";
 export type { MatchFormatSpec } from "./format.js";
 export {
-  ODI_OUTCOMES, ODI_REF, ODI_RATING_SLOPES, ODI_CAL, odiBallProbabilities, odiContextWeights, odiRatingMultipliers, odiTables, odiBowlerChoices,
+  ODI_OUTCOMES, ODI_REF, ODI_RATING_SLOPES, ODI_CAL, ODI_TAIL_WEIGHT, ODI_RATING_SCALE, odiBallProbabilities, odiContextWeights, odiRatingMultipliers, odiTables, odiBowlerChoices,
 } from "./odi-model.js";
 export type { OdiModelTables, OdiBallContext, OdiPlayerLike, OdiRainRates } from "./odi-model.js";
 export { ODI_MODEL_DATA, ODI_RAIN } from "./odi-model-data.js";

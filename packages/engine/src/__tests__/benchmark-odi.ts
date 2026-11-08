@@ -7,29 +7,52 @@
  *   ENGINE=live ...      play the matches in the live engine (CPU v CPU) instead of the instant one
  *   CALIBRATE=1 ...      also print what refitting needs: per-outcome rates sim vs real (-> ODI_CAL), the
  *                        involvement-weighted rating composites (-> ODI_REF) and the rating spread vs the real one (-> slopes)
+ *   FORMAT_RATINGS=/path/format-ratings.json ...   play the players on their ODI ratings (the ratings pipeline's
+ *                        packages/app/public/data/format-ratings.json, sourceId -> [odi, test] sets; default: that file if it
+ *                        exists, else everyone on his T20 ratings). FORMAT_RATINGS=none forces the T20 ratings.
+ *   ODI_TUNE='{"cal":{"male":[[...]]},"slopes":{"wicket":{"balance":-1.2}},"ref":{"male":{...}},"scale":{"female":1.4},"tail":0.5}' ...
+ *                        try parameters before writing them into odi-model.ts (merged over the shipped ones)
  *
  * A national pool is everyone in the game's pool (ALL_PLAYERS men, WPL_PLAYERS women; Cricinfo ids) who batted or bowled
  * in the side's 2019+ ODIs; the squad is its 20 most involved, the XI the engine's own pick. Every match is seeded.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ALL_PLAYERS } from "../../../ratings/src/all-players.js";
 import { WPL_PLAYERS } from "../../../ratings/src/wpl-players.js";
 import * as E from "../index.js";
 
+if (process.env.ODI_TUNE) {
+  const t = JSON.parse(process.env.ODI_TUNE);
+  for (const [g, v] of Object.entries(t.ref ?? {})) Object.assign(E.ODI_REF[g as "male" | "female"], v);
+  for (const [g, v] of Object.entries(t.scale ?? {})) E.ODI_RATING_SCALE[g as "male" | "female"] = v as number;
+  if (t.tail !== undefined) E.ODI_TAIL_WEIGHT.value = t.tail;
+  for (const [g, v] of Object.entries(t.cal ?? {})) E.ODI_CAL[g as "male" | "female"].splice(0, 3, ...(v as number[][]));
+  for (const [k, v] of Object.entries(t.slopes ?? {})) (E.ODI_RATING_SLOPES as Record<string, object>)[k] = v as object;
+}
 const REPLAYS = Number(process.argv[2] ?? 2);
 const WHICH = process.argv[3] ?? "both";
 const LIVE = process.env.ENGINE === "live";
 const CALIBRATE = !!process.env.CALIBRATE;
 const V = JSON.parse(readFileSync(fileURLToPath(new URL("../../../../docs/data/odi_validation.json", import.meta.url)), "utf8"));
+const FR_PATH = process.env.FORMAT_RATINGS ?? fileURLToPath(new URL("../../../app/public/data/format-ratings.json", import.meta.url));
+const FR: { players: Record<string, number[][]> } | null = FR_PATH !== "none" && existsSync(FR_PATH) ? JSON.parse(readFileSync(FR_PATH, "utf8")) : null;
+const CORE = ["battingIQ", "timing", "power", "running", "wicketTaking", "economy", "accuracy", "clutch"] as const;
+/** The player's ODI set from the ratings file (fielding / keeping stay his T20 values), if it has one */
+function odiSet(d: E.PlayerData): E.PlayerData["formatRatings"] {
+  const set = FR?.players[d.id]?.[0];
+  if (!set || set.length < 9) return undefined;
+  const ratings = { ...d.ratings, ...Object.fromEntries(CORE.map((k, i) => [k, set[i]])) } as E.PlayerData["ratings"];
+  return { odi: { ratings, source: set[8] === 1 ? "data" : "derived" } };
+}
 const MODEL_REPORT = JSON.parse(readFileSync(fileURLToPath(new URL("../../../../docs/data/odi_ball_model.json", import.meta.url)), "utf8"));
 
 type G = "male" | "female";
 /** A bowler exactly at the reference composites, to measure batters against */
-const REF_BOWLER: E.OdiPlayerLike = {
-  battingOvr: 0, bowlingOvr: 200 * E.ODI_REF.bowl - 100 * E.ODI_REF.accuracy,
-  ratings: { timing: 0, power: 0, wicketTaking: 100 * E.ODI_REF.wicketTaking, accuracy: 100 * E.ODI_REF.accuracy },
-};
+const refBowler = (g: G): E.OdiPlayerLike => ({
+  battingOvr: 0, bowlingOvr: 200 * E.ODI_REF[g].bowl - 100 * E.ODI_REF[g].accuracy,
+  ratings: { timing: 0, power: 0, wicketTaking: 100 * E.ODI_REF[g].wicketTaking, accuracy: 100 * E.ODI_REF[g].accuracy },
+});
 const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
 const f1 = (x: number) => x.toFixed(1);
 const f2 = (x: number) => x.toFixed(2);
@@ -43,7 +66,10 @@ function nationalTeams(gender: G): Map<string, E.Team> {
     if (found.length < 13) continue;
     const id = name.toLowerCase().replace(/[^a-z]+/g, "-");
     const team = new E.Team({ id, name, shortName: name.slice(0, 3).toUpperCase(), city: name, primaryColor: "#333333", secondaryColor: "#999999" }, 100);
-    for (const d of found) team.addPlayer(new E.Player({ ...d, id: `${id}_${d.id}`, injured: false, injuryGamesLeft: 0 }), 1);
+    for (const d of found) {
+      const fr = odiSet(d);
+      team.addPlayer(new E.Player({ ...d, id: `${id}_${d.id}`, ...(fr ? { formatRatings: fr } : {}), injured: false, injuryGamesLeft: 0 }), 1);
+    }
     if (team.getPlayingXI(11).length === 11) teams.set(name, team);
   }
   return teams;
@@ -64,6 +90,16 @@ function fromInstant(inn: E.InningsScore): Inn {
   return { runs: inn.runs, wickets: inn.wickets, extras: inn.extras, fours: inn.fours, sixes: inn.sixes, legal: inn.totalBalls, phase, kinds: [...kinds, ...Array(off).fill("other")] };
 }
 
+const FULL_MEMBERS = new Set(["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies", "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]);
+/** Head-to-head groups for the strong-v-weak check: full members v associates, and the leading sides v the other full members */
+function groupDefs(gender: G): [string, (t: string) => boolean, (t: string) => boolean][] {
+  const top = gender === "male" ? new Set(["India", "Australia", "South Africa", "New Zealand", "England", "Pakistan"]) : new Set(["Australia", "England", "India", "South Africa"]);
+  return [
+    ["full members v associates", t => FULL_MEMBERS.has(t), t => !FULL_MEMBERS.has(t)],
+    [`top ${top.size} v the other full members`, t => top.has(t), t => FULL_MEMBERS.has(t) && !top.has(t)],
+  ];
+}
+
 function run(gender: G) {
   const real = V[gender];
   const teams = nationalTeams(gender);
@@ -80,7 +116,10 @@ function run(gender: G) {
     else { rec(a).rw += 0.5; rec(b).rw += 0.5; }
   }
   const pos = Array.from({ length: 11 }, () => ({ runs: 0, balls: 0, outs: 0 }));
+  const simH2H = new Map<string, { w: number; n: number }>();
   const classCount = new Array(10).fill(0);
+  const phaseCount = [0, 1, 2].map(() => new Array(10).fill(0));
+  const phaseN = [0, 0, 0];
   let deliveries = 0;
   const involvement = { bat: [0, 0, 0, 0], bowl: [0, 0, 0, 0] }; // weighted sums of composites, weight
   const spread: Record<string, { bat: number[][]; bowl: number[][] }> = {};
@@ -101,7 +140,14 @@ function run(gender: G) {
         winner = state.winnerId ?? null;
         batFirst = state._internal.battingFirstId;
         batterRows = raws.map(r => ({ order: Object.keys(r.batterStats), stats: new Map(Object.entries(r.batterStats)) }));
-        for (const r of raws) for (const e of r.ballLog) { deliveries++; classCount[cls(e.isWicket && e.outcome !== "wide" && e.outcome !== "noball" ? "wicket" : e.outcome)]++; }
+        for (const r of raws) for (const e of r.ballLog) {
+          if (e.deadBall) continue;
+          deliveries++;
+          const c = cls(e.isWicket && e.outcome !== "wide" && e.outcome !== "noball" ? "wicket" : e.outcome);
+          classCount[c]++;
+          const ph = e.over < 10 ? 0 : e.over < 40 ? 1 : 2;
+          phaseCount[ph][c]++; phaseN[ph]++;
+        }
       } else {
         const res = E.simulateMatch(home, away, rules, ++seed, { countTowardStandings: false, neutralVenue: true });
         inns = [fromInstant(res.innings[0]), fromInstant(res.innings[1])];
@@ -111,7 +157,10 @@ function run(gender: G) {
           for (const e of inn.ballLog) {
             if (e.deadBall) continue;
             deliveries++;
-            classCount[cls(e.isWicket && e.outcome !== "wide" && e.outcome !== "noball" ? "wicket" : e.outcome)]++;
+            const c = cls(e.isWicket && e.outcome !== "wide" && e.outcome !== "noball" ? "wicket" : e.outcome);
+            classCount[c]++;
+            const ph = e.over < 10 ? 0 : e.over < 40 ? 1 : 2;
+            phaseCount[ph][c]++; phaseN[ph]++;
           }
           const team = inn.teamId === home.id ? home : away;
           const xi = team.getPlayingXI(11);
@@ -125,7 +174,7 @@ function run(gender: G) {
                 const wt = st.balls;
                 involvement.bat[0] += wt * (v.battingOvr + v.ratings.timing) / 200; involvement.bat[1] += wt * v.ratings.timing / 100;
                 involvement.bat[2] += wt * v.ratings.power / 100; involvement.bat[3] += wt;
-                const m = E.odiRatingMultipliers(v, REF_BOWLER);
+                const m = E.odiRatingMultipliers(v, refBowler(gender), gender);
                 (spread[gender] ??= { bat: [], bowl: [] }).bat.push([wt, ...m.map(Math.log)]);
               }
             }
@@ -149,6 +198,11 @@ function run(gender: G) {
       const ra = rec(a), rb = rec(b);
       ra.n++; rb.n++;
       if (wName) rec(wName).w++; else { ra.w += 0.5; rb.w += 0.5; }
+      for (const [label, isA, isB] of groupDefs(gender)) {
+        if (!((isA(a) && isB(b)) || (isA(b) && isB(a)))) continue;
+        const g2 = simH2H.get(label) ?? (simH2H.set(label, { w: 0, n: 0 }), simH2H.get(label)!);
+        g2.n++; g2.w += wName === null ? 0.5 : isA(wName) ? 1 : 0;
+      }
       for (const row of batterRows) {
         row.order.forEach((id, i) => {
           const st = row.stats.get(id)!;
@@ -189,7 +243,8 @@ function run(gender: G) {
     ["fours per innings (1st)", f1(mean(first.map(i => i.fours))), f1(fi.fours)],
     ["sixes per innings (1st)", f1(mean(first.map(i => i.sixes))), f1(fi.sixes)],
   ];
-  console.log(`\n${gender === "male" ? "MEN" : "WOMEN"} (${LIVE ? "live" : "instant"} engine): ${s.matches} matches, ${teams.size} national sides, ${fixtures.length} real fixtures x ${REPLAYS}`);
+  const onOdi = [...teams.values()].flatMap(t => t.roster).filter(p => p.formatRatings?.odi).length;
+  console.log(`\n${gender === "male" ? "MEN" : "WOMEN"} (${LIVE ? "live" : "instant"} engine): ${s.matches} matches, ${teams.size} national sides, ${fixtures.length} real fixtures x ${REPLAYS}; ${onOdi ? `${onOdi} players on ODI ratings (${FR_PATH})` : "T20 ratings"}`);
   console.log(`| ${"".padEnd(32)} | ${"sim".padEnd(28)} | real 2019+ |`);
   for (const [k, a2, b2] of rows) console.log(`| ${k.padEnd(32)} | ${a2.padEnd(28)} | ${b2} |`);
   // dismissal mix
@@ -204,12 +259,32 @@ function run(gender: G) {
   const mx = mean(tr.map(x => x.real)), my = mean(tr.map(x => x.sim));
   const cov = mean(tr.map(x => (x.real - mx) * (x.sim - my)));
   const sdx = Math.sqrt(mean(tr.map(x => (x.real - mx) ** 2))), sdy = Math.sqrt(mean(tr.map(x => (x.sim - my) ** 2)));
-  console.log(`team win share over the same fixtures (${tr.length} sides, 10+ matches): sd real ${f2(sdx)} / sim ${f2(sdy)}, correlation ${f2(cov / (sdx * sdy))}`);
+  // net of the binomial noise of a win share over n matches, the spread of the sides' strength
+  const net = (sd: number, noise: number) => Math.sqrt(Math.max(0, sd * sd - noise));
+  const noiseReal = mean(tr.map(x => (x.real * (1 - x.real)) / x.n)), noiseSim = mean(tr.map(x => (x.sim * (1 - x.sim)) / (x.n * REPLAYS)));
+  console.log(`team win share over the same fixtures (${tr.length} sides, 10+ matches): sd real ${f2(sdx)} / sim ${f2(sdy)} (net of noise ${f2(net(sdx, noiseReal))} / ${f2(net(sdy, noiseSim))}), correlation ${f2(cov / (sdx * sdy))}`);
+  const h2h = (isA: (t: string) => boolean, isB: (t: string) => boolean) => {
+    let rw = 0, rn = 0;
+    for (const [a, b, w] of fixtures) {
+      if (w === null || !((isA(a) && isB(b)) || (isA(b) && isB(a)))) continue;
+      rn++; rw += w === "tie" ? 0.5 : isA(w) ? 1 : 0;
+    }
+    return rn ? { real: rw / rn, n: rn } : null;
+  };
+  for (const [label, isA, isB] of groupDefs(gender)) {
+    const r = h2h(isA, isB);
+    if (!r) continue;
+    const sw = simH2H.get(label) ?? { w: 0, n: 0 };
+    console.log(`${label}: the first group wins ${pct(sw.w / Math.max(1, sw.n))} simulated, ${pct(r.real)} real (${r.n} real matches)`);
+  }
   console.log("  " + tr.sort((x, y) => y.real - x.real).map(x => `${x.t} ${pct(x.real)}/${pct(x.sim)}`).join(", "));
   if (CALIBRATE) {
     const obs = MODEL_REPORT[gender].observed2019 as number[];
     const simRate = classCount.map(c => c / deliveries);
     console.log("per-delivery rates sim / real (-> ODI_CAL x real/sim): " + E.ODI_OUTCOMES.map((k, i) => `${k} ${simRate[i].toFixed(4)}/${obs[i].toFixed(4)} (x${(obs[i] / simRate[i]).toFixed(3)})`).join(", "));
+    console.log("per-delivery rates by phase sim/real: " + ["1-10", "11-40", "41-50"].map((ph, p) => `${ph}: ` + E.ODI_OUTCOMES.map((k, i) => `${k} ${(phaseCount[p][i] / Math.max(1, phaseN[p])).toFixed(4)}/${real.phaseRates[p][i].toFixed(4)}`).join(" ")).join(" | "));
+    const next = E.ODI_CAL[gender].map((row, p) => row.map((c, i) => Math.round(1000 * c * real.phaseRates[p][i] / Math.max(1e-6, phaseCount[p][i] / Math.max(1, phaseN[p]))) / 1000));
+    console.log(`suggested ODI_CAL.${gender} = ${JSON.stringify(next)}`);
     const ib = involvement.bat, iw = involvement.bowl;
     console.log(`involvement-weighted composites (-> ODI_REF): bat ${(ib[0] / ib[3]).toFixed(3)} timing ${(ib[1] / ib[3]).toFixed(3)} power ${(ib[2] / ib[3]).toFixed(3)} | bowl ${(iw[0] / iw[3]).toFixed(3)} wicketTaking ${(iw[1] / iw[3]).toFixed(3)} accuracy ${(iw[2] / iw[3]).toFixed(3)}`);
     const sp = spread[gender];

@@ -55,7 +55,7 @@ import {
 } from "./fielding.js";
 import { T20_FORMAT, hasOwnBallModel, matchFormatFor, phaseOver, type MatchFormatSpec } from "./format.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
-import { ODI_RAIN } from "./odi-model-data.js";
+import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
   EXTRAS_RATE_CAL,
   trimRunningRuns,
@@ -555,8 +555,10 @@ function simulateBall(
   // A free hit: boundaries come easier and only the run-out family can dismiss
   if (rules.freeHit) applyFreeHitToProbs(probs);
 
-  // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down)
-  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle, rules.gender);
+  // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down).
+  // An ODI has its own dismissal mix (more bowled and lbw than a T20)
+  const mix = own ? ODI_DISMISSAL_MIX[rules.gender] : undefined;
+  applyFieldingToProbs(probs, fieldingUnit, bowler.bowlingStyle, rules.gender, mix);
 
   // Normalize and sample
   const entries = Object.entries(probs) as [BallOutcome, number][];
@@ -567,7 +569,7 @@ function simulateBall(
   let resolution: ReturnType<typeof resolveWicketChance> | undefined;
   if (outcome === "wicket") {
     resolution = resolveWicketChance(fieldingUnit, bowler.id, bowler.bowlingStyle, probs, rng, {
-      gender: rules.gender, freeHit: rules.freeHit, bench: rules.bench,
+      gender: rules.gender, freeHit: rules.freeHit, bench: rules.bench, ...(mix ? { mix } : {}),
     });
     if (resolution.outcome !== "wicket") outcome = resolution.outcome;
   }

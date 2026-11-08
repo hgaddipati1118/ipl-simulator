@@ -201,6 +201,12 @@ export const ODI_MODEL_DATA: Record<"men" | "women", OdiModelTables> = {
   },
 };
 
+/** Dismissal kinds on legal balls in 2019+ ODIs (shares; the T20 mix is match-rules-data.ts dismissalMix) */
+export const ODI_DISMISSAL_MIX: Record<"male" | "female", Record<string, number>> = {
+  male: {"caught": 0.579762, "bowled": 0.199499, "lbw": 0.118107, "run_out": 0.054009, "caught_and_bowled": 0.03057, "stumped": 0.016916, "hit_wicket": 0.000986, "obstructing_the_field": 0.000152, "handled_the_ball": 5e-06, "hit_the_ball_twice": 5e-06},
+  female: {"caught": 0.490736, "bowled": 0.21653, "lbw": 0.131464, "run_out": 0.081199, "caught_and_bowled": 0.042533, "stumped": 0.036894, "hit_wicket": 0.000644, "obstructing_the_field": 5e-06, "handled_the_ball": 5e-06, "hit_the_ball_twice": 5e-06},
+};
+
 /**
  * Rain in ODIs (2012+): p(no result once started), p(overs reduced, a result), when the overs were lost, and the overs a
  * side had after the cut (5-over bands: "20" = 20-24 overs). Cricsheet leaves out matches abandoned without a ball.
