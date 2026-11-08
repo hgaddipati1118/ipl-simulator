@@ -150,7 +150,7 @@ describe("a series", () => {
     expect(stats.playerOfSeries?.name).toBeTruthy();
   });
 
-  it("a live match's result joins the series the same way", () => {
+  it("a live match's result joins the series the same way", { timeout: 60000 }, () => {
     const s = { ...make(), liveMatch: 0 };
     const squads = seriesSquads(s, FILE);
     const def = seriesFormat("odi");

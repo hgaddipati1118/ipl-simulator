@@ -287,17 +287,18 @@ export { generateName, isRealName, nameGroupOf, normaliseName } from "./names.js
 export { attachCommentaryCues, withModelCommentary } from "./instant-commentary.js";
 export type { CommentaryCues, BallCommentaryCue, DetailedWithCues } from "./instant-commentary.js";
 
-// Test cricket: instant simulation, the live driver and the fitted model (docs/FORMATS-TEST.md)
+// Test cricket: instant simulation, the live driver and the fitted model (docs/FORMATS.md, Test section)
 export {
   simulateTestMatch, createTestMatch, stepTestBall, runTestToEnd, applyToss, applyFollowOn, applyTestDecision, autoResolveTestDecision,
   declareInnings, setTestApproach, takeNewBall, changeTestBowler, describeTestBall, testInningsScorecard, testMatchResult,
   pickTestXI, testBattingOrder, testPlayerOf, testBallProbs, oversLeftInMatch, testLead, testTarget, currentInnings as currentTestInnings,
   followOnMargin, followOnProbability, declarationHazard, testCountryCode, TEST_OUTCOMES, TEST_COUNTRIES,
   setNextBatter, testBatterQueue, nightwatchmanCandidate, NIGHTWATCHMAN_OVERS, NIGHTWATCHMAN_P,
+  testProfileOf, testBattingSlot, isTestOpener, testKeeps, testRecency, testDropped, testKeeperOf, TEST_RECENCY_WEIGHT,
 } from "./test-match.js";
 export type {
   TestMatchOptions, TestMatchState, TestMatchResult, TestResult, TestInnings, TestInningsSummary, TestBallEvent, TestBatterLine,
-  TestBowlerLine, TestTeamState, TestPlayer, TestPendingDecision, TestDecisionType, TestMatchEvent, TestApproach, TestGender, TestOutcomeClass,
+  TestBowlerLine, TestTeamState, TestPlayer, TestProfile, TestPendingDecision, TestDecisionType, TestMatchEvent, TestApproach, TestGender, TestOutcomeClass,
 } from "./test-match.js";
 export {
   startLiveTest, advanceTest, decideTest, declareTest, setTestBattingApproach, setTestNextBatter, takeTestNewBall, changeTestBowlerTo, setTestAutoCaptain,

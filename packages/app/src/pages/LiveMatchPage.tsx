@@ -1107,7 +1107,7 @@ export function LiveMatchPage({
                 const battingProb = state.innings === 1 ? winProb : winProb;
                 const fieldingProb = 100 - battingProb;
                 return (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]" data-testid="win-probability">
                     <span className="font-display font-semibold" style={{ color: batTeam.primaryColor }}>{batTeam.shortName} {battingProb}%</span>
                     <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-white/[0.06] flex">
                       <div className="h-full transition-all duration-500" style={{ width: `${battingProb}%`, background: batTeam.primaryColor }} />
@@ -2690,11 +2690,12 @@ export function LiveMatchPage({
               { value: 80, label: "ATK", color: "text-red-400 bg-red-500/10 border-red-500/30" },
             ];
             return (
-              <div className="flex flex-wrap items-center gap-1 sm:ml-2">
+              <div className="flex flex-wrap items-center gap-1 sm:ml-2" data-testid="batting-aggression">
                 <span className="text-[10px] text-th-muted font-display mr-1">Bat</span>
                 {levels.map(l => (
                   <button
                     key={l.value}
+                    aria-pressed={Math.abs(current - l.value) < 15}
                     onClick={() => setState(prev => prev ? setAggression(prev, userTeamId!, l.value) : prev)}
                     className={`px-2 py-1 text-[10px] font-display font-semibold rounded border transition-all ${l.color} ${
                       Math.abs(current - l.value) < 15 ? "ring-1 ring-orange-500/50" : "opacity-50"
@@ -2719,12 +2720,13 @@ export function LiveMatchPage({
               { value: "boundary-save", label: "BDY", color: "text-amber-400 bg-amber-500/10 border-amber-500/30" },
             ];
             return (
-              <div className="flex flex-wrap items-center gap-1.5 sm:ml-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:ml-2" data-testid="field-setting">
                 <span className="text-[10px] text-th-muted font-display hidden sm:inline">Field:</span>
                 <div className="flex rounded-lg overflow-hidden border border-th">
                   {FIELD_OPTIONS.map(opt => (
                     <button
                       key={opt.value}
+                      aria-pressed={currentField === opt.value}
                       onClick={() => setState(prev => prev ? setFieldSetting(prev, userTeamId!, opt.value) : prev)}
                       title={opt.value.replace(/-/g, " ")}
                       className={`px-1.5 sm:px-2 py-1 text-[10px] font-display font-semibold transition-colors ${

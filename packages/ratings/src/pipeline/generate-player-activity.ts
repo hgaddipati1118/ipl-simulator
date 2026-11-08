@@ -7,13 +7,15 @@
  *   npx tsx src/pipeline/generate-player-activity.ts
  *
  * Inputs: data/analysis/ca_cells.parquet, ca_espn_map.csv (ESPN id -> CricketArchive id), data/scraped/espn-players.json
- * (the hand-added players' ESPN ids). Output: ../app/public/data/player-activity.json, format in src/player-activity.ts.
- * Players the map does not reach (no CricketArchive id) are left out: the app treats them as unknown.
+ * (the hand-added players' ESPN ids), and the extended pool's senior shards (../app/public/pool/ca-*-senior.json.gz: the
+ * CricketArchive players the ESPN pool lacks, keyed `ca_<id>`, which national squads also pick from; only those active in
+ * the last three seasons, to keep the file small). Output: ../app/public/data/player-activity.json, format in
+ * src/player-activity.ts. Players the map does not reach (no CricketArchive id) are left out: the app treats them as unknown.
  */
 
 import { execFileSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { gzipSync } from "zlib";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { gunzipSync, gzipSync } from "zlib";
 import { WPL_PLAYERS } from "../wpl-players.js";
 import { getRealPlayers, getPoolPlayers } from "../real-players.js";
 import { PLAYER_ACTIVITY_VERSION, type PlayerActivityFile } from "../player-activity.js";
@@ -21,6 +23,9 @@ import { PLAYER_ACTIVITY_VERSION, type PlayerActivityFile } from "../player-acti
 const ROOT = new URL("../../", import.meta.url).pathname;
 const DIR = `${ROOT}data/analysis/`;
 const OUT_JSON = new URL("../../../app/public/data/player-activity.json", import.meta.url).pathname;
+const POOL_DIR = new URL("../../../app/public/pool/", import.meta.url).pathname;
+/** Extended-pool players get a record when they played in the last this many seasons */
+const EXTENDED_RECENT = 3;
 
 function duck<T>(sql: string): T[] {
   return JSON.parse(execFileSync("duckdb", ["-json", "-c", `SET memory_limit='2GB'; ${sql}`], { encoding: "utf-8", cwd: ROOT, maxBuffer: 512 * 1024 * 1024 }) || "[]") as T[];
@@ -70,6 +75,19 @@ for (const r of records) {
   if (!last) { missing++; continue; }
   file.players[r.id] = last;
 }
+// the extended pool's senior players (`ca_<id>`), active lately
+let extended = 0;
+if (existsSync(POOL_DIR)) {
+  for (const f of readdirSync(POOL_DIR).filter(n => /^ca-.*-senior\.json\.gz$/.test(n))) {
+    const shard = JSON.parse(gunzipSync(readFileSync(POOL_DIR + f)).toString()) as { rows: unknown[][] };
+    for (const r of shard.rows) {
+      const last = byCa.get(Number(r[0]));
+      if (!last || Math.max(...last) <= asOf - EXTENDED_RECENT) continue;
+      file.players[`ca_${r[0]}`] = last;
+      extended++;
+    }
+  }
+}
 writeFileSync(OUT_JSON, JSON.stringify(file));
 const bytes = readFileSync(OUT_JSON);
-console.log(`player-activity.json: ${Object.keys(file.players).length} players (${missing} without a CricketArchive record), as of ${asOf}, ${(bytes.length / 1024).toFixed(0)} KB (${(gzipSync(bytes).length / 1024).toFixed(0)} KB gzipped)`);
+console.log(`player-activity.json: ${Object.keys(file.players).length} players (${extended} from the extended pool; ${missing} without a CricketArchive record), as of ${asOf}, ${(bytes.length / 1024).toFixed(0)} KB (${(gzipSync(bytes).length / 1024).toFixed(0)} KB gzipped)`);

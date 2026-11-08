@@ -254,7 +254,7 @@ describe.skipIf(!model)("corpus commentary model", () => {
     const realTokens = new Set<string>();
     for (const pool of Object.values(NAME_POOLS)) for (const t of [...pool.first, ...pool.last]) if (t.length >= 3) realTokens.add(t);
     // onomatopoeia and exclamations that happen to be a first name somewhere in the world
-    for (const w of ["Bam", "Boom", "Wham", "Pow", "Zing", "Whack", "Wow", "Ooh", "Oof", "Yes", "Hope", "Love", "Lord", "King", "Major", "Short", "Brown", "Gray", "Grey", "Rose", "Sunny", "Happy", "Faith", "Free", "Grace"]) lowerWords.add(w.toLowerCase());
+    for (const w of ["Bam", "Boom", "Wham", "Pow", "Zing", "Whack", "Wow", "Ooh", "Oof", "Yes", "Hope", "Miracle", "Love", "Lord", "King", "Major", "Short", "Brown", "Gray", "Grey", "Rose", "Sunny", "Happy", "Faith", "Free", "Grace"]) lowerWords.add(w.toLowerCase());
     // idioms whose first word is also a surname ("Stone dead." for a plumb lbw); the bare surname still counts
     const IDIOMS = /\bStone dead\b/g;
     const offenders: string[] = [];

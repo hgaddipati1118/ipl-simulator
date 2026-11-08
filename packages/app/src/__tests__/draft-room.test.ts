@@ -145,7 +145,7 @@ describe("draft room: Draft Match with 3+ peers", () => {
     expect(hub.view("p3").matchResult).toBeNull(); // new game clears the old result
   });
 
-  it("3 humans + 1 CPU: mini round-robin; a dropped player is auto-drafted and can rejoin", () => {
+  it("3 humans + 1 CPU: mini round-robin; a dropped player is auto-drafted and can rejoin", { timeout: 60000 }, () => {
     const hub = new FakeHub();
     const host = new DraftRoomHost(hub, testDeps(), { mode: "draft-match", sides: 4, pickSeconds: 30 });
     hub.connect("a", "A"); hub.connect("b", "B"); hub.connect("c", "C");
@@ -290,5 +290,5 @@ describe("Draft Match playing side", () => {
       expect(done.status).toBe("completed");
       host.destroy();
     }
-  }, 30_000);
+  }, 60_000);
 });

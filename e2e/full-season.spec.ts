@@ -1,199 +1,15 @@
-import { test, expect, type Page } from "@playwright/test";
-import { finishLiveMatch } from "./live-helpers";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function clearGameState(page: Page) {
-  await page.evaluate(async () => {
-    localStorage.clear();
-    const dbs = await indexedDB.databases();
-    for (const db of dbs) {
-      if (db.name) indexedDB.deleteDatabase(db.name);
-    }
-  });
-}
-
-async function waitForAppReady(page: Page) {
-  await page.waitForLoadState("networkidle");
-  await page.waitForSelector("nav", { timeout: 15000 });
-}
-
-async function handleLiveMatch(page: Page) {
-  if (!page.url().includes("/live-match")) return;
-  await finishLiveMatch(page);
-  await page.waitForTimeout(500);
-}
-
-async function handleLineup(page: Page) {
-  if (!page.url().includes("/lineup")) return;
-
-  const lockBtn = page.getByText("Lock In Lineup");
-  const isEnabled = await lockBtn.isEnabled({ timeout: 3000 }).catch(() => false);
-
-  if (isEnabled) {
-    await lockBtn.click();
-    await page.waitForURL("**/live-match/**", { timeout: 15000 });
-    await handleLiveMatch(page);
-  } else {
-    // Cancel and go back to season — Play Next Match will bypass lineup
-    await page.getByText("Cancel").click();
-    await page.waitForURL("**/season", { timeout: 10000 });
-  }
-}
-
-/** Pick a team and complete the auction to get to the season page. */
-async function pickTeam(page: Page, teamIndex = 0) {
-  const teamButton = page
-    .locator("button")
-    .filter({ hasText: /PWR \d+/ })
-    .nth(teamIndex);
-  await teamButton.click({ timeout: 15000 });
-
-  await page.waitForURL("**/auction-live", { timeout: 30000 });
-
-  await page.getByText("Sim Remaining Auction").click({ timeout: 15000 });
-
-  await page.getByText(/Start Season/i).first().waitFor({ timeout: 60000 });
-  await page.getByText(/Start Season/i).first().click();
-
-  await Promise.race([
-    page.waitForURL("**/season", { timeout: 30000 }),
-    page.waitForURL("**/lineup", { timeout: 30000 }),
-  ]);
-
-  if (page.url().includes("/lineup")) {
-    await handleLineup(page);
-  }
-}
-
-/** Simulate a full season via match-by-match buttons until results page. */
-async function simulateSeason(page: Page) {
-  let needsPlayNextMatch = false;
-  const maxIterations = 200;
-
-  for (let i = 0; i < maxIterations; i++) {
-    const url = page.url();
-
-    if (url.includes("/results")) return;
-
-    if (url.includes("/live-match")) {
-      await handleLiveMatch(page);
-      needsPlayNextMatch = false;
-      continue;
-    }
-
-    if (url.includes("/lineup")) {
-      const lockBtn = page.getByText("Lock In Lineup");
-      const isEnabled = await lockBtn.isEnabled({ timeout: 3000 }).catch(() => false);
-      if (isEnabled) {
-        await lockBtn.click();
-        await page.waitForURL("**/live-match/**", { timeout: 15000 });
-        await handleLiveMatch(page);
-        needsPlayNextMatch = false;
-      } else {
-        await page.getByText("Cancel").click();
-        await page.waitForURL("**/season", { timeout: 10000 });
-        needsPlayNextMatch = true;
-      }
-      continue;
-    }
-
-    if (!url.includes("/season")) {
-      await page.goto("/season");
-      await waitForAppReady(page);
-    }
-
-    const viewResultsBtn = page.getByText("View Results");
-    if (await viewResultsBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await viewResultsBtn.click();
-      await page.waitForURL("**/results", { timeout: 30000 });
-      return;
-    }
-
-    const simSeasonBtn = page.getByText("Simulate Season");
-    if (await simSeasonBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await simSeasonBtn.click();
-      await page.waitForURL("**/results", { timeout: 120000 });
-      return;
-    }
-
-    if (needsPlayNextMatch) {
-      const playBtn = page.getByText("Play Next Match");
-      if (await playBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-        await playBtn.click();
-        await page.waitForURL("**/live-match/**", { timeout: 15000 });
-        await handleLiveMatch(page);
-        needsPlayNextMatch = false;
-        continue;
-      }
-    }
-
-    const simToPlayoffsBtn = page.getByText("Sim to Playoffs");
-    if (await simToPlayoffsBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await simToPlayoffsBtn.click();
-      await page.waitForTimeout(300);
-      continue;
-    }
-
-    const simNext5Btn = page.getByText("Sim Next 5");
-    if (await simNext5Btn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await simNext5Btn.click();
-      await page.waitForTimeout(300);
-      continue;
-    }
-
-    const playNextMatchBtn = page.getByText("Play Next Match");
-    if (await playNextMatchBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-      await playNextMatchBtn.click();
-      await page.waitForURL("**/live-match/**", { timeout: 15000 });
-      await handleLiveMatch(page);
-      continue;
-    }
-
-    await page.waitForTimeout(500);
-  }
-}
-
-/** Click "Next Season" and wait for the trade window. */
-async function goToNextSeason(page: Page) {
-  await page.getByText("Next Season").click();
-  await page.waitForURL("**/trade", { timeout: 30000 });
-}
-
-/** Handle the trade window, retention, auction, and return to season page. */
-async function finishTrades(page: Page) {
-  // Reject all pending trade offers
-  const rejectBtns = page.locator("button").filter({ hasText: "Reject" });
-  const count = await rejectBtns.count();
-  for (let i = 0; i < count; i++) {
-    await page.locator("button").filter({ hasText: "Reject" }).first().click();
-  }
-
-  await page.getByText("Finish Trades & Start Auction").click();
-  await page.waitForURL("**/retention", { timeout: 15000 });
-
-  await page.getByText("Sim CPU Retentions").waitFor({ timeout: 10000 });
-  await page.getByText("Sim CPU Retentions").click();
-  await expect(page.getByText("Finish Retentions & Start Auction")).toBeEnabled({ timeout: 10000 });
-  await page.getByText("Finish Retentions & Start Auction").click();
-
-  await page.waitForURL("**/auction-live", { timeout: 30000 });
-
-  await page.getByText("Sim Remaining Auction").click({ timeout: 15000 });
-
-  await page.getByText(/Start Season/i).first().waitFor({ timeout: 60000 });
-  await page.getByText(/Start Season/i).first().click();
-
-  await Promise.race([
-    page.waitForURL("**/season", { timeout: 30000 }),
-    page.waitForURL("**/lineup", { timeout: 30000 }),
-  ]);
-  if (page.url().includes("/lineup")) {
-    await handleLineup(page);
-  }
-}
+import { test, expect } from "@playwright/test";
+import {
+  freshGame,
+  waitForAppReady,
+  pickTeam,
+  simulateSeason,
+  goToNextSeason,
+  releaseExpiredContracts,
+  rejectPendingOffers,
+  finishOffseason,
+  teamButtons,
+} from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -201,18 +17,14 @@ async function finishTrades(page: Page) {
 
 test.describe("Full season play-through", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
-    await clearGameState(page);
-    await page.reload();
-    await waitForAppReady(page);
+    await freshGame(page);
   });
 
   test("play through a complete season 1", async ({ page }) => {
     test.setTimeout(300_000);
 
     await expect(page.getByText("Choose your franchise to begin")).toBeVisible();
-    const teamButtons = page.locator("button").filter({ hasText: /PWR \d+/ });
-    await expect(teamButtons).toHaveCount(10);
+    await expect(teamButtons(page)).toHaveCount(10);
 
     await pickTeam(page);
 
@@ -284,13 +96,8 @@ test.describe("Full season play-through", () => {
     await expect(page.getByText("Stadium Settings")).toBeVisible();
     await expect(page.locator('input[type="range"]')).toBeVisible();
 
-    const pendingOffers = page.locator("button").filter({ hasText: "Reject" });
-    const offerCount = await pendingOffers.count();
-    for (let i = 0; i < offerCount; i++) {
-      await page.locator("button").filter({ hasText: "Reject" }).first().click();
-    }
-
-    await finishTrades(page);
+    // Expired contracts lock the market until released; then reject every offer and go through retention and auction
+    await finishOffseason(page);
 
     // ===================== SEASON 2 =====================
     await expect(page.getByText("Season 2").first()).toBeVisible({ timeout: 10000 });
@@ -305,20 +112,16 @@ test.describe("Full season play-through", () => {
     // ===================== TRADE WINDOW (before S3) =====================
     await goToNextSeason(page);
     await expect(page.getByText("Trade Window")).toBeVisible({ timeout: 10000 });
+    await releaseExpiredContracts(page);
 
-    const acceptBtn = page.locator("button").filter({ hasText: "Accept" }).first();
-    if (await acceptBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    // Accept the first incoming offer when the CPU made one (it shows in the trade history), reject the rest
+    const acceptBtn = page.getByRole("button", { name: "Accept", exact: true }).first();
+    if (await acceptBtn.isVisible()) {
       await acceptBtn.click();
       await expect(page.getByText("Accepted").first()).toBeVisible({ timeout: 5000 });
     }
-
-    const remaining = page.locator("button").filter({ hasText: "Reject" });
-    const remainCount = await remaining.count();
-    for (let i = 0; i < remainCount; i++) {
-      await page.locator("button").filter({ hasText: "Reject" }).first().click();
-    }
-
-    await finishTrades(page);
+    await rejectPendingOffers(page);
+    await finishOffseason(page);
 
     // ===================== SEASON 3 =====================
     await expect(page.getByText("Season 3").first()).toBeVisible({ timeout: 10000 });
@@ -386,8 +189,7 @@ test.describe("Full season play-through", () => {
     await expect(page.getByText("Simulator")).toBeVisible();
     await expect(page.getByText("WPL", { exact: true }).first()).toBeVisible();
 
-    const teamButtons = page.locator("button").filter({ hasText: /PWR \d+/ });
-    await expect(teamButtons).toHaveCount(5);
+    await expect(teamButtons(page)).toHaveCount(5);
 
     await pickTeam(page);
     await expect(page.getByText("Season 1").first()).toBeVisible();
@@ -419,7 +221,6 @@ test.describe("Full season play-through", () => {
     await page.waitForURL("/", { timeout: 15000 });
     await expect(page.getByText("Choose your franchise to begin")).toBeVisible({ timeout: 10000 });
 
-    const teamButtons = page.locator("button").filter({ hasText: /PWR \d+/ });
-    await expect(teamButtons).toHaveCount(10);
+    await expect(teamButtons(page)).toHaveCount(10);
   });
 });

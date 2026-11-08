@@ -1,18 +1,18 @@
 /**
- * International series: pick two nations (men or women), a format (SERIES_FORMATS: ODI, T20I; Test plugs in there), 1, 3
- * or 5 matches, the venue and whether you captain a side or watch; then play each match live or simulate it, with series
- * score, scorecards, series stats and player of the series. Logic: ../international.ts. The series is kept in its own
- * localStorage key (career saves, presets and multiplayer are untouched).
+ * International series: pick two nations (men or women), a format (SERIES_FORMATS: ODI, T20I, Test), 1 to 5 matches, the
+ * venue and whether you captain a side or watch; then play each match live or simulate it, with series score, scorecards,
+ * series stats and player of the series. Logic: ../international.ts. The series is kept in its own localStorage key (career
+ * saves, presets and multiplayer are untouched); a Test's full state in IndexedDB (test-match/test-series.ts).
  */
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { toDraftPlayer, type MatchState, type Player, type Team } from "@ipl-sim/engine";
+import { toDraftPlayer, type MatchState, type Player, type Team, type TestMatchState } from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import {
   SERIES_FORMATS, SERIES_SEASON_KEY, addResult, autoLineup, createSeries, homeGrounds, lineupProblems, loadSeries, matchContext,
-  matchName, nextMatchNumber, saveSeries, seriesFormat, seriesNations, seriesScore, seriesSquads, seriesStats, simulateRestOfSeries,
-  simulateSeriesMatch, teamsForMatch, venueFor,
+  matchName, matchSeed, nextMatchNumber, saveSeries, seriesFormat, seriesMatchKey, seriesNations, seriesScore, seriesSquads, seriesStats,
+  simulateRestOfSeries, simulateSeriesMatch, teamsForMatch, venueFor,
   type IntlSeries, type SeriesGender, type SeriesHost, type SeriesLineup, type SeriesMatchRecord,
 } from "../international";
 import { loadFormatRatings } from "../format-ratings";
@@ -26,12 +26,27 @@ import { TeamBadge } from "../components/TeamBadge";
 import { clearInProgressMatch } from "../match-db";
 import { buildLiveMatchStorageKey, getActiveSlotId } from "../storage";
 import { ovrColorClass, roleLabel, oversLabel } from "../ui-utils";
+import { SeriesLiveTest, SeriesTestScorecard } from "../test-match/SeriesTestViews";
+import { seriesTestColors, testStoreKey } from "../test-match/test-series";
+import { clearLiveTest, clearLiveTests } from "../test-match/test-db";
+import { poolLoader, type ExtendedPlayer } from "../extended-pool";
+
+/** A gender's extended-pool senior players (fetched once per session; null when the pool cannot be loaded) */
+const extendedByGender = new Map<SeriesGender, Promise<ExtendedPlayer[] | null>>();
+function loadExtendedSenior(gender: SeriesGender): Promise<ExtendedPlayer[] | null> {
+  let p = extendedByGender.get(gender);
+  if (!p) {
+    p = poolLoader.players(gender, ["senior"]).catch(() => null);
+    extendedByGender.set(gender, p);
+  }
+  return p;
+}
 
 type View =
   | { kind: "setup" }
   | { kind: "hub" }
   | { kind: "lineup" }
-  | { kind: "live"; n: number; state: MatchState | null }
+  | { kind: "live"; n: number; state: MatchState | TestMatchState | null }
   | { kind: "scorecard"; n: number };
 
 /** Clear any saved in-progress live match of the series namespace (a new series reuses the match numbers) */
@@ -41,6 +56,8 @@ async function clearSeriesLiveSaves(): Promise<void> {
     try { await clearInProgressMatch(slot, SERIES_SEASON_KEY, n); } catch { /* none saved */ }
     try { localStorage.removeItem(buildLiveMatchStorageKey(slot, SERIES_SEASON_KEY, n)); } catch { /* unavailable */ }
   }
+  // the last series' Tests (live saves and finished states, IndexedDB)
+  await clearLiveTests(testStoreKey(""));
 }
 
 export function InternationalPage() {
@@ -60,11 +77,25 @@ export function InternationalPage() {
     void Promise.all([loadFormatRatings(), loadPlayerActivity()]).then(([f, a]) => { setActivity(a ?? null); setFile(f ?? null); });
   }, []);
 
-  const update = (s: IntlSeries | null) => { setSeries(s); saveSeries(s); };
-  const squads = useMemo(() => (series && file !== undefined ? seriesSquads(series, file) : null), [series?.id, file]);
+  // the extended pool's senior players of the series' gender: squads pick from them too (their ids are `ca_<id>`)
+  const [extended, setExtended] = useState<Partial<Record<SeriesGender, ExtendedPlayer[] | null>>>({});
+  useEffect(() => {
+    if (!series || extended[series.gender] !== undefined) return;
+    const g = series.gender;
+    void loadExtendedSenior(g).then(players => setExtended(e => ({ ...e, [g]: players })));
+  }, [series?.gender]);
+  const seriesExtended = series ? extended[series.gender] : undefined;
 
-  if (file === undefined) {
-    return <div className="max-w-md mx-auto px-4 py-20 text-center text-th-muted font-display animate-pulse">Loading ratings...</div>;
+  const update = (s: IntlSeries | null) => { setSeries(s); saveSeries(s); };
+  const squads = useMemo(
+    () => (series && file !== undefined && seriesExtended !== undefined ? seriesSquads(series, file, seriesExtended) : null),
+    [series?.id, file, seriesExtended],
+  );
+
+  if (file === undefined || (series && view.kind !== "setup" && seriesExtended === undefined)) {
+    return <div className="max-w-md mx-auto px-4 py-20 text-center text-th-muted font-display animate-pulse" data-testid="series-loading">
+      {file === undefined ? "Loading ratings..." : "Loading players..."}
+    </div>;
   }
 
   if (view.kind === "setup" || !series || !squads) {
@@ -74,6 +105,7 @@ export function InternationalPage() {
         activity={activity ?? null}
         existing={series}
         onResume={() => setView({ kind: "hub" })}
+        loadPlayers={async g => { const players = await loadExtendedSenior(g); setExtended(e => ({ ...e, [g]: players })); return players; }}
         onStart={async s => { await clearSeriesLiveSaves(); update(s); setView({ kind: "hub" }); }}
         onBack={() => navigate("/")}
       />
@@ -89,7 +121,7 @@ export function InternationalPage() {
       <LineupScreen
         series={series}
         squad={squad}
-        initial={series.lineup ?? autoLineup(squad, def.rules?.(series.gender))}
+        initial={series.lineup ?? def.autoLineup?.(squad, series) ?? autoLineup(squad, def.rules?.(series.gender))}
         onCancel={() => setView({ kind: "hub" })}
         onSave={lineup => { update({ ...series, lineup }); setView({ kind: "hub" }); }}
       />
@@ -106,10 +138,25 @@ export function InternationalPage() {
           <button onClick={() => setView({ kind: "hub" })} className="text-xs font-display text-th-muted hover:text-th-primary">&larr; Series</button>
           <span className="text-xs font-display text-th-muted">{matchName(series, n)} · {venue.name}</span>
         </div>
+        {def.live?.viewer === "test" ? (
+          <SeriesLiveTest
+            key={`${series.id}-${n}`}
+            storeKey={testStoreKey(seriesMatchKey(series, n))}
+            initial={view.state as TestMatchState | null}
+            title={matchName(series, n)}
+            colors={seriesTestColors(series)}
+            onMatchEnd={st => {
+              if (series.results.some(r => r.n === n)) return;
+              update(addResult(series, { ...def.live!.finish(st, { venue, seed: matchSeed(series, n) }), n }));
+            }}
+            onContinue={() => setView({ kind: "hub" })}
+            onBack={() => setView({ kind: "hub" })}
+          />
+        ) : (
         <LiveMatchPage
           key={`${series.id}-${n}`}
           seasonNumber={SERIES_SEASON_KEY}
-          matchState={view.state}
+          matchState={view.state as MatchState | null}
           matchIndex={n}
           userTeamId={userTeamId}
           teams={[home, away] as Team[]}
@@ -123,13 +170,21 @@ export function InternationalPage() {
           onContinue={() => setView({ kind: "hub" })}
           onViewScorecard={() => setView({ kind: "scorecard", n })}
         />
+        )}
       </div>
     );
   }
 
   if (view.kind === "scorecard") {
     const rec = series.results.find(r => r.n === view.n);
-    if (rec) return <SeriesScorecard series={series} rec={rec} onBack={() => setView({ kind: "hub" })} />;
+    if (rec) {
+      const card = <SeriesScorecard series={series} rec={rec} onBack={() => setView({ kind: "hub" })} />;
+      if (def.live?.viewer !== "test") return card;
+      return (
+        <SeriesTestScorecard storeKey={testStoreKey(seriesMatchKey(series, rec.n))} title={`${matchName(series, rec.n)} · ${rec.venue}`}
+          colors={seriesTestColors(series)} onBack={() => setView({ kind: "hub" })} fallback={card} />
+      );
+    }
   }
 
   return (
@@ -138,12 +193,15 @@ export function InternationalPage() {
       squads={squads}
       onPlayLive={n => {
         const ctx = matchContext(series, n, squads);
-        const state = def.live!.create(ctx, userTeamId) as MatchState;
+        const state = def.live!.create(ctx, userTeamId) as MatchState | TestMatchState;
         update({ ...series, liveMatch: n });
         setView({ kind: "live", n, state });
       }}
       onResumeLive={n => setView({ kind: "live", n, state: null })}
-      onAbandonLive={() => update({ ...series, liveMatch: undefined })}
+      onAbandonLive={() => {
+        if (def.live?.viewer === "test" && series.liveMatch !== undefined) void clearLiveTest(testStoreKey(seriesMatchKey(series, series.liveMatch)));
+        update({ ...series, liveMatch: undefined });
+      }}
       onSimulate={n => update(simulateSeriesMatch({ ...series, liveMatch: undefined }, squads, n))}
       onSimRest={() => update(simulateRestOfSeries({ ...series, liveMatch: undefined }, squads))}
       onLineup={() => setView({ kind: "lineup" })}
@@ -158,10 +216,12 @@ export function InternationalPage() {
 
 // ── Setup ───────────────────────────────────────────────────────────────
 
-function SeriesSetup({ file, activity, existing, onStart, onResume, onBack }: {
+function SeriesSetup({ file, activity, existing, loadPlayers, onStart, onResume, onBack }: {
   file: FormatRatingsFile | null;
   activity: PlayerActivityFile | null;
   existing: IntlSeries | null;
+  /** The extended pool's senior players of a gender (squads pick from them too); null when unavailable */
+  loadPlayers: (gender: SeriesGender) => Promise<ExtendedPlayer[] | null>;
   onStart: (s: IntlSeries) => void;
   onResume: () => void;
   onBack: () => void;
@@ -186,14 +246,13 @@ function SeriesSetup({ file, activity, existing, onStart, onResume, onBack }: {
   useEffect(() => { if (!def.lengths.includes(length)) setLength(def.lengths[0]); }, [def, length]);
 
   const groundsA = homeGrounds(a).length, groundsB = homeGrounds(b).length;
-  const start = () => {
+  const start = async () => {
     if (a === b) return;
     setBusy(true);
-    // building squads and the first match is quick, but let the button repaint first
-    setTimeout(() => {
-      onStart(createSeries({ format, gender, nations: [a, b], length, host, userSide: role === "watch" ? null : role === "a" ? 0 : 1 }, file, activity));
-      setBusy(false);
-    }, 0);
+    // the nations' senior players from the extended pool (fetched once), then the squads
+    const extended = await loadPlayers(gender);
+    onStart(createSeries({ format, gender, nations: [a, b], length, host, userSide: role === "watch" ? null : role === "a" ? 0 : 1 }, file, activity, extended));
+    setBusy(false);
   };
 
   const chip = (on: boolean) => `px-3 py-2 rounded-xl border text-sm font-display font-semibold transition-colors ${on ? "border-orange-500/40 bg-orange-500/[0.08] text-orange-300" : "border-th bg-th-surface text-th-secondary hover:bg-th-hover"}`;
@@ -236,7 +295,7 @@ function SeriesSetup({ file, activity, existing, onStart, onResume, onBack }: {
         </Section>
 
         <Section title="Format">
-          <div className="grid sm:grid-cols-2 gap-2">
+          <div className="grid sm:grid-cols-3 gap-2">
             {SERIES_FORMATS.map(f => (
               <button key={f.id} onClick={() => setFormat(f.id)} data-testid={`series-format-${f.id}`}
                 className={`text-left p-3 rounded-xl border transition-colors ${format === f.id ? "border-orange-500/40 bg-orange-500/[0.07]" : "border-th bg-th-surface hover:bg-th-hover"}`}>
@@ -271,7 +330,7 @@ function SeriesSetup({ file, activity, existing, onStart, onResume, onBack }: {
         </Section>
 
         <div className="grid sm:grid-cols-2 gap-3">
-          <button onClick={start} disabled={busy || a === b} data-testid="series-start"
+          <button onClick={() => void start()} disabled={busy || a === b} data-testid="series-start"
             className="px-5 py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-50 text-white font-display font-semibold rounded-xl shadow-lg shadow-orange-500/20">
             {busy ? "Picking squads..." : `Start the ${length === 1 ? "match" : "series"}`}
           </button>
@@ -302,10 +361,11 @@ function SeriesHub({ series, squads, onPlayLive, onResumeLive, onAbandonLive, on
   const score = seriesScore(series);
   const next = nextMatchNumber(series);
   const stats = useMemo(() => seriesStats(series), [series]);
+  const testStats = def.ratingFormat === "test";
   const [a, b] = series.sides;
   const userSide = series.userSide !== null ? series.sides[series.userSide] : null;
   const userXI = series.userSide !== null
-    ? (series.lineup ?? autoLineup(squads[series.userSide], def.rules?.(series.gender))).order
+    ? (series.lineup ?? def.autoLineup?.(squads[series.userSide], series) ?? autoLineup(squads[series.userSide], def.rules?.(series.gender))).order
       .map(id => squads[series.userSide!].find(p => p.id === id)).filter((p): p is Player => !!p)
     : [];
   const hostName = series.host === "neutral" ? "neutral venues" : `in ${series.sides[series.host === "a" ? 0 : 1].country}`;
@@ -355,7 +415,7 @@ function SeriesHub({ series, squads, onPlayLive, onResumeLive, onAbandonLive, on
                 {rec ? (
                   <div className="mt-1 text-xs font-display text-th-secondary">
                     <span className="font-semibold">{rec.result}</span>
-                    <span className="text-th-faint"> · {rec.innings.map(i => `${i.battingTeamName.replace(/ Women$/, "")} ${i.totalRuns}/${i.totalWickets} (${oversLabel(i.totalOvers)})`).join(", ")}</span>
+                    <span className="text-th-faint"> · {rec.summary ?? rec.innings.map(i => `${i.battingTeamName.replace(/ Women$/, "")} ${i.totalRuns}/${i.totalWickets} (${oversLabel(i.totalOvers)})`).join(", ")}</span>
                     {rec.potm?.playerName && <span className="text-th-faint"> · POTM {rec.potm.playerName}</span>}
                     <span className="text-th-faint"> · {rec.mode === "live" ? "played live" : "simulated"}</span>
                   </div>
@@ -401,22 +461,23 @@ function SeriesHub({ series, squads, onPlayLive, onResumeLive, onAbandonLive, on
             </div>
           )}
           <div className="grid lg:grid-cols-2 gap-4">
+            {/* a Test series: not outs instead of strike rate, five-fors instead of economy */}
             <StatTable
               title="Most runs"
-              head={["Batter", "Inn", "Runs", "HS", "Avg", "SR", "100/50"]}
+              head={["Batter", "Inn", testStats ? "NO" : "Runs", testStats ? "Runs" : "HS", testStats ? "HS" : "Avg", testStats ? "Avg" : "SR", "100/50"]}
               rows={stats.batting.slice(0, 8).map(l => [
                 <PlayerName key="n" name={l.name} side={series.sides.find(s => s.id === l.sideId)?.shortName} />,
-                l.innings, <b key="r">{l.runs}</b>, `${l.high}${l.highNotOut ? "*" : ""}`,
-                l.average !== null ? l.average.toFixed(1) : "-", l.strikeRate !== null ? l.strikeRate.toFixed(1) : "-", `${l.hundreds}/${l.fifties}`,
+                l.innings, ...(testStats ? [l.notOuts] : []), <b key="r">{l.runs}</b>, `${l.high}${l.highNotOut ? "*" : ""}`,
+                l.average !== null ? l.average.toFixed(1) : "-", ...(testStats ? [] : [l.strikeRate !== null ? l.strikeRate.toFixed(1) : "-"]), `${l.hundreds}/${l.fifties}`,
               ])}
             />
             <StatTable
               title="Most wickets"
-              head={["Bowler", "Overs", "Wkts", "Runs", "Avg", "Econ", "Best"]}
+              head={["Bowler", "Overs", "Wkts", "Runs", "Avg", testStats ? "Best" : "Econ", testStats ? "5w" : "Best"]}
               rows={stats.bowling.filter(l => l.balls > 0).slice(0, 8).map(l => [
                 <PlayerName key="n" name={l.name} side={series.sides.find(s => s.id === l.sideId)?.shortName} />,
                 `${Math.floor(l.balls / 6)}${l.balls % 6 ? `.${l.balls % 6}` : ""}`, <b key="w">{l.wickets}</b>, l.runs,
-                l.average !== null ? l.average.toFixed(1) : "-", l.economy !== null ? l.economy.toFixed(2) : "-", l.best,
+                l.average !== null ? l.average.toFixed(1) : "-", ...(testStats ? [l.best, l.fiveFors] : [l.economy !== null ? l.economy.toFixed(2) : "-", l.best]),
               ])}
             />
           </div>
@@ -470,7 +531,7 @@ function LineupScreen({ series, squad, initial, onSave, onCancel }: {
   const [xi, setXi] = useState<string[]>(initial.xi);
   const side = series.sides[series.userSide!];
   const fmt = seriesFormat(series.format);
-  const problems = lineupProblems(squad, { xi, order: xi });
+  const problems = (fmt.lineupProblems ?? lineupProblems)(squad, { xi, order: xi });
   const chosen = squad.filter(p => xi.includes(p.id));
   // keep the saved batting order for the players still in the XI, the newcomers after them
   const orderSeed = [...initial.order.filter(id => xi.includes(id)), ...xi.filter(id => !initial.order.includes(id))];
