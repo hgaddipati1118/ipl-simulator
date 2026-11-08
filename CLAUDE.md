@@ -20,6 +20,10 @@ from its own model fitted on Cricsheet ODIs, in both engines (`odi-model.ts`; ge
 (`__tests__/benchmark-odi.ts`) and refitting: `docs/FORMATS.md`. `__tests__/fingerprint-matches.ts` shows an engine change leaves T20 / Hundred play unchanged.
 In the app, `/international` plays international series (ODI, T20I; men and women; `packages/app/src/international.ts`, a pluggable
 `SERIES_FORMATS` list a Test entry joins) and Draft Match has a T20 / ODI option (docs/FORMATS.md, "In the app").
+Test cricket has its own engine (`test-match.ts`: rules, ball model and captains' policies fitted on Cricsheet Tests, generated
+`test-model-data.ts` from `packages/ratings/src/analysis/test-match-model.py`; live driver `test-live.ts`; validation
+`__tests__/benchmark-test.ts`; docs/FORMATS.md, "Test"). In the app a Test is a format of the International series
+(`packages/app/src/test-match/test-series.ts`), played live on `LiveTestPage` or instantly, with `TestScorecard`.
 
 Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ball text (scraper, templates, engine API: `docs/COMMENTARY.md`;
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).

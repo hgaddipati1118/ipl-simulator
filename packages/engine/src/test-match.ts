@@ -1,7 +1,7 @@
 /**
  * Test cricket: two innings a side over up to five days of 90 six-ball overs (women's Tests: four days of 100), three
  * sessions a day, the new ball after 80 overs, declarations, the follow-on, draws when time runs out, ties, DRS (three
- * unsuccessful reviews per innings), time lost to weather and bad light, pitch wear and toss decisions (docs/FORMATS-TEST.md).
+ * unsuccessful reviews per innings), time lost to weather and bad light, pitch wear and toss decisions (docs/FORMATS.md, Test section).
  *
  * The ball model and every team decision are fitted from Cricsheet Tests (test-model-data.ts, built by
  * packages/ratings/src/analysis/test-match-model.py). Per delivery, each outcome class (1, 2, 3, 4, 6, wicket, wide,
@@ -60,7 +60,7 @@ const T_SET = lv(F.set, SET_BINS.length);
 const T_INN = lv(F.innings, 4);
 /**
  * Wickets down (0-2, 3-5, 6-7, 8-9), by innings: the tail goes quicker and swings harder than the batters' own terms say, and
- * a 4th-innings top order goes quicker than the innings and day factors alone say (FORMATS-TEST.md section 6.5)
+ * a 4th-innings top order goes quicker than the innings and day factors alone say (FORMATS.md, Test section 6.5)
  */
 const WD_BINS: readonly number[] = M.bins.wicketsDown;
 const T_WD = [0, 1, 2, 3].map(i => Array.from({ length: WD_BINS.length }, (_, b) => TEST_OUTCOMES.map(k => (F.wicketsDown as unknown as Record<string, number[][]>)[k]?.[i]?.[b] ?? 1)));
