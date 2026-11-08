@@ -24,6 +24,7 @@ import type { Team } from "./team.js";
 import type { RNG } from "./rng.js";
 import { randomSeed } from "./rng.js";
 import { TEST_MODEL as M } from "./test-model-data.js";
+import { TEST_PROFILE_DATA } from "./test-profile-data.js";
 import {
   CONV as FIELDING_CONV, TEAM_FIELDING_PIVOT, NEUTRAL_FIELDING, buildFieldingUnit, fieldingRating, keepingRating,
   missedChanceOutcome, type FieldingNote, type FieldingUnit,
@@ -150,6 +151,8 @@ export interface TestPlayer {
   /** Batting and bowling quality used for picking XIs, orders and attacks (log-rate units) */
   batValue: number;
   bowlValue: number;
+  /** His usual place in a Test order (testBattingSlot: first-class record, else his T20 place and role) */
+  usualSlot?: number;
 }
 
 export interface TestBatterLine {
@@ -473,9 +476,58 @@ function posGroupOf(slot: number): number {
 type RatingMap = { readonly bat: TermMap; readonly bowl: TermMap; readonly pool: { readonly bat: Pool; readonly bowl: Readonly<Record<"pace" | "spin", Pool>> } };
 const MAPS = M.players as unknown as { readonly t20: RatingMap; readonly test?: RatingMap };
 
+// ── Test profiles: the usual place in the order and the bowling workload (docs/FORMATS.md, Test section 3.2) ─────────────
+
+/** A player's first-class record as the Test engine reads it (test-profile-data.ts, from CricketArchive; Tests first) */
+export interface TestProfile {
+  /** Mean batting position (1-11) */
+  pos?: number;
+  /** Bowling workload: 2 = front-line (six overs or more an innings in the field), 1 = part-time, 0 = does not bowl */
+  bowl?: 0 | 1 | 2;
+}
+
+let PROFILES: Map<string, TestProfile> | null = null;
+
+/** The Test profile of a player, by his ESPN id (`espn_<id>`, or the source record's), if the data has one */
+export function testProfileOf(player: Pick<Player, "id"> & { sourceId?: string }): TestProfile | undefined {
+  if (!PROFILES) {
+    PROFILES = new Map();
+    for (const rec of TEST_PROFILE_DATA.split(";")) {
+      const [id, pos, bowl] = rec.split(",");
+      if (!id) continue;
+      PROFILES.set(id, { ...(pos && pos !== "0" ? { pos: Number(pos) / 10 } : {}), ...(bowl && bowl !== "-" ? { bowl: Number(bowl) as 0 | 1 | 2 } : {}) });
+    }
+  }
+  const key = (id: string | undefined) => (id ? PROFILES!.get(id.replace(/^espn_/, "")) : undefined);
+  return key(player.sourceId) ?? key(player.id);
+}
+
+/** A batter's place by his T20 profile when there is no first-class record */
+const T20_SLOT: Readonly<Record<Player["battingPosition"], number>> = {
+  opener: 1.5, "top-order": 3.5, "middle-order": 5, finisher: 6.5, "lower-order": 8.5,
+};
+
+/**
+ * Where a player usually bats in a Test (1-11): his first-class mean position (Tests first), else his T20 place in the order
+ * (a bowler 9.5, a keeper no higher than 6)
+ */
+export function testBattingSlot(player: Player): number {
+  const pos = testProfileOf(player)?.pos;
+  if (pos !== undefined) return pos;
+  const base = player.role === "bowler" ? 9.5 : T20_SLOT[player.battingPosition] ?? 5;
+  return player.isWicketKeeper ? Math.max(base, 6) : base;
+}
+
+/** He opens in Tests: his usual place is 2.5 or higher up */
+export function isTestOpener(player: Player): boolean {
+  return testBattingSlot(player) <= 2.5;
+}
+
 /**
  * The Test view of a player, with his outcome multipliers. A player with Test ratings is mapped with the mix fitted on Test
- * ratings; one without plays on his T20 ratings through the mix fitted on those (test-match-model.py fits both).
+ * ratings; one without plays on his T20 ratings through the mix fitted on those (test-match-model.py fits both). Whether he
+ * is in the attack comes from his first-class bowling workload where the data has it (a T20 "batsman" can be a Test
+ * spinner), else from his role.
  */
 export function testPlayerOf(player: Player, slot?: number): TestPlayer {
   const view = player.forFormat("test");
@@ -484,25 +536,31 @@ export function testPlayerOf(player: Player, slot?: number): TestPlayer {
   const P = (source === "test" && MAPS.test) || MAPS.t20;
   const spin = isSpinStyle(player.bowlingStyle);
   const type = spin ? "spin" : "pace";
-  // the position group: his place in the order when known, else what his role suggests
-  const group = slot !== undefined ? posGroupOf(slot) : player.role === "bowler" ? 2 : 1;
+  // the position group: his place in this order, else where he usually bats
+  const usualSlot = testBattingSlot(player);
+  const group = posGroupOf(slot ?? Math.round(usualSlot) - 1);
   const batLog = TEST_OUTCOMES.map(k => (BAT_TERMS as readonly string[]).includes(k) ? termLog(ratings, P.bat[k], P.pool.bat, undefined, group) : 0);
   const bowlLog = TEST_OUTCOMES.map(k => (BOWL_TERMS as readonly string[]).includes(k) ? termLog(ratings, P.bowl[k], P.pool.bowl[type], type) : 0);
   // quality in log-rate units: surviving and scoring for a batter, taking wickets and not conceding for a bowler
   const batValue = -batLog[IW] + 0.6 * batLog[0] + 0.5 * batLog[3];
   const bowlValue = bowlLog[IW] - 0.6 * bowlLog[0] - 0.6 * bowlLog[3];
-  // the attack: bowlers and all-rounders, and a batter only if he really bowls; the rest are part-timers
-  const bowls = (player.role === "bowler" || player.role === "all-rounder" || view.bowlingOvr >= 65) && !player.isWicketKeeper;
+  // the attack: front-line by his first-class workload; without one, bowlers and all-rounders, and a batter only if he really
+  // bowls. The rest are part-timers
+  const workload = testProfileOf(player)?.bowl;
+  const bowls = !player.isWicketKeeper && (workload !== undefined
+    ? workload === 2
+    : player.role === "bowler" || player.role === "all-rounder" || view.bowlingOvr >= 65);
   return {
     id: player.id, name: player.name, role: player.role, bowlingStyle: player.bowlingStyle, battingHand: player.battingHand,
     isWicketKeeper: player.isWicketKeeper, spin, bowler: bowls, ratings, ratingsSource: source,
-    batMul: batLog.map(Math.exp), bowlMul: bowlLog.map(Math.exp), batValue, bowlValue,
+    batMul: batLog.map(Math.exp), bowlMul: bowlLog.map(Math.exp), batValue, bowlValue, usualSlot,
   };
 }
 
 /**
  * A Test XI from a squad, on Test ratings: the best keeper, four front-line bowlers (two spinners in the subcontinent, one
- * elsewhere, when the squad has them) and the six best remaining batters; then the batting order.
+ * elsewhere, when the squad has them), two openers (when the squad has them) and the best remaining batters; then the
+ * batting order.
  */
 export function pickTestXI(squad: readonly Player[], region: "sub" | "other" = "other"): Player[] {
   const avail = squad.filter(p => !p.injured);
@@ -520,13 +578,18 @@ export function pickTestXI(squad: readonly Player[], region: "sub" | "other" = "
   spinners.slice(0, nSpin).forEach(take);
   pacers.slice(0, 4 - nSpin).forEach(take);
   for (const p of bowlers) if (chosen.length < 5) take(p);
+  // two specialist openers, the best of those who usually open
+  const openers = avail.filter(p => !chosen.includes(p) && !val(p).bowler && isTestOpener(p)).sort((a, b) => val(b).batValue - val(a).batValue);
+  openers.slice(0, Math.max(0, 2 - chosen.filter(isTestOpener).length)).forEach(take);
   const rest = avail.filter(p => !chosen.includes(p)).sort((a, b) =>
     (val(b).batValue + 0.3 * Math.max(0, val(b).bowlValue)) - (val(a).batValue + 0.3 * Math.max(0, val(a).bowlValue)));
   for (const p of rest) if (chosen.length < 11) take(p);
   // a fifth bowling option: the best remaining bowler or all-rounder replaces the weakest batter when it costs little batting
   if (chosen.filter(p => val(p).bowler).length < 5) {
     const spare = avail.filter(p => !chosen.includes(p) && val(p).bowler).sort((a, b) => val(b).bowlValue - val(a).bowlValue)[0];
-    const batters = chosen.filter(p => !val(p).bowler && !p.isWicketKeeper).sort((a, b) => val(a).batValue - val(b).batValue);
+    // never one of the two openers
+    const opening = new Set(chosen.filter(isTestOpener).sort((a, b) => testBattingSlot(a) - testBattingSlot(b)).slice(0, 2));
+    const batters = chosen.filter(p => !val(p).bowler && !p.isWicketKeeper && !opening.has(p)).sort((a, b) => val(a).batValue - val(b).batValue);
     const weakest = batters[0];
     if (spare && weakest && batters.length > 5 && val(weakest).batValue - val(spare).batValue < FIFTH_BOWLER_COST) chosen.splice(chosen.indexOf(weakest), 1, spare);
   }
@@ -536,18 +599,14 @@ export function pickTestXI(squad: readonly Player[], region: "sub" | "other" = "
 /** Batting quality (log-rate units) a side gives up for a fifth bowling option */
 const FIFTH_BOWLER_COST = 0.35;
 
-/** Batting order on Test batting quality: batters and all-rounders by quality, the keeper no higher than five, bowlers last */
+/**
+ * Batting order the way Test sides bat: by each player's usual place (testBattingSlot: his first-class mean position, Tests
+ * first, so openers open, the keeper bats around six or seven and the bowlers last), the better batter first on a tie
+ */
 export function testBattingOrder(xi: readonly Player[]): Player[] {
+  const slot = new Map(xi.map(p => [p.id, testBattingSlot(p)]));
   const v = new Map(xi.map(p => [p.id, testPlayerOf(p).batValue]));
-  const top = xi.filter(p => p.role !== "bowler").sort((a, b) => v.get(b.id)! - v.get(a.id)!);
-  const tail = xi.filter(p => p.role === "bowler").sort((a, b) => v.get(b.id)! - v.get(a.id)!);
-  const order = [...top, ...tail];
-  const k = order.findIndex(p => p.isWicketKeeper);
-  if (k >= 0 && k < 4) {
-    const [keeper] = order.splice(k, 1);
-    order.splice(Math.min(4, order.length), 0, keeper);
-  }
-  return order;
+  return [...xi].sort((a, b) => slot.get(a.id)! - slot.get(b.id)! || v.get(b.id)! - v.get(a.id)!);
 }
 
 // ── Conditions: weather, over rate, the match's own pitch ───────────────────────────────────────────────────────────

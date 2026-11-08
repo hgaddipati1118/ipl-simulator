@@ -10,7 +10,7 @@
  */
 
 import {
-  keepingRating, pickTestXI, testCountryCode, testInningsScorecard, testPlayerOf,
+  isTestOpener, keepingRating, pickTestXI, testBattingSlot, testCountryCode, testInningsScorecard, testPlayerOf,
   type Player, type Team, type TestMatchState,
 } from "@ipl-sim/engine";
 import type {
@@ -25,15 +25,17 @@ import { readableTeamColor, teamScoreLine } from "./test-view";
 /** Host countries where a side picks a second spinner (the engine's pickTestXI region) */
 const SUBCONTINENT = new Set(["IND", "PAK", "SL", "BDESH", "UAE"]);
 
-/** The squad's shape: two keepers, five seamers, two spinners, one more bowler of either kind, six batters (16) */
-const SHAPE = { keepers: 2, pace: 5, spin: 2, extraBowler: 1, batters: 6 };
+/** The squad's shape: two keepers, five seamers, two spinners, an all-rounder, two openers, four batters (16) */
+const SHAPE = { keepers: 2, pace: 5, spin: 2, allRounder: 1, openers: 2, batters: 4 };
 
 /**
  * A Test squad of 16 from a nation's players (their `ratings` the Test set): on the engine's Test values (testPlayerOf: batting
  * survival and scoring, bowling wickets and economy in fitted log-rate units), so a red-ball specialist is not left out for a
- * white-ball name. Two keepers, five seamers, two spinners, a further bowler, then the six best batters (all-rounders
- * count with their bowling); a small pool is filled with the best of the rest. Within each of these, players of a lower
- * `tier` come first (international.ts: 0 = a recent Test player, 1 = active at senior level, 2 = active three seasons ago).
+ * white-ball name. Seamer, spinner or batter comes from his first-class record (testPlayerOf: his bowling workload and
+ * style; an opener by his usual place in the order, isTestOpener), not his T20 role, which the data leaves alone. Two
+ * keepers, five seamers, two spinners, an all-rounder (the best batter of the front-line bowlers left who bats in the top
+ * seven), two openers, then the four best batters; a small pool is filled with the best of the rest. Within each of these, players of a lower `tier` come
+ * first (international.ts: 0 = a recent Test player, 1 = active at senior level, 2 = active three seasons ago).
  */
 export function pickTestSquad(players: readonly Player[], size = 16, tier: (p: Player) => number = () => 0): Player[] {
   const tp = new Map(players.map(p => [p.id, testPlayerOf(p)]));
@@ -52,7 +54,8 @@ export function pickTestSquad(players: readonly Player[], size = 16, tier: (p: P
   const bowlers = () => players.filter(p => v(p).bowler && !squad.includes(p)).sort(by(p => v(p).bowlValue));
   add(bowlers().filter(p => !v(p).spin), SHAPE.pace);
   add(bowlers().filter(p => v(p).spin), SHAPE.spin);
-  add(bowlers(), SHAPE.extraBowler);
+  add(bowlers().filter(p => testBattingSlot(p) <= 7.5).sort(by(p => v(p).batValue)), SHAPE.allRounder);
+  add(players.filter(p => !v(p).bowler && !squad.includes(p) && isTestOpener(p)).sort(by(bat)), SHAPE.openers - squad.filter(isTestOpener).length);
   add(players.filter(p => !p.isWicketKeeper && !squad.includes(p)).sort(by(bat)), SHAPE.batters);
   add([...players].sort(by(p => Math.max(bat(p), v(p).bowlValue))), size - squad.length);
   return squad;

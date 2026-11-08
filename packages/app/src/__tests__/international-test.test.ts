@@ -7,7 +7,9 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { advanceTest, autoResolveTestDecision, setTestAutoCaptain, testPlayerOf, type TestMatchState } from "@ipl-sim/engine";
+import {
+  advanceTest, autoResolveTestDecision, isTestOpener, setTestAutoCaptain, testBattingSlot, testPlayerOf, type TestMatchState,
+} from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import {
@@ -73,6 +75,19 @@ describe("Test squads and XIs", () => {
     }
     expect(spinners(home)).toBeGreaterThanOrEqual(2);
     expect(spinners(away)).toBeLessThanOrEqual(spinners(home));
+  });
+
+  it("the auto XI bats in its real order: two openers, then by each player's usual place; the squad has openers and an all-rounder", () => {
+    for (const c of ["India", "Australia", "England"] as const) {
+      const s = series({ nations: [c, c === "India" ? "England" : "India"] });
+      const squad = seriesSquads(s, FILE)[0];
+      const order = testAutoLineup(squad, s).order.map(id => squad.find(p => p.id === id)!);
+      expect(order.slice(0, 2).every(isTestOpener)).toBe(true);
+      const slots = order.map(testBattingSlot);
+      expect(slots).toEqual([...slots].sort((a, b) => a - b));
+      expect(squad.filter(p => isTestOpener(p) && !testPlayerOf(p).bowler).length).toBeGreaterThanOrEqual(2);
+      expect(squad.some(p => testPlayerOf(p).bowler && testBattingSlot(p) <= 7.5)).toBe(true);
+    }
   });
 
   it("the lineup check wants eleven, a keeper and four bowlers", () => {
