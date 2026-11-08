@@ -23,5 +23,8 @@ export default defineConfig({
     port,
     reuseExistingServer: true,
     timeout: 30000,
+    // The dev server's own log in the run's output: a Vite page reload, dependency re-optimisation or HMR update
+    // landing mid-test shows up here ("[vite] page reload ...", "new dependencies optimized ...")
+    stdout: "pipe",
   },
 });
