@@ -21,8 +21,12 @@ import {
   simCurrentPlayer as engineSimCurrentPlayer,
   simRemainingAuction as engineSimRemainingAuction,
   evaluateRetentionSelection,
+  retentionCostScale,
   RETENTION_BUDGET,
   MAX_RETENTIONS,
+  buildAuctionPool,
+  auctionPoolTarget,
+  type AuctionConfig,
   getTrainingCampFatigue,
   type RuleSet, type SeasonResult, type AuctionResult, type TradeOffer,
   type ScheduledMatch, type MatchResult,
@@ -59,7 +63,6 @@ import {
   getMaxRetentions,
   getSeasonSalaryCap,
   getScaledRetentions,
-  getAuctionPoolSize,
   type ExpiringContractReport,
   createDraft, applyDraftAction, runAiPicks, simulateRemainingDraft, toDraftPlayer, shuffleSeats,
   randomSeed,
@@ -184,6 +187,37 @@ export interface GameState {
 
   /** Seed for the seeded generation and progression between seasons (saves from before it derive one from the teams) */
   worldSeed?: number;
+
+  /**
+   * Free agents who are in the next auction whatever its shortlist (RULES-AUCTION.md section 10): released since the
+   * last auction (expired contracts, retention) or added to the pool by the user (ratings page, an imported file)
+   */
+  auctionEntrantIds?: string[];
+  /** Unsold at the last auction (the first time): they re-enter the next one. Unsold again, they are ordinary free agents. */
+  lastAuctionUnsoldIds?: string[];
+}
+
+/** The auction's squad rules for a league (the smallest legal squad: the rules', else 18, or 11 for squads under 18) */
+export function auctionConfigFor(rules: RuleSet): AuctionConfig {
+  return {
+    maxRosterSize: rules.maxSquadSize,
+    maxInternational: rules.maxOverseasInSquad,
+    minSquadSize: rules.minSquadSize ?? (rules.maxSquadSize >= 18 ? 18 : 11),
+  };
+}
+
+/** Retention terms for a league: up to six players on the IPL's fixed slabs, the slabs and budget scaled to a smaller purse */
+export function retentionTerms(rules: RuleSet): { budget: number; max: number; costScale: number } {
+  const costScale = retentionCostScale(rules.salaryCap, rules.league);
+  return { budget: Math.round(RETENTION_BUDGET * costScale * 100) / 100, max: MAX_RETENTIONS, costScale };
+}
+
+/** Add players to the must-include list of the next auction */
+function withAuctionEntrants(state: GameState, players: readonly Player[]): GameState {
+  if (players.length === 0) return state;
+  const ids = new Set(state.auctionEntrantIds ?? []);
+  for (const p of players) ids.add(p.id);
+  return { ...state, auctionEntrantIds: [...ids] };
 }
 
 export interface SeasonDraftRecord {
@@ -537,7 +571,12 @@ export function createGameState(rules: RuleSet = DEFAULT_RULES, extraPool: Exten
   const extraPoolPlayers = rules.poolDepth === "deep" && playerSource === "real"
     ? extraPool.map(data => createPlayerFromData(toRealPlayerData(data)))
     : [];
-  const supplementCount = Math.max(0, 50 - realPoolPlayers.length - extraPoolPlayers.length);
+  // A CPU-generated league starts with empty squads and a mega auction: generate a pool of the mega auction's size
+  // for it (RULES-AUCTION.md section 10; 50 players used to leave squads of 1-10). Otherwise top a thin pool up to 50.
+  const poolWanted = playerSource === "generated"
+    ? auctionPoolTarget("mega", teams.length, rules.maxSquadSize, teams.length * rules.maxSquadSize)
+    : 50;
+  const supplementCount = Math.max(0, poolWanted - realPoolPlayers.length - extraPoolPlayers.length);
   // Generated supplements match the league: women for a women's league, a combined league's share of women's teams
   const womenShare = teams.length ? teams.filter(t => teamGender(t.id, rules) === "female").length / teams.length : 0;
   const womenSupplement = Math.round(supplementCount * womenShare);
@@ -586,16 +625,51 @@ export function addPlayerToPool(state: GameState, data: ExtendedPlayer): GameSta
   const same = (p: Player) => p.name === data.name && p.country === data.country && p.age === data.age;
   if (state.playerPool.some(same) || state.teams.some(t => t.roster.some(same))) return state;
   const player = createPlayerFromData(toRealPlayerData(data));
-  return withSyncedScouting({ ...state, playerPool: [...state.playerPool, player] });
+  // added on purpose for the auction: always on its shortlist
+  return withSyncedScouting({ ...withAuctionEntrants(state, [player]), playerPool: [...state.playerPool, player] });
+}
+
+/**
+ * The next auction's pool from the free agents (RULES-AUCTION.md section 10): the must-includes (released since the
+ * last auction, unsold at it, added by the user, this off-season's academy prospects), then the best free agents by
+ * value with enough keepers, spinners, pacers, overseas and domestic players for what the teams need, sized for a
+ * mini or mega auction in this league. The "Deep" pool puts every free agent in.
+ */
+export function buildAuctionPoolFor(state: GameState) {
+  const pool = new Set(state.playerPool.map(p => p.id));
+  const mustInclude = [
+    ...(state.auctionEntrantIds ?? []),
+    ...(state.lastAuctionUnsoldIds ?? []),
+    ...state.youthProspects.map(y => y.player.id),
+  ].filter(id => pool.has(id));
+  return buildAuctionPool(state.playerPool, state.teams, {
+    type: getAuctionType(state.seasonNumber, state.rules),
+    maxSquadSize: state.rules.maxSquadSize,
+    maxOverseasInSquad: state.rules.maxOverseasInSquad,
+    mustInclude,
+    deep: state.rules.poolDepth === "deep",
+  });
+}
+
+/**
+ * The free agents after an auction: its unsold plus everyone who wasn't on its shortlist (signable during the season,
+ * eligible for the next auction). The unsold re-enter the next auction once.
+ */
+function afterAuction(state: GameState, auctioned: readonly Player[], unsold: readonly Player[]): Pick<GameState, "playerPool" | "auctionEntrantIds" | "lastAuctionUnsoldIds"> {
+  const auctionedIds = new Set(auctioned.map(p => p.id));
+  const unsoldBefore = new Set(state.lastAuctionUnsoldIds ?? []);
+  return {
+    playerPool: [...unsold, ...state.playerPool.filter(p => !auctionedIds.has(p.id))],
+    auctionEntrantIds: [],
+    lastAuctionUnsoldIds: unsold.filter(p => !unsoldBefore.has(p.id)).map(p => p.id),
+  };
 }
 
 /** Run the auction phase */
 export function runAuctionPhase(state: GameState): GameState {
-  const auctionConfig = {
-    maxRosterSize: state.rules.maxSquadSize,
-    maxInternational: state.rules.maxOverseasInSquad,
-  };
-  const result = runAuction(state.playerPool, state.teams, auctionConfig);
+  const auctionConfig = auctionConfigFor(state.rules);
+  const { pool } = buildAuctionPoolFor(state);
+  const result = runAuction(pool, state.teams, auctionConfig);
 
   // Mark user team as user-controlled
   if (state.userTeamId) {
@@ -609,7 +683,7 @@ export function runAuctionPhase(state: GameState): GameState {
     ...state,
     phase: "season",
     auctionResult: result,
-    playerPool: result.unsold,
+    ...afterAuction(state, pool, result.unsold),
   });
 }
 
@@ -1381,7 +1455,7 @@ export function nextSeason(state: GameState): GameState {
       retentionState: {
         retained: [],
         released: userTeam?.roster.map(p => p.id) ?? [],
-        budget: RETENTION_BUDGET,
+        budget: retentionTerms(state.rules).budget,
         totalCost: 0,
         costs: {},
         cpuDone: false,
@@ -1809,7 +1883,7 @@ export function releaseExpiredUserContracts(state: GameState): GameState {
 
   return withSyncedScouting(
     refreshUserContractState({
-      ...state,
+      ...withAuctionEntrants(state, releasedPlayers),
       playerPool: [...state.playerPool, ...releasedPlayers],
     }),
   );
@@ -1826,7 +1900,7 @@ export function startRetention(state: GameState): GameState {
     retentionState: {
       retained: [],
       released: userTeam?.roster.map(player => player.id) ?? [],
-      budget: RETENTION_BUDGET,
+      budget: retentionTerms(state.rules).budget,
       totalCost: 0,
       costs: {},
       cpuDone: false,
@@ -1851,7 +1925,8 @@ export function togglePlayerRetention(state: GameState, playerId: string): GameS
   const retainedPlayers = nextRetained
     .map(id => userTeam.roster.find(p => p.id === id))
     .filter((p): p is Player => p !== undefined);
-  const evaluation = evaluateRetentionSelection(retainedPlayers, RETENTION_BUDGET, MAX_RETENTIONS);
+  const terms = retentionTerms(state.rules);
+  const evaluation = evaluateRetentionSelection(retainedPlayers, terms.budget, terms.max, terms.costScale);
   if (!evaluation.valid) return state;
 
   const costs = Object.fromEntries(
@@ -1879,15 +1954,16 @@ export function runCPURetentions(state: GameState): GameState {
   if (!state.retentionState || state.retentionState.cpuDone) return state;
 
   const releasedToPool: Player[] = [];
+  const terms = retentionTerms(state.rules);
 
   for (const team of state.teams) {
     if (team.id === state.userTeamId) continue;
-    const { released } = retainPlayers(team, RETENTION_BUDGET, MAX_RETENTIONS);
+    const { released } = retainPlayers(team, terms.budget, terms.max, terms.costScale);
     releasedToPool.push(...released);
   }
 
   return withSyncedScouting({
-    ...state,
+    ...withAuctionEntrants(state, releasedToPool),
     playerPool: [...state.playerPool, ...releasedToPool],
     retentionState: {
       ...state.retentionState,
@@ -1906,7 +1982,8 @@ export function finishRetention(state: GameState): GameState {
     const retainedPlayers = retained
       .map(id => userTeam.roster.find(player => player.id === id))
       .filter((player): player is Player => player !== undefined);
-    const evaluation = evaluateRetentionSelection(retainedPlayers, RETENTION_BUDGET, MAX_RETENTIONS);
+    const terms = retentionTerms(state.rules);
+    const evaluation = evaluateRetentionSelection(retainedPlayers, terms.budget, terms.max, terms.costScale);
     if (!evaluation.valid) return state;
 
     const retainedSet = new Set(retained);
@@ -1930,7 +2007,7 @@ export function finishRetention(state: GameState): GameState {
     userTeam.totalSpent = evaluation.totalCost;
 
     state = {
-      ...state,
+      ...withAuctionEntrants(state, released),
       playerPool: [...state.playerPool, ...released],
     };
   }
@@ -1948,11 +2025,10 @@ export function finishRetention(state: GameState): GameState {
 
 /** Initialize a live step-by-step auction */
 export function initLiveAuction(state: GameState): GameState {
-  const auctionConfig = {
-    maxRosterSize: state.rules.maxSquadSize,
-    maxInternational: state.rules.maxOverseasInSquad,
-  };
-  const auctionLiveState = engineInitAuction(state.playerPool, state.teams, auctionConfig);
+  const auctionConfig = auctionConfigFor(state.rules);
+  // The shortlist, not every free agent (the rest stay in the pool: signable, and eligible for the next auction)
+  const { pool } = buildAuctionPoolFor(state);
+  const auctionLiveState = engineInitAuction(pool, state.teams, auctionConfig);
   return withSyncedScouting({
     ...state,
     auctionLiveState,
@@ -1976,10 +2052,7 @@ export function liveAuctionUserPass(state: GameState): GameState {
 /** Run one CPU bid round in live auction */
 export function liveAuctionCpuRound(state: GameState): GameState {
   if (!state.auctionLiveState) return state;
-  const auctionConfig = {
-    maxRosterSize: state.rules.maxSquadSize,
-    maxInternational: state.rules.maxOverseasInSquad,
-  };
+  const auctionConfig = auctionConfigFor(state.rules);
   const next = engineCpuBidRound(state.auctionLiveState, state.teams, auctionConfig);
   return { ...state, auctionLiveState: next };
 }
@@ -1987,10 +2060,7 @@ export function liveAuctionCpuRound(state: GameState): GameState {
 /** Move to the next player in live auction */
 export function liveAuctionNextPlayer(state: GameState): GameState {
   if (!state.auctionLiveState) return state;
-  const auctionConfig = {
-    maxRosterSize: state.rules.maxSquadSize,
-    maxInternational: state.rules.maxOverseasInSquad,
-  };
+  const auctionConfig = auctionConfigFor(state.rules);
   const next = engineNextPlayer(state.auctionLiveState, state.teams, auctionConfig);
   return { ...state, auctionLiveState: next };
 }
@@ -1998,10 +2068,7 @@ export function liveAuctionNextPlayer(state: GameState): GameState {
 /** Simulate current player to completion in live auction */
 export function liveAuctionSimPlayer(state: GameState): GameState {
   if (!state.auctionLiveState) return state;
-  const auctionConfig = {
-    maxRosterSize: state.rules.maxSquadSize,
-    maxInternational: state.rules.maxOverseasInSquad,
-  };
+  const auctionConfig = auctionConfigFor(state.rules);
   const next = engineSimCurrentPlayer(state.auctionLiveState, state.teams, auctionConfig);
   return { ...state, auctionLiveState: next };
 }
@@ -2009,10 +2076,7 @@ export function liveAuctionSimPlayer(state: GameState): GameState {
 /** Simulate all remaining players in live auction */
 export function liveAuctionSimRemaining(state: GameState): GameState {
   if (!state.auctionLiveState) return state;
-  const auctionConfig = {
-    maxRosterSize: state.rules.maxSquadSize,
-    maxInternational: state.rules.maxOverseasInSquad,
-  };
+  const auctionConfig = auctionConfigFor(state.rules);
   // The engine stops a sim after 10,000 steps (about two per player) as a safety net. From season 2 the pool holds
   // every free agent (5,000+ players), so one pass ended mid-auction with no way to start the season: keep going
   // while each pass gets further through the list.
@@ -2045,7 +2109,7 @@ export function finalizeLiveAuction(state: GameState): GameState {
     ...state,
     phase: "season",
     auctionResult,
-    playerPool: unsold,
+    ...afterAuction(state, state.auctionLiveState.players, unsold),
     auctionLiveState: undefined,
   });
 }
@@ -2192,8 +2256,9 @@ export function finalizeSeasonDraft(state: GameState): GameState {
 
 /** Add imported players to the auction pool */
 export function addPlayersToPool(state: GameState, players: Player[]): GameState {
+  // imported for the auction: always on its shortlist
   return withSyncedScouting({
-    ...state,
+    ...withAuctionEntrants(state, players),
     playerPool: [...state.playerPool, ...players],
   });
 }

@@ -201,7 +201,7 @@ Higher need = more aggressive bidding for that role.
 
 ### Key Differences from Mega Auction
 - No RTM cards
-- Smaller player pool (only released players + new entrants)
+- Smaller player pool (only released players + new entrants; the game's pool: section 10)
 - Teams retain most of their squad (release 3-5 players typically)
 - No marquee player sets (all players auctioned by base price tier)
 - Same bidding mechanics and increments
@@ -255,8 +255,8 @@ See TESTING-STRATEGY.md Phase 2A and 2B for complete test specifications.
 
 ### Key Invariants to Test
 0. Every team ends the auction with a wicketkeeper (tests: `fielding-value-progression.test.ts`)
-1. No team exceeds salary cap after auction
-2. All teams have 18-25 players after auction
+1. No team exceeds salary cap after auction (both auctions, every league: `auction-pool.test.ts`, `auction-pool-career.test.ts`; section 10)
+2. All teams have the league's minimum to maximum squad after auction (18-25 in the IPL)
 3. No team has >8 overseas players
 4. Every player sold for >= base price
 5. RTM count never exceeds allocated cards
@@ -347,3 +347,115 @@ means over 60 different pools are what to read, not any one auction.) The same e
 total spend, total market value and the average top-20 price stay within 3-5% of what they are with the ratings stripped from the same
 players, and every team ends with a keeper, including when the pool holds only 11 keepers for 10 teams.
 
+
+---
+
+## 10. Who is in the auction: the pool from season 2 on
+
+The free agents of a career are every unsigned player in the database (5,300 men, 2,300 women in the shipped data), plus
+the regens, fill-ins and academy prospects each off-season adds. Until this section the auction put all of them under
+the hammer: 5,514 players in an IPL season 2, an auction no league holds, that a single "Sim Remaining Auction" could
+not finish and that still left CPU squads short (below). A real auction shortlists from its registrations; the game
+now does the same (`buildAuctionPool`, `packages/engine/src/auction-pool.ts`; the app's `buildAuctionPoolFor` in
+`game-state.ts`, called by `initLiveAuction` and `runAuctionPhase`).
+
+### The real sizes
+
+| auction | registered | shortlisted | squad places available | sold |
+|---|---|---|---|---|
+| IPL 2022 mega | 1,214 | 590 | 217 | 204 |
+| IPL 2024 mini (Dec 2023) | 1,166 | 333 | 77 | 72 |
+| IPL 2025 mega (Nov 2024) | 1,574 | 574 (366 Indian, 208 overseas) | 204 | 182 |
+| IPL 2026 mini (Dec 2025) | 1,355 | 350 (240 Indian, 110 overseas) | 77 | |
+| WPL 2024 mini (Dec 2023) | | 165 | 30 | |
+| WPL 2026 mega (Nov 2025) | | 277 | 73 | |
+
+(Figures as reported by the BCCI and the press at the time; the shortlist is what matters here.)
+
+For the IPL's 250 squad places (10 teams x 25) that is about **1.4 shortlisted players per squad place in a mini
+auction and 2.3 in a mega auction** (`POOL_PER_SQUAD_PLACE`). The other leagues scale by their team count and maximum
+squad: the WPL (5 x 18) comes out at 126 and 207, against its real 120-165 and 277.
+
+### The rule
+
+1. **Size**: `max(1.4 or 2.3 x teams x max squad, 1.6 x the places the teams have open)` (`auctionPoolTarget`). The
+   second term matters when retention opens more places than a real mini auction does (below). Mega or mini follows
+   `getAuctionType` (mega in season 1 and every `megaAuctionCycle` seasons, 3 by default).
+2. **Always in** (`GameState.auctionEntrantIds`, `lastAuctionUnsoldIds`, saved with the game): every player released
+   since the last auction (expired contracts, CPU and user retention), every player the user added to the pool (the
+   ratings page's add, an imported player-ratings file), this off-season's academy prospects, and the **unsold of the
+   last auction**, once: a player unsold twice goes back to being an ordinary free agent, eligible on value like any
+   other. These are in even when they alone pass the target size.
+3. **Role cover**: for what the teams still need, counting only their open places (`auctionNeeds`): two keepers a squad,
+   frontline spinners (bowlers and all-rounders who spin) 16% of the squad, frontline pacers 30% (IPL 25: 4 and 8;
+   The Hundred 16: 3 and 5), the overseas places a team can still fill and the places that must go to domestic players,
+   the pool holds **twice** as many of each kind (`POOL_COVERAGE`), taken from the best free agents of that kind by
+   market value.
+4. **The rest**: the best free agents by market value up to the target size (ties by overall, then id, so a career
+   replays the same pool).
+5. **Everyone else stays a free agent**: signable during the season (the trade page's free-agent desk, the ratings
+   page) and eligible for the next auction. After the auction the free agents are its unsold plus everyone it didn't
+   shortlist (`finalizeLiveAuction` used to keep only the unsold, which would now have deleted the rest).
+6. **The Deep pool** (Setup page, custom league, "Deep (adds up to 1,500 more active players)") is the explicit choice
+   of a big auction: every free agent goes in, as before.
+7. **A CPU-generated league** starts with empty squads and a season-1 mega auction, so it generates a pool of the mega
+   size (575 for ten 25-man squads); it used to generate 50 players, which left squads of 1 to 10.
+
+### Filling the squads (both auctions)
+
+Before this change the live auction (the one the app plays) had no end-of-auction pass, and CPU squads finished every
+off-season auction below the legal minimum in every league (IPL season 2: 9 to 12 players; with 5,500 players on offer
+the bidding never reached the cheap end of the list: the position factor in the bid probability falls to zero at the
+1,000th player). Women's leagues also retained on the IPL's crore slabs (18 / 14 / 11 Cr against a 12 Cr purse) and
+went 60 Cr into the red. Now:
+
+- **Completing the squads** (`completeSquads`, run by `runAuction` and when the live auction passes its last player):
+  two keepers a team when the unsold have them, a keeper for a team with none (from a team with a spare if need be),
+  then the squad filled from the unsold to the minimum and, while the purse allows, to the **target squad** halfway
+  between the minimum and the maximum (`squadTarget`: IPL 22, BBL 18, The Hundred 15; real IPL squads end at 22-25).
+  These are the accelerated rounds (section 4): a fill signing costs the player's base price, reduced to as little as
+  30 lakh (the last round) when the team must keep 30 lakh for each other place it still has to fill.
+- **A CPU bid keeps the reserve** (`keepsSquadReserve`): never bid away the 30 lakh per place still needed to reach the
+  target squad, so the purse can always finish a legal squad. "Sim Remaining Auction" bids for the user's team the same
+  way; the user's own bids are not held back, so a user who spends the whole purse can finish slightly overdrawn after
+  the closing fill.
+- **Retention is priced for the league's purse** (`retentionCostScale`, `retentionTerms` in the app): the IPL's slabs
+  and 75 Cr budget, scaled by purse / 120 Cr for a league with a smaller purse (WPL 12 Cr: 1.8 / 1.4 / 1.1 / 1.8 / 1.4 Cr
+  capped, 0.4 uncapped, of a 7.5 Cr budget; the WPL's real 2026 slabs were 3.5 / 2.5 / 1.75 / 1 Cr of 15). The IPL keeps
+  its slabs as they are.
+
+### Pool sizes and results per league
+
+Three off-seasons of each league from its shipped squads (`packages/app/src/__tests__/auction-pool-career.test.ts`
+checks every one of these auctions; the user's team is the first, simmed like the others):
+
+| League | teams x squad | mini target | S2 mini | S3 mini | mega target | S4 mega | places open (S2) | sold per auction | CPU squads after | sim (ms) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| IPL | 10 x 25 | 350 | 438 | 435 | 575 | 575 | 205 | 178 / 175 / 178 | 22 | 20-30 |
+| WPL | 5 x 18 | 126 | 126 | 136 | 207 | 173 | 70 | 70 | 18 | 2 |
+| BBL | 8 x 20 | 224 | 271 | 275 | 368 | 368 | 123 | 109-110 | 18 | 20 |
+| WBBL | 8 x 17 | 190 | 190 | 190 | 313 | 313 | 101 | 85 | 15 | 10 |
+| PSL | 8 x 22 | 246 | 303 | 299 | 405 | 405 | 141 | 120 | 19 | 20 |
+| SA20 | 6 x 17 | 143 | 155 | 158 | 235 | 235 | 77 | 77 | 17 | 20 |
+| The Hundred | 8 x 16 | 179 | 186 | 198 | 294 | 294 | 93 | 86 | 15 | 20 |
+| The Hundred (women) | 8 x 16 | 179 | 179 | 179 | 294 | 294 | 93 | 85 | 15 | 10 |
+| CPL | 7 x 20 | 196 | 219 | 223 | 322 | 322 | 105 | 93-95 | 18 | 20 |
+| ILT20 | 6 x 20 | 168 | 190 | 191 | 276 | 276 | 95 | 89-90 | 19 | 20 |
+| MLC | 6 x 19 | 160 | 178 | 180 | 262 | 262 | 89 | 77-79 | 17 | 20 |
+| BPL | 6 x 22 | 185 | 216 | 217 | 304 | 304 | 107 | 97 | 20 | 20 |
+| LPL | 5 x 22 | 154 | 194 | 198 | 253 | 253 | 90 | 82 | 20 | 20 |
+| IPL, CPU generated (season 1: 575, mega) | 10 x 25 | 350 | 519 | 360 | 575 | 575 | 205 | 178 | 22 | 2-10 |
+| IPL, Deep pool | 10 x 25 | | 5,513 | 5,531 | | 5,548 | 205 | 178 | 22 | 30-250 |
+
+Every squad in these auctions is legal: at least the league's minimum and at most its maximum, within the overseas
+limit, with a keeper, and a purse of zero or more. "Sim Remaining Auction" finishes each in one click (a few hundred
+players, well inside the engine's 10,000-step pass; the app still repeats the pass for a Deep pool). Before the
+change: 5,309-5,587 players in every men's league auction, CPU squads of 8-13, and in the women's leagues purses of
+-21 to -60 Cr. The WPL's pools sit at the free agents there are (its shipped data has no unsigned women, so 50
+generated players plus those released).
+
+**Why IPL mini auctions come out at 435-440, not 350.** CPU retention in this game keeps at most six players every
+off-season, mini or mega (`runCPURetentions`; the mini-auction retention of RULES-RETENTION.md section 2, where teams
+keep most of their squad, is not implemented), so a mini auction has about 205 places to fill, not the real 77. The
+pool follows the needs: the domestic cover alone is about 300, and in a season-3 mini auction the released players and
+last auction's unsold are about 410 by themselves. With real mini-year retention the same rule gives the 350.
