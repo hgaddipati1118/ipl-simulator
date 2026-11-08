@@ -6,6 +6,10 @@
  *   GENDER=female ...   the women's squads against real women's Tests
  *   MD=1 ...            print the table as markdown (docs/FORMATS-TEST.md)
  *   RATINGS=t20 ...     leave the Test ratings off: every player plays on his T20 ratings (the fallback)
+ *   BAZBALL=0 ...       England bat without the fitted Bazball factor (on by default: the squads are 2023+ England)
+ *
+ * The engine plays the modern era (base rates of men's Tests from 2023), so the first real column is 2023+ (and 2022+ for the
+ * pooled 4th-innings chases, the bands being small); 2015+ is shown alongside.
  *
  * Squads: the fixture's members from the shipped pools with format-ratings.json attached (test-pool-squads.ts).
  *
@@ -18,8 +22,10 @@ import { poolTestTeam, HAS_FORMAT_RATINGS } from "./test-pool-squads.js";
 
 const N = Number(process.argv[2] ?? 3000);
 const gender = (process.env.GENDER === "female" ? "female" : "male") as "male" | "female";
-const real = gender === "female" ? TEST_MODEL.real.female : TEST_MODEL.real.male;
-const recent = gender === "female" ? undefined : TEST_MODEL.real.male2023;
+// first column: the era the engine plays (2023+); second: all men's Tests since 2015
+const real = gender === "female" ? TEST_MODEL.real.female : TEST_MODEL.real.male2023;
+const recent = gender === "female" ? undefined : TEST_MODEL.real.male;
+const bazball = gender === "male" && process.env.BAZBALL !== "0";
 const squads = TEST_SQUADS.filter(s => s.gender === gender);
 const t20Only = process.env.RATINGS === "t20" || !HAS_FORMAT_RATINGS;
 const built = squads.map(s => ({ s, ...poolTestTeam(s.team, gender, { t20Only }) }));
@@ -51,7 +57,8 @@ for (let i = 0; i < N; i++) {
   const h = pick(hostW);
   const a = pick(oppW, h);
   const home = teams.get(squads[h].team)!, away = teams.get(squads[a].team)!;
-  const res = simulateTestMatch(home, away, { seed: 5000 + i, country: country.get(squads[h].team) });
+  const eng = [home, away].find(t => t.name === "England");
+  const res = simulateTestMatch(home, away, { seed: 5000 + i, country: country.get(squads[h].team), ...(bazball && eng ? { bazballTeamId: eng.id } : {}) });
   const st: TestMatchState = res.state;
   add("tests");
   const r = res.result;
@@ -167,6 +174,20 @@ CH.forEach((lo, b) => {
   row("batting 1-3 / 4-6 / 7-11: balls faced per dismissal", gs.map(([g]) => f1((sum[`${g}_balls`] ?? 0) / Math.max(1, (sum[`${g}_out`] ?? 0) + (sum[`${g}_ro`] ?? 0)))).join(" / "), fmt(bp, "ballsPerDismissal"), fmt(bp2, "ballsPerDismissal"));
   row("batting 1-3 / 4-6 / 7-11: share of balls faced", gs.map(([g]) => pct((sum[`${g}_balls`] ?? 0) / balls)).join(" / "), fmt(bp, "ballShare"), fmt(bp2, "ballShare"));
 }
+{
+  // pooled 200-349 chases: the bands are small in any one era, so 2022+ (n 50) with a 95% interval
+  const pc = [2, 3, 4].reduce((a, b) => ({ n: a.n + (sum[`ch${b}`] ?? 0), w: a.w + (sum[`ch${b}_win`] ?? 0), d: a.d + (sum[`ch${b}_draw`] ?? 0) }), { n: 0, w: 0, d: 0 });
+  const rc = (r: RealTargets | undefined) => {
+    if (!r) return undefined;
+    const xs = ["200+", "250+", "300+"].map(k => r.chases[k]).filter(Boolean);
+    const n = xs.reduce((a, x) => a + x.n, 0), w = xs.reduce((a, x) => a + x.win * x.n, 0) / n, d = xs.reduce((a, x) => a + x.draw * x.n, 0) / n;
+    const ci = 1.96 * Math.sqrt((w * (1 - w)) / n);
+    return `${pct(w)} (±${(100 * ci).toFixed(0)}) / ${pct(d)} (n ${n})`;
+  };
+  const R22 = (TEST_MODEL.real as unknown as Record<string, RealTargets | undefined>).male2022;
+  row("4th-inn target 200-349 pooled: win / draw (real 2022+ | 2015+)", `${pct(pc.w / Math.max(1, pc.n))} / ${pct(pc.d / Math.max(1, pc.n))} (n ${pc.n})`,
+    gender === "male" ? rc(R22) : rc(R), gender === "male" ? rc(R2) : undefined);
+}
 row("innings victories", pct((sum.innWin ?? 0) / n), pct(R.inningsWins), R2 ? pct(R2.inningsWins) : undefined);
 row("centuries per Test", f2((sum.c100 ?? 0) / n), R.centuriesPerTest, R2?.centuriesPerTest);
 row("50+ scores per Test", f2((sum.c50 ?? 0) / n), R.fiftiesPlusPerTest, R2?.fiftiesPlusPerTest);
@@ -196,9 +217,9 @@ row("DRS reviews per innings", f2((sum.reviews ?? 0) / (sum.inn1 + sum.inn2 + (s
 
 console.log(`${N} ${gender} Tests, ${ms.toFixed(1)} ms each; squads from the shipped pool, ${withTest}/${rosterSize} players on Test ratings${t20Only ? " (T20 ratings only)" : ""}${missing.length ? `; not in the pool: ${missing.join(", ")}` : ""}`);
 if (process.env.MD) {
-  console.log(`| metric | sim | real ${gender === "male" ? "2015+" : "(all)"} | real 2023+ |\n|---|---|---|---|`);
+  console.log(`| metric | sim | real ${gender === "male" ? "2023+" : "2014+"} | ${gender === "male" ? "real 2015+" : "-"} |\n|---|---|---|---|`);
   for (const r of rows) console.log(`| ${r.join(" | ")} |`);
 } else {
   const w = Math.max(...rows.map(r => r[0].length));
-  for (const r of rows) console.log(`${r[0].padEnd(w)}  sim ${r[1].padEnd(34)} real ${r[2].padEnd(34)} ${r[3] !== "-" ? "2023+ " + r[3] : ""}`);
+  for (const r of rows) console.log(`${r[0].padEnd(w)}  sim ${r[1].padEnd(34)} real ${r[2].padEnd(34)} ${r[3] !== "-" ? "2015+ " + r[3] : ""}`);
 }

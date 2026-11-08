@@ -255,7 +255,7 @@ describe("the captains' policies", () => {
 describe("seeded statistics against real Tests (wide tolerances)", () => {
   let inns: TestMatchState["innings"] = [];
   let runs = 0, balls = 0, wkts = 0;
-  const real = TEST_MODEL.real.male;
+  const real = TEST_MODEL.real.male2023; // the era the engine plays
   beforeAll(() => {
     inns = BATCH.flatMap(r => r.state.innings);
     runs = inns.reduce((a, i) => a + i.runs, 0);

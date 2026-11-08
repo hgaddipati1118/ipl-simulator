@@ -86,8 +86,9 @@ into their parents, which leaves every prediction unchanged:
 - bowler terms within pace / spin;
 - country x type within type.
 
-Then each context factor is normalised to a mean of 1 over men's Tests since 2015, with the eras weighted 1 : 1.5 : 2
-(2015-18, 2019-22, 2023+: "weight recent years"). Bazball off = 1. The base rates make the weighted prediction match the count.
+Then each context factor is normalised to a mean of 1 over men's Tests from 2023, the era the engine plays (section 6.7);
+every era from 2006 still informs the factors. The player and match terms are centred over all Tests since 2015, the pool the
+rating maps are centred on. Bazball off = 1. The base rates make the prediction match the 2023+ count.
 
 Women's Tests (24 in Cricsheet) are too few to fit the structure. Their base rates are refitted on women's Tests since 2014,
 with every men's context factor held as an offset (the men's structure, the women's levels).
@@ -277,119 +278,113 @@ The user sees a confidence hint, not the answer.
 `npx tsx packages/engine/src/__tests__/benchmark-test.ts 4000`: seeded Tests between the national squads, built the way the
 game builds players (squad members from ALL_PLAYERS / WPL_PLAYERS via createPlayerFromData, Test ratings attached from
 format-ratings.json with attachFormatRatings). Hosts and opponents are drawn in the real proportions since 2015. Real numbers
-are Cricsheet men's Tests since 2015 (473) and since 2023 (146).
+are Cricsheet men's Tests since 2023 (146), the era the engine plays, with all since 2015 (473) alongside. England bat
+with the fitted Bazball factor (the squads are 2023+ England; `BAZBALL=0` turns it off).
 
-### 6.1 Men, Test ratings (4,000 Tests)
+### 6.1 Men, Test ratings (4,000 Tests; columns: sim, real 2023+, real 2015+)
 
-| metric | sim | real 2015+ | real 2023+ |
+| metric | sim | real 2023+ | real 2015+ |
 |---|---|---|---|
-| innings 1: runs / wickets / overs | 324.3 / 9.44 / 94.5 | 331.1 / 9.44 / 97.8 | 322.6 / 9.55 / 89.6 |
-| innings 2: runs / wickets / overs | 305.7 / 9.73 / 90.9 | 303.5 / 9.65 / 92.6 | 308.5 / 9.63 / 85.4 |
-| innings 3: runs / wickets / overs | 246.9 / 8.54 / 73.0 | 242.9 / 8.5 / 72.3 | 247.2 / 9.04 / 69.4 |
-| innings 4: runs / wickets / overs | 182.6 / 6.63 / 54.4 | 181 / 7.1 / 57.7 | 173.6 / 6.82 / 49.1 |
-| innings 4 played | 79.5% | 75.1% | 78.1% |
-| runs per over | 3.39 | 3.31 | 3.58 |
-| balls per wicket | 54.9 | 55.8 | 50.6 |
-| overs per Test | 301.2 | 304.5 | 282.8 |
-| overs per day used | 78.5 | 79.6 | 78.6 |
-| home win / away win / draw | 52.7% / 32.8% / 14.4% | 52.0% / 34.9% / 13.1% | 51.4% / 39.8% / 8.9% |
-| ties | 0.1% | 0.0% | 0.0% |
-| days: mean / <=3 / 4 / 5 | 4.26 / 17.5% / 37.4% / 45.1% | 4.26 / 19.7% / 33.4% / 46.9% | 4.05 / 27.4% / 37.0% / 35.6% |
-| follow-ons per Test / enforced when available | 0.08 / 45.6% | 0.091 / 50.6% | 0.096 / 66.7% |
-| declarations per Test (inn 1 / 2 / 3) | 0.16 / 0.08 / 0.28 | 0.173 / 0.093 / 0.277 | 0.144 / 0.096 / 0.178 |
-| 4th-inn target 0-149: win / draw / loss | 94.3% / 3.9% / 1.8% (n 664) | 93.6% / 2.6% / 3.8% (n 78) | 93.3% / 0.0% / 6.7% (n 30) |
-| 4th-inn target 150-199: win / draw / loss | 73.4% / 11.2% / 15.4% (n 286) | 74.1% / 0.0% / 25.9% (n 27) | 88.9% / 0.0% / 11.1% (n 9) |
-| 4th-inn target 200-249: win / draw / loss | 47.2% / 15.6% / 37.1% (n 326) | 39.1% / 8.7% / 52.2% (n 23) | 37.5% / 0.0% / 62.5% (n 8) |
-| 4th-inn target 250-299: win / draw / loss | 34.3% / 22.0% / 43.7% (n 350) | 23.4% / 21.3% / 55.3% (n 47) | 26.1% / 17.4% / 56.5% (n 23) |
-| 4th-inn target 300-349: win / draw / loss | 18.3% / 24.1% / 57.6% (n 377) | 11.1% / 13.9% / 75.0% (n 36) | 0.0% / 25.0% / 75.0% (n 8) |
-| 4th-inn target 350+: win / draw / loss | 6.6% / 14.6% / 78.8% (n 1177) | 4.2% / 9.0% / 86.8% (n 144) | 2.8% / 5.6% / 91.7% (n 36) |
-| batting 1-3 / 4-6 / 7-11: runs per 6 balls faced | 3.27 / 3.29 / 3.01 | 3.05 / 3.23 / 3.13 | 3.36 / 3.49 / 3.23 |
-| batting 1-3 / 4-6 / 7-11: balls faced per dismissal | 68.1 / 62.8 / 37.6 | 68.2 / 68.6 / 37.0 | 59.1 / 62.3 / 35.9 |
-| batting 1-3 / 4-6 / 7-11: share of balls faced | 40.5% / 34.2% / 25.3% | 39.3% / 36.5% / 24.2% | 37.3% / 36.6% / 26.1% |
-| innings victories | 17.2% | 18.6% | 18.5% |
-| centuries per Test | 1.66 | 1.732 | 1.719 |
-| 50+ scores per Test | 6.10 | 6.118 | 5.952 |
-| five-fors per Test | 1.01 | 1.304 | 1.459 |
-| spin share of bowler wickets, day 1-5 | 28.7% 33.7% 37.0% 41.3% 45.6% | 26.9% 34.5% 40.6% 42.6% 50.7% | 27.1% 36.1% 43.2% 40.1% 50.8% |
-| spin share of overs, day 1-5 | 39.9% 42.2% 43.7% 47.8% 52.8% | 34.2% 38.5% 42.6% 45.8% 51.9% | 34.6% 40.2% 44.2% 46.4% 54.2% |
-| overs share of bowlers 1-6 (by overs) | 27.4% 22.3% 18.0% 13.8% 9.3% 5.5% | 29.5% 23.5% 19.6% 15.9% 9.5% 4.2% | 29.7% 23.7% 19.4% 15.4% 9.6% 4.5% |
-| wicket share of bowlers 1-6 (by overs) | 32.1% 23.7% 17.7% 12.4% 7.5% 4.1% | 33.6% 26.5% 19.3% 13.2% 6.5% 2.9% | 34.6% 25.3% 19.2% 12.8% 7.3% 2.7% |
-| strong v weak (Australia, India, South Africa, New Zealand v Sri Lanka, Bangladesh, West Indies, Zimbabwe): strong / draw / weak | 77.5% / 10.5% / 12.0% (n 1274) | 74.4% / 11.1% / 14.5% (n 117) | - |
-| win share by team (sim / real 2015+ / 2023+) | I 59.7% E 48.1% A 73.2% SA 46.4% NZ 52.8% P 22.3% SL 22.7% WI 32.0% B 16.8% Z 10.1% | 55.8% 46.6% 57.4% 53.8% 52.8% 36.8% 36.5% 25.5% 27.8% 10.7% | 45.7% 50.0% 61.5% 72.0% 60.7% 29.2% 34.8% 23.3% 44.0% - |
+| innings 1: runs / wickets / overs | 328.3 / 9.46 / 90.8 | 322.6 / 9.55 / 89.6 | 331.1 / 9.44 / 97.8 |
+| innings 2: runs / wickets / overs | 310.8 / 9.74 / 87.8 | 308.5 / 9.63 / 85.4 | 303.5 / 9.65 / 92.6 |
+| innings 3: runs / wickets / overs | 252.4 / 8.71 / 70.9 | 247.2 / 9.04 / 69.4 | 242.9 / 8.5 / 72.3 |
+| innings 4: runs / wickets / overs | 186.2 / 6.56 / 52.8 | 173.6 / 6.82 / 49.1 | 181 / 7.1 / 57.7 |
+| innings 4 played | 80.3% | 78.1% | 75.1% |
+| runs per over | 3.57 | 3.58 | 3.31 |
+| balls per wicket | 52.8 | 50.6 | 55.8 |
+| overs per Test | 291.7 | 282.8 | 304.5 |
+| overs per day used | 78.5 | 78.6 | 79.6 |
+| home win / away win / draw | 54.5% / 33.3% / 12.0% | 51.4% / 39.8% / 8.9% | 52.0% / 34.9% / 13.1% |
+| ties | 0.2% | 0.0% | 0.0% |
+| days: mean / <=3 / 4 / 5 | 4.16 / 21.5% / 39.1% / 39.4% | 4.05 / 27.4% / 37.0% / 35.6% | 4.26 / 19.7% / 33.4% / 46.9% |
+| follow-ons per Test / enforced when available | 0.09 / 48.5% | 0.096 / 66.7% | 0.091 / 50.6% |
+| declarations per Test (inn 1 / 2 / 3) | 0.16 / 0.07 / 0.26 | 0.144 / 0.096 / 0.178 | 0.173 / 0.093 / 0.277 |
+| 4th-inn target 0-149: win / draw / loss | 94.2% / 4.0% / 1.8% (n 720) | 93.3% / 0.0% / 6.7% (n 30) | 93.6% / 2.6% / 3.8% (n 78) |
+| 4th-inn target 150-199: win / draw / loss | 73.3% / 12.1% / 14.6% (n 322) | 88.9% / 0.0% / 11.1% (n 9) | 74.1% / 0.0% / 25.9% (n 27) |
+| 4th-inn target 200-249: win / draw / loss | 51.6% / 14.8% / 33.5% (n 310) | 37.5% / 0.0% / 62.5% (n 8) | 39.1% / 8.7% / 52.2% (n 23) |
+| 4th-inn target 250-299: win / draw / loss | 34.8% / 15.5% / 49.7% (n 336) | 26.1% / 17.4% / 56.5% (n 23) | 23.4% / 21.3% / 55.3% (n 47) |
+| 4th-inn target 300-349: win / draw / loss | 23.4% / 18.9% / 57.7% (n 333) | 0.0% / 25.0% / 75.0% (n 8) | 11.1% / 13.9% / 75.0% (n 36) |
+| 4th-inn target 350+: win / draw / loss | 8.3% / 13.1% / 78.6% (n 1192) | 2.8% / 5.6% / 91.7% (n 36) | 4.2% / 9.0% / 86.8% (n 144) |
+| batting 1-3 / 4-6 / 7-11: runs per 6 balls faced | 3.44 / 3.41 / 3.15 | 3.36 / 3.49 / 3.23 | 3.05 / 3.23 / 3.13 |
+| batting 1-3 / 4-6 / 7-11: balls faced per dismissal | 64.3 / 62.3 / 36.0 | 59.1 / 62.3 / 35.9 | 68.2 / 68.6 / 37.0 |
+| batting 1-3 / 4-6 / 7-11: share of balls faced | 39.6% / 35.2% / 25.3% | 37.3% / 36.6% / 26.1% | 39.3% / 36.5% / 24.2% |
+| 4th-inn target 200-349 pooled: win / draw (real 2022+ | 2015+) | 36.3% / 16.4% (n 979) | 30.0% (±13) / 16.0% (n 50) | 22.6% (±8) / 16.1% (n 106) |
+| innings victories | 17.1% | 18.5% | 18.6% |
+| centuries per Test | 1.72 | 1.719 | 1.732 |
+| 50+ scores per Test | 6.22 | 5.952 | 6.118 |
+| five-fors per Test | 1.04 | 1.459 | 1.304 |
+| spin share of bowler wickets, day 1-5 | 27.2% 32.9% 36.3% 40.5% 46.4% | 27.1% 36.1% 43.2% 40.1% 50.8% | 26.9% 34.5% 40.6% 42.6% 50.7% |
+| spin share of overs, day 1-5 | 39.7% 41.9% 44.0% 48.8% 54.4% | 34.6% 40.2% 44.2% 46.4% 54.2% | 34.2% 38.5% 42.6% 45.8% 51.9% |
+| overs share of bowlers 1-6 (by overs) | 27.6% 22.3% 17.9% 13.6% 9.3% 5.5% | 29.7% 23.7% 19.4% 15.4% 9.6% 4.5% | 29.5% 23.5% 19.6% 15.9% 9.5% 4.2% |
+| wicket share of bowlers 1-6 (by overs) | 31.9% 23.8% 17.8% 12.4% 7.2% 4.2% | 34.3% 25.3% 19.3% 13.1% 7.0% 2.9% | 33.6% 26.4% 19.3% 13.4% 6.5% 2.8% |
+| strong v weak (Australia, India, South Africa, New Zealand v Sri Lanka, Bangladesh, West Indies, Zimbabwe): strong / draw / weak | 76.3% / 9.8% / 13.7% (n 1274) | 74.4% / 11.1% / 14.5% (n 117) | - |
+| win share by team (sim / real 2015+ / 2023+) | I 58.2% E 60.2% A 71.1% SA 43.7% NZ 52.2% P 23.3% SL 25.0% WI 30.0% B 16.4% Z 9.4% | 55.8% 46.6% 57.4% 53.8% 52.8% 36.8% 36.5% 25.5% 27.8% 10.7% | 45.7% 50.0% 61.5% 72.0% 60.7% 29.2% 34.8% 23.3% 44.0% - |
 | nightwatchmen per Test (real: promoted tail-enders, all reasons) | 0.26 | 0.88 | - |
-| DRS reviews per innings | 3.15 | 3.362 | - |
+| DRS reviews per innings | 3.03 | 3.362 | - |
 
-The squads are 2023+ players, while the strong / weak lists and the 2015+ win shares are of their era; the 2023+ column is the
-fairer comparison for single teams.
+The strong / weak lists and their real split are from 2015+ (too few 2023+ matches between them); the per-team win shares show
+both.
 
-Reading the table:
-- **Close.** Innings totals, runs per over and balls per wicket, overs per day, the home / away / draw split, the days a Test
-  lasts, follow-ons, declarations, innings victories, hundreds, short chases, the bowling and wicket shares by bowler rank, and
-  strong v weak (78% / 11% / 12% vs 74% / 11% / 15%).
-- **Runs per over (3.42 vs 3.31).** Above the 2015+ figure by design: the base rates are weighted toward 2023+ (3.58), but
-  England's Bazball is off by default, so the sim sits between the two.
-- **4th-innings chases of 200-349 are still won too often** (200-249: 47% vs 39%; 300-349: 18% vs 11%). After section 6.6 the
-  wickets and the position profile match; the chasing top order still scores too fast (3.58 an over vs 3.09).
-- **By batting position** (section 6.6): balls per dismissal 68 / 63 / 38 vs 68 / 69 / 37. Runs per six balls 3.27 / 3.29 /
-  3.01 vs 3.05 / 3.23 / 3.13 (2023+: 3.36 / 3.49 / 3.23).
-- **Five-fors** are 1.02 per Test vs 1.30. The share of wickets by rank is right, but the spread within bowlers' innings is
-  short. No principled change found that fixes it without breaking something else.
-- **Spin.** The share of the overs runs a little high on day 1 (40% vs 34%), and of wickets a little low on days 3 and 5.
-- **Draws** (16% vs 13%) lose time more evenly than real draws. 41% of sim draws lost 6-12 hours vs 18% real; 30% lost almost
-  nothing vs 41%. Real weather clusters within matches; the model's days are independent.
+Reading the table (against 2023+):
+- **Close.** Runs per over (3.57 vs 3.58), innings 1-3, hundreds, scoring by batting position, strong v weak, the pooled
+  200-349 chases (36% won, 16% drawn, vs 30% ± 13 and 16% in 2022+; n 50).
+- **A little long-lived.** Balls per wicket 52.8 vs 50.6, Tests within three days 21% vs 27%, draws 12% vs 9%. Innings 4 runs
+  186 vs 174.
+- **Five-fors** are 1.04 per Test vs 1.46 (1.30 since 2015): the known gap.
+- **Draws lose time more evenly** than real ones (section 5: the model's days are independent).
 
 ### 6.2 Men, T20 ratings only (the fallback, 3,000 Tests)
 
-| metric | sim | real 2015+ | real 2023+ |
+| metric | sim | real 2023+ | real 2015+ |
 |---|---|---|---|
-| runs per over | 3.37 | 3.31 | 3.58 |
-| balls per wicket | 56.7 | 55.8 | 50.6 |
-| home win / away win / draw | 51.4% / 30.6% / 17.9% | 52.0% / 34.9% / 13.1% | 51.4% / 39.8% / 8.9% |
-| days: mean / <=3 / 4 / 5 | 4.39 / 12.8% / 34.8% / 52.4% | 4.26 / 19.7% / 33.4% / 46.9% | 4.05 / 27.4% / 37.0% / 35.6% |
-| batting 1-3 / 4-6 / 7-11: runs per 6 balls faced | 3.29 / 3.26 / 2.91 | 3.05 / 3.23 / 3.13 | 3.36 / 3.49 / 3.23 |
-| batting 1-3 / 4-6 / 7-11: balls faced per dismissal | 71.6 / 65.6 / 37.1 | 68.2 / 68.6 / 37.0 | 59.1 / 62.3 / 35.9 |
-| batting 1-3 / 4-6 / 7-11: share of balls faced | 41.4% / 34.6% / 24.0% | 39.3% / 36.5% / 24.2% | 37.3% / 36.6% / 26.1% |
-| innings victories | 11.5% | 18.6% | 18.5% |
-| centuries per Test | 1.77 | 1.732 | 1.719 |
-| five-fors per Test | 0.87 | 1.304 | 1.459 |
-| strong v weak (Australia, India, South Africa, New Zealand v Sri Lanka, Bangladesh, West Indies, Zimbabwe): strong / draw / weak | 57.7% / 18.2% / 23.9% (n 967) | 74.4% / 11.1% / 14.5% (n 117) | - |
-| win share by team (sim / real 2015+ / 2023+) | I 55.1% E 39.9% A 53.0% SA 41.5% NZ 48.7% P 37.9% SL 30.7% WI 36.4% B 24.9% Z 20.7% | 55.8% 46.6% 57.4% 53.8% 52.8% 36.8% 36.5% 25.5% 27.8% 10.7% | 45.7% 50.0% 61.5% 72.0% 60.7% 29.2% 34.8% 23.3% 44.0% - |
+| runs per over | 3.54 | 3.58 | 3.31 |
+| balls per wicket | 54.4 | 50.6 | 55.8 |
+| home win / away win / draw | 53.4% / 32.5% / 14.0% | 51.4% / 39.8% / 8.9% | 52.0% / 34.9% / 13.1% |
+| days: mean / <=3 / 4 / 5 | 4.27 / 16.7% / 38.0% / 45.3% | 4.05 / 27.4% / 37.0% / 35.6% | 4.26 / 19.7% / 33.4% / 46.9% |
+| batting 1-3 / 4-6 / 7-11: runs per 6 balls faced | 3.46 / 3.38 / 3.03 | 3.36 / 3.49 / 3.23 | 3.05 / 3.23 / 3.13 |
+| batting 1-3 / 4-6 / 7-11: balls faced per dismissal | 69.1 / 63.1 / 35.5 | 59.1 / 62.3 / 35.9 | 68.2 / 68.6 / 37.0 |
+| batting 1-3 / 4-6 / 7-11: share of balls faced | 41.3% / 34.5% / 24.2% | 37.3% / 36.6% / 26.1% | 39.3% / 36.5% / 24.2% |
+| innings victories | 12.2% | 18.5% | 18.6% |
+| centuries per Test | 1.84 | 1.719 | 1.732 |
+| five-fors per Test | 0.90 | 1.459 | 1.304 |
+| strong v weak (Australia, India, South Africa, New Zealand v Sri Lanka, Bangladesh, West Indies, Zimbabwe): strong / draw / weak | 61.8% / 13.2% / 24.8% (n 967) | 74.4% / 11.1% / 14.5% (n 117) | - |
+| win share by team (sim / real 2015+ / 2023+) | I 53.9% E 52.7% A 56.9% SA 44.9% NZ 44.7% P 31.7% SL 32.9% WI 34.4% B 22.2% Z 24.4% | 55.8% 46.6% 57.4% 53.8% 52.8% 36.8% 36.5% 25.5% 27.8% 10.7% | 45.7% 50.0% 61.5% 72.0% 60.7% 29.2% 34.8% 23.3% 44.0% - |
 
 On T20 ratings the engine plays sensible Test cricket (the aggregates hold), but strong and weak sides are much less apart
-(58% / 18% / 24%) and the ordering follows T20 form.
+(62% / 13% / 25%) and the ordering follows T20 form.
 
 ### 6.3 Women (1,500 Tests, four squads)
 
 Real: 17 women's Tests since 2014. With so few, these are only a sanity check.
 
-| metric | sim | real 2014+ | real 2023+ |
+| metric | sim | real 2014+ |
 |---|---|---|
-| innings 1: runs / wickets / overs | 328.9 / 9.48 / 103.8 | 312.2 / 9.29 / 95.8 |
-| innings 2: runs / wickets / overs | 315.3 / 9.53 / 99.5 | 308.9 / 9.65 / 99.3 |
-| innings 3: runs / wickets / overs | 234.3 / 7.90 / 74.4 | 225.6 / 7.71 / 80.5 |
-| innings 4: runs / wickets / overs | 149.6 / 5.11 / 47.5 | 114.9 / 6 / 37.2 |
-| innings 4 played | 70.7% | 64.7% |
+| innings 1: runs / wickets / overs | 326.9 / 9.48 / 102.6 | 312.2 / 9.29 / 95.8 |
+| innings 2: runs / wickets / overs | 310.4 / 9.52 / 98.7 | 308.9 / 9.65 / 99.3 |
+| innings 3: runs / wickets / overs | 233.1 / 7.97 / 74.3 | 225.6 / 7.71 / 80.5 |
+| innings 4: runs / wickets / overs | 152.1 / 5.34 / 48.1 | 114.9 / 6 / 37.2 |
+| innings 4 played | 72.1% | 64.7% |
 | runs per over | 3.16 | 3.07 |
-| balls per wicket | 61.2 | 58.9 |
-| overs per Test | 309.4 | 299.6 |
+| balls per wicket | 60.5 | 58.9 |
+| overs per Test | 308.1 | 299.6 |
 | overs per day used | 88.0 | 87.1 |
-| home win / away win / draw | 33.9% / 24.8% / 41.1% | 35.3% / 29.4% / 35.3% |
+| home win / away win / draw | 34.7% / 25.4% / 39.7% | 35.3% / 29.4% / 35.3% |
 | ties | 0.1% | 0.0% |
-| days: mean / <=3 / 4 / 5 | 3.81 / 17.8% / 82.2% / 0.0% | 3.76 / 29.4% / 64.7% / 5.9% |
-| follow-ons per Test / enforced when available | 0.13 / 62.4% | 0.118 / 66.7% |
+| days: mean / <=3 / 4 / 5 | 3.80 / 18.7% / 81.3% / 0.0% | 3.76 / 29.4% / 64.7% / 5.9% |
+| follow-ons per Test / enforced when available | 0.11 / 51.4% | 0.118 / 66.7% |
 | declarations per Test (inn 1 / 2 / 3) | 0.17 / 0.12 / 0.30 | 0.412 / 0.294 / 0.294 |
-| batting 1-3 / 4-6 / 7-11: runs per 6 balls faced | 3.12 / 3.08 / 2.71 | 3.04 / 3.06 / 2.50 |
-| batting 1-3 / 4-6 / 7-11: balls faced per dismissal | 74.6 / 63.9 / 46.8 | 67.2 / 76.2 / 40.1 |
-| batting 1-3 / 4-6 / 7-11: share of balls faced | 40.9% / 32.0% / 27.1% | 37.7% / 38.5% / 23.8% |
-| innings victories | 14.3% | 11.8% |
-| centuries per Test | 1.53 | 1.176 |
-| 50+ scores per Test | 5.83 | 5.765 |
-| five-fors per Test | 0.58 | 0.824 |
-| overs share of bowlers 1-6 (by overs) | 25.4% 20.7% 17.2% 13.7% 9.9% 6.5% | 27.9% 21.0% 17.1% 14.0% 11.3% 7.2% |
-| wicket share of bowlers 1-6 (by overs) | 29.0% 21.7% 16.9% 12.6% 9.0% 5.4% | 34.9% 22.8% 16.8% 11.3% 7.5% 6.4% |
-| DRS reviews per innings | 3.40 | 3.362 |
+| batting 1-3 / 4-6 / 7-11: runs per 6 balls faced | 3.14 / 3.09 / 2.66 | 3.04 / 3.06 / 2.50 |
+| batting 1-3 / 4-6 / 7-11: balls faced per dismissal | 72.2 / 64.7 / 46.2 | 67.2 / 76.2 / 40.1 |
+| batting 1-3 / 4-6 / 7-11: share of balls faced | 40.2% / 32.7% / 27.1% | 37.7% / 38.5% / 23.8% |
+| innings victories | 13.5% | 11.8% |
+| centuries per Test | 1.48 | 1.176 |
+| 50+ scores per Test | 5.76 | 5.765 |
+| five-fors per Test | 0.62 | 0.824 |
+| overs share of bowlers 1-6 (by overs) | 25.4% 20.6% 17.0% 13.7% 10.2% 6.7% | 27.9% 21.0% 17.1% 14.0% 11.3% 7.2% |
+| wicket share of bowlers 1-6 (by overs) | 29.4% 21.6% 16.9% 12.4% 9.1% 5.6% | 34.9% 23.6% 16.3% 10.8% 7.5% 6.7% |
+| DRS reviews per innings | 3.39 | 3.362 |
 
-Women's Tests come out higher scoring than real ones (innings 1: 329 vs 312) with fewer five-fors, while the draw rate,
+Women's Tests come out higher scoring than real ones (innings 1: 327 vs 312) with fewer five-fors, while the draw rate,
 innings victories and days played are about right. The structure is the men's; only the base rates are women's.
 
 ### 6.4 Fourth innings, strong v weak, five-fors (second round)
@@ -526,6 +521,29 @@ Before → after this round (4,000 Tests):
 | strong v weak | 74 / 12 / 14 | 78 / 11 / 12 | 74 / 11 / 15 |
 | innings victories | 16.7% | 17.2% | 18.6% |
 | hundreds / five-fors per Test | 1.79 / 1.02 | 1.66 / 1.01 | 1.73 / 1.30 |
+
+### 6.7 Era (fifth round)
+
+The chase gap of 6.5-6.6 was mostly an era mismatch. Real 4th-innings chases of 200-349 (pooled bands; 95% interval):
+
+| | Tests | won | drawn | chasing top order (0-2 down): runs / over, balls / wicket |
+|---|---|---|---|---|
+| 2015-21 | 56 | 16% (9-28%) | 16% | 2.90 (± 0.2), 55.3 |
+| 2022+ | 50 | 30% (19-44%) | 16% | 3.35 (± 0.3), 47.2 |
+
+Up to round 4 the engine's base rates sat at a 1 : 1.5 : 2 mix of 2015-18, 2019-22 and 2023+ (a ~2020 level), England batted
+without Bazball, and the benchmark compared with all Tests since 2015, so with chasing that is half from a slower era. The game
+is played today, so the engine now plays the 2023+ level:
+- the context factors and base on 2023+;
+- the player and match terms centred on the 2015+ pool, as the rating maps are (centring them on 2023+ instead left the modern
+  wicket level out, since the fit splits harder modern conditions between the era and the players);
+- the benchmark gives England Bazball and compares with 2023+.
+
+The sim's pooled 200-349 chases (36% won, 16% drawn) are inside the 2022+ interval. What remains against same-era data:
+- 4th-innings totals a little high (186 vs 174 runs);
+- five-fors (1.04 vs 1.46);
+- slightly long-lived matches (balls per wicket 52.8 vs 50.6, 21% vs 27% within three days).
+None is pursued further.
 
 ## 7. Live play
 
