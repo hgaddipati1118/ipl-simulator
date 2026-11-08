@@ -539,8 +539,11 @@ export function applyLiveResult(
 
   const battingFirstId = completedMatch._internal.battingFirstId;
   const bowlingFirstId = completedMatch._internal.bowlingFirstId;
-  const inn1Raw = completedMatch._internal.innings1Raw!;
-  const inn2Raw = completedMatch._internal.currentInningsRaw;
+  // Rain can abandon a match in the first innings (a no result): the innings in play is the first, and the second was
+  // never started, as simulateMatch records it. Reading a first innings that doesn't exist crashed the app here.
+  const abandonedInFirst = !completedMatch._internal.innings1Raw;
+  const inn1Raw = completedMatch._internal.innings1Raw ?? completedMatch._internal.currentInningsRaw;
+  const inn2Raw = abandonedInFirst ? undefined : completedMatch._internal.currentInningsRaw;
 
   // Build InningsScore objects
   const toInningsScore = (raw: typeof inn1Raw): InningsScore => ({
@@ -559,7 +562,10 @@ export function applyLiveResult(
   });
 
   const innings1 = toInningsScore(inn1Raw);
-  const innings2 = toInningsScore(inn2Raw);
+  const innings2: InningsScore = inn2Raw ? toInningsScore(inn2Raw) : {
+    teamId: bowlingFirstId, runs: 0, wickets: 0, overs: 0, balls: 0, totalBalls: 0, extras: 0, fours: 0, sixes: 0,
+    ballLog: [], batterStats: new Map(), bowlerStats: new Map(),
+  };
 
   // A knockout washed out goes to the higher-placed side (the home side of this game's playoff fixtures)
   const winnerId = completedMatch.winnerId ?? (match.isPlayoff ? home.id : null);
