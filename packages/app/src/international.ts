@@ -20,7 +20,7 @@ import { playerActivity, squadTier, type ActivityFormat, type PlayerActivityFile
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { WPL_PLAYERS } from "@ipl-sim/ratings/dist/wpl-players.js";
 import type { ExtendedPlayer } from "@ipl-sim/ratings/dist/extended-pool.js";
-import { applySeriesTuning, tuningFor } from "./series-tuning";
+import { applyOppositionAdjust, applySeriesTuning, tuningFor } from "./series-tuning";
 import { markTestKeepers, pickTestSquad, testSeriesFormat } from "./test-match/test-series";
 
 // ── Formats ────────────────────────────────────────────────────────────
@@ -304,6 +304,9 @@ export function buildNationSquad(
   const inFormat = players.map(p => {
     const set = ratingFormat === "t20" ? undefined : p.formatRatings?.[ratingFormat];
     if (set) p.ratings = { ...set.ratings };
+    // a record made mostly against weak opposition counts for less (ratings pipeline generate-intl-adjust.ts); national sides only
+    const adj = ratingFormat === "test" ? undefined : file?.adjust?.[p.sourceId ?? p.id];
+    if (adj) applyOppositionAdjust(p, adj[ratingFormat === "odi" ? 2 : 0] ?? 0, adj[ratingFormat === "odi" ? 3 : 1] ?? 0);
     return p;
   });
   let squad: Player[];
@@ -498,7 +501,7 @@ export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], 
     return copy;
   })) as [Player[], Player[]];
   // limited-overs series: the sides' gap and the home advantage fitted on real results (series-tuning.ts)
-  if (series.format === "t20i" || series.format === "odi") applySeriesTuning(copies, tuningFor(series.format, series.gender), venue.neutral ? -1 : homeIdx);
+  if (series.format === "t20i" || series.format === "odi") applySeriesTuning(copies, tuningFor(series.format, series.gender), venue.neutral ? -1 : homeIdx, series.sides[homeIdx].country);
   const make = (i: 0 | 1) => {
     const side = series.sides[i];
     const isHome = i === homeIdx && !venue.neutral;

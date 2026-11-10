@@ -26,6 +26,12 @@ export interface FormatRatingsFile {
   generated: string;
   /** sourceId -> [odi, test] */
   players: Record<string, [EncodedSet, EncodedSet]>;
+  /**
+   * Opposition-strength adjustment of national-squad ratings (pipeline/generate-intl-adjust.ts): sourceId -> [T20 batting, T20 bowling,
+   * ODI batting, ODI bowling] rating points (<= 0) added to the batting (battingIQ, timing, power) or bowling (wicketTaking, economy,
+   * accuracy) attributes of a national side's player in a T20I / ODI series. League play is not affected.
+   */
+  adjust?: Record<string, number[]>;
 }
 
 type Core = Pick<PlayerRatings, (typeof CORE_KEYS)[number]>;

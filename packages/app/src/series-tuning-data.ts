@@ -6,9 +6,15 @@
  * loses, half each) at a ground that is not neutral. Fitted per gender on the real fixtures' results (the log-likelihood of every fixture's real wins given the simulated win
  * probability, on a grid; among the settings within 0.01 of the best the smallest stretch, then the smallest home advantage).
  */
-export interface SeriesTuning { spread: number; home: number }
+export interface SeriesTuning { spread: number; home: number; /** the home side's country -> its own home advantage (rating points), else `home` */ homeBy?: Record<string, number> }
 
 export const SERIES_TUNING: Record<string, Partial<Record<"men" | "women", SeriesTuning>>> = {
-  t20i: { men: { spread: 2, home: 3 }, women: { spread: 3, home: 3 } },
-  odi: { men: { spread: 1, home: 0 }, women: { spread: 3, home: 0 } },
+  t20i: {
+    men: { spread: 2, home: 4, homeBy: { "Bangladesh": 6, "Australia": 8, "India": 6, "Sri Lanka": 2, "West Indies": 2, "Ireland": 2 } },
+    women: { spread: 3, home: 6, homeBy: { "Bangladesh": 8, "England": 4, "India": 8, "Pakistan": 12, "Zimbabwe": 4 } },
+  },
+  odi: {
+    men: { spread: 1, home: 8, homeBy: { "Bangladesh": 10, "Australia": 10, "England": 10, "Sri Lanka": 12, "Zimbabwe": 10 } },
+    women: { spread: 3, home: 12, homeBy: { "Australia": 14, "Ireland": 10, "New Zealand": 14, "West Indies": 14, "South Africa": 14 } },
+  },
 };

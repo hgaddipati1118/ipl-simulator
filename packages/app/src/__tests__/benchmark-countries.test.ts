@@ -89,6 +89,7 @@ async function setup() {
   const REAL = JSON.parse(readFileSync(join(REPO, "docs", "data", "country_validation.json"), "utf-8")) as Record<string, RealSet>;
   const FILE = JSON.parse(readFileSync(join(PUBLIC, "data", "format-ratings.json"), "utf-8")) as FormatRatingsFile;
   const ACTIVITY = JSON.parse(readFileSync(join(PUBLIC, "data", "player-activity.json"), "utf-8")) as PlayerActivityFile;
+  if (process.env.BENCH_NO_ADJUST) delete FILE.adjust;
   const loader = createPoolLoader(async file => new Uint8Array(readFileSync(join(PUBLIC, "pool", file))));
   return { REAL, FILE, ACTIVITY, ext: async (g: SeriesGender) => loader.players(g, ["senior"]) };
 }
@@ -190,6 +191,76 @@ it.skipIf(!process.env.BENCH_FIT)("series tuning fit", async () => {
     const file = join(HERE, "..", "series-tuning-data.ts");
     const src = readFileSync(file, "utf-8");
     const body = Object.entries(out).map(([fmt, g]) => `  ${fmt}: { ${Object.entries(g).map(([k, v]) => `${k}: { spread: ${v!.spread}, home: ${v!.home} }`).join(", ")} },`).join("\n");
+    writeFileSync(file, src.replace(/SeriesTuning>>> = \{[\s\S]*\};\n$/, `SeriesTuning>>> = {\n${body}\n};\n`));
+    console.log("wrote " + file);
+  }
+}, 14_400_000);
+
+/** BENCH_EVAL=1: the log loss per real match at the current tuning, per limited-overs set (BENCH_NO_ADJUST=1: without the opposition adjustment) */
+it.skipIf(!process.env.BENCH_EVAL)("log loss at the current tuning", async () => {
+  const { REAL, FILE, ACTIVITY, ext } = await setup();
+  const replays = Number(process.env.BENCH_REPLAYS ?? 8);
+  for (const key of ["t20i-men", "t20i-women", "odi-men", "odi-women"]) {
+    const real = REAL[key];
+    const run = runSet(key, real, replays, FILE, ACTIVITY, await ext(key.split("-")[1] as SeriesGender));
+    let nll = 0, tot = 0;
+    real.fixtures.forEach(([, , , n, w], k) => {
+      const p = Math.min(0.97, Math.max(0.03, (run.fixtureWins[k] + 1) / (run.fixtureN[k] + 2)));
+      nll -= w * Math.log(p) + (n - w) * Math.log(1 - p); tot += n;
+    });
+    console.log(`${key}: log loss ${(nll / tot).toFixed(4)}`);
+  }
+}, 14_400_000);
+
+/**
+ * BENCH_FITHOME=1: each host country's own home advantage (SeriesTuning.homeBy) per limited-overs set. Every fixture is replayed
+ * (BENCH_REPLAYS, default 8) at a grid of uniform home advantages; a host country's loss at each is the negative log-likelihood of
+ * the real results of the fixtures it hosted, plus (h - h0)^2 / (2 x 4^2) pulling it toward the set's own uniform best h0 (a prior
+ * of 4 rating points). CALIBRATE_WRITE=1 writes `home` (= h0) and `homeBy` (the countries that differ) into series-tuning-data.ts.
+ */
+it.skipIf(!process.env.BENCH_FITHOME)("home advantage per country", async () => {
+  const { REAL, FILE, ACTIVITY, ext } = await setup();
+  const replays = Number(process.env.BENCH_REPLAYS ?? 8);
+  const grid = [0, 2, 4, 6, 8, 10, 12, 14];
+  const only = process.env.BENCH_ONLY?.split(",");
+  const out: Record<string, Partial<Record<"men" | "women", SeriesTuning>>> = JSON.parse(JSON.stringify(SERIES_TUNING));
+  for (const key of ["t20i-men", "t20i-women", "odi-men", "odi-women"]) {
+    if (only && !only.includes(key)) continue;
+    const [fmt, gender] = key.split("-") as [string, "men" | "women"];
+    const real = REAL[key];
+    const players = await ext(gender);
+    const base = SERIES_TUNING[fmt]![gender]!;
+    const nllBy = new Map<string, number[]>();
+    const total: number[] = [];
+    for (const [gi, h] of grid.entries()) {
+      SERIES_TUNING[fmt] = { ...(SERIES_TUNING[fmt] ?? {}), [gender]: { spread: base.spread, home: h } };
+      const run = runSet(key, real, replays, FILE, ACTIVITY, players);
+      let all = 0;
+      real.fixtures.forEach(([, , host, n, w], k) => {
+        if (!host) return;
+        const p = Math.min(0.97, Math.max(0.03, (run.fixtureWins[k] + 1) / (run.fixtureN[k] + 2)));
+        const nll = -(w * Math.log(p) + (n - w) * Math.log(1 - p));
+        const arr = nllBy.get(host) ?? grid.map(() => 0); arr[gi] += nll; nllBy.set(host, arr); all += nll;
+      });
+      total.push(all);
+    }
+    const h0 = grid[total.indexOf(Math.min(...total))];
+    const homeBy: Record<string, number> = {};
+    for (const [country, arr] of nllBy) {
+      const pen = grid.map((h, gi) => arr[gi] + ((h - h0) ** 2) / (2 * 16));
+      const best = grid[pen.indexOf(Math.min(...pen))];
+      if (best !== h0) homeBy[country] = best;
+      console.log(`${key} ${country}: ${grid.map((h, gi) => `${h}:${arr[gi].toFixed(1)}`).join(" ")} -> ${best}`);
+    }
+    console.log(`${key}: uniform best home ${h0}; per country ${JSON.stringify(homeBy)}`);
+    out[fmt] = { ...(out[fmt] ?? {}), [gender]: { spread: base.spread, home: h0, ...(Object.keys(homeBy).length ? { homeBy } : {}) } };
+    SERIES_TUNING[fmt] = { ...(SERIES_TUNING[fmt] ?? {}), [gender]: out[fmt]![gender]! };
+  }
+  if (process.env.CALIBRATE_WRITE) {
+    const file = join(HERE, "..", "series-tuning-data.ts");
+    const src = readFileSync(file, "utf-8");
+    const fmtT = (v: SeriesTuning) => `{ spread: ${v.spread}, home: ${v.home}${v.homeBy ? `, homeBy: { ${Object.entries(v.homeBy).map(([c, x]) => `"${c}": ${x}`).join(", ")} }` : ""} }`;
+    const body = Object.entries(out).map(([f, g]) => `  ${f}: {\n${Object.entries(g).map(([k, v]) => `    ${k}: ${fmtT(v!)},`).join("\n")}\n  },`).join("\n");
     writeFileSync(file, src.replace(/SeriesTuning>>> = \{[\s\S]*\};\n$/, `SeriesTuning>>> = {\n${body}\n};\n`));
     console.log("wrote " + file);
   }

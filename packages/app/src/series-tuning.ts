@@ -30,10 +30,17 @@ export function shiftSide(players: readonly Player[], delta: number): void {
  * of the gap, apart), and the home side's ratings up and the away side's down by `home / 2` at a ground that is not neutral.
  * `homeIdx` is the home side (0 or 1), or -1 at a neutral ground.
  */
-export function applySeriesTuning(sides: [Player[], Player[]], tuning: SeriesTuning | undefined, homeIdx: number): void {
+export function applySeriesTuning(sides: [Player[], Player[]], tuning: SeriesTuning | undefined, homeIdx: number, homeCountry?: string): void {
   if (!tuning) return;
+  const home = (homeCountry ? tuning.homeBy?.[homeCountry] : undefined) ?? tuning.home;
   const gap = sideStrength(sides[0]) - sideStrength(sides[1]);
   const stretch = ((tuning.spread - 1) / 2) * gap;
-  shiftSide(sides[0], stretch + (homeIdx === 0 ? tuning.home / 2 : homeIdx === 1 ? -tuning.home / 2 : 0));
-  shiftSide(sides[1], -stretch + (homeIdx === 1 ? tuning.home / 2 : homeIdx === 0 ? -tuning.home / 2 : 0));
+  shiftSide(sides[0], stretch + (homeIdx === 0 ? home / 2 : homeIdx === 1 ? -home / 2 : 0));
+  shiftSide(sides[1], -stretch + (homeIdx === 1 ? home / 2 : homeIdx === 0 ? -home / 2 : 0));
+}
+
+/** The opposition-strength adjustment of a national-squad player (rating points on the batting and the bowling attributes, in place) */
+export function applyOppositionAdjust(p: Player, bat: number, bowl: number): void {
+  for (const k of ["battingIQ", "timing", "power"] as const) p.ratings[k] = Math.max(1, Math.min(99, p.ratings[k] + bat));
+  for (const k of ["wicketTaking", "economy", "accuracy"] as const) p.ratings[k] = Math.max(1, Math.min(99, p.ratings[k] + bowl));
 }

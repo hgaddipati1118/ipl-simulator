@@ -1218,7 +1218,7 @@ Not done: no multiplayer series; the series does not feed career stats.
 country's win rate (overall, home, away), first innings, runs per wicket and head-to-heads against the real ones, with
 tolerances; docs/COUNTRY-VALIDATION.md has the method, the fit and the before / after tables. T20I and ODI series matches now carry a
 fitted strength stretch and home advantage (`series-tuning.ts`, both engines); figures outside tolerance in men's / women's T20I
-went from 33 / 37 to 20 / 29, the ODI and Test sets are unchanged (15, 22, 7 left).
+went from 33 / 37 to 20 / 29, and in round 2 (per-country home advantage, an ODI opposition-strength rating adjustment) to 17 / 22; men's / women's ODI 15 / 22 to 13 / 21, Test 7. Players' pitch sensitivity was tested and not shipped (docs/VENUE-SENSITIVITY.md).
 
 ## T20I level
 

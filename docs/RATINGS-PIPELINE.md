@@ -590,6 +590,8 @@ player with an appearance since 2000: `ca_<CricketArchive id>` ids, rated from C
 
     npx tsx src/pipeline/generate-intl-pool.ts              # international top-up (below), after generate-format-ratings.ts
 
+**Opposition-strength adjustment** (`generate-intl-adjust.ts`, after `generate-format-ratings.ts` and `generate-intl-pool.ts`; it rewrites `adjust` in `format-ratings.json`): ODI deltas for national sides from each player's record against strong opposition (docs/COUNTRY-VALIDATION.md, round 2); T20 deltas are computed and reported (docs/data/intl_adjust.json) but not shipped.
+
 **International top-up** (`generate-intl-pool.ts`): every player with an international appearance since 2024-01-01 for one of the
 app's nations (the twelve full members and ten associates, men and women) who is in neither the ESPN pool nor the extended pool
 (matched by Cricinfo / CricketArchive id, then by country, surname and first initial: the id map misses players whose CA id is not in
