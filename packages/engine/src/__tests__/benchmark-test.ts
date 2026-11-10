@@ -80,12 +80,13 @@ for (let i = 0; i < N; i++) {
       add(`${g}_runs`, b.runs); add(`${g}_balls`, b.balls); if (b.out && b.kind !== "run_out") add(`${g}_out`); if (b.out && b.kind === "run_out") add(`${g}_ro`);
     }
     for (const l of Object.values(inn.bowlers)) if (l.wickets >= 5) add("f5");
+    if (Object.values(inn.bowlers).some(l => l.wickets >= 5)) add(`i5_${inn.number}`);
     if (inn.legalBalls >= 300) {
       const ranked = Object.values(inn.bowlers).sort((a, b) => b.balls - a.balls);
       const w = ranked.reduce((a, l) => a + l.wickets, 0);
-      add("rankInns");
-      ranked.slice(0, 6).forEach((l, k) => { add(`rankOv${k}`, l.balls / inn.legalBalls); add(`rankW${k}`, l.wickets); });
-      add("rankWkts", w);
+      add("rankInns"); add("bowlersUsed", ranked.length);
+      // by rank, over the innings that have a bowler of that rank (the real shares are taken the same way)
+      ranked.slice(0, 6).forEach((l, k) => { add(`rankN${k}`); add(`rankOv${k}`, l.balls / inn.legalBalls); add(`rankW${k}`, l.wickets); add(`rankWt${k}`, w); });
     }
     for (const ev of inn.ballLog) {
       if (ev.outcome !== "wide" && ev.outcome !== "noball") { const d = Math.min(5, ev.day); add(`b_day${d}`); if (st.players[ev.bowler].spin) add(`bs_day${d}`); }
@@ -196,10 +197,16 @@ row("spin share of bowler wickets, day 1-5", [1, 2, 3, 4, 5].map(d => pct((sum[`
   R.spinWicketShareByDay.map((x: number) => pct(x)).join(" "), R2 ? R2.spinWicketShareByDay.map((x: number) => pct(x)).join(" ") : undefined);
 row("spin share of overs, day 1-5", [1, 2, 3, 4, 5].map(d => pct((sum[`bs_day${d}`] ?? 0) / Math.max(1, sum[`b_day${d}`] ?? 0))).join(" "),
   R.spinOverShareByDay.map((x: number) => pct(x)).join(" "), R2 ? R2.spinOverShareByDay.map((x: number) => pct(x)).join(" ") : undefined);
-row("overs share of bowlers 1-6 (by overs)", [0, 1, 2, 3, 4, 5].map(k => pct((sum[`rankOv${k}`] ?? 0) / sum.rankInns)).join(" "),
+row("overs share of bowlers 1-6 (by overs)", [0, 1, 2, 3, 4, 5].map(k => pct((sum[`rankOv${k}`] ?? 0) / (sum[`rankN${k}`] ?? 1))).join(" "),
   R.oversShareByRank.map((x: number) => pct(x)).join(" "), R2 ? R2.oversShareByRank.map((x: number) => pct(x)).join(" ") : undefined);
-row("wicket share of bowlers 1-6 (by overs)", [0, 1, 2, 3, 4, 5].map(k => pct((sum[`rankW${k}`] ?? 0) / sum.rankWkts)).join(" "),
+row("wicket share of bowlers 1-6 (by overs)", [0, 1, 2, 3, 4, 5].map(k => pct((sum[`rankW${k}`] ?? 0) / (sum[`rankWt${k}`] ?? 1))).join(" "),
   R.wicketShareByRank.map((x: number) => pct(x)).join(" "), R2 ? R2.wicketShareByRank.map((x: number) => pct(x)).join(" ") : undefined);
+if (gender === "male") {
+  // measured on Cricsheet men's Tests with the same definitions (innings of 50+ overs; docs/FORMATS.md, section 6.11)
+  row("bowlers used per innings (50+ overs)", f2(sum.bowlersUsed / sum.rankInns), "5.53", "5.53");
+  row("innings with a five-for, innings 1 / 2 / 3 / 4", [1, 2, 3, 4].map(i => pct((sum[`i5_${i}`] ?? 0) / Math.max(1, sum[`inn${i}`] ?? 1))).join(" "),
+    "41.8% 40.4% 37.0% 33.3%", "34.5% 40.1% 33.0% 29.6%");
+}
 if (gender === "male") {
   const S = TEST_MODEL.real.male.strongVsWeak;
   row(`strong v weak (${S.strong.join(", ")} v ${S.weak.join(", ")}): strong / draw / weak`,

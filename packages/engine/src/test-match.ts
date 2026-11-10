@@ -1595,7 +1595,14 @@ function chooseBowler(st: TestMatchState, inn: TestInnings, rng: RNG): string {
   const day = inn.dayTypeOvers?.[st.day - 1];
   if (day && day[0] + day[1] >= 6) pStart = Math.max(0, Math.min(1, pStart + SHARE_TRACKING * (ps - day[1] / (day[0] + day[1]))));
   const wantSpin = rng() < pStart;
-  const ofType = pool.filter(id => st.players[id].spin === wantSpin);
+  const attack = (spin: boolean, list: readonly string[]) => list.filter(id => st.players[id].spin === spin && st.players[id].bowler);
+  let ofType = pool.filter(id => st.players[id].spin === wantSpin);
+  // with no front-line bowler of the type free, a front-line one still resting is a better call than a part-timer: real
+  // captains keep to four or five bowlers (5.5 an innings, the sim's 6.9 before this), a rest being a habit, not a rule
+  if (attack(wantSpin, ofType).length === 0) {
+    const back = attack(wantSpin, xi).filter(id => id !== keeper && id !== other && id !== cur && !pool.includes(id) && today(id) < capOf(id));
+    if (back.length > 0) ofType = back;
+  }
   const from = ofType.length > 0 ? ofType : pool;
   // the better the bowler the more he is called on (weight exp(BOWLER_PREFERENCE x quality)), the longer rested the readier
   const weight = (id: string) => {
@@ -1621,9 +1628,9 @@ function chooseBowler(st: TestMatchState, inn: TestInnings, rng: RNG): string {
  */
 export const BOWLER_PREFERENCE = 6;
 export const WICKET_FORM = 0.35;
-export const WICKET_SPELL_EXTENSION = 2;
+export const WICKET_SPELL_EXTENSION = 5;
 /** A part-timer's weight against a member of the attack of the same quality */
-export const PART_TIMER = 0.5;
+export const PART_TIMER = 0.05;
 /** How hard the captain steers the day's spin share back to the fitted share */
 export const SHARE_TRACKING = 2;
 
