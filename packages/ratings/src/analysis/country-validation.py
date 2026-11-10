@@ -12,9 +12,9 @@ The venue's country (data/analysis/venue_map.csv, the same table the Test fit us
 home = the venue is in the side's own country, away = in the opponent's, neutral = anywhere else.
 
 Per format and gender, per country: matches, wins, home and away matches and wins, the mean first-innings total when batting
-first (innings of the full scheduled length only for the limited-overs formats), runs per wicket over all of the side's
+first (every first innings of a match with a result and no DLS), runs per wicket over all of the side's
 innings (runs / wickets lost), and the head-to-head records of the pairs with enough matches. The fixtures (pairing, venue
-country, count) are what the benchmark replays.
+country, count, wins of the first-named side) are what the benchmark replays and what the series tuning is fitted on.
 """
 import json
 import subprocess
@@ -50,7 +50,6 @@ def build(fmt: str, gender: str) -> dict:
     types, g, since = SETS[(fmt, gender)]
     members = ", ".join(f"'{t}'" for t in FULL)
     mt = ", ".join(f"'{t}'" for t in types)
-    full_len = {"t20i": 114, "odi": 270, "test": 0}[fmt]  # legal balls of a full limited-overs innings (an innings shortened by rain is left out)
     rows = duck(f"""
 WITH vm AS (SELECT raw_venue, coalesce(raw_city, '') raw_city, any_value(country) country FROM read_csv('venue_map.csv', header=true, all_varchar=true) WHERE source = 'cs' GROUP BY 1, 2),
 m AS (SELECT m.match_id, m.team1, m.team2, m.winner, m.result, m.outcome_method, coalesce(vm.country, 'UNK') vc FROM 'matches.parquet' m
@@ -88,10 +87,12 @@ SELECT m.*, (SELECT list(struct_pack(i := inn.innings, t := inn.bt, r := inn.run
         h["wins"][r["winner"]] += 1
         host = a if vc == code[a] else b if vc == code[b] else None
         fkey = (key, host)
-        fixtures[fkey] = fixtures.get(fkey, 0) + 1
+        fx = fixtures.setdefault(fkey, [0, 0])
+        fx[0] += 1
+        fx[1] += r["winner"] == key.split(" v ")[0]
         for inn in r["innings"] or []:
             s = teams[inn["t"]]
-            if inn["i"] == 1 and (fmt == "test" or inn["b"] >= full_len):
+            if inn["i"] == 1:
                 s["first"].append(inn["r"])
             s["runs"] += inn["r"]
             s["wkts"] += inn["w"]
@@ -105,13 +106,14 @@ SELECT m.*, (SELECT list(struct_pack(i := inn.innings, t := inn.bt, r := inn.run
             "awayN": s["awayN"], "awayWinRate": round(s["awayWins"] / s["awayN"], 3) if s["awayN"] else None,
             "neutralN": s["neutralN"], "neutralWinRate": round(s["neutralWins"] / s["neutralN"], 3) if s["neutralN"] else None,
             "firstN": len(s["first"]), "firstInnings": round(sum(s["first"]) / len(s["first"]), 1) if s["first"] else None,
+            "firstSd": round((sum((x - sum(s["first"]) / len(s["first"])) ** 2 for x in s["first"]) / max(1, len(s["first"]) - 1)) ** 0.5, 1) if s["first"] else None,
             "runsPerWicket": round(s["runs"] / s["wkts"], 2) if s["wkts"] else None,
         }
     for k, h in h2h.items():
         if h["n"] >= H2H_MIN:
             a, b = k.split(" v ")
             out["h2h"][k] = {"n": h["n"], "winRate": {a: round(h["wins"][a] / h["n"], 3), b: round(h["wins"][b] / h["n"], 3)}}
-    out["fixtures"] = [[k.split(" v ")[0], k.split(" v ")[1], host, n] for (k, host), n in sorted(fixtures.items(), key=lambda x: (x[0][0], str(x[0][1])))]
+    out["fixtures"] = [[k.split(" v ")[0], k.split(" v ")[1], host, n[0], n[1]] for (k, host), n in sorted(fixtures.items(), key=lambda x: (x[0][0], str(x[0][1])))]
     return out
 
 

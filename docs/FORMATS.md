@@ -1212,18 +1212,13 @@ fitted level: section "T20I level" below.
 
 Not done: no multiplayer series; the series does not feed career stats.
 
-## Per-country validation (benchmark built, fits not done)
+## Per-country validation
 
-`packages/app/src/__tests__/benchmark-countries.test.ts` (`BENCH_COUNTRIES=1 npx vitest run packages/app/src/__tests__/benchmark-countries.test.ts`) replays
-the real fixtures (pairing, host country or neutral) between the twelve full members with the series' own sides and prints, per
-country and format (men's and women's T20I and ODI since 2019, men's Tests since 2023): win rate overall, at home and away, mean
-first-innings total, runs per wicket, and the head-to-head rates of the pairs with 8+ real matches, marking a figure OFF outside
-its tolerance. Real targets: `docs/data/country_validation.json` from `packages/ratings/src/analysis/country-validation.py`.
-First run (3 replays of each fixture; the T20I spread and SA20 changes above not yet in): OFF figures men's T20I 36, women's T20I
-40, men's ODI 24, women's ODI 23, men's Tests 12 (of about 60-70 per set). The clearest: Australia and England women win 64% and 59% against
-a real 87% and 74%; Bangladesh and Zimbabwe women win 46% and 38% against 18% and 0%; Sri Lanka, West Indies and Zimbabwe men's
-T20I are too strong (48 / 51 / 43% against 36 / 41 / 29%); Test first innings: New Zealand 284 against 394, Bangladesh 310 against
-236. No per-country strength or home-advantage fit has been made yet.
+`packages/app/src/__tests__/benchmark-countries.test.ts` replays the real fixtures between the full members and prints each
+country's win rate (overall, home, away), first innings, runs per wicket and head-to-heads against the real ones, with
+tolerances; docs/COUNTRY-VALIDATION.md has the method, the fit and the before / after tables. T20I and ODI series matches now carry a
+fitted strength stretch and home advantage (`series-tuning.ts`, both engines); figures outside tolerance in men's / women's T20I
+went from 33 / 37 to 20 / 29, the ODI and Test sets are unchanged (15, 22, 7 left).
 
 ## T20I level
 
@@ -1305,7 +1300,9 @@ drawn matches, first innings, deviation at the 10 / 25 / 50 / 75 / 90th percenti
 | women after | 30.2 | -39 / -21 / 0 / +21 / +38 | 2.0% | 26.2% |
 
 Refit: `CAL_T20I=1 CALIBRATE_WRITE=1 npx vitest run packages/app/src/__tests__/calibrate-spread.test.ts -t "T20I"` (about 8 minutes;
-the leagues' entries are kept). The women's spread is still 3 runs short (their grid cannot go wider without under-120 overshooting).
+the leagues' entries are kept). The women's spread is still 3 runs short (their grid cannot go wider without under-120 overshooting). With the series tuning of
+docs/COUNTRY-VALIDATION.md (the gap between the sides stretched) the shapes were refitted: men 0.24 / 0.24, women 0.23 / 0.46, giving
+men 164.0 (sd 35.4, 200+ 15.2%) and women 140.6 (31.2, 3.1%) against the real 169.5 (37.3, 19.2%) and 142.2 (34.6, 5.1%).
 
 **The women's leagues** (WPL, WBBL, the women's Hundred) were off the same way and now have contexts of their own, fitted
 the same way on their matches since 2024: docs/RULES-MATCH.md 12.7.

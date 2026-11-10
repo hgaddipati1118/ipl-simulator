@@ -20,6 +20,7 @@ import { playerActivity, squadTier, type ActivityFormat, type PlayerActivityFile
 import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { WPL_PLAYERS } from "@ipl-sim/ratings/dist/wpl-players.js";
 import type { ExtendedPlayer } from "@ipl-sim/ratings/dist/extended-pool.js";
+import { applySeriesTuning, tuningFor } from "./series-tuning";
 import { markTestKeepers, pickTestSquad, testSeriesFormat } from "./test-match/test-series";
 
 // ── Formats ────────────────────────────────────────────────────────────
@@ -491,6 +492,13 @@ export function matchName(series: IntlSeries, n: number): string {
 export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], Player[]]): { home: Team; away: Team; venue: SeriesVenue } {
   const venue = venueFor(series, n);
   const homeIdx = series.host === "b" ? 1 : 0;
+  const copies = squads.map(sq => sq.map(p => {
+    const copy = Player.fromJSON(p.toJSON());
+    copy.injured = false; copy.injuryGamesLeft = 0; copy.fatigue = 0;
+    return copy;
+  })) as [Player[], Player[]];
+  // limited-overs series: the sides' gap and the home advantage fitted on real results (series-tuning.ts)
+  if (series.format === "t20i" || series.format === "odi") applySeriesTuning(copies, tuningFor(series.format, series.gender), venue.neutral ? -1 : homeIdx);
   const make = (i: 0 | 1) => {
     const side = series.sides[i];
     const isHome = i === homeIdx && !venue.neutral;
@@ -500,11 +508,7 @@ export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], 
       ...(isHome ? { stadiumName: venue.name, ...(venue.venueTeamId ? { venueTeamId: venue.venueTeamId } : {}) } : {}),
     };
     const team = new Team(config, 999);
-    for (const p of squads[i]) {
-      const copy = Player.fromJSON(p.toJSON());
-      copy.injured = false; copy.injuryGamesLeft = 0; copy.fatigue = 0;
-      team.addPlayer(copy, 0);
-    }
+    for (const copy of copies[i]) team.addPlayer(copy, 0);
     if (series.userSide === i && series.lineup) {
       const xi = series.lineup.xi.filter(id => team.roster.some(p => p.id === id));
       if (xi.length === 11) {

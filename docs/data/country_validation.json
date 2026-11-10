@@ -12,8 +12,9 @@
     "awayWinRate": 0.536,
     "neutralN": 11,
     "neutralWinRate": 0.727,
-    "firstN": 32,
-    "firstInnings": 181.8,
+    "firstN": 34,
+    "firstInnings": 176.5,
+    "firstSd": 35.1,
     "runsPerWicket": 26.48
    },
    "Bangladesh": {
@@ -25,8 +26,9 @@
     "awayWinRate": 0.364,
     "neutralN": 21,
     "neutralWinRate": 0.143,
-    "firstN": 40,
-    "firstInnings": 145.7,
+    "firstN": 44,
+    "firstInnings": 143.1,
+    "firstSd": 30.3,
     "runsPerWicket": 20.78
    },
    "England": {
@@ -40,6 +42,7 @@
     "neutralWinRate": 0.625,
     "firstN": 42,
     "firstInnings": 189.6,
+    "firstSd": 42.7,
     "runsPerWicket": 28.4
    },
    "India": {
@@ -51,8 +54,9 @@
     "awayWinRate": 0.63,
     "neutralN": 28,
     "neutralWinRate": 0.75,
-    "firstN": 89,
-    "firstInnings": 189.0,
+    "firstN": 90,
+    "firstInnings": 188.2,
+    "firstSd": 40.1,
     "runsPerWicket": 30.37
    },
    "Ireland": {
@@ -64,8 +68,9 @@
     "awayWinRate": 0.375,
     "neutralN": 13,
     "neutralWinRate": 0.154,
-    "firstN": 23,
-    "firstInnings": 161.2,
+    "firstN": 25,
+    "firstInnings": 156.4,
+    "firstSd": 31.8,
     "runsPerWicket": 20.22
    },
    "New Zealand": {
@@ -77,8 +82,9 @@
     "awayWinRate": 0.478,
     "neutralN": 14,
     "neutralWinRate": 0.571,
-    "firstN": 69,
-    "firstInnings": 178.2,
+    "firstN": 73,
+    "firstInnings": 173.7,
+    "firstSd": 37.4,
     "runsPerWicket": 25.95
    },
    "Pakistan": {
@@ -90,8 +96,9 @@
     "awayWinRate": 0.421,
     "neutralN": 28,
     "neutralWinRate": 0.464,
-    "firstN": 62,
-    "firstInnings": 166.1,
+    "firstN": 65,
+    "firstInnings": 163.7,
+    "firstSd": 28.7,
     "runsPerWicket": 24.56
    },
    "South Africa": {
@@ -103,8 +110,9 @@
     "awayWinRate": 0.5,
     "neutralN": 25,
     "neutralWinRate": 0.72,
-    "firstN": 53,
-    "firstInnings": 172.3,
+    "firstN": 54,
+    "firstInnings": 171.6,
+    "firstSd": 29.3,
     "runsPerWicket": 26.16
    },
    "Sri Lanka": {
@@ -116,8 +124,9 @@
     "awayWinRate": 0.292,
     "neutralN": 22,
     "neutralWinRate": 0.5,
-    "firstN": 55,
-    "firstInnings": 154.2,
+    "firstN": 59,
+    "firstInnings": 151.7,
+    "firstSd": 29.0,
     "runsPerWicket": 20.63
    },
    "West Indies": {
@@ -129,8 +138,9 @@
     "awayWinRate": 0.341,
     "neutralN": 18,
     "neutralWinRate": 0.333,
-    "firstN": 56,
-    "firstInnings": 181.3,
+    "firstN": 59,
+    "firstInnings": 176.6,
+    "firstSd": 39.0,
     "runsPerWicket": 24.94
    },
    "Zimbabwe": {
@@ -142,8 +152,9 @@
     "awayWinRate": 0.208,
     "neutralN": 14,
     "neutralWinRate": 0.357,
-    "firstN": 38,
-    "firstInnings": 147.7,
+    "firstN": 41,
+    "firstInnings": 143.8,
+    "firstSd": 27.4,
     "runsPerWicket": 19.17
    }
   },
@@ -413,804 +424,938 @@
     "Australia",
     "Bangladesh",
     "Bangladesh",
+    8,
+    4
+   ],
+   [
+    "Australia",
+    "Bangladesh",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "England",
+    "Australia",
+    2,
+    0
+   ],
+   [
+    "Australia",
+    "England",
+    "England",
+    5,
+    2
+   ],
+   [
+    "Australia",
+    "England",
+    null,
+    2,
+    1
+   ],
+   [
+    "Australia",
+    "India",
+    "Australia",
+    6,
+    2
+   ],
+   [
+    "Australia",
+    "India",
+    "India",
+    10,
+    4
+   ],
+   [
+    "Australia",
+    "India",
+    null,
+    1,
+    0
+   ],
+   [
+    "Australia",
+    "Ireland",
+    "Australia",
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Ireland",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "Australia",
+    1,
+    0
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "New Zealand",
+    9,
+    6
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Australia",
+    5,
+    5
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Pakistan",
+    4,
+    1
+   ],
+   [
+    "Australia",
+    "South Africa",
+    "Australia",
+    3,
+    2
+   ],
+   [
+    "Australia",
+    "South Africa",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "South Africa",
+    "South Africa",
+    6,
+    5
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    "Australia",
+    7,
+    6
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    "Sri Lanka",
+    4,
+    2
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "Australia",
+    5,
+    4
+   ],
+   [
+    "Australia",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "West Indies",
+    10,
+    6
+   ],
+   [
+    "Australia",
+    "Zimbabwe",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "England",
+    "Bangladesh",
+    3,
+    3
+   ],
+   [
+    "Bangladesh",
+    "England",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "India",
+    "India",
+    6,
+    1
+   ],
+   [
+    "Bangladesh",
+    "India",
+    null,
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    "Bangladesh",
+    5,
+    3
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "Bangladesh",
+    6,
+    4
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "New Zealand",
+    5,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Bangladesh",
+    6,
+    2
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    null,
+    5,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Pakistan",
+    5,
+    0
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    null,
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Bangladesh",
+    3,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    null,
+    6,
+    2
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    2
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    "Bangladesh",
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    "West Indies",
+    5,
+    3
+   ],
+   [
+    "Bangladesh",
+    "Zimbabwe",
+    "Bangladesh",
+    9,
     8
    ],
    [
-    "Australia",
-    "Bangladesh",
-    null,
-    1
-   ],
-   [
-    "Australia",
-    "England",
-    "Australia",
-    2
-   ],
-   [
-    "Australia",
-    "England",
-    "England",
-    5
-   ],
-   [
-    "Australia",
-    "England",
-    null,
-    2
-   ],
-   [
-    "Australia",
-    "India",
-    "Australia",
-    6
-   ],
-   [
-    "Australia",
-    "India",
-    "India",
-    10
-   ],
-   [
-    "Australia",
-    "India",
-    null,
-    1
-   ],
-   [
-    "Australia",
-    "Ireland",
-    "Australia",
-    1
-   ],
-   [
-    "Australia",
-    "Ireland",
-    null,
-    1
-   ],
-   [
-    "Australia",
-    "New Zealand",
-    "Australia",
-    1
-   ],
-   [
-    "Australia",
-    "New Zealand",
-    "New Zealand",
-    9
-   ],
-   [
-    "Australia",
-    "New Zealand",
-    null,
-    1
-   ],
-   [
-    "Australia",
-    "Pakistan",
-    "Australia",
-    5
-   ],
-   [
-    "Australia",
-    "Pakistan",
-    null,
-    1
-   ],
-   [
-    "Australia",
-    "Pakistan",
-    "Pakistan",
-    4
-   ],
-   [
-    "Australia",
-    "South Africa",
-    "Australia",
-    3
-   ],
-   [
-    "Australia",
-    "South Africa",
-    null,
-    1
-   ],
-   [
-    "Australia",
-    "South Africa",
-    "South Africa",
-    6
-   ],
-   [
-    "Australia",
-    "Sri Lanka",
-    "Australia",
-    7
-   ],
-   [
-    "Australia",
-    "Sri Lanka",
-    null,
-    1
-   ],
-   [
-    "Australia",
-    "Sri Lanka",
-    "Sri Lanka",
-    4
-   ],
-   [
-    "Australia",
-    "West Indies",
-    "Australia",
-    5
-   ],
-   [
-    "Australia",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "Australia",
-    "West Indies",
-    "West Indies",
-    10
-   ],
-   [
-    "Australia",
-    "Zimbabwe",
-    null,
-    1
-   ],
-   [
-    "Bangladesh",
-    "England",
-    "Bangladesh",
-    3
-   ],
-   [
-    "Bangladesh",
-    "England",
-    null,
-    1
-   ],
-   [
-    "Bangladesh",
-    "India",
-    "India",
-    6
-   ],
-   [
-    "Bangladesh",
-    "India",
-    null,
-    3
-   ],
-   [
-    "Bangladesh",
-    "Ireland",
-    "Bangladesh",
-    5
-   ],
-   [
-    "Bangladesh",
-    "New Zealand",
-    "Bangladesh",
-    6
-   ],
-   [
-    "Bangladesh",
-    "New Zealand",
-    "New Zealand",
-    5
-   ],
-   [
-    "Bangladesh",
-    "Pakistan",
-    "Bangladesh",
-    6
-   ],
-   [
-    "Bangladesh",
-    "Pakistan",
-    null,
-    5
-   ],
-   [
-    "Bangladesh",
-    "Pakistan",
-    "Pakistan",
-    5
-   ],
-   [
-    "Bangladesh",
-    "South Africa",
-    null,
-    3
-   ],
-   [
-    "Bangladesh",
-    "Sri Lanka",
-    "Bangladesh",
-    3
-   ],
-   [
-    "Bangladesh",
-    "Sri Lanka",
-    null,
-    6
-   ],
-   [
-    "Bangladesh",
-    "Sri Lanka",
-    "Sri Lanka",
-    3
-   ],
-   [
-    "Bangladesh",
-    "West Indies",
-    "Bangladesh",
-    3
-   ],
-   [
-    "Bangladesh",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "Bangladesh",
-    "West Indies",
-    "West Indies",
-    5
-   ],
-   [
-    "Bangladesh",
-    "Zimbabwe",
-    "Bangladesh",
-    9
-   ],
-   [
     "Bangladesh",
     "Zimbabwe",
     null,
+    1,
     1
    ],
    [
     "Bangladesh",
     "Zimbabwe",
     "Zimbabwe",
-    9
-   ],
-   [
-    "England",
-    "India",
-    "England",
-    7
-   ],
-   [
-    "England",
-    "India",
-    "India",
-    11
-   ],
-   [
-    "England",
-    "India",
-    null,
-    2
-   ],
-   [
-    "England",
-    "Ireland",
-    "Ireland",
-    2
-   ],
-   [
-    "England",
-    "New Zealand",
-    "England",
-    4
-   ],
-   [
-    "England",
-    "New Zealand",
-    "New Zealand",
+    9,
     5
    ],
    [
     "England",
-    "New Zealand",
-    null,
+    "India",
+    "England",
+    7,
+    5
+   ],
+   [
+    "England",
+    "India",
+    "India",
+    11,
     3
    ],
    [
     "England",
-    "Pakistan",
-    "England",
-    8
+    "India",
+    null,
+    2,
+    1
    ],
    [
     "England",
-    "Pakistan",
+    "Ireland",
+    "Ireland",
+    2,
+    2
+   ],
+   [
+    "England",
+    "New Zealand",
+    "England",
+    4,
+    2
+   ],
+   [
+    "England",
+    "New Zealand",
+    "New Zealand",
+    5,
+    3
+   ],
+   [
+    "England",
+    "New Zealand",
     null,
+    3,
     2
    ],
    [
     "England",
     "Pakistan",
-    "Pakistan",
-    7
-   ],
-   [
     "England",
-    "South Africa",
-    "England",
-    4
-   ],
-   [
-    "England",
-    "South Africa",
-    null,
-    2
-   ],
-   [
-    "England",
-    "South Africa",
-    "South Africa",
+    8,
     6
    ],
    [
     "England",
+    "Pakistan",
+    null,
+    2,
+    2
+   ],
+   [
+    "England",
+    "Pakistan",
+    "Pakistan",
+    7,
+    4
+   ],
+   [
+    "England",
+    "South Africa",
+    "England",
+    4,
+    2
+   ],
+   [
+    "England",
+    "South Africa",
+    null,
+    2,
+    0
+   ],
+   [
+    "England",
+    "South Africa",
+    "South Africa",
+    6,
+    5
+   ],
+   [
+    "England",
     "Sri Lanka",
     "England",
+    5,
     5
    ],
    [
     "England",
     "Sri Lanka",
     null,
+    2,
     2
    ],
    [
     "England",
     "Sri Lanka",
     "Sri Lanka",
+    2,
     2
    ],
    [
     "England",
     "West Indies",
     "England",
+    3,
     3
    ],
    [
     "England",
     "West Indies",
     null,
-    2
+    2,
+    1
    ],
    [
     "England",
     "West Indies",
     "West Indies",
-    18
-   ],
-   [
-    "India",
-    "Ireland",
-    "Ireland",
-    5
-   ],
-   [
-    "India",
-    "Ireland",
-    null,
-    1
-   ],
-   [
-    "India",
-    "New Zealand",
-    "India",
-    12
-   ],
-   [
-    "India",
-    "New Zealand",
-    "New Zealand",
-    12
-   ],
-   [
-    "India",
-    "New Zealand",
-    null,
-    1
-   ],
-   [
-    "India",
-    "Pakistan",
-    null,
-    10
-   ],
-   [
-    "India",
-    "South Africa",
-    "India",
-    14
-   ],
-   [
-    "India",
-    "South Africa",
-    null,
-    2
-   ],
-   [
-    "India",
-    "South Africa",
-    "South Africa",
-    5
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    "India",
-    8
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    null,
-    2
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    "Sri Lanka",
-    4
-   ],
-   [
-    "India",
-    "West Indies",
-    "India",
+    18,
     11
    ],
    [
     "India",
-    "West Indies",
+    "Ireland",
+    "Ireland",
+    5,
+    3
+   ],
+   [
+    "India",
+    "Ireland",
     null,
-    5
-   ],
-   [
-    "India",
-    "West Indies",
-    "West Indies",
-    7
-   ],
-   [
-    "India",
-    "Zimbabwe",
-    "India",
+    1,
     1
    ],
    [
     "India",
-    "Zimbabwe",
-    null,
-    1
-   ],
-   [
+    "New Zealand",
     "India",
-    "Zimbabwe",
-    "Zimbabwe",
-    8
-   ],
-   [
-    "Ireland",
-    "New Zealand",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "New Zealand",
-    null,
-    1
-   ],
-   [
-    "Ireland",
-    "Pakistan",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "Pakistan",
-    null,
-    1
-   ],
-   [
-    "Ireland",
-    "South Africa",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "South Africa",
-    null,
-    4
-   ],
-   [
-    "Ireland",
-    "Sri Lanka",
-    null,
-    2
-   ],
-   [
-    "Ireland",
-    "Sri Lanka",
-    "Sri Lanka",
-    1
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    "Ireland",
-    1
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    "West Indies",
-    2
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    "Ireland",
-    5
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    null,
-    2
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    "Zimbabwe",
-    7
-   ],
-   [
-    "New Zealand",
-    "Pakistan",
-    "New Zealand",
-    16
-   ],
-   [
-    "New Zealand",
-    "Pakistan",
-    null,
-    2
-   ],
-   [
-    "New Zealand",
-    "Pakistan",
-    "Pakistan",
-    8
-   ],
-   [
-    "New Zealand",
-    "South Africa",
-    "New Zealand",
-    5
-   ],
-   [
-    "New Zealand",
-    "South Africa",
-    null,
-    5
-   ],
-   [
-    "New Zealand",
-    "Sri Lanka",
-    "New Zealand",
-    6
-   ],
-   [
-    "New Zealand",
-    "Sri Lanka",
-    null,
-    1
-   ],
-   [
-    "New Zealand",
-    "Sri Lanka",
-    "Sri Lanka",
-    6
-   ],
-   [
-    "New Zealand",
-    "West Indies",
-    "New Zealand",
-    5
-   ],
-   [
-    "New Zealand",
-    "West Indies",
-    "West Indies",
-    4
-   ],
-   [
-    "New Zealand",
-    "Zimbabwe",
-    "Zimbabwe",
-    2
-   ],
-   [
-    "Pakistan",
-    "South Africa",
-    "Pakistan",
-    6
-   ],
-   [
-    "Pakistan",
-    "South Africa",
-    "South Africa",
-    9
-   ],
-   [
-    "Pakistan",
-    "Sri Lanka",
-    null,
-    3
-   ],
-   [
-    "Pakistan",
-    "Sri Lanka",
-    "Pakistan",
-    9
-   ],
-   [
-    "Pakistan",
-    "Sri Lanka",
-    "Sri Lanka",
-    3
-   ],
-   [
-    "Pakistan",
-    "West Indies",
-    null,
-    3
-   ],
-   [
-    "Pakistan",
-    "West Indies",
-    "Pakistan",
-    3
-   ],
-   [
-    "Pakistan",
-    "West Indies",
-    "West Indies",
-    1
-   ],
-   [
-    "Pakistan",
-    "Zimbabwe",
-    null,
-    1
-   ],
-   [
-    "Pakistan",
-    "Zimbabwe",
-    "Pakistan",
-    5
-   ],
-   [
-    "Pakistan",
-    "Zimbabwe",
-    "Zimbabwe",
-    6
-   ],
-   [
-    "South Africa",
-    "Sri Lanka",
-    null,
-    2
-   ],
-   [
-    "South Africa",
-    "Sri Lanka",
-    "South Africa",
-    1
-   ],
-   [
-    "South Africa",
-    "Sri Lanka",
-    "Sri Lanka",
-    3
-   ],
-   [
-    "South Africa",
-    "West Indies",
-    null,
-    2
-   ],
-   [
-    "South Africa",
-    "West Indies",
-    "South Africa",
-    5
-   ],
-   [
-    "South Africa",
-    "West Indies",
-    "West Indies",
+    12,
     10
    ],
    [
+    "India",
+    "New Zealand",
+    "New Zealand",
+    12,
+    8
+   ],
+   [
+    "India",
+    "New Zealand",
+    null,
+    1,
+    0
+   ],
+   [
+    "India",
+    "Pakistan",
+    null,
+    10,
+    8
+   ],
+   [
+    "India",
+    "South Africa",
+    "India",
+    14,
+    8
+   ],
+   [
+    "India",
+    "South Africa",
+    null,
+    2,
+    1
+   ],
+   [
+    "India",
+    "South Africa",
+    "South Africa",
+    5,
+    4
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "India",
+    8,
+    7
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    null,
+    2,
+    1
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "Sri Lanka",
+    4,
+    2
+   ],
+   [
+    "India",
+    "West Indies",
+    "India",
+    11,
+    8
+   ],
+   [
+    "India",
+    "West Indies",
+    null,
+    5,
+    4
+   ],
+   [
+    "India",
+    "West Indies",
+    "West Indies",
+    7,
+    4
+   ],
+   [
+    "India",
+    "Zimbabwe",
+    "India",
+    1,
+    1
+   ],
+   [
+    "India",
+    "Zimbabwe",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "Zimbabwe",
+    "Zimbabwe",
+    8,
+    7
+   ],
+   [
+    "Ireland",
+    "New Zealand",
+    "Ireland",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "New Zealand",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    "Ireland",
+    3,
+    1
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    "Ireland",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    null,
+    4,
+    1
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    null,
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    "Sri Lanka",
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "Ireland",
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "West Indies",
+    2,
+    1
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Ireland",
+    5,
+    3
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    null,
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Zimbabwe",
+    7,
+    3
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "New Zealand",
+    16,
+    11
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    null,
+    2,
+    0
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "Pakistan",
+    8,
+    4
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "New Zealand",
+    5,
+    2
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    null,
+    5,
+    4
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "New Zealand",
+    6,
+    5
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "Sri Lanka",
+    6,
+    4
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "New Zealand",
+    5,
+    4
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "West Indies",
+    4,
+    2
+   ],
+   [
+    "New Zealand",
+    "Zimbabwe",
+    "Zimbabwe",
+    2,
+    2
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "Pakistan",
+    6,
+    4
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "South Africa",
+    9,
+    4
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    null,
+    3,
+    1
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Pakistan",
+    9,
+    4
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    2
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    null,
+    3,
+    2
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "Pakistan",
+    3,
+    3
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "West Indies",
+    1,
+    1
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    null,
+    1,
+    0
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    "Pakistan",
+    5,
+    5
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    "Zimbabwe",
+    6,
+    4
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    null,
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "South Africa",
+    1,
+    1
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    3
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    null,
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "South Africa",
+    5,
+    3
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "West Indies",
+    10,
+    3
+   ],
+   [
     "South Africa",
     "Zimbabwe",
     null,
+    4,
     4
    ],
    [
     "South Africa",
     "Zimbabwe",
     "Zimbabwe",
+    2,
     2
    ],
    [
     "Sri Lanka",
     "West Indies",
     null,
+    1,
     1
    ],
    [
     "Sri Lanka",
     "West Indies",
     "Sri Lanka",
-    5
+    5,
+    2
    ],
    [
     "Sri Lanka",
     "West Indies",
     "West Indies",
-    6
-   ],
-   [
-    "Sri Lanka",
-    "Zimbabwe",
-    null,
+    6,
     2
    ],
    [
     "Sri Lanka",
     "Zimbabwe",
+    null,
+    2,
+    1
+   ],
+   [
     "Sri Lanka",
-    4
+    "Zimbabwe",
+    "Sri Lanka",
+    4,
+    2
    ],
    [
     "Sri Lanka",
     "Zimbabwe",
     "Zimbabwe",
-    3
+    3,
+    2
    ],
    [
     "West Indies",
     "Zimbabwe",
     null,
+    2,
     2
    ]
   ]
@@ -1230,6 +1375,7 @@
     "neutralWinRate": 0.944,
     "firstN": 42,
     "firstInnings": 169.2,
+    "firstSd": 26.1,
     "runsPerWicket": 31.88
    },
    "Bangladesh": {
@@ -1241,8 +1387,9 @@
     "awayWinRate": 0.133,
     "neutralN": 25,
     "neutralWinRate": 0.24,
-    "firstN": 26,
-    "firstInnings": 114.7,
+    "firstN": 28,
+    "firstInnings": 111.9,
+    "firstSd": 23.8,
     "runsPerWicket": 15.04
    },
    "England": {
@@ -1254,8 +1401,9 @@
     "awayWinRate": 0.75,
     "neutralN": 15,
     "neutralWinRate": 0.8,
-    "firstN": 56,
-    "firstInnings": 158.4,
+    "firstN": 57,
+    "firstInnings": 157.5,
+    "firstSd": 26.5,
     "runsPerWicket": 25.48
    },
    "India": {
@@ -1267,8 +1415,9 @@
     "awayWinRate": 0.5,
     "neutralN": 34,
     "neutralWinRate": 0.706,
-    "firstN": 59,
-    "firstInnings": 156.3,
+    "firstN": 62,
+    "firstInnings": 153.1,
+    "firstSd": 34.1,
     "runsPerWicket": 25.59
    },
    "Ireland": {
@@ -1280,8 +1429,9 @@
     "awayWinRate": 0.588,
     "neutralN": 12,
     "neutralWinRate": 0.25,
-    "firstN": 25,
-    "firstInnings": 143.3,
+    "firstN": 29,
+    "firstInnings": 138.4,
+    "firstSd": 29.6,
     "runsPerWicket": 21.49
    },
    "New Zealand": {
@@ -1293,8 +1443,9 @@
     "awayWinRate": 0.312,
     "neutralN": 18,
     "neutralWinRate": 0.667,
-    "firstN": 44,
-    "firstInnings": 147.6,
+    "firstN": 46,
+    "firstInnings": 145.3,
+    "firstSd": 29.3,
     "runsPerWicket": 22.64
    },
    "Pakistan": {
@@ -1306,8 +1457,9 @@
     "awayWinRate": 0.29,
     "neutralN": 31,
     "neutralWinRate": 0.194,
-    "firstN": 41,
-    "firstInnings": 139.9,
+    "firstN": 44,
+    "firstInnings": 136.1,
+    "firstSd": 38.4,
     "runsPerWicket": 19.16
    },
    "South Africa": {
@@ -1319,8 +1471,9 @@
     "awayWinRate": 0.4,
     "neutralN": 13,
     "neutralWinRate": 0.692,
-    "firstN": 45,
-    "firstInnings": 150.6,
+    "firstN": 46,
+    "firstInnings": 149.2,
+    "firstSd": 31.9,
     "runsPerWicket": 26.63
    },
    "Sri Lanka": {
@@ -1332,8 +1485,9 @@
     "awayWinRate": 0.387,
     "neutralN": 27,
     "neutralWinRate": 0.37,
-    "firstN": 32,
-    "firstInnings": 116.4,
+    "firstN": 35,
+    "firstInnings": 113.4,
+    "firstSd": 24.0,
     "runsPerWicket": 19.48
    },
    "West Indies": {
@@ -1345,8 +1499,9 @@
     "awayWinRate": 0.441,
     "neutralN": 17,
     "neutralWinRate": 0.412,
-    "firstN": 35,
-    "firstInnings": 121.9,
+    "firstN": 37,
+    "firstInnings": 117.6,
+    "firstSd": 36.2,
     "runsPerWicket": 20.23
    },
    "Zimbabwe": {
@@ -1358,8 +1513,9 @@
     "awayWinRate": 0.0,
     "neutralN": 2,
     "neutralWinRate": 0.0,
-    "firstN": 8,
-    "firstInnings": 107.2,
+    "firstN": 9,
+    "firstInnings": 102.6,
+    "firstSd": 25.0,
     "runsPerWicket": 14.73
    }
   },
@@ -1538,690 +1694,805 @@
     "Australia",
     "Bangladesh",
     "Australia",
+    1,
     1
    ],
    [
     "Australia",
     "Bangladesh",
     "Bangladesh",
+    3,
     3
    ],
    [
     "Australia",
     "Bangladesh",
     null,
+    2,
     2
    ],
    [
     "Australia",
     "England",
     "Australia",
+    4,
     4
    ],
    [
     "Australia",
     "England",
     "England",
+    6,
+    4
+   ],
+   [
+    "Australia",
+    "India",
+    "Australia",
+    9,
     6
    ],
    [
     "Australia",
     "India",
-    "Australia",
-    9
-   ],
-   [
-    "Australia",
     "India",
-    "India",
-    7
+    7,
+    6
    ],
    [
     "Australia",
     "India",
     null,
+    5,
     5
    ],
    [
     "Australia",
     "Ireland",
     "Ireland",
+    2,
     2
    ],
    [
     "Australia",
     "New Zealand",
     "Australia",
-    9
-   ],
-   [
-    "Australia",
-    "New Zealand",
-    "New Zealand",
-    5
-   ],
-   [
-    "Australia",
-    "New Zealand",
-    null,
-    3
-   ],
-   [
-    "Australia",
-    "Pakistan",
-    "Australia",
-    2
-   ],
-   [
-    "Australia",
-    "Pakistan",
-    null,
-    3
-   ],
-   [
-    "Australia",
-    "South Africa",
-    "Australia",
-    3
-   ],
-   [
-    "Australia",
-    "South Africa",
-    null,
-    2
-   ],
-   [
-    "Australia",
-    "South Africa",
-    "South Africa",
-    2
-   ],
-   [
-    "Australia",
-    "Sri Lanka",
-    "Australia",
-    4
-   ],
-   [
-    "Australia",
-    "Sri Lanka",
-    null,
-    2
-   ],
-   [
-    "Australia",
-    "West Indies",
-    "Australia",
-    3
-   ],
-   [
-    "Australia",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "Australia",
-    "West Indies",
-    "West Indies",
-    5
-   ],
-   [
-    "Bangladesh",
-    "England",
-    null,
-    1
-   ],
-   [
-    "Bangladesh",
-    "India",
-    "Bangladesh",
-    7
-   ],
-   [
-    "Bangladesh",
-    "India",
-    null,
-    6
-   ],
-   [
-    "Bangladesh",
-    "Ireland",
-    "Bangladesh",
-    3
-   ],
-   [
-    "Bangladesh",
-    "Ireland",
-    null,
-    4
-   ],
-   [
-    "Bangladesh",
-    "New Zealand",
-    "New Zealand",
-    3
-   ],
-   [
-    "Bangladesh",
-    "New Zealand",
-    null,
-    2
-   ],
-   [
-    "Bangladesh",
-    "Pakistan",
-    "Bangladesh",
-    4
-   ],
-   [
-    "Bangladesh",
-    "Pakistan",
-    null,
-    3
-   ],
-   [
-    "Bangladesh",
-    "Pakistan",
-    "Pakistan",
-    1
-   ],
-   [
-    "Bangladesh",
-    "South Africa",
-    null,
-    2
-   ],
-   [
-    "Bangladesh",
-    "South Africa",
-    "South Africa",
-    3
-   ],
-   [
-    "Bangladesh",
-    "Sri Lanka",
-    "Bangladesh",
-    3
-   ],
-   [
-    "Bangladesh",
-    "Sri Lanka",
-    null,
-    4
-   ],
-   [
-    "Bangladesh",
-    "Sri Lanka",
-    "Sri Lanka",
-    4
-   ],
-   [
-    "Bangladesh",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "Bangladesh",
-    "West Indies",
-    "West Indies",
-    3
-   ],
-   [
-    "England",
-    "India",
-    "England",
-    14
-   ],
-   [
-    "England",
-    "India",
-    "India",
-    6
-   ],
-   [
-    "England",
-    "India",
-    null,
-    3
-   ],
-   [
-    "England",
-    "Ireland",
-    "England",
-    1
-   ],
-   [
-    "England",
-    "Ireland",
-    "Ireland",
-    2
-   ],
-   [
-    "England",
-    "Ireland",
-    null,
-    1
-   ],
-   [
-    "England",
-    "New Zealand",
-    "England",
-    13
-   ],
-   [
-    "England",
-    "New Zealand",
-    "New Zealand",
+    9,
     8
    ],
    [
+    "Australia",
+    "New Zealand",
+    "New Zealand",
+    5,
+    4
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    null,
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Australia",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    null,
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "South Africa",
+    "Australia",
+    3,
+    2
+   ],
+   [
+    "Australia",
+    "South Africa",
+    null,
+    2,
+    1
+   ],
+   [
+    "Australia",
+    "South Africa",
+    "South Africa",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    "Australia",
+    4,
+    4
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    null,
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "Australia",
+    3,
+    2
+   ],
+   [
+    "Australia",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "West Indies",
+    5,
+    5
+   ],
+   [
+    "Bangladesh",
+    "England",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "India",
+    "Bangladesh",
+    7,
+    1
+   ],
+   [
+    "Bangladesh",
+    "India",
+    null,
+    6,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    "Bangladesh",
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    null,
+    4,
+    4
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "New Zealand",
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    null,
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Bangladesh",
+    4,
+    2
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    null,
+    3,
+    2
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Pakistan",
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    null,
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    "South Africa",
+    3,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Bangladesh",
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    null,
+    4,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Sri Lanka",
+    4,
+    1
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    "West Indies",
+    3,
+    0
+   ],
+   [
+    "England",
+    "India",
+    "England",
+    14,
+    7
+   ],
+   [
+    "England",
+    "India",
+    "India",
+    6,
+    5
+   ],
+   [
+    "England",
+    "India",
+    null,
+    3,
+    2
+   ],
+   [
+    "England",
+    "Ireland",
+    "England",
+    1,
+    1
+   ],
+   [
+    "England",
+    "Ireland",
+    "Ireland",
+    2,
+    1
+   ],
+   [
+    "England",
+    "Ireland",
+    null,
+    1,
+    1
+   ],
+   [
+    "England",
+    "New Zealand",
+    "England",
+    13,
+    10
+   ],
+   [
+    "England",
+    "New Zealand",
+    "New Zealand",
+    8,
+    7
+   ],
+   [
     "England",
     "Pakistan",
     "England",
+    3,
     3
    ],
    [
     "England",
     "Pakistan",
     null,
+    5,
     5
    ],
    [
     "England",
     "South Africa",
     "England",
+    5,
     5
    ],
    [
     "England",
     "South Africa",
     null,
+    2,
+    1
+   ],
+   [
+    "England",
+    "South Africa",
+    "South Africa",
+    4,
+    3
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "England",
+    4,
     2
    ],
    [
     "England",
-    "South Africa",
-    "South Africa",
-    4
-   ],
-   [
-    "England",
-    "Sri Lanka",
-    "England",
-    4
-   ],
-   [
-    "England",
     "Sri Lanka",
     "Sri Lanka",
+    3,
     3
    ],
    [
     "England",
     "West Indies",
     "England",
+    10,
     10
    ],
    [
     "England",
     "West Indies",
     null,
-    3
+    3,
+    2
    ],
    [
     "England",
     "West Indies",
     "West Indies",
+    5,
     5
    ],
    [
     "India",
     "New Zealand",
     "New Zealand",
-    4
+    4,
+    0
    ],
    [
     "India",
     "New Zealand",
     null,
-    2
-   ],
-   [
-    "India",
-    "Pakistan",
-    null,
-    7
-   ],
-   [
-    "India",
-    "South Africa",
-    "India",
-    9
-   ],
-   [
-    "India",
-    "South Africa",
-    null,
+    2,
     1
    ],
    [
     "India",
-    "South Africa",
-    "South Africa",
-    7
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    "India",
-    5
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    null,
-    7
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    "Sri Lanka",
-    4
-   ],
-   [
-    "India",
-    "West Indies",
-    "India",
-    3
-   ],
-   [
-    "India",
-    "West Indies",
-    null,
-    3
-   ],
-   [
-    "India",
-    "West Indies",
-    "West Indies",
-    5
-   ],
-   [
-    "India",
-    "Zimbabwe",
-    "India",
-    3
-   ],
-   [
-    "Ireland",
-    "New Zealand",
-    null,
-    1
-   ],
-   [
-    "Ireland",
-    "Pakistan",
-    "Ireland",
-    4
-   ],
-   [
-    "Ireland",
     "Pakistan",
     null,
-    1
-   ],
-   [
-    "Ireland",
-    "Pakistan",
-    "Pakistan",
-    3
-   ],
-   [
-    "Ireland",
-    "South Africa",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "South Africa",
-    "South Africa",
-    2
-   ],
-   [
-    "Ireland",
-    "Sri Lanka",
-    "Ireland",
-    2
-   ],
-   [
-    "Ireland",
-    "Sri Lanka",
-    null,
-    1
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    "Ireland",
-    4
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    null,
-    2
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    "West Indies",
-    3
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    null,
-    2
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    "Zimbabwe",
-    5
-   ],
-   [
-    "New Zealand",
-    "Pakistan",
-    "New Zealand",
-    2
-   ],
-   [
-    "New Zealand",
-    "Pakistan",
-    null,
-    1
-   ],
-   [
-    "New Zealand",
-    "South Africa",
-    "New Zealand",
-    9
-   ],
-   [
-    "New Zealand",
-    "South Africa",
-    null,
-    2
-   ],
-   [
-    "New Zealand",
-    "South Africa",
-    "South Africa",
-    3
-   ],
-   [
-    "New Zealand",
-    "Sri Lanka",
-    "New Zealand",
-    2
-   ],
-   [
-    "New Zealand",
-    "Sri Lanka",
-    null,
-    5
-   ],
-   [
-    "New Zealand",
-    "Sri Lanka",
-    "Sri Lanka",
-    3
-   ],
-   [
-    "New Zealand",
-    "West Indies",
-    null,
-    2
-   ],
-   [
-    "New Zealand",
-    "West Indies",
-    "West Indies",
-    4
-   ],
-   [
-    "New Zealand",
-    "Zimbabwe",
-    "New Zealand",
-    3
-   ],
-   [
-    "Pakistan",
-    "South Africa",
-    null,
-    2
-   ],
-   [
-    "Pakistan",
-    "South Africa",
-    "Pakistan",
+    7,
     6
    ],
    [
-    "Pakistan",
+    "India",
     "South Africa",
-    "South Africa",
-    10
+    "India",
+    9,
+    5
    ],
    [
-    "Pakistan",
+    "India",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "India",
+    "South Africa",
+    "South Africa",
+    7,
+    2
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "India",
+    5,
+    5
+   ],
+   [
+    "India",
     "Sri Lanka",
     null,
-    6
+    7,
+    7
    ],
    [
-    "Pakistan",
+    "India",
     "Sri Lanka",
+    "Sri Lanka",
+    4,
+    2
+   ],
+   [
+    "India",
+    "West Indies",
+    "India",
+    3,
+    2
+   ],
+   [
+    "India",
+    "West Indies",
+    null,
+    3,
+    3
+   ],
+   [
+    "India",
+    "West Indies",
+    "West Indies",
+    5,
+    5
+   ],
+   [
+    "India",
+    "Zimbabwe",
+    "India",
+    3,
+    3
+   ],
+   [
+    "Ireland",
+    "New Zealand",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
     "Pakistan",
+    "Ireland",
+    4,
+    3
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    "Pakistan",
+    3,
+    2
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    "Ireland",
+    3,
+    1
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    "South Africa",
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    "Ireland",
+    2,
+    1
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "Ireland",
+    4,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    null,
+    2,
+    1
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "West Indies",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Ireland",
+    3,
+    3
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    null,
+    2,
+    2
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Zimbabwe",
+    5,
+    5
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "New Zealand",
+    2,
+    0
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "New Zealand",
+    9,
+    7
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    null,
+    2,
+    2
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "South Africa",
+    3,
+    1
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "New Zealand",
+    2,
+    1
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    null,
+    5,
+    4
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    2
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    null,
+    2,
+    1
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "West Indies",
+    4,
+    3
+   ],
+   [
+    "New Zealand",
+    "Zimbabwe",
+    "New Zealand",
+    3,
     3
    ],
    [
     "Pakistan",
-    "Sri Lanka",
-    "Sri Lanka",
+    "South Africa",
+    null,
+    2,
+    0
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "Pakistan",
+    6,
     4
    ],
    [
     "Pakistan",
-    "West Indies",
-    null,
+    "South Africa",
+    "South Africa",
+    10,
     3
    ],
    [
     "Pakistan",
+    "Sri Lanka",
+    null,
+    6,
+    2
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Pakistan",
+    3,
+    3
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Sri Lanka",
+    4,
+    1
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    null,
+    3,
+    1
+   ],
+   [
+    "Pakistan",
     "West Indies",
     "Pakistan",
-    7
+    7,
+    2
    ],
    [
     "Pakistan",
     "West Indies",
     "West Indies",
-    2
+    2,
+    0
    ],
    [
     "Pakistan",
     "Zimbabwe",
     "Pakistan",
+    3,
     3
    ],
    [
     "South Africa",
     "Sri Lanka",
     null,
+    1,
     1
    ],
    [
     "South Africa",
     "Sri Lanka",
     "South Africa",
-    6
+    6,
+    3
    ],
    [
     "South Africa",
     "West Indies",
     null,
+    1,
     1
    ],
    [
     "South Africa",
     "West Indies",
     "South Africa",
+    2,
     2
    ],
    [
     "South Africa",
     "West Indies",
     "West Indies",
-    5
+    5,
+    2
    ],
    [
     "South Africa",
     "Zimbabwe",
     "Zimbabwe",
+    5,
     5
    ],
    [
     "Sri Lanka",
     "West Indies",
     null,
+    1,
+    0
+   ],
+   [
+    "Sri Lanka",
+    "West Indies",
+    "Sri Lanka",
+    2,
     1
    ],
    [
     "Sri Lanka",
     "West Indies",
-    "Sri Lanka",
-    2
-   ],
-   [
-    "Sri Lanka",
     "West Indies",
-    "West Indies",
+    2,
     2
    ],
    [
     "West Indies",
     "Zimbabwe",
     "Zimbabwe",
+    3,
     3
    ]
   ]
@@ -2239,8 +2510,9 @@
     "awayWinRate": 0.46,
     "neutralN": 21,
     "neutralWinRate": 0.81,
-    "firstN": 45,
-    "firstInnings": 292.8,
+    "firstN": 53,
+    "firstInnings": 276.3,
+    "firstSd": 67.3,
     "runsPerWicket": 33.67
    },
    "Bangladesh": {
@@ -2252,8 +2524,9 @@
     "awayWinRate": 0.342,
     "neutralN": 20,
     "neutralWinRate": 0.4,
-    "firstN": 39,
-    "firstInnings": 267.9,
+    "firstN": 43,
+    "firstInnings": 258.3,
+    "firstSd": 47.4,
     "runsPerWicket": 31.0
    },
    "England": {
@@ -2265,8 +2538,9 @@
     "awayWinRate": 0.353,
     "neutralN": 10,
     "neutralWinRate": 0.3,
-    "firstN": 41,
-    "firstInnings": 322.9,
+    "firstN": 52,
+    "firstInnings": 294.0,
+    "firstSd": 78.3,
     "runsPerWicket": 35.41
    },
    "India": {
@@ -2278,8 +2552,9 @@
     "awayWinRate": 0.522,
     "neutralN": 13,
     "neutralWinRate": 0.846,
-    "firstN": 45,
-    "firstInnings": 313.3,
+    "firstN": 50,
+    "firstInnings": 298.2,
+    "firstSd": 69.4,
     "runsPerWicket": 41.28
    },
    "Ireland": {
@@ -2291,8 +2566,9 @@
     "awayWinRate": 0.333,
     "neutralN": 6,
     "neutralWinRate": 0.167,
-    "firstN": 14,
-    "firstInnings": 266.9,
+    "firstN": 17,
+    "firstInnings": 247.5,
+    "firstSd": 61.8,
     "runsPerWicket": 29.14
    },
    "New Zealand": {
@@ -2304,8 +2580,9 @@
     "awayWinRate": 0.442,
     "neutralN": 17,
     "neutralWinRate": 0.647,
-    "firstN": 34,
-    "firstInnings": 288.0,
+    "firstN": 38,
+    "firstInnings": 276.8,
+    "firstSd": 61.3,
     "runsPerWicket": 34.94
    },
    "Pakistan": {
@@ -2317,8 +2594,9 @@
     "awayWinRate": 0.4,
     "neutralN": 17,
     "neutralWinRate": 0.294,
-    "firstN": 27,
-    "firstInnings": 290.8,
+    "firstN": 32,
+    "firstInnings": 266.0,
+    "firstSd": 70.3,
     "runsPerWicket": 35.02
    },
    "South Africa": {
@@ -2330,8 +2608,9 @@
     "awayWinRate": 0.375,
     "neutralN": 19,
     "neutralWinRate": 0.579,
-    "firstN": 37,
-    "firstInnings": 305.3,
+    "firstN": 43,
+    "firstInnings": 284.2,
+    "firstSd": 74.7,
     "runsPerWicket": 36.96
    },
    "Sri Lanka": {
@@ -2343,8 +2622,9 @@
     "awayWinRate": 0.244,
     "neutralN": 15,
     "neutralWinRate": 0.333,
-    "firstN": 43,
-    "firstInnings": 269.5,
+    "firstN": 52,
+    "firstInnings": 251.3,
+    "firstSd": 58.2,
     "runsPerWicket": 29.09
    },
    "West Indies": {
@@ -2356,8 +2636,9 @@
     "awayWinRate": 0.143,
     "neutralN": 9,
     "neutralWinRate": 0.111,
-    "firstN": 24,
-    "firstInnings": 289.9,
+    "firstN": 40,
+    "firstInnings": 238.8,
+    "firstSd": 81.7,
     "runsPerWicket": 29.81
    },
    "Zimbabwe": {
@@ -2369,8 +2650,9 @@
     "awayWinRate": 0.2,
     "neutralN": 1,
     "neutralWinRate": 1.0,
-    "firstN": 17,
-    "firstInnings": 254.6,
+    "firstN": 25,
+    "firstInnings": 224.0,
+    "firstSd": 57.7,
     "runsPerWicket": 25.59
    }
   },
@@ -2556,715 +2838,834 @@
     "Australia",
     "Bangladesh",
     "Bangladesh",
+    1,
     1
    ],
    [
     "Australia",
     "Bangladesh",
     null,
+    2,
     2
    ],
    [
     "Australia",
     "England",
     "Australia",
+    2,
     2
    ],
    [
     "Australia",
     "England",
     "England",
-    8
+    8,
+    5
    ],
    [
     "Australia",
     "England",
     null,
+    2,
     2
    ],
    [
     "Australia",
     "India",
     "Australia",
+    8,
+    4
+   ],
+   [
+    "Australia",
+    "India",
+    "India",
+    15,
     8
    ],
    [
     "Australia",
     "India",
-    "India",
-    15
-   ],
-   [
-    "Australia",
-    "India",
     null,
-    2
+    2,
+    0
    ],
    [
     "Australia",
     "New Zealand",
     "Australia",
+    4,
     4
    ],
    [
     "Australia",
     "New Zealand",
     null,
+    2,
     2
    ],
    [
     "Australia",
     "Pakistan",
     "Australia",
-    3
+    3,
+    1
    ],
    [
     "Australia",
     "Pakistan",
     null,
+    7,
     7
    ],
    [
     "Australia",
     "Pakistan",
     "Pakistan",
-    6
+    6,
+    2
    ],
    [
     "Australia",
     "South Africa",
     "Australia",
-    3
+    3,
+    1
    ],
    [
     "Australia",
     "South Africa",
     null,
-    3
+    3,
+    1
    ],
    [
     "Australia",
     "South Africa",
     "South Africa",
-    10
+    10,
+    2
    ],
    [
     "Australia",
     "Sri Lanka",
     null,
+    2,
     2
    ],
    [
     "Australia",
     "Sri Lanka",
     "Sri Lanka",
-    5
+    5,
+    1
    ],
    [
     "Australia",
     "West Indies",
     "Australia",
+    3,
     3
    ],
    [
     "Australia",
     "West Indies",
     null,
+    1,
     1
    ],
    [
     "Australia",
     "West Indies",
     "West Indies",
+    2,
+    1
+   ],
+   [
+    "Australia",
+    "Zimbabwe",
+    "Australia",
+    3,
     2
    ],
    [
     "Australia",
     "Zimbabwe",
-    "Australia",
-    3
-   ],
-   [
-    "Australia",
     "Zimbabwe",
-    "Zimbabwe",
+    3,
     3
    ],
    [
     "Bangladesh",
     "England",
     "Bangladesh",
-    3
-   ],
-   [
-    "Bangladesh",
-    "England",
-    "England",
+    3,
     1
+   ],
+   [
+    "Bangladesh",
+    "England",
+    "England",
+    1,
+    0
    ],
    [
     "Bangladesh",
     "England",
     null,
-    1
+    1,
+    0
    ],
    [
     "Bangladesh",
     "India",
     "Bangladesh",
-    3
+    3,
+    2
    ],
    [
     "Bangladesh",
     "India",
     "India",
-    1
+    1,
+    0
    ],
    [
     "Bangladesh",
     "India",
     null,
-    3
+    3,
+    1
    ],
    [
     "Bangladesh",
     "Ireland",
     "Bangladesh",
+    2,
     2
    ],
    [
     "Bangladesh",
     "Ireland",
     "Ireland",
+    1,
     1
    ],
    [
     "Bangladesh",
     "Ireland",
     null,
+    2,
     2
    ],
    [
     "Bangladesh",
     "New Zealand",
     "Bangladesh",
-    5
+    5,
+    2
    ],
    [
     "Bangladesh",
     "New Zealand",
     "New Zealand",
-    8
+    8,
+    1
    ],
    [
     "Bangladesh",
     "New Zealand",
     null,
-    3
+    3,
+    0
    ],
    [
     "Bangladesh",
     "Pakistan",
     "Bangladesh",
+    2,
     2
    ],
    [
     "Bangladesh",
     "Pakistan",
     null,
-    2
+    2,
+    0
    ],
    [
     "Bangladesh",
     "Pakistan",
     "Pakistan",
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    null,
+    2,
     1
    ],
    [
     "Bangladesh",
     "South Africa",
-    null,
+    "South Africa",
+    3,
     2
-   ],
-   [
-    "Bangladesh",
-    "South Africa",
-    "South Africa",
-    3
    ],
    [
     "Bangladesh",
     "Sri Lanka",
     "Bangladesh",
+    5,
+    3
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Sri Lanka",
+    8,
+    1
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    "Bangladesh",
+    5,
     5
    ],
    [
     "Bangladesh",
-    "Sri Lanka",
-    null,
-    1
-   ],
-   [
-    "Bangladesh",
-    "Sri Lanka",
-    "Sri Lanka",
-    8
-   ],
-   [
-    "Bangladesh",
-    "West Indies",
-    "Bangladesh",
-    5
-   ],
-   [
-    "Bangladesh",
     "West Indies",
     null,
+    3,
     3
    ],
    [
     "Bangladesh",
     "West Indies",
     "West Indies",
-    6
+    6,
+    3
    ],
    [
     "Bangladesh",
     "Zimbabwe",
     "Bangladesh",
+    2,
     2
    ],
    [
     "Bangladesh",
     "Zimbabwe",
     null,
-    1
+    1,
+    0
    ],
    [
     "Bangladesh",
     "Zimbabwe",
     "Zimbabwe",
-    9
+    9,
+    5
    ],
    [
     "England",
     "India",
     "England",
+    7,
+    4
+   ],
+   [
+    "England",
+    "India",
+    "India",
+    7,
+    1
+   ],
+   [
+    "England",
+    "Ireland",
+    "England",
+    4,
+    3
+   ],
+   [
+    "England",
+    "Ireland",
+    "Ireland",
+    1,
+    1
+   ],
+   [
+    "England",
+    "New Zealand",
+    "England",
+    5,
+    4
+   ],
+   [
+    "England",
+    "New Zealand",
+    "New Zealand",
+    3,
+    0
+   ],
+   [
+    "England",
+    "New Zealand",
+    null,
+    1,
+    0
+   ],
+   [
+    "England",
+    "Pakistan",
+    "England",
+    8,
     7
    ],
    [
     "England",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "England",
+    "Pakistan",
+    "Pakistan",
+    2,
+    0
+   ],
+   [
+    "England",
+    "South Africa",
+    "England",
+    6,
+    3
+   ],
+   [
+    "England",
+    "South Africa",
+    null,
+    2,
+    0
+   ],
+   [
+    "England",
+    "South Africa",
+    "South Africa",
+    5,
+    2
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "England",
+    6,
+    4
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    null,
+    3,
+    1
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    2
+   ],
+   [
+    "England",
+    "West Indies",
+    "England",
+    3,
+    3
+   ],
+   [
+    "England",
+    "West Indies",
+    "West Indies",
+    8,
+    4
+   ],
+   [
     "India",
+    "New Zealand",
     "India",
+    8,
+    6
+   ],
+   [
+    "India",
+    "New Zealand",
+    "New Zealand",
+    8,
+    3
+   ],
+   [
+    "India",
+    "New Zealand",
+    null,
+    3,
+    2
+   ],
+   [
+    "India",
+    "Pakistan",
+    "India",
+    1,
+    1
+   ],
+   [
+    "India",
+    "Pakistan",
+    null,
+    2,
+    2
+   ],
+   [
+    "India",
+    "South Africa",
+    "India",
+    7,
+    5
+   ],
+   [
+    "India",
+    "South Africa",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "South Africa",
+    "South Africa",
+    6,
+    2
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "India",
+    4,
+    4
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "Sri Lanka",
+    6,
+    4
+   ],
+   [
+    "India",
+    "West Indies",
+    "India",
+    9,
     7
    ],
    [
-    "England",
-    "Ireland",
-    "England",
+    "India",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "West Indies",
+    "West Indies",
+    5,
     4
    ],
    [
-    "England",
-    "Ireland",
-    "Ireland",
-    1
-   ],
-   [
-    "England",
-    "New Zealand",
-    "England",
-    5
-   ],
-   [
-    "England",
-    "New Zealand",
-    "New Zealand",
+    "India",
+    "Zimbabwe",
+    "Zimbabwe",
+    3,
     3
    ],
    [
-    "England",
+    "Ireland",
     "New Zealand",
-    null,
-    1
+    "Ireland",
+    3,
+    0
    ],
    [
-    "England",
-    "Pakistan",
-    "England",
-    8
-   ],
-   [
-    "England",
-    "Pakistan",
-    null,
-    1
-   ],
-   [
-    "England",
-    "Pakistan",
-    "Pakistan",
-    2
-   ],
-   [
-    "England",
+    "Ireland",
     "South Africa",
-    "England",
+    "Ireland",
+    2,
+    1
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    null,
+    3,
+    1
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "Ireland",
+    3,
+    1
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "West Indies",
+    4,
+    1
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Ireland",
+    4,
+    3
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Zimbabwe",
+    5,
+    3
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "New Zealand",
+    3,
+    3
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    null,
+    1,
+    0
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "Pakistan",
+    11,
     6
    ],
    [
-    "England",
+    "New Zealand",
     "South Africa",
     null,
-    2
-   ],
-   [
-    "England",
-    "South Africa",
-    "South Africa",
-    5
-   ],
-   [
-    "England",
-    "Sri Lanka",
-    "England",
-    6
-   ],
-   [
-    "England",
-    "Sri Lanka",
-    null,
+    4,
     3
    ],
    [
-    "England",
+    "New Zealand",
     "Sri Lanka",
-    "Sri Lanka",
-    3
-   ],
-   [
-    "England",
-    "West Indies",
-    "England",
-    3
-   ],
-   [
-    "England",
-    "West Indies",
-    "West Indies",
-    8
-   ],
-   [
-    "India",
     "New Zealand",
-    "India",
-    8
-   ],
-   [
-    "India",
-    "New Zealand",
-    "New Zealand",
-    8
-   ],
-   [
-    "India",
-    "New Zealand",
-    null,
-    3
-   ],
-   [
-    "India",
-    "Pakistan",
-    "India",
-    1
-   ],
-   [
-    "India",
-    "Pakistan",
-    null,
-    2
-   ],
-   [
-    "India",
-    "South Africa",
-    "India",
+    8,
     7
    ],
    [
-    "India",
-    "South Africa",
-    null,
-    1
-   ],
-   [
-    "India",
-    "South Africa",
-    "South Africa",
-    6
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    "India",
-    4
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    null,
-    1
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    "Sri Lanka",
-    6
-   ],
-   [
-    "India",
-    "West Indies",
-    "India",
-    9
-   ],
-   [
-    "India",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "India",
-    "West Indies",
-    "West Indies",
-    5
-   ],
-   [
-    "India",
-    "Zimbabwe",
-    "Zimbabwe",
-    3
-   ],
-   [
-    "Ireland",
-    "New Zealand",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "South Africa",
-    "Ireland",
-    2
-   ],
-   [
-    "Ireland",
-    "South Africa",
-    null,
-    3
-   ],
-   [
-    "Ireland",
-    "Sri Lanka",
-    null,
-    1
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    "West Indies",
-    4
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    "Ireland",
-    4
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    "Zimbabwe",
-    5
-   ],
-   [
-    "New Zealand",
-    "Pakistan",
-    "New Zealand",
-    3
-   ],
-   [
-    "New Zealand",
-    "Pakistan",
-    null,
-    1
-   ],
-   [
-    "New Zealand",
-    "Pakistan",
-    "Pakistan",
-    11
-   ],
-   [
-    "New Zealand",
-    "South Africa",
-    null,
-    4
-   ],
-   [
-    "New Zealand",
-    "Sri Lanka",
-    "New Zealand",
-    8
-   ],
-   [
     "New Zealand",
     "Sri Lanka",
     null,
+    2,
     2
    ],
    [
     "New Zealand",
     "West Indies",
     "New Zealand",
+    3,
     3
    ],
    [
     "New Zealand",
     "West Indies",
     null,
+    1,
     1
    ],
    [
     "New Zealand",
     "West Indies",
     "West Indies",
+    7,
+    4
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    null,
+    2,
+    1
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "Pakistan",
+    4,
+    3
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "South Africa",
+    9,
+    6
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Pakistan",
+    8,
     7
    ],
    [
     "Pakistan",
-    "South Africa",
+    "West Indies",
     null,
+    1,
+    0
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "Pakistan",
+    2,
     2
    ],
    [
     "Pakistan",
-    "South Africa",
-    "Pakistan",
-    4
-   ],
-   [
-    "Pakistan",
-    "South Africa",
-    "South Africa",
-    9
-   ],
-   [
-    "Pakistan",
-    "Sri Lanka",
-    null,
+    "West Indies",
+    "West Indies",
+    2,
     1
    ],
    [
     "Pakistan",
-    "Sri Lanka",
-    "Pakistan",
-    8
-   ],
-   [
-    "Pakistan",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "Pakistan",
-    "West Indies",
-    "Pakistan",
-    2
-   ],
-   [
-    "Pakistan",
-    "West Indies",
-    "West Indies",
-    2
-   ],
-   [
-    "Pakistan",
     "Zimbabwe",
     "Pakistan",
+    2,
     2
    ],
    [
     "Pakistan",
     "Zimbabwe",
     "Zimbabwe",
+    2,
     2
    ],
    [
     "South Africa",
     "Sri Lanka",
     null,
+    2,
     2
    ],
    [
     "South Africa",
     "Sri Lanka",
     "South Africa",
+    3,
     3
    ],
    [
     "South Africa",
     "Sri Lanka",
     "Sri Lanka",
-    2
+    2,
+    0
    ],
    [
     "South Africa",
     "West Indies",
     "South Africa",
-    2
+    2,
+    1
    ],
    [
     "Sri Lanka",
     "West Indies",
     null,
+    2,
     2
    ],
    [
     "Sri Lanka",
     "West Indies",
     "Sri Lanka",
+    4,
     4
    ],
    [
     "Sri Lanka",
     "West Indies",
     "West Indies",
-    4
+    4,
+    1
    ],
    [
     "Sri Lanka",
     "Zimbabwe",
     "Sri Lanka",
-    4
+    4,
+    3
    ],
    [
     "Sri Lanka",
     "Zimbabwe",
     "Zimbabwe",
+    3,
     3
    ],
    [
     "West Indies",
     "Zimbabwe",
     "Zimbabwe",
-    1
+    1,
+    0
    ]
   ]
  },
@@ -3281,8 +3682,9 @@
     "awayWinRate": 0.893,
     "neutralN": 13,
     "neutralWinRate": 1.0,
-    "firstN": 32,
-    "firstInnings": 297.7,
+    "firstN": 34,
+    "firstInnings": 289.9,
+    "firstSd": 58.4,
     "runsPerWicket": 43.97
    },
    "Bangladesh": {
@@ -3294,8 +3696,9 @@
     "awayWinRate": 0.214,
     "neutralN": 15,
     "neutralWinRate": 0.267,
-    "firstN": 17,
-    "firstInnings": 204.1,
+    "firstN": 23,
+    "firstInnings": 179.5,
+    "firstSd": 50.4,
     "runsPerWicket": 21.24
    },
    "England": {
@@ -3307,8 +3710,9 @@
     "awayWinRate": 0.593,
     "neutralN": 15,
     "neutralWinRate": 0.6,
-    "firstN": 32,
-    "firstInnings": 263.8,
+    "firstN": 37,
+    "firstInnings": 257.3,
+    "firstSd": 61.1,
     "runsPerWicket": 31.29
    },
    "India": {
@@ -3320,8 +3724,9 @@
     "awayWinRate": 0.5,
     "neutralN": 9,
     "neutralWinRate": 0.667,
-    "firstN": 43,
-    "firstInnings": 268.8,
+    "firstN": 47,
+    "firstInnings": 258.9,
+    "firstSd": 67.4,
     "runsPerWicket": 34.61
    },
    "Ireland": {
@@ -3333,8 +3738,9 @@
     "awayWinRate": 0.174,
     "neutralN": 2,
     "neutralWinRate": 0.0,
-    "firstN": 23,
-    "firstInnings": 225.2,
+    "firstN": 24,
+    "firstInnings": 218.7,
+    "firstSd": 54.1,
     "runsPerWicket": 23.9
    },
    "New Zealand": {
@@ -3346,8 +3752,9 @@
     "awayWinRate": 0.182,
     "neutralN": 4,
     "neutralWinRate": 0.25,
-    "firstN": 32,
-    "firstInnings": 246.7,
+    "firstN": 40,
+    "firstInnings": 229.7,
+    "firstSd": 56.3,
     "runsPerWicket": 26.22
    },
    "Pakistan": {
@@ -3359,8 +3766,9 @@
     "awayWinRate": 0.269,
     "neutralN": 14,
     "neutralWinRate": 0.143,
-    "firstN": 20,
-    "firstInnings": 240.2,
+    "firstN": 27,
+    "firstInnings": 214.3,
+    "firstSd": 65.3,
     "runsPerWicket": 25.79
    },
    "South Africa": {
@@ -3372,8 +3780,9 @@
     "awayWinRate": 0.553,
     "neutralN": 13,
     "neutralWinRate": 0.538,
-    "firstN": 25,
-    "firstInnings": 261.6,
+    "firstN": 33,
+    "firstInnings": 228.5,
+    "firstSd": 83.9,
     "runsPerWicket": 33.07
    },
    "Sri Lanka": {
@@ -3385,8 +3794,9 @@
     "awayWinRate": 0.304,
     "neutralN": 1,
     "neutralWinRate": 1.0,
-    "firstN": 16,
-    "firstInnings": 210.9,
+    "firstN": 20,
+    "firstInnings": 197.7,
+    "firstSd": 42.7,
     "runsPerWicket": 24.93
    },
    "West Indies": {
@@ -3398,8 +3808,9 @@
     "awayWinRate": 0.444,
     "neutralN": 10,
     "neutralWinRate": 0.5,
-    "firstN": 22,
-    "firstInnings": 213.9,
+    "firstN": 31,
+    "firstInnings": 187.4,
+    "firstSd": 63.6,
     "runsPerWicket": 23.03
    },
    "Zimbabwe": {
@@ -3411,8 +3822,9 @@
     "awayWinRate": 0.0,
     "neutralN": 0,
     "neutralWinRate": null,
-    "firstN": 4,
-    "firstInnings": 193.8,
+    "firstN": 7,
+    "firstInnings": 154.3,
+    "firstSd": 54.1,
     "runsPerWicket": 16.91
    }
   },
@@ -3514,619 +3926,722 @@
     "Australia",
     "Bangladesh",
     "Australia",
+    3,
     3
    ],
    [
     "Australia",
     "Bangladesh",
     "Bangladesh",
+    3,
     3
    ],
    [
     "Australia",
     "Bangladesh",
     null,
+    2,
     2
    ],
    [
     "Australia",
     "England",
     "Australia",
+    6,
     6
    ],
    [
     "Australia",
     "England",
     "England",
-    5
+    5,
+    4
    ],
    [
     "Australia",
     "England",
     null,
+    3,
     3
    ],
    [
     "Australia",
     "India",
     "Australia",
-    9
-   ],
-   [
-    "Australia",
-    "India",
-    "India",
+    9,
     8
    ],
    [
     "Australia",
     "India",
+    "India",
+    8,
+    6
+   ],
+   [
+    "Australia",
+    "India",
     null,
+    1,
     1
    ],
    [
     "Australia",
     "Ireland",
     "Ireland",
+    2,
     2
    ],
    [
     "Australia",
     "New Zealand",
     "Australia",
+    6,
     6
    ],
    [
     "Australia",
     "New Zealand",
     "New Zealand",
+    5,
     5
    ],
    [
     "Australia",
     "New Zealand",
     null,
+    1,
     1
    ],
    [
     "Australia",
     "Pakistan",
     "Australia",
+    2,
     2
    ],
    [
     "Australia",
     "Pakistan",
     null,
+    2,
     2
    ],
    [
     "Australia",
     "South Africa",
     "Australia",
+    1,
     1
    ],
    [
     "Australia",
     "South Africa",
     null,
+    2,
     2
    ],
    [
     "Australia",
     "Sri Lanka",
     "Australia",
+    3,
     3
    ],
    [
     "Australia",
     "West Indies",
     "Australia",
+    2,
     2
    ],
    [
     "Australia",
     "West Indies",
     null,
+    2,
     2
    ],
    [
     "Australia",
     "West Indies",
     "West Indies",
+    5,
     5
    ],
    [
     "Bangladesh",
     "England",
     null,
-    2
+    2,
+    0
    ],
    [
     "Bangladesh",
     "India",
     "Bangladesh",
-    1
+    1,
+    0
    ],
    [
     "Bangladesh",
     "India",
     null,
-    1
+    1,
+    0
    ],
    [
     "Bangladesh",
     "Ireland",
     "Bangladesh",
+    3,
     3
    ],
    [
     "Bangladesh",
     "Ireland",
     null,
+    1,
     1
    ],
    [
     "Bangladesh",
     "New Zealand",
     "New Zealand",
-    2
+    2,
+    0
    ],
    [
     "Bangladesh",
     "New Zealand",
     null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Bangladesh",
+    2,
     1
    ],
    [
     "Bangladesh",
     "Pakistan",
-    "Bangladesh",
-    2
-   ],
-   [
-    "Bangladesh",
-    "Pakistan",
     null,
+    3,
     3
    ],
    [
     "Bangladesh",
     "Pakistan",
     "Pakistan",
-    1
+    1,
+    0
    ],
    [
     "Bangladesh",
     "South Africa",
     null,
-    2
+    2,
+    0
    ],
    [
     "Bangladesh",
     "South Africa",
     "South Africa",
-    3
-   ],
-   [
-    "Bangladesh",
-    "Sri Lanka",
-    "Bangladesh",
-    3
-   ],
-   [
-    "Bangladesh",
-    "Sri Lanka",
-    null,
+    3,
     1
    ],
    [
     "Bangladesh",
     "Sri Lanka",
-    "Sri Lanka",
+    "Bangladesh",
+    3,
     1
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Sri Lanka",
+    1,
+    0
    ],
    [
     "Bangladesh",
     "West Indies",
     null,
-    2
+    2,
+    0
    ],
    [
     "Bangladesh",
     "West Indies",
     "West Indies",
-    3
+    3,
+    1
    ],
    [
     "Bangladesh",
     "Zimbabwe",
     "Zimbabwe",
+    1,
     1
    ],
    [
     "England",
     "India",
     "England",
-    8
+    8,
+    2
    ],
    [
     "England",
     "India",
     "India",
-    4
+    4,
+    2
    ],
    [
     "England",
     "India",
     null,
+    1,
     1
    ],
    [
     "England",
     "Ireland",
     "England",
+    3,
     3
    ],
    [
     "England",
     "Ireland",
     "Ireland",
+    2,
     2
    ],
    [
     "England",
     "New Zealand",
     "England",
-    8
-   ],
-   [
-    "England",
-    "New Zealand",
-    "New Zealand",
+    8,
     7
    ],
    [
     "England",
     "New Zealand",
-    null,
-    1
-   ],
-   [
-    "England",
-    "Pakistan",
-    "England",
-    2
-   ],
-   [
-    "England",
-    "Pakistan",
-    null,
-    3
-   ],
-   [
-    "England",
-    "South Africa",
-    "England",
-    3
-   ],
-   [
-    "England",
-    "South Africa",
-    null,
-    4
-   ],
-   [
-    "England",
-    "South Africa",
-    "South Africa",
-    2
-   ],
-   [
-    "England",
-    "Sri Lanka",
-    "England",
-    2
-   ],
-   [
-    "England",
-    "Sri Lanka",
-    "Sri Lanka",
-    3
-   ],
-   [
-    "England",
-    "West Indies",
-    "England",
-    3
-   ],
-   [
-    "England",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "England",
-    "West Indies",
-    "West Indies",
-    3
-   ],
-   [
-    "India",
-    "Ireland",
-    "India",
-    3
-   ],
-   [
-    "India",
     "New Zealand",
-    "India",
-    3
-   ],
-   [
-    "India",
-    "New Zealand",
-    "New Zealand",
-    9
-   ],
-   [
-    "India",
-    "Pakistan",
-    null,
-    2
-   ],
-   [
-    "India",
-    "South Africa",
-    "India",
-    12
-   ],
-   [
-    "India",
-    "South Africa",
-    null,
-    3
-   ],
-   [
-    "India",
-    "Sri Lanka",
-    "Sri Lanka",
-    6
-   ],
-   [
-    "India",
-    "West Indies",
-    "India",
-    3
-   ],
-   [
-    "India",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "India",
-    "West Indies",
-    "West Indies",
-    3
-   ],
-   [
-    "India",
-    "Zimbabwe",
-    "India",
-    3
-   ],
-   [
-    "Ireland",
-    "Pakistan",
-    "Pakistan",
-    4
-   ],
-   [
-    "Ireland",
-    "South Africa",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "South Africa",
-    "South Africa",
-    3
-   ],
-   [
-    "Ireland",
-    "Sri Lanka",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    "Ireland",
-    3
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    null,
-    1
-   ],
-   [
-    "Ireland",
-    "West Indies",
-    "West Indies",
-    2
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    "Ireland",
-    2
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    "Zimbabwe",
+    7,
     5
    ],
    [
+    "England",
     "New Zealand",
+    null,
+    1,
+    1
+   ],
+   [
+    "England",
     "Pakistan",
-    "New Zealand",
+    "England",
+    2,
+    2
+   ],
+   [
+    "England",
+    "Pakistan",
+    null,
+    3,
     3
    ],
    [
-    "New Zealand",
+    "England",
     "South Africa",
-    "New Zealand",
-    7
-   ],
-   [
-    "New Zealand",
-    "South Africa",
-    null,
-    1
-   ],
-   [
-    "New Zealand",
-    "South Africa",
-    "South Africa",
-    2
-   ],
-   [
-    "New Zealand",
-    "Sri Lanka",
-    "New Zealand",
-    2
-   ],
-   [
-    "New Zealand",
-    "Sri Lanka",
-    "Sri Lanka",
-    1
-   ],
-   [
-    "New Zealand",
-    "West Indies",
-    "New Zealand",
-    1
-   ],
-   [
-    "New Zealand",
-    "West Indies",
-    "West Indies",
-    2
-   ],
-   [
-    "New Zealand",
-    "Zimbabwe",
-    "New Zealand",
+    "England",
+    3,
     3
    ],
    [
-    "Pakistan",
+    "England",
     "South Africa",
     null,
+    4,
+    2
+   ],
+   [
+    "England",
+    "South Africa",
+    "South Africa",
+    2,
     1
    ],
    [
-    "Pakistan",
-    "South Africa",
-    "Pakistan",
-    5
+    "England",
+    "Sri Lanka",
+    "England",
+    2,
+    2
    ],
    [
+    "England",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    3
+   ],
+   [
+    "England",
+    "West Indies",
+    "England",
+    3,
+    3
+   ],
+   [
+    "England",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "England",
+    "West Indies",
+    "West Indies",
+    3,
+    3
+   ],
+   [
+    "India",
+    "Ireland",
+    "India",
+    3,
+    3
+   ],
+   [
+    "India",
+    "New Zealand",
+    "India",
+    3,
+    2
+   ],
+   [
+    "India",
+    "New Zealand",
+    "New Zealand",
+    9,
+    3
+   ],
+   [
+    "India",
     "Pakistan",
+    null,
+    2,
+    2
+   ],
+   [
+    "India",
     "South Africa",
-    "South Africa",
+    "India",
+    12,
     8
    ],
    [
+    "India",
+    "South Africa",
+    null,
+    3,
+    2
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "Sri Lanka",
+    6,
+    5
+   ],
+   [
+    "India",
+    "West Indies",
+    "India",
+    3,
+    3
+   ],
+   [
+    "India",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "West Indies",
+    "West Indies",
+    3,
+    2
+   ],
+   [
+    "India",
+    "Zimbabwe",
+    "India",
+    3,
+    3
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    "Pakistan",
+    4,
+    0
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    "Ireland",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    "South Africa",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    "Ireland",
+    3,
+    2
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "Ireland",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "West Indies",
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Ireland",
+    2,
+    2
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Zimbabwe",
+    5,
+    4
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "New Zealand",
+    3,
+    3
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "New Zealand",
+    7,
+    2
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "South Africa",
+    2,
+    0
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "New Zealand",
+    2,
+    2
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "Sri Lanka",
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "New Zealand",
+    1,
+    0
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "West Indies",
+    2,
+    1
+   ],
+   [
+    "New Zealand",
+    "Zimbabwe",
+    "New Zealand",
+    3,
+    3
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "Pakistan",
+    5,
+    2
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "South Africa",
+    8,
+    2
+   ],
+   [
     "Pakistan",
     "Sri Lanka",
     "Pakistan",
-    3
+    3,
+    2
    ],
    [
     "Pakistan",
     "Sri Lanka",
     "Sri Lanka",
-    3
+    3,
+    1
    ],
    [
     "Pakistan",
     "West Indies",
     null,
+    3,
+    2
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "Pakistan",
+    7,
+    1
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "West Indies",
+    4,
+    1
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    "Pakistan",
+    3,
     3
    ],
    [
     "Pakistan",
-    "West Indies",
-    "Pakistan",
-    7
-   ],
-   [
-    "Pakistan",
-    "West Indies",
-    "West Indies",
-    4
-   ],
-   [
-    "Pakistan",
     "Zimbabwe",
-    "Pakistan",
+    "Zimbabwe",
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "South Africa",
+    4,
     3
    ],
    [
-    "Pakistan",
-    "Zimbabwe",
-    "Zimbabwe",
-    2
-   ],
-   [
-    "South Africa",
-    "Sri Lanka",
-    "South Africa",
-    4
-   ],
-   [
     "South Africa",
     "Sri Lanka",
     "Sri Lanka",
-    2
+    2,
+    1
    ],
    [
     "South Africa",
     "West Indies",
     "South Africa",
+    2,
     2
    ],
    [
     "South Africa",
     "West Indies",
     "West Indies",
+    5,
     5
    ],
    [
     "Sri Lanka",
     "West Indies",
     "Sri Lanka",
+    3,
     3
    ],
    [
     "Sri Lanka",
     "West Indies",
     "West Indies",
-    3
+    3,
+    2
    ],
    [
     "West Indies",
     "Zimbabwe",
     "Zimbabwe",
-    3
+    3,
+    2
    ]
   ]
  },
@@ -4145,6 +4660,7 @@
     "neutralWinRate": 0.5,
     "firstN": 18,
     "firstInnings": 328.8,
+    "firstSd": 136.4,
     "runsPerWicket": 29.71
    },
    "Bangladesh": {
@@ -4158,6 +4674,7 @@
     "neutralWinRate": null,
     "firstN": 13,
     "firstInnings": 235.8,
+    "firstSd": 117.1,
     "runsPerWicket": 26.42
    },
    "England": {
@@ -4171,6 +4688,7 @@
     "neutralWinRate": null,
     "firstN": 19,
     "firstInnings": 328.4,
+    "firstSd": 101.3,
     "runsPerWicket": 32.87
    },
    "India": {
@@ -4184,6 +4702,7 @@
     "neutralWinRate": 0.0,
     "firstN": 14,
     "firstInnings": 313.9,
+    "firstSd": 170.7,
     "runsPerWicket": 31.31
    },
    "Ireland": {
@@ -4197,6 +4716,7 @@
     "neutralWinRate": null,
     "firstN": 5,
     "firstInnings": 284.8,
+    "firstSd": 123.8,
     "runsPerWicket": 25.97
    },
    "New Zealand": {
@@ -4210,6 +4730,7 @@
     "neutralWinRate": null,
     "firstN": 11,
     "firstInnings": 394.2,
+    "firstSd": 139.2,
     "runsPerWicket": 33.17
    },
    "Pakistan": {
@@ -4223,6 +4744,7 @@
     "neutralWinRate": null,
     "firstN": 11,
     "firstInnings": 310.3,
+    "firstSd": 124.9,
     "runsPerWicket": 27.11
    },
    "South Africa": {
@@ -4236,6 +4758,7 @@
     "neutralWinRate": 1.0,
     "firstN": 15,
     "firstInnings": 353.6,
+    "firstSd": 174.1,
     "runsPerWicket": 32.32
    },
    "Sri Lanka": {
@@ -4249,6 +4772,7 @@
     "neutralWinRate": null,
     "firstN": 11,
     "firstInnings": 358.5,
+    "firstSd": 148.1,
     "runsPerWicket": 32.13
    },
    "West Indies": {
@@ -4262,6 +4786,7 @@
     "neutralWinRate": null,
     "firstN": 11,
     "firstInnings": 244.3,
+    "firstSd": 102.4,
     "runsPerWicket": 21.62
    },
    "Zimbabwe": {
@@ -4275,6 +4800,7 @@
     "neutralWinRate": null,
     "firstN": 5,
     "firstInnings": 165.2,
+    "firstSd": 50.6,
     "runsPerWicket": 21.02
    }
   },
@@ -4313,366 +4839,427 @@
     "Australia",
     "Bangladesh",
     "Australia",
+    2,
+    1
+   ],
+   [
+    "Australia",
+    "England",
+    "Australia",
+    5,
+    4
+   ],
+   [
+    "Australia",
+    "England",
+    "England",
+    4,
     2
    ],
    [
     "Australia",
-    "England",
-    "Australia",
-    5
-   ],
-   [
-    "Australia",
-    "England",
-    "England",
-    4
-   ],
-   [
-    "Australia",
     "India",
     "Australia",
-    4
-   ],
-   [
-    "Australia",
-    "India",
-    "India",
+    4,
     3
+   ],
+   [
+    "Australia",
+    "India",
+    "India",
+    3,
+    1
    ],
    [
     "Australia",
     "India",
     null,
+    1,
     1
    ],
    [
     "Australia",
     "New Zealand",
     "New Zealand",
+    2,
     2
    ],
    [
     "Australia",
     "Pakistan",
     "Australia",
+    3,
     3
    ],
    [
     "Australia",
     "South Africa",
     null,
-    1
+    1,
+    0
    ],
    [
     "Australia",
     "South Africa",
     "South Africa",
-    3
+    3,
+    1
    ],
    [
     "Australia",
     "Sri Lanka",
     "Sri Lanka",
+    2,
     2
    ],
    [
     "Australia",
     "West Indies",
     "Australia",
-    2
+    2,
+    1
    ],
    [
     "Australia",
     "West Indies",
     "West Indies",
+    3,
     3
    ],
    [
     "Bangladesh",
     "India",
     "India",
-    2
+    2,
+    0
    ],
    [
     "Bangladesh",
     "Ireland",
     "Bangladesh",
+    3,
     3
    ],
    [
     "Bangladesh",
     "New Zealand",
     "Bangladesh",
-    2
+    2,
+    1
    ],
    [
     "Bangladesh",
     "Pakistan",
     "Bangladesh",
+    2,
     2
    ],
    [
     "Bangladesh",
     "Pakistan",
     "Pakistan",
+    2,
     2
    ],
    [
     "Bangladesh",
     "South Africa",
     "Bangladesh",
-    2
+    2,
+    0
    ],
    [
     "Bangladesh",
     "Sri Lanka",
     "Bangladesh",
-    2
+    2,
+    0
    ],
    [
     "Bangladesh",
     "Sri Lanka",
     "Sri Lanka",
-    1
+    1,
+    0
    ],
    [
     "Bangladesh",
     "West Indies",
     "Bangladesh",
-    1
+    1,
+    0
    ],
    [
     "Bangladesh",
     "West Indies",
     "West Indies",
+    2,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Zimbabwe",
+    "Bangladesh",
+    2,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Zimbabwe",
+    "Zimbabwe",
+    1,
+    0
+   ],
+   [
+    "England",
+    "India",
+    "England",
+    4,
     2
    ],
    [
-    "Bangladesh",
-    "Zimbabwe",
-    "Bangladesh",
-    2
-   ],
-   [
-    "Bangladesh",
-    "Zimbabwe",
-    "Zimbabwe",
+    "England",
+    "India",
+    "India",
+    5,
     1
-   ],
-   [
-    "England",
-    "India",
-    "England",
-    4
-   ],
-   [
-    "England",
-    "India",
-    "India",
-    5
    ],
    [
     "England",
     "Ireland",
     "England",
+    1,
     1
    ],
    [
     "England",
     "New Zealand",
     "England",
+    3,
+    1
+   ],
+   [
+    "England",
+    "New Zealand",
+    "New Zealand",
+    5,
     3
    ],
    [
     "England",
-    "New Zealand",
-    "New Zealand",
-    5
-   ],
-   [
-    "England",
     "Pakistan",
     "England",
+    3,
     3
    ],
    [
     "England",
     "Pakistan",
     "Pakistan",
+    3,
+    1
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "England",
+    3,
+    2
+   ],
+   [
+    "England",
+    "West Indies",
+    "England",
+    3,
     3
    ],
    [
     "England",
-    "Sri Lanka",
-    "England",
-    3
-   ],
-   [
-    "England",
-    "West Indies",
-    "England",
-    3
-   ],
-   [
-    "England",
     "Zimbabwe",
     "England",
+    1,
     1
    ],
    [
     "India",
     "New Zealand",
     "India",
-    3
+    3,
+    0
    ],
    [
     "India",
     "South Africa",
     "India",
-    2
+    2,
+    0
    ],
    [
     "India",
     "South Africa",
     "South Africa",
-    2
+    2,
+    1
    ],
    [
     "India",
     "Sri Lanka",
     "Sri Lanka",
+    1,
     1
    ],
    [
     "India",
     "West Indies",
     "India",
+    2,
     2
    ],
    [
     "India",
     "West Indies",
     "West Indies",
-    1
-   ],
-   [
-    "Ireland",
-    "New Zealand",
-    "Ireland",
-    1
-   ],
-   [
-    "Ireland",
-    "Sri Lanka",
-    "Sri Lanka",
-    2
-   ],
-   [
-    "Ireland",
-    "Zimbabwe",
-    "Ireland",
+    1,
     1
    ],
    [
     "Ireland",
+    "New Zealand",
+    "Ireland",
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    "Sri Lanka",
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Ireland",
+    1,
+    1
+   ],
+   [
+    "Ireland",
     "Zimbabwe",
     "Zimbabwe",
+    1,
     1
    ],
    [
     "New Zealand",
     "South Africa",
     "New Zealand",
+    2,
     2
    ],
    [
     "New Zealand",
     "Sri Lanka",
     "New Zealand",
+    2,
     2
    ],
    [
     "New Zealand",
     "Sri Lanka",
     "Sri Lanka",
-    2
+    2,
+    0
    ],
    [
     "New Zealand",
     "West Indies",
     "New Zealand",
+    2,
     2
    ],
    [
     "New Zealand",
     "Zimbabwe",
     "Zimbabwe",
+    2,
     2
    ],
    [
     "Pakistan",
     "South Africa",
     "Pakistan",
-    2
+    2,
+    1
    ],
    [
     "Pakistan",
     "South Africa",
     "South Africa",
-    2
+    2,
+    0
    ],
    [
     "Pakistan",
     "Sri Lanka",
     "Sri Lanka",
+    2,
     2
    ],
    [
     "Pakistan",
     "West Indies",
     "Pakistan",
-    2
+    2,
+    1
    ],
    [
     "Pakistan",
     "West Indies",
     "West Indies",
-    2
+    2,
+    1
    ],
    [
     "South Africa",
     "Sri Lanka",
     "South Africa",
+    2,
     2
    ],
    [
     "South Africa",
     "West Indies",
     "South Africa",
+    2,
     2
    ],
    [
     "South Africa",
     "West Indies",
     "West Indies",
+    1,
     1
    ],
    [
     "South Africa",
     "Zimbabwe",
     "Zimbabwe",
+    2,
     2
    ],
    [
     "Sri Lanka",
     "West Indies",
     "West Indies",
-    1
+    1,
+    0
    ],
    [
     "West Indies",
     "Zimbabwe",
     "Zimbabwe",
+    1,
     1
    ]
   ]

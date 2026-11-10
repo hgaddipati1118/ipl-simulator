@@ -588,6 +588,20 @@ player with an appearance since 2000: `ca_<CricketArchive id>` ids, rated from C
     npx tsx src/pipeline/generate-ca-pool.ts --verify       # rates the pool, writes ../app/public/pool/*.json.gz + manifest.json
     npx tsx src/pipeline/generate-format-ratings.ts         # adds the ODI / Test sets to the shards (section "ODI and Test ratings")
 
+    npx tsx src/pipeline/generate-intl-pool.ts              # international top-up (below), after generate-format-ratings.ts
+
+**International top-up** (`generate-intl-pool.ts`): every player with an international appearance since 2024-01-01 for one of the
+app's nations (the twelve full members and ten associates, men and women) who is in neither the ESPN pool nor the extended pool
+(matched by Cricinfo / CricketArchive id, then by country, surname and first initial: the id map misses players whose CA id is not in
+`people.csv`) is rated from Cricsheet alone and appended to the senior shard (ids `ca_9<Cricinfo id>`, i.e. 9e9 + id; rows of an
+earlier run are replaced). Per format (T20, ODI, Test; Cricsheet since 2016) a side's score is a shrunk log-rate against the format
+(prior at the 25th percentile of the pooled players), mapped to the game's rating by a linear fit on the pooled players (score and
+log balls), capped by the size of the record (60 at 100 balls, 67 at 500, 72 at 1,500); a format with no record follows his best
+other one through a regression on the pooled players who have both; the attribute mix is the mean of the five pooled players nearest
+in (batting, bowling) overall. Hand, bowling style, date of birth and keeper come from the ESPN profile where there is one. First
+run: 6 players added (4 men, 2 women), 65 other candidates were already in the pool under CA ids; 1,557 of 1,557 players with caps
+since 2024 for the app's nations are covered (1,486 by id before).
+
 Re-run all of it as the scrape grows (the events DB is rebuilt from the gzip file; a gzip member being appended is tolerated).
 `--verify` proves the bundled pool is untouched: it re-runs the ESPN players through the same model call next to the extended
 players and compares with `espn-ratings.json` (0 players changed, both genders). `build-db.ts` without the flag still builds

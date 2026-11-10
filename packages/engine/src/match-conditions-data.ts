@@ -21,9 +21,9 @@ export const MATCH_CONDITIONS: Record<"male" | "female", Record<string, Conditio
     bpl: { lo: 0, hi: 0.09, center: -0.0757 },
     lpl: { lo: 0, hi: 0.02, center: -0.0252 },
     default: { lo: 0, hi: 0.3, center: -0.2324 },
-    "t20i": { lo: 0.12, hi: 0.36, center: -0.1776 },
+    "t20i": { lo: 0.24, hi: 0.24, center: 0.0006 },
   },
   female: {
-    "t20i": { lo: 0.29, hi: 0.435, center: -0.1013 },
+    "t20i": { lo: 0.23, hi: 0.46, center: -0.1693 },
   },
 };
