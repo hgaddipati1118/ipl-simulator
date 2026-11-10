@@ -746,7 +746,7 @@ Per league, 1,500 matches each. Columns: all out; wickets; under 120; 200+; sd. 
 Most leagues come down another 1-3 points of all-outs, and the women's spreads widen a little. Left over:
 - PSL, LPL and BBL now have spreads 2-3 runs above the real ones, even with no or almost no conditions term. The set
   term's late acceleration widens totals there.
-- SA20 is now bowled out less often than the real one (8% against 15%).
+- ~~SA20 is now bowled out less often than the real one (8% against 15%).~~ Fixed in 12.11.
 
 **Chases (measured, not changed).** The men's leagues since 2021, second innings, against 400 engine matches a league.
 Hazard by phase and wickets down already follows the real one: middle overs 0-2 down 4.8% against 4.6%, 5-6 down 6.4%
@@ -758,6 +758,25 @@ against 8.4, in the leagues without a shape); those are league levels, not colla
 
 Fingerprint: every line moves. Instant men `fb77411d4def97b1`, men with rain `fcd1034152f2d622`, women `a620d4744798119a`,
 Hundred `19c5499b6b2e0689`; live CPU `affd24e1d22c9d81`, user `253902f78c7f51a5`; combined `8323aef815cac7df`.
+
+### 12.11 SA20 all-outs: no table, a wider conditions term
+
+After 12.10 the SA20 was bowled out in 8% of first innings against a real 15.3% (wickets 6.23 against 6.38). Played with no
+wickets-in-hand table the SA20 is bowled out 14.3% of the time (6.47 wickets): the table (and the set term with it) takes the
+collapses out, at any power (0.25: 9.2%, 0.5: 9.6%, 0.75: 7.8%, 1: 7.0%). It had been chosen because its loss, measured with the
+conditions term off, rewarded the spread the table adds (200+ 5.4% to 10.4%); the conditions term supplies that spread, and unlike
+the table leaves the collapses alone. So the SA20 now has power 0 (no table) and its conditions refitted (grid log -0.6 to +1.0,
+shapes `hi / lo` 0.5 to 6): `lo` 0.09, `hi` 0.54, centre -0.357 (was `hi` 0.3).
+
+First innings, 3,500 matches, the game's squads: all out; wickets; under 120; 200+; sd.
+
+| SA20 | all out | wickets | under 120 | 200+ | sd |
+|---|---|---|---|---|---|
+| real | 15.3% | 6.38 | 13.6% | 14.4% | 38.6 |
+| before (12.10) | 8.2% | 6.23 | 15.3% | 12.5% | 37.4 |
+| after | 15.5% | 6.32 | 14.1% | 14.6% | 38.1 |
+
+The other leagues are untouched (the men's / women's T20 and Hundred fingerprints, which do not play the SA20, are unchanged).
 
 ---
 

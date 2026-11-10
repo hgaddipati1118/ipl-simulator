@@ -592,7 +592,7 @@ with the fitted Bazball factor (the squads are 2023+ England; `BAZBALL=0` turns 
 | innings victories | 18.9% | 18.5% | 18.6% |
 | centuries per Test | 1.64 | 1.719 | 1.732 |
 | 50+ scores per Test | 6.06 | 5.952 | 6.118 |
-| five-fors per Test | 1.07 | 1.459 | 1.304 |
+| five-fors per Test | 1.43 | 1.459 | 1.304 |
 | spin share of bowler wickets, day 1-5 | 28.7% 33.6% 37.3% 40.7% 47.6% | 27.1% 36.1% 43.2% 40.1% 50.8% | 26.9% 34.5% 40.6% 42.6% 50.7% |
 | spin share of overs, day 1-5 | 40.1% 42.1% 44.3% 48.6% 55.3% | 34.6% 40.2% 44.2% 46.4% 54.2% | 34.2% 38.5% 42.6% 45.8% 51.9% |
 | overs share of bowlers 1-6 (by overs) | 27.5% 22.2% 18.0% 13.9% 9.4% 5.4% | 29.7% 23.7% 19.4% 15.4% 9.6% 4.5% | 29.5% 23.5% 19.6% 15.9% 9.5% 4.2% |
@@ -612,7 +612,7 @@ Reading the table (against 2023+):
   section 6.9). The pooled 200-349 chases: 38% won vs 30% ± 13 in 2022+.
 - **Off.** Strong sides draw too rarely against weak ones (6.7% vs 11.1%), and India win 70% (real 56% since 2015, 46% since
   2023), which follows their round-2 ratings. Innings 4 runs 183 vs 174.
-- **Five-fors** are 1.04 per Test vs 1.46 (1.30 since 2015): the known gap.
+- **Five-fors** are 1.43 per Test vs 1.46 (1.30 since 2015), after section 6.11 (they were 1.04-1.07).
 - **Draws lose time more evenly** than real ones (section 5: the model's days are independent).
 
 #### 6.2 Men, T20 ratings only (the fallback, 3,000 Tests)
@@ -821,7 +821,7 @@ is played today, so the engine now plays the 2023+ level:
 
 The sim's pooled 200-349 chases (36% won, 16% drawn) are inside the 2022+ interval. What remains against same-era data:
 - 4th-innings totals a little high (186 vs 174 runs);
-- five-fors (1.04 vs 1.46);
+- five-fors (1.04 vs 1.46; fixed in 6.11);
 - slightly long-lived matches (balls per wicket 52.8 vs 50.6, 21% vs 27% within three days).
 None is pursued further.
 
@@ -964,9 +964,9 @@ was 0.42) and dismissals (0.34, was 0.44). The fours mix now uses timing (+0.06 
 Still off: strong sides draw too rarely against weak ones, and India (70%) and Australia (69%) win too often (real since
 2015: 56% and 57%). Their regulars rate highest on both survival and wicket-taking. The top seven batters' wicket term is
 0.90 for India and 0.88 for Australia; the bowlers' is 1.12 and 1.17. The XI mean over all sides is 0.98 and 0.95. That is a
-ratings question. Five-fors stay at
-1.07: the bowler's wicket term already reaches its true spread, and the gap is in how the sim shares the overs (its leading
-bowler bowls 27% of them, real 30%).
+ratings question. Five-fors stayed at
+1.07 here: the bowler's wicket term already reaches its true spread, and the gap was in how the sim shared the overs (its
+leading bowler bowled 27% of them, real 30%); fixed in section 6.11.
 
 On T20 ratings (section 6.2) balls per wicket is 50.4 and draws 9.5%, both closer than before. The women (section 6.3) are
 back on their previous level: their base is levelled on the women's squads' mapped terms, since the men's levelling had
@@ -974,6 +974,36 @@ taken them to 73 balls per wicket.
 
 The XI overlap of section 6.9 is 8.70 for the eight majors (8.60 before), 7.03 out of sample (7.15). England's auto XI now
 includes Stokes, whose round-2 bowling is a seamer's.
+
+#### 6.11 Five-fors: who bowls (the known gap, closed)
+
+Five-fors were 1.07 per Test against 1.46. Measured on real men's Tests since 2015 and the sim (same definitions; innings of 50+
+overs), the wickets per bowler *given his overs* were right (a bowler of 20-30 overs takes 2.4 wickets, real 2.3; the spread of his
+wickets is as wide as the real one). The gap was who bowled:
+
+| | before | after | real |
+|---|---|---|---|
+| bowlers used per innings | 6.94 | 6.26 | 5.53 |
+| overs share of the 6th and 7th bowler (all innings) | 7.9% | 2.7% | 2.3% |
+| innings with a five-for (innings 1 / 2 / 3 / 4, 2023+) | 31 / 34 / 30 / 20% | 38 / 42 / 38 / 28% | 42 / 40 / 37 / 33% |
+| five-fors per Test (4,000 Tests) | 1.08 | 1.43 | 1.46 |
+
+Causes, in `chooseBowler` (`test-match.ts`):
+- **Part-timers were called on whenever the front-line bowlers were resting.** After a spell a bowler must rest the fitted number
+  of overs, so with five bowlers some over often had no rested one of the type the captain wanted (the spin share asks for
+  spinners on a fixed share of overs) and the choice fell to a part-timer or a batter who bowls. A front-line bowler of the type
+  who is only resting is now the first call (still under his daily cap); a part-timer comes in only when there is none.
+- **A wicket does not keep a bowler on long enough.** `WICKET_SPELL_EXTENSION` 2 to 5 overs and `PART_TIMER` 0.5 to 0.05 (the weight
+  of a part-timer against a member of the attack). The spells of hot bowlers then carry the real upper tail (the leading
+  bowler's overs in an innings at the 90th percentile 34 against a real 41; the median 23 to 24 against 26).
+
+The benchmark's rank shares were also compared the wrong way (the sim over all innings, the real over the innings that have a
+bowler of that rank); they are now taken as the real ones are, and it prints the bowlers used and the innings with a five-for.
+Nothing else moved outside noise (4,000 Tests: innings 1 322 (real 323), balls per wicket 50.2 (50.6), runs per over 3.61, draws
+9.6%, innings victories 19.4%, spin share of overs 38.6 / 40.3 / 42.5 / 47.2 / 53.1% by day against 40.1 / 42.1 / 44.3 / 48.6 /
+55.3% before). The women's five-fors 0.58 to 0.82 (real 0.82). Still off: 6.3 bowlers an innings against 5.5 (the XI's fifth
+bowler and the part-timer who gets his overs when the attack is capped), and the wicket share of the leading bowler 36.9%
+against 34.2%.
 
 ### 7. Live play
 
@@ -1230,9 +1260,9 @@ innings to 2. The live rows match the instant ones within a run. What the contex
 
 - First-innings totals sit 4 runs (2-3%) under the real ones, mostly in the death overs (9.8 against 10.0 an over for the
   men, 8.0 against 8.5 for the women) and from innings bowled out early.
-- The spread: simulated first innings have a standard deviation of 24 (men) and 18 (women) against 37 and 35. The real
-  spread includes grounds and pitches (the fit plays neutral venues) and gaps between sides wider than the ratings give;
-  so the engine has a third as many 200s as real men's T20Is, and no women's 200.
+- The spread (fixed, see below): simulated first innings had a standard deviation of 24 (men) and 18 (women) against 37 and 35.
+  The real spread includes grounds and pitches (the fit plays neutral venues) and gaps between sides wider than the ratings
+  give; so the engine had a third as many 200s as real men's T20Is, and no women's 200.
 - All out: 15.6% / 12.2% against 11.5% / 9.2% with the wickets per innings right. A wicket term by wickets down (fitted per
   phase on the real dismissal rates) left this unchanged and was dropped: with the per-ball rates right, the excess comes
   from weak batting sides collapsing more than real ones, which is the ratings' spread, not the context.
@@ -1243,6 +1273,26 @@ Refit: `python3 -I src/analysis/t20i-level.py` (from packages/ratings, needs `du
 (about 15 minutes; `CAL_LIVE=1` adds the live rows; it starts from the current table, `CAL_NOCONTEXT=1` from none), rebuild the
 engine, then `npx vitest run packages/engine/src/__tests__/scoring-context.test.ts`. Refit after the T20 ratings or the national
 squads change.
+
+**The T20I's own match conditions** (`match-conditions.ts`, key `t20i` of each gender in `match-conditions-data.ts`; both
+engines read it for a match whose rules have `scoringContext: "t20i"`). The T20Is had borrowed the men's default term and the
+women none. Fitted like the leagues' (RULES-MATCH.md 12.8) but on the replayed real fixtures (`calibrate-spread.test.ts`,
+`CAL_T20I=1`): a grid of fixed run multipliers, the two-piece normal shape and scale that best match the real season-centred first
+innings' percentiles and 200+ / under-120 shares (t20_spread.json "t20i-m" / "t20i-w"), the centre set to keep the mean. Men
+`lo` 0.12, `hi` 0.36; women 0.29 / 0.435 (a wider scale: their ratings compress the gaps between sides most). On 3,500 / 2,600
+drawn matches, first innings, deviation at the 10 / 25 / 50 / 75 / 90th percentile; 200+; under 120:
+
+| | sd | percentiles | 200+ | under 120 |
+|---|---|---|---|---|
+| men real (centred) | 36.1 | -44 / -25 / 0 / +23 / +42 | 15.5% | 9.5% |
+| men before | 24.3 | -38 / -18 / +1 / +21 / +38 | 12.0% (6.6% at the unscaled mean) | 7.2% |
+| men after | 35.3 | -45 / -22 / +2 / +25 / +44 | 15.4% | 10.1% |
+| women real (centred) | 33.5 | -41 / -20 / 0 / +21 / +42 | 3.2% | 28.1% |
+| women before | 22.6 | -27 / -15 / -1 / +16 / +28 | 0.3% | 19.1% |
+| women after | 30.2 | -39 / -21 / 0 / +21 / +38 | 2.0% | 26.2% |
+
+Refit: `CAL_T20I=1 CALIBRATE_WRITE=1 npx vitest run packages/app/src/__tests__/calibrate-spread.test.ts -t "T20I"` (about 8 minutes;
+the leagues' entries are kept). The women's spread is still 3 runs short (their grid cannot go wider without under-120 overshooting).
 
 **The women's leagues** (WPL, WBBL, the women's Hundred) were off the same way and now have contexts of their own, fitted
 the same way on their matches since 2024: docs/RULES-MATCH.md 12.7.

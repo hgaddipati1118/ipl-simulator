@@ -82,11 +82,21 @@ the dedicated Chrome (`BU_NAME=cricinfo-comm BU_CDP_URL=http://127.0.0.1:9224`) 
 (rather than failing every remaining match), writes `RESTART`, and `run.sh` starts a fresh browser-harness run, whose
 `ensure_daemon` heals the daemon. Matches that failed with a lost connection can be retried by resetting their `n` in
 `out/state.json` `failed`. Some matches end in a tall editorial blurb and the page then ignores programmatic scrolling;
-`wheel_down()` (real mouse-wheel events) keeps the infinite scroll going. Known gap: ties decided by a super over come back
-with only a few balls. Probed 2026-11-08 on IPL 2025 DC v RR (1473469): the page has a "Super Over 1" button and no team
-dropdown (the team abbreviations only appear as header links), `__NEXT_DATA__` holds 13 balls of innings 2 with
-`nextInningOver` 18, and neither the scroll triggers nor real wheel events fire any `/match/comments` request; the
-page's own paging for these matches has not been found yet (screenshots timed out on oldmac with its display asleep).
+`wheel_down()` (real mouse-wheel events) keeps the infinite scroll going. Super overs: a tie decided by a super over came back with only a few balls (fixed in the script, below).
+What the page does for these matches (probed 2026-11-09, IPL 2025 DC v RR 1473469, in a separate headless Chrome, not the
+scraper's): it opens on its "Super Over 1" view (the innings dropdown's label), where the list's infinite scroll never fires, and
+the team dropdown's button reads "Super Over 1", not a team abbreviation, so the scraper never found the dropdown and loaded
+nothing but the 13 balls in `__NEXT_DATA__`. The super over itself needs no request: every ball of it (innings 3, 4, and 5, 6 for
+a second super over) is already in `__NEXT_DATA__` at `content.recentBallCommentary.superOverBallComments` (the "Super Over" dropdown
+entry fires no request). A cold click on the dropdown button can miss, so a `mouseMoved` first. The script now stores those balls,
+treats innings 3.. as complete (the page's `isComplete` is false for a chase that ended on the winning runs), recognises the
+"Super Over N" button, skips the Super Over option in the dropdown loop and loads the regular innings through the dropdown
+instead of the dead scroll. The change is in `packages/ratings/src/analysis/commentary-scraper.py`; **apply it on the running
+scraper's next restart** (copy the file to `/Volumes/Data/Developer/cricinfo-commentary/scraper.py`; the running process was not
+touched). The eight tied matches then in the corpus were re-scraped with it from a separate local headless Chrome (all eight
+complete except Namibia v Oman's first innings, 22 of 120 balls, and KKR v LSG's, 14: the dropdown click missed three times) and
+saved as `superover-fix-*.jsonl.gz` next to the raw files (extract keeps the record with the most balls per match). The extractor
+now gives super-over balls a six-ball innings (phase "death", a chase target from the previous super over's balls).
 
 Akamai: a challenge page or "Access Denied" raises `Blocked`; the scraper backs off 1, 2, 5, 10, 20 minutes and gives up
 (writes `STOPPED_BLOCKED`) if it has been blocked continuously for an hour.
@@ -178,8 +188,11 @@ a player in the match; no real name from the source survives in any template (ch
 - Scraper: measured ~45 matches/hour (about 70 s of page time + 5-11 s pacing per T20, 0 Akamai blocks in the first hours). Planned set is roughly
   1,250 IPL, ~90 WPL, ~550 World Cup (incl. women's), ~560 T20Is since 2023/24 and ~1,900 league matches since 2021, about 4,300 matches, i.e. around 4 days
   of scraping; the IPL alone is ~27 hours.
-- The committed model is built from 37 matches (IPL 2026, 8,619 balls: 100% with text, 99.4% with shot tags, 100% with line and length):
-  5,583 templates, 0.62 MB raw / 159 KB gzipped. Run outs: 12 striker and 10 non-striker run-out balls in the corpus gave 7 striker and
+- Rebuilt 2026-11-09 from 1,969 matches (448,679 balls: IPL 1,247, T20 World Cups 377, T20Is 343; 98.3% with text, 99.0% with shot tags,
+  71.5% with line and length): 45,470 templates, 4.86 MB raw / 1.36 MB gzipped. The build also strips leading punctuation and drops any
+  template with a capitalised word that is a first or last name in the game's name pools and never appears in lowercase in the kept
+  templates ("Duff ball", "Sow and down leg"; the test checks the same). The older text: the first committed model was built from 37 matches
+  (IPL 2026, 8,619 balls): 5,583 templates, 0.62 MB raw / 159 KB gzipped. Run outs: 12 striker and 10 non-striker run-out balls in the corpus gave 7 striker and
   8 non-striker templates; 9 caught-and-bowled balls gave 6 templates; hit wicket, obstructing, handled, hit twice and timed out have no
   corpus lines at all (hand-written, section 8). Common outcomes are well covered; rare dismissals (stumped, lbw, run out) and 3s have few lines
   and fall back to the built-in text (the picker steps aside when fewer than 4 unused lines are left). Regenerate on the full corpus to fill those
