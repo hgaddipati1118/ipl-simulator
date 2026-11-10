@@ -1212,6 +1212,19 @@ fitted level: section "T20I level" below.
 
 Not done: no multiplayer series; the series does not feed career stats.
 
+## Per-country validation (benchmark built, fits not done)
+
+`packages/app/src/__tests__/benchmark-countries.test.ts` (`BENCH_COUNTRIES=1 npx vitest run packages/app/src/__tests__/benchmark-countries.test.ts`) replays
+the real fixtures (pairing, host country or neutral) between the twelve full members with the series' own sides and prints, per
+country and format (men's and women's T20I and ODI since 2019, men's Tests since 2023): win rate overall, at home and away, mean
+first-innings total, runs per wicket, and the head-to-head rates of the pairs with 8+ real matches, marking a figure OFF outside
+its tolerance. Real targets: `docs/data/country_validation.json` from `packages/ratings/src/analysis/country-validation.py`.
+First run (3 replays of each fixture; the T20I spread and SA20 changes above not yet in): OFF figures men's T20I 36, women's T20I
+40, men's ODI 24, women's ODI 23, men's Tests 12 (of about 60-70 per set). The clearest: Australia and England women win 64% and 59% against
+a real 87% and 74%; Bangladesh and Zimbabwe women win 46% and 38% against 18% and 0%; Sri Lanka, West Indies and Zimbabwe men's
+T20I are too strong (48 / 51 / 43% against 36 / 41 / 29%); Test first innings: New Zealand 284 against 394, Bangladesh 310 against
+236. No per-country strength or home-advantage fit has been made yet.
+
 ## T20I level
 
 A series' T20Is play at a level fitted on real T20Is, in both engines; men's leagues stay on the league tables (the instant
