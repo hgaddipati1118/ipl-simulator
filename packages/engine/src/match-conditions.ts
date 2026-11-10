@@ -5,7 +5,8 @@
  * above its centre, so it can be skewed), with a shape pooled over the men's leagues and a scale and centre per league,
  * fitted to the real leagues' season-centred distribution of first-innings totals with the mean kept where it was
  * (match-conditions-data.ts; docs/RULES-MATCH.md 12.8). The ODI has none (its fitted model already gives the real spread);
- * neither do the women's leagues (their real match term is no larger than the engine's own).
+ * neither do the women's leagues (their real match term is no larger than the engine's own). A series' T20Is (the rules'
+ * `scoringContext: "t20i"`) have a shape of their own per gender, fitted on the real T20Is' totals (docs/FORMATS.md, "T20I level").
  */
 import type { BallOutcome } from "./match.js";
 import type { Gender } from "./delivery-rules.js";
@@ -33,8 +34,9 @@ export function conditionsShapeFor(gender: Gender, league: string | undefined): 
  * Draw a match's conditions (none, and no draw, without a shape). The log multiplier is two-piece normal: below the centre
  * with probability lo / (lo + hi) and sd lo, above it otherwise with sd hi (one density, continuous at the centre).
  */
-export function drawMatchConditions(gender: Gender, league: string | undefined, rng: RNG): MatchConditions | undefined {
-  const s = conditionsShapeFor(gender, league);
+export function drawMatchConditions(gender: Gender, league: string | undefined, rng: RNG, scoringContext?: "t20i"): MatchConditions | undefined {
+  // a T20I draws the T20I's own shape (the "t20i" key of either gender), fitted on real T20Is between full members
+  const s = conditionsShapeFor(gender, scoringContext === "t20i" ? "t20i" : league);
   if (!s) return undefined;
   const below = s.lo + s.hi > 0 && rng() < s.lo / (s.lo + s.hi);
   const z = Math.abs(normal(rng));

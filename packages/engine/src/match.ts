@@ -1998,7 +1998,7 @@ export function simulateMatch(
   const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
   const venue = getVenueContext(homeTeam, rules, options, fmt);
   // The match's own conditions on the day (T20, The Hundred; drawn only where the league or gender has a fitted shape)
-  const conditions = own ? undefined : drawMatchConditions(venue.gender ?? "male", rules.league, rng);
+  const conditions = own ? undefined : drawMatchConditions(venue.gender ?? "male", rules.league, rng, rules.scoringContext);
   if (conditions) venue.conditions = conditions;
   // Measured grounds: follow the chase record. Unmapped (custom) venues keep the dew/pitch heuristic. ODI captains field
   // first as often as the real ones have since 2019.
