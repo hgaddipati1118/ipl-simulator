@@ -277,7 +277,7 @@ def list_innings_options():
     so poll and nudge the scroll for a few seconds"""
     for i in range(7):
         r = js("""(function(){const ab=%s;
-          const btn=[...document.querySelectorAll('button')].find(e=>ab.indexOf((e.innerText||'').trim())>-1);
+          const btn=[...document.querySelectorAll('button')].find(e=>ab.indexOf((e.innerText||'').trim())>-1||(e.querySelector('i.icon-caret_down')&&/^Super Over \\d+$/.test((e.innerText||'').trim())));
           if(!btn) return null;
           btn.scrollIntoView({block:'center'}); const b=btn.getBoundingClientRect();
           return JSON.stringify({x:b.x+b.width/2,y:b.y+b.height/2,t:(btn.innerText||'').trim()})})()""" % json.dumps(ABBRS))
@@ -288,6 +288,7 @@ def list_innings_options():
 def open_dropdown_options():
     b = list_innings_options()
     if not b: return None, []
+    cdp("Input.dispatchMouseEvent", type="mouseMoved", x=b['x'], y=b['y']); time.sleep(0.3)   # hover first: a cold click can miss on a super-over page
     click_at_xy(b['x'], b['y']); nap(0.8, 1.4)
     r = js("""(function(){return JSON.stringify([...document.querySelectorAll('li')].filter(e=>e.offsetHeight>0&&e.offsetHeight<60&&e.className.indexOf('ds-w-full')>-1).map(e=>{const r=e.getBoundingClientRect();return {t:(e.innerText||'').trim(),x:r.x+r.width/2,y:r.y+r.height/2}}))})()""")
     return b, json.loads(r)
@@ -311,8 +312,19 @@ def scrape_match(mm, series, prior=None, attempt=0):
     for c in content.get('comments') or []:
         stores.setdefault(c.get('inningNumber') or cur, {})[c['id']] = c
     complete = {}
+    # Super Overs (ties): the page opens on its "Super Over" view and embeds every super-over ball in __NEXT_DATA__
+    # (recentBallCommentary.superOverBallComments, innings 3.. = one over per innings), so no paging is needed for them; but
+    # in that view the list's infinite scroll never fires, so the regular innings are loaded through the dropdown instead
+    so_balls = (content.get('recentBallCommentary') or {}).get('superOverBallComments') or []
+    for c in so_balls:
+        stores.setdefault(c['inningNumber'], {})[c['id']] = c
+    for n_ in stores:
+        if n_ >= 3: complete[n_] = True      # the page's isComplete is false for a chase that ended on the winning runs
+    inn_nums = sorted(set(inn_nums) | {n_ for n_ in stores if n_ >= 3})
+    so_view = bool(so_balls)
     # 1) current innings via page's own infinite scroll
     if cur in skip_ok: complete[cur] = True
+    elif so_view: pass
     else: complete[cur] = drain_innings(col, stores[cur], content.get('nextInningOver'), cur) if content.get('nextInningOver') not in (None, 0) else True
     # 2) other innings through the team dropdown
     for n in inn_nums:
@@ -326,6 +338,7 @@ def scrape_match(mm, series, prior=None, attempt=0):
             tried = False
             for o in opts:
                 if o['t'] == (b or {}).get('t') and len(opts) > 1: continue
+                if o['t'].startswith('Super Over'): continue     # already embedded in the page data (no request fires)
                 col.pull(); 
                 click_at_xy(o['x'], o['y']); nap(1.2, 2.0)
                 got = wait_responses(col, 12)

@@ -587,6 +587,45 @@ def main():
     reasons["rows_with_text_in_known_class"] = n_text
     print("template candidates per class:", {k: len(v) for k, v in by_class.items()})
 
+    # ---- strip stray leading punctuation, then drop any template that carries a real player name from the game's own name
+    # pools (what engine/__tests__/commentary-model.test.ts checks): a capitalised word that is a first/last name in the
+    # pools and is never written in lowercase in the kept templates ("Duff ball", "Peculiar attempt", "Sow and down leg")
+    for ck, d in by_class.items():
+        for key in list(d):
+            t0 = d[key][0]
+            t1 = t0.lstrip(" .,;:!?-—")
+            if t1 != t0:
+                if not t1:
+                    del d[key]
+                    continue
+                d[key][0] = t1[0].upper() + t1[1:]
+    pool_src = (ROOT.parent / "engine" / "src" / "name-model.ts").read_text()
+    pm = re.search(r"NAME_POOLS: Record<string, NamePool> = (\{.*\});", pool_src)
+    pool_tokens = set()
+    if pm:
+        for pool in json.loads(pm.group(1)).values():
+            pool_tokens.update(t for t in pool["first"] + pool["last"] if len(t) >= 3)
+    NOT_NAMES = {"bam", "boom", "wham", "pow", "zing", "whack", "wow", "ooh", "oof", "yes", "hope", "miracle", "love", "lord", "king", "major",
+                 "short", "brown", "gray", "grey", "rose", "sunny", "happy", "faith", "free", "grace"}
+    IDIOMS = re.compile(r"\bStone dead\b")
+    CAPW = re.compile(r"\b[A-Z][a-zA-Z'’-]+\b")
+    LOWW = re.compile(r"\b[a-z][a-z'’]+\b")
+    for _ in range(6):
+        lowerw = set(NOT_NAMES)
+        for d in by_class.values():
+            for c in d.values():
+                lowerw.update(LOWW.findall(c[0]))
+        dropped = 0
+        for ck, d in by_class.items():
+            for key in list(d):
+                bad = any(m.group(0) in pool_tokens and m.group(0).lower() not in lowerw for m in CAPW.finditer(IDIOMS.sub("", d[key][0])))
+                if bad:
+                    del d[key]
+                    dropped += 1
+        reasons["pool_name_leak"] += dropped
+        if not dropped:
+            break
+
     # ---- cap per class, preferring variety over the tag space, then shrink to the size budget
     TARGET = {"dot": 9000, "1": 7000, "2": 3000, "3": 800, "4": 8000, "6": 7000, "wide": 1200, "noball": 400, "legbye": 700,
               "W:bowled": 1800, "W:caught": 4500, "W:lbw": 1500, "W:run_out": 700, "W:run_out_ns": 500, "W:stumped": 500, "W:caught_and_bowled": 400}
@@ -616,7 +655,22 @@ def main():
         for ck, d in by_class.items():
             sel = select(list(d.values()), int(TARGET.get(ck, 500) * scale))
             lines[ck] = {"t": [c[0] for c in sel], "g": [c[1] for c in sel]}
-            total += len(sel)
+        # the name check again on what was kept (a lowercase use that only existed in a dropped candidate no longer excuses it)
+        for _ in range(6):
+            lowerw = set(NOT_NAMES)
+            for v in lines.values():
+                for t in v["t"]:
+                    lowerw.update(LOWW.findall(t))
+            dropped = 0
+            for ck, v in lines.items():
+                keep = [i for i, t in enumerate(v["t"]) if not any(m.group(0) in pool_tokens and m.group(0).lower() not in lowerw for m in CAPW.finditer(IDIOMS.sub("", t)))]
+                if len(keep) < len(v["t"]):
+                    dropped += len(v["t"]) - len(keep)
+                    v["t"] = [v["t"][i] for i in keep]; v["g"] = [v["g"][i] for i in keep]
+            reasons["pool_name_leak_final"] += dropped
+            if not dropped:
+                break
+        total = sum(len(v["t"]) for v in lines.values())
         model = {
             "v": 2, "dict": {"shot": dicts["shot"], "line": dicts["line"], "len": dicts["len"], "bk": BK, "hand": HANDS, "ph": PHASES, "pr": PRESSURE},
             "joint": joint, "lines": lines,

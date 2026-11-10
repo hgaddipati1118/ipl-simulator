@@ -214,6 +214,13 @@ def emit_match(rec, out, stats, name_tokens, team_tokens, per_comp, per_comp_tex
         n = int(n_str)
         # chase target: first innings total + 1 (for innings 2 of a normal match)
         target = runs_by_inn.get(1, 0) + 1 if n == 2 else None
+        inn_max_balls = max_balls
+        if n >= 3:
+            # a super over (innings 3.. = one over each, the even ones chase the odd one before): six balls, a target built from
+            # the previous super-over innings' balls (the scorecard lists only the two regular innings)
+            inn_max_balls = 6
+            if n % 2 == 0:
+                target = sum((b.get("totalRuns") or 0) for b in rec["commentary"].get(str(n - 1), [])) + 1
         legal = 0
         score = 0
         wkts = 0
@@ -244,15 +251,15 @@ def emit_match(rec, out, stats, name_tokens, team_tokens, per_comp, per_comp_tex
             # situation before this ball
             crr = (score * 6 / legal) if legal else 0.0
             rrr = None
-            if target is not None and legal < max_balls:
-                rrr = (target - score) * 6 / (max_balls - legal)
+            if target is not None and legal < inn_max_balls:
+                rrr = (target - score) * 6 / (inn_max_balls - legal)
             row = {
                 "m": rec["matchId"], "comp": comp, "season": (rec.get("fixture") or {}).get("startDate", "")[:4], "g": gender,
                 "inn": n, "over": over, "ball": c.get("ballNumber"), "legal": legal, "oc": oc, "tot": total, "bat": bat,
                 "wk": kind, "keeper": bool(keeper), "out": c.get("outPlayerId"),
                 "shot": c.get("shotType"), "line": c.get("pitchLine"), "len": c.get("pitchLength"),
                 "zone": c.get("wagonZone"), "ctl": c.get("shotControl"),
-                "phase": phase_of(legal, max_balls), "score": score, "wkts": wkts, "crr": round(crr, 2), "rrr": None if rrr is None else round(rrr, 2),
+                "phase": "death" if n >= 3 else phase_of(legal, max_balls), "score": score, "wkts": wkts, "crr": round(crr, 2), "rrr": None if rrr is None else round(rrr, 2),
                 "bruns": bat_runs[bid], "bballs": bat_balls[bid],
                 "hand": ((bp or {}).get("battingStyles") or [None])[0],
                 "bstyle": ((wp or {}).get("bowlingStyles") or [None])[0], "bk": bowl_kind((wp or {}).get("bowlingStyles")),
