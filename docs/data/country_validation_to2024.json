@@ -1,0 +1,4293 @@
+{
+ "t20i-men": {
+  "window": "2019+",
+  "matches": 418,
+  "teams": {
+   "Australia": {
+    "n": 75,
+    "winRate": 0.587,
+    "homeN": 24,
+    "homeWinRate": 0.708,
+    "awayN": 42,
+    "awayWinRate": 0.476,
+    "neutralN": 9,
+    "neutralWinRate": 0.778,
+    "firstN": 29,
+    "firstInnings": 175.1,
+    "firstSd": 37.8,
+    "runsPerWicket": 27.75
+   },
+   "Bangladesh": {
+    "n": 69,
+    "winRate": 0.435,
+    "homeN": 30,
+    "homeWinRate": 0.667,
+    "awayN": 24,
+    "awayWinRate": 0.333,
+    "neutralN": 15,
+    "neutralWinRate": 0.133,
+    "firstN": 34,
+    "firstInnings": 141.5,
+    "firstSd": 30.6,
+    "runsPerWicket": 21.17
+   },
+   "England": {
+    "n": 83,
+    "winRate": 0.59,
+    "homeN": 25,
+    "homeWinRate": 0.6,
+    "awayN": 45,
+    "awayWinRate": 0.578,
+    "neutralN": 13,
+    "neutralWinRate": 0.615,
+    "firstN": 30,
+    "firstInnings": 184.5,
+    "firstSd": 35.6,
+    "runsPerWicket": 27.99
+   },
+   "India": {
+    "n": 108,
+    "winRate": 0.704,
+    "homeN": 50,
+    "homeWinRate": 0.72,
+    "awayN": 37,
+    "awayWinRate": 0.703,
+    "neutralN": 21,
+    "neutralWinRate": 0.667,
+    "firstN": 68,
+    "firstInnings": 182.3,
+    "firstSd": 38.7,
+    "runsPerWicket": 31.39
+   },
+   "Ireland": {
+    "n": 40,
+    "winRate": 0.275,
+    "homeN": 17,
+    "homeWinRate": 0.235,
+    "awayN": 11,
+    "awayWinRate": 0.455,
+    "neutralN": 12,
+    "neutralWinRate": 0.167,
+    "firstN": 17,
+    "firstInnings": 154.1,
+    "firstSd": 34.6,
+    "runsPerWicket": 19.94
+   },
+   "New Zealand": {
+    "n": 84,
+    "winRate": 0.548,
+    "homeN": 40,
+    "homeWinRate": 0.6,
+    "awayN": 36,
+    "awayWinRate": 0.5,
+    "neutralN": 8,
+    "neutralWinRate": 0.5,
+    "firstN": 51,
+    "firstInnings": 168.7,
+    "firstSd": 38.4,
+    "runsPerWicket": 24.83
+   },
+   "Pakistan": {
+    "n": 92,
+    "winRate": 0.489,
+    "homeN": 30,
+    "homeWinRate": 0.567,
+    "awayN": 46,
+    "awayWinRate": 0.435,
+    "neutralN": 16,
+    "neutralWinRate": 0.5,
+    "firstN": 43,
+    "firstInnings": 162.6,
+    "firstSd": 24.9,
+    "runsPerWicket": 24.93
+   },
+   "South Africa": {
+    "n": 76,
+    "winRate": 0.5,
+    "homeN": 30,
+    "homeWinRate": 0.333,
+    "awayN": 31,
+    "awayWinRate": 0.516,
+    "neutralN": 15,
+    "neutralWinRate": 0.8,
+    "firstN": 39,
+    "firstInnings": 172.7,
+    "firstSd": 27.4,
+    "runsPerWicket": 26.61
+   },
+   "Sri Lanka": {
+    "n": 70,
+    "winRate": 0.357,
+    "homeN": 23,
+    "homeWinRate": 0.391,
+    "awayN": 32,
+    "awayWinRate": 0.25,
+    "neutralN": 15,
+    "neutralWinRate": 0.533,
+    "firstN": 40,
+    "firstInnings": 150.9,
+    "firstSd": 27.6,
+    "runsPerWicket": 20.72
+   },
+   "West Indies": {
+    "n": 90,
+    "winRate": 0.422,
+    "homeN": 55,
+    "homeWinRate": 0.509,
+    "awayN": 23,
+    "awayWinRate": 0.304,
+    "neutralN": 12,
+    "neutralWinRate": 0.25,
+    "firstN": 40,
+    "firstInnings": 169.2,
+    "firstSd": 39.5,
+    "runsPerWicket": 23.97
+   },
+   "Zimbabwe": {
+    "n": 49,
+    "winRate": 0.327,
+    "homeN": 23,
+    "homeWinRate": 0.391,
+    "awayN": 20,
+    "awayWinRate": 0.2,
+    "neutralN": 6,
+    "neutralWinRate": 0.5,
+    "firstN": 27,
+    "firstInnings": 139.4,
+    "firstSd": 30.1,
+    "runsPerWicket": 18.62
+   }
+  },
+  "h2h": {
+   "Australia v England": {
+    "n": 9,
+    "winRate": {
+     "Australia": 0.333,
+     "England": 0.667
+    }
+   },
+   "England v Pakistan": {
+    "n": 16,
+    "winRate": {
+     "England": 0.688,
+     "Pakistan": 0.312
+    }
+   },
+   "India v Sri Lanka": {
+    "n": 13,
+    "winRate": {
+     "India": 0.692,
+     "Sri Lanka": 0.308
+    }
+   },
+   "Bangladesh v Pakistan": {
+    "n": 8,
+    "winRate": {
+     "Bangladesh": 0.0,
+     "Pakistan": 1.0
+    }
+   },
+   "Sri Lanka v West Indies": {
+    "n": 9,
+    "winRate": {
+     "Sri Lanka": 0.444,
+     "West Indies": 0.556
+    }
+   },
+   "Bangladesh v Zimbabwe": {
+    "n": 16,
+    "winRate": {
+     "Bangladesh": 0.75,
+     "Zimbabwe": 0.25
+    }
+   },
+   "Australia v India": {
+    "n": 14,
+    "winRate": {
+     "Australia": 0.357,
+     "India": 0.643
+    }
+   },
+   "Pakistan v Zimbabwe": {
+    "n": 10,
+    "winRate": {
+     "Pakistan": 0.7,
+     "Zimbabwe": 0.3
+    }
+   },
+   "New Zealand v Pakistan": {
+    "n": 21,
+    "winRate": {
+     "New Zealand": 0.524,
+     "Pakistan": 0.476
+    }
+   },
+   "Australia v New Zealand": {
+    "n": 9,
+    "winRate": {
+     "Australia": 0.556,
+     "New Zealand": 0.444
+    }
+   },
+   "Bangladesh v New Zealand": {
+    "n": 10,
+    "winRate": {
+     "Bangladesh": 0.4,
+     "New Zealand": 0.6
+    }
+   },
+   "England v South Africa": {
+    "n": 11,
+    "winRate": {
+     "England": 0.545,
+     "South Africa": 0.455
+    }
+   },
+   "Pakistan v South Africa": {
+    "n": 12,
+    "winRate": {
+     "Pakistan": 0.5,
+     "South Africa": 0.5
+    }
+   },
+   "England v India": {
+    "n": 10,
+    "winRate": {
+     "England": 0.4,
+     "India": 0.6
+    }
+   },
+   "England v West Indies": {
+    "n": 19,
+    "winRate": {
+     "England": 0.632,
+     "West Indies": 0.368
+    }
+   },
+   "South Africa v West Indies": {
+    "n": 14,
+    "winRate": {
+     "South Africa": 0.357,
+     "West Indies": 0.643
+    }
+   },
+   "Australia v West Indies": {
+    "n": 11,
+    "winRate": {
+     "Australia": 0.545,
+     "West Indies": 0.455
+    }
+   },
+   "Australia v Sri Lanka": {
+    "n": 11,
+    "winRate": {
+     "Australia": 0.818,
+     "Sri Lanka": 0.182
+    }
+   },
+   "Ireland v Zimbabwe": {
+    "n": 13,
+    "winRate": {
+     "Ireland": 0.462,
+     "Zimbabwe": 0.538
+    }
+   },
+   "India v New Zealand": {
+    "n": 14,
+    "winRate": {
+     "India": 0.714,
+     "New Zealand": 0.286
+    }
+   },
+   "England v New Zealand": {
+    "n": 10,
+    "winRate": {
+     "England": 0.5,
+     "New Zealand": 0.5
+    }
+   },
+   "India v West Indies": {
+    "n": 18,
+    "winRate": {
+     "India": 0.722,
+     "West Indies": 0.278
+    }
+   },
+   "India v South Africa": {
+    "n": 16,
+    "winRate": {
+     "India": 0.625,
+     "South Africa": 0.375
+    }
+   },
+   "New Zealand v Sri Lanka": {
+    "n": 11,
+    "winRate": {
+     "New Zealand": 0.818,
+     "Sri Lanka": 0.182
+    }
+   },
+   "Bangladesh v India": {
+    "n": 8,
+    "winRate": {
+     "Bangladesh": 0.125,
+     "India": 0.875
+    }
+   }
+  },
+  "fixtures": [
+   [
+    "Australia",
+    "Bangladesh",
+    "Bangladesh",
+    5,
+    1
+   ],
+   [
+    "Australia",
+    "Bangladesh",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "England",
+    "Australia",
+    2,
+    0
+   ],
+   [
+    "Australia",
+    "England",
+    "England",
+    5,
+    2
+   ],
+   [
+    "Australia",
+    "England",
+    null,
+    2,
+    1
+   ],
+   [
+    "Australia",
+    "India",
+    "Australia",
+    3,
+    1
+   ],
+   [
+    "Australia",
+    "India",
+    "India",
+    10,
+    4
+   ],
+   [
+    "Australia",
+    "India",
+    null,
+    1,
+    0
+   ],
+   [
+    "Australia",
+    "Ireland",
+    "Australia",
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "Australia",
+    1,
+    0
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "New Zealand",
+    7,
+    4
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Australia",
+    5,
+    5
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Pakistan",
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "South Africa",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "South Africa",
+    "South Africa",
+    6,
+    5
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    "Australia",
+    7,
+    6
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    2
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "Australia",
+    5,
+    4
+   ],
+   [
+    "Australia",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "West Indies",
+    5,
+    1
+   ],
+   [
+    "Bangladesh",
+    "England",
+    "Bangladesh",
+    3,
+    3
+   ],
+   [
+    "Bangladesh",
+    "England",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "India",
+    "India",
+    6,
+    1
+   ],
+   [
+    "Bangladesh",
+    "India",
+    null,
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    "Bangladesh",
+    2,
+    1
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "Bangladesh",
+    5,
+    3
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "New Zealand",
+    5,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Bangladesh",
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    null,
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Pakistan",
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    null,
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Bangladesh",
+    3,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    null,
+    3,
+    1
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    "West Indies",
+    5,
+    3
+   ],
+   [
+    "Bangladesh",
+    "Zimbabwe",
+    "Bangladesh",
+    9,
+    8
+   ],
+   [
+    "Bangladesh",
+    "Zimbabwe",
+    null,
+    1,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Zimbabwe",
+    "Zimbabwe",
+    6,
+    3
+   ],
+   [
+    "England",
+    "India",
+    "England",
+    3,
+    1
+   ],
+   [
+    "England",
+    "India",
+    "India",
+    5,
+    2
+   ],
+   [
+    "England",
+    "India",
+    null,
+    2,
+    1
+   ],
+   [
+    "England",
+    "New Zealand",
+    "England",
+    4,
+    2
+   ],
+   [
+    "England",
+    "New Zealand",
+    "New Zealand",
+    4,
+    2
+   ],
+   [
+    "England",
+    "New Zealand",
+    null,
+    2,
+    1
+   ],
+   [
+    "England",
+    "Pakistan",
+    "England",
+    8,
+    6
+   ],
+   [
+    "England",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "England",
+    "Pakistan",
+    "Pakistan",
+    7,
+    4
+   ],
+   [
+    "England",
+    "South Africa",
+    "England",
+    3,
+    1
+   ],
+   [
+    "England",
+    "South Africa",
+    null,
+    2,
+    0
+   ],
+   [
+    "England",
+    "South Africa",
+    "South Africa",
+    6,
+    5
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "England",
+    2,
+    2
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    null,
+    2,
+    2
+   ],
+   [
+    "England",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "England",
+    "West Indies",
+    "West Indies",
+    18,
+    11
+   ],
+   [
+    "India",
+    "Ireland",
+    "Ireland",
+    3,
+    3
+   ],
+   [
+    "India",
+    "Ireland",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "New Zealand",
+    "India",
+    6,
+    5
+   ],
+   [
+    "India",
+    "New Zealand",
+    "New Zealand",
+    7,
+    5
+   ],
+   [
+    "India",
+    "New Zealand",
+    null,
+    1,
+    0
+   ],
+   [
+    "India",
+    "Pakistan",
+    null,
+    5,
+    3
+   ],
+   [
+    "India",
+    "South Africa",
+    "India",
+    9,
+    5
+   ],
+   [
+    "India",
+    "South Africa",
+    null,
+    2,
+    1
+   ],
+   [
+    "India",
+    "South Africa",
+    "South Africa",
+    5,
+    4
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "India",
+    8,
+    7
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    null,
+    1,
+    0
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "Sri Lanka",
+    4,
+    2
+   ],
+   [
+    "India",
+    "West Indies",
+    "India",
+    6,
+    5
+   ],
+   [
+    "India",
+    "West Indies",
+    null,
+    5,
+    4
+   ],
+   [
+    "India",
+    "West Indies",
+    "West Indies",
+    7,
+    4
+   ],
+   [
+    "India",
+    "Zimbabwe",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "Zimbabwe",
+    "Zimbabwe",
+    5,
+    4
+   ],
+   [
+    "Ireland",
+    "New Zealand",
+    "Ireland",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "New Zealand",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    "Ireland",
+    3,
+    1
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    "Ireland",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    null,
+    4,
+    1
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    null,
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "West Indies",
+    2,
+    1
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Ireland",
+    5,
+    3
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    null,
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Zimbabwe",
+    6,
+    3
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "New Zealand",
+    11,
+    7
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    null,
+    2,
+    0
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "Pakistan",
+    8,
+    4
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "New Zealand",
+    5,
+    5
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "Sri Lanka",
+    5,
+    3
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "New Zealand",
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "West Indies",
+    4,
+    2
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "Pakistan",
+    3,
+    2
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "South Africa",
+    9,
+    4
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    null,
+    2,
+    0
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Pakistan",
+    3,
+    0
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "Pakistan",
+    3,
+    3
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "West Indies",
+    1,
+    1
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    null,
+    1,
+    0
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    "Pakistan",
+    3,
+    3
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    "Zimbabwe",
+    6,
+    4
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    null,
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "South Africa",
+    1,
+    1
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    3
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "South Africa",
+    3,
+    1
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "West Indies",
+    10,
+    3
+   ],
+   [
+    "Sri Lanka",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "Sri Lanka",
+    "West Indies",
+    "Sri Lanka",
+    5,
+    2
+   ],
+   [
+    "Sri Lanka",
+    "West Indies",
+    "West Indies",
+    3,
+    1
+   ],
+   [
+    "Sri Lanka",
+    "Zimbabwe",
+    "Sri Lanka",
+    3,
+    2
+   ],
+   [
+    "West Indies",
+    "Zimbabwe",
+    null,
+    1,
+    1
+   ]
+  ]
+ },
+ "t20i-women": {
+  "window": "2019+",
+  "matches": 315,
+  "teams": {
+   "Australia": {
+    "n": 66,
+    "winRate": 0.848,
+    "homeN": 29,
+    "homeWinRate": 0.828,
+    "awayN": 24,
+    "awayWinRate": 0.833,
+    "neutralN": 13,
+    "neutralWinRate": 0.923,
+    "firstN": 32,
+    "firstInnings": 166.6,
+    "firstSd": 28.1,
+    "runsPerWicket": 31.8
+   },
+   "Bangladesh": {
+    "n": 45,
+    "winRate": 0.2,
+    "homeN": 17,
+    "homeWinRate": 0.176,
+    "awayN": 12,
+    "awayWinRate": 0.167,
+    "neutralN": 16,
+    "neutralWinRate": 0.25,
+    "firstN": 20,
+    "firstInnings": 108.2,
+    "firstSd": 23.3,
+    "runsPerWicket": 14.56
+   },
+   "England": {
+    "n": 81,
+    "winRate": 0.765,
+    "homeN": 36,
+    "homeWinRate": 0.722,
+    "awayN": 30,
+    "awayWinRate": 0.8,
+    "neutralN": 15,
+    "neutralWinRate": 0.8,
+    "firstN": 49,
+    "firstInnings": 156.0,
+    "firstSd": 26.2,
+    "runsPerWicket": 25.05
+   },
+   "India": {
+    "n": 85,
+    "winRate": 0.529,
+    "homeN": 25,
+    "homeWinRate": 0.36,
+    "awayN": 35,
+    "awayWinRate": 0.543,
+    "neutralN": 25,
+    "neutralWinRate": 0.68,
+    "firstN": 42,
+    "firstInnings": 139.4,
+    "firstSd": 30.2,
+    "runsPerWicket": 23.83
+   },
+   "Ireland": {
+    "n": 34,
+    "winRate": 0.441,
+    "homeN": 12,
+    "homeWinRate": 0.25,
+    "awayN": 14,
+    "awayWinRate": 0.714,
+    "neutralN": 8,
+    "neutralWinRate": 0.25,
+    "firstN": 22,
+    "firstInnings": 136.8,
+    "firstSd": 30.3,
+    "runsPerWicket": 20.0
+   },
+   "New Zealand": {
+    "n": 64,
+    "winRate": 0.5,
+    "homeN": 23,
+    "homeWinRate": 0.522,
+    "awayN": 26,
+    "awayWinRate": 0.346,
+    "neutralN": 15,
+    "neutralWinRate": 0.733,
+    "firstN": 32,
+    "firstInnings": 140.7,
+    "firstSd": 25.3,
+    "runsPerWicket": 21.38
+   },
+   "Pakistan": {
+    "n": 63,
+    "winRate": 0.349,
+    "homeN": 20,
+    "homeWinRate": 0.55,
+    "awayN": 21,
+    "awayWinRate": 0.286,
+    "neutralN": 22,
+    "neutralWinRate": 0.227,
+    "firstN": 29,
+    "firstInnings": 124.3,
+    "firstSd": 28.7,
+    "runsPerWicket": 18.3
+   },
+   "South Africa": {
+    "n": 69,
+    "winRate": 0.478,
+    "homeN": 29,
+    "homeWinRate": 0.552,
+    "awayN": 31,
+    "awayWinRate": 0.355,
+    "neutralN": 9,
+    "neutralWinRate": 0.667,
+    "firstN": 33,
+    "firstInnings": 139.2,
+    "firstSd": 27.1,
+    "runsPerWicket": 26.03
+   },
+   "Sri Lanka": {
+    "n": 54,
+    "winRate": 0.352,
+    "homeN": 17,
+    "homeWinRate": 0.471,
+    "awayN": 18,
+    "awayWinRate": 0.333,
+    "neutralN": 19,
+    "neutralWinRate": 0.263,
+    "firstN": 26,
+    "firstInnings": 110.8,
+    "firstSd": 23.9,
+    "runsPerWicket": 18.26
+   },
+   "West Indies": {
+    "n": 62,
+    "winRate": 0.355,
+    "homeN": 24,
+    "homeWinRate": 0.292,
+    "awayN": 26,
+    "awayWinRate": 0.423,
+    "neutralN": 12,
+    "neutralWinRate": 0.333,
+    "firstN": 29,
+    "firstInnings": 112.1,
+    "firstSd": 32.8,
+    "runsPerWicket": 18.6
+   },
+   "Zimbabwe": {
+    "n": 7,
+    "winRate": 0.0,
+    "homeN": 5,
+    "homeWinRate": 0.0,
+    "awayN": 0,
+    "awayWinRate": null,
+    "neutralN": 2,
+    "neutralWinRate": 0.0,
+    "firstN": 1,
+    "firstInnings": 65.0,
+    "firstSd": 0.0,
+    "runsPerWicket": 17.34
+   }
+  },
+  "h2h": {
+   "India v Sri Lanka": {
+    "n": 9,
+    "winRate": {
+     "India": 0.778,
+     "Sri Lanka": 0.222
+    }
+   },
+   "Bangladesh v India": {
+    "n": 10,
+    "winRate": {
+     "Bangladesh": 0.1,
+     "India": 0.9
+    }
+   },
+   "Pakistan v Sri Lanka": {
+    "n": 8,
+    "winRate": {
+     "Pakistan": 0.625,
+     "Sri Lanka": 0.375
+    }
+   },
+   "England v West Indies": {
+    "n": 14,
+    "winRate": {
+     "England": 0.929,
+     "West Indies": 0.071
+    }
+   },
+   "Australia v New Zealand": {
+    "n": 12,
+    "winRate": {
+     "Australia": 0.833,
+     "New Zealand": 0.167
+    }
+   },
+   "New Zealand v South Africa": {
+    "n": 9,
+    "winRate": {
+     "New Zealand": 0.667,
+     "South Africa": 0.333
+    }
+   },
+   "India v West Indies": {
+    "n": 11,
+    "winRate": {
+     "India": 0.909,
+     "West Indies": 0.091
+    }
+   },
+   "England v India": {
+    "n": 15,
+    "winRate": {
+     "England": 0.667,
+     "India": 0.333
+    }
+   },
+   "Pakistan v West Indies": {
+    "n": 11,
+    "winRate": {
+     "Pakistan": 0.273,
+     "West Indies": 0.727
+    }
+   },
+   "England v Pakistan": {
+    "n": 8,
+    "winRate": {
+     "England": 1.0,
+     "Pakistan": 0.0
+    }
+   },
+   "Australia v India": {
+    "n": 18,
+    "winRate": {
+     "Australia": 0.833,
+     "India": 0.167
+    }
+   },
+   "England v South Africa": {
+    "n": 10,
+    "winRate": {
+     "England": 0.8,
+     "South Africa": 0.2
+    }
+   },
+   "India v South Africa": {
+    "n": 11,
+    "winRate": {
+     "India": 0.545,
+     "South Africa": 0.455
+    }
+   },
+   "Pakistan v South Africa": {
+    "n": 14,
+    "winRate": {
+     "Pakistan": 0.429,
+     "South Africa": 0.571
+    }
+   },
+   "England v New Zealand": {
+    "n": 17,
+    "winRate": {
+     "England": 0.824,
+     "New Zealand": 0.176
+    }
+   }
+  },
+  "fixtures": [
+   [
+    "Australia",
+    "Bangladesh",
+    "Australia",
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Bangladesh",
+    "Bangladesh",
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "Bangladesh",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "England",
+    "Australia",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "England",
+    "England",
+    5,
+    3
+   ],
+   [
+    "Australia",
+    "India",
+    "Australia",
+    7,
+    5
+   ],
+   [
+    "Australia",
+    "India",
+    "India",
+    7,
+    6
+   ],
+   [
+    "Australia",
+    "India",
+    null,
+    4,
+    4
+   ],
+   [
+    "Australia",
+    "Ireland",
+    "Ireland",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "Australia",
+    7,
+    6
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "New Zealand",
+    2,
+    1
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    null,
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Australia",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    null,
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "South Africa",
+    "Australia",
+    3,
+    2
+   ],
+   [
+    "Australia",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "Australia",
+    "South Africa",
+    "South Africa",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    "Australia",
+    4,
+    4
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    null,
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "Australia",
+    3,
+    2
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "West Indies",
+    3,
+    3
+   ],
+   [
+    "Bangladesh",
+    "England",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "India",
+    "Bangladesh",
+    7,
+    1
+   ],
+   [
+    "Bangladesh",
+    "India",
+    null,
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    "Bangladesh",
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    null,
+    3,
+    3
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "New Zealand",
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    null,
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Bangladesh",
+    4,
+    2
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Pakistan",
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    "South Africa",
+    3,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    null,
+    3,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Sri Lanka",
+    4,
+    1
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "England",
+    "India",
+    "England",
+    6,
+    3
+   ],
+   [
+    "England",
+    "India",
+    "India",
+    6,
+    5
+   ],
+   [
+    "England",
+    "India",
+    null,
+    3,
+    2
+   ],
+   [
+    "England",
+    "Ireland",
+    "Ireland",
+    2,
+    1
+   ],
+   [
+    "England",
+    "Ireland",
+    null,
+    1,
+    1
+   ],
+   [
+    "England",
+    "New Zealand",
+    "England",
+    9,
+    7
+   ],
+   [
+    "England",
+    "New Zealand",
+    "New Zealand",
+    8,
+    7
+   ],
+   [
+    "England",
+    "Pakistan",
+    "England",
+    3,
+    3
+   ],
+   [
+    "England",
+    "Pakistan",
+    null,
+    5,
+    5
+   ],
+   [
+    "England",
+    "South Africa",
+    "England",
+    4,
+    4
+   ],
+   [
+    "England",
+    "South Africa",
+    null,
+    2,
+    1
+   ],
+   [
+    "England",
+    "South Africa",
+    "South Africa",
+    4,
+    3
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "England",
+    3,
+    1
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    3
+   ],
+   [
+    "England",
+    "West Indies",
+    "England",
+    6,
+    6
+   ],
+   [
+    "England",
+    "West Indies",
+    null,
+    3,
+    2
+   ],
+   [
+    "England",
+    "West Indies",
+    "West Indies",
+    5,
+    5
+   ],
+   [
+    "India",
+    "New Zealand",
+    "New Zealand",
+    4,
+    0
+   ],
+   [
+    "India",
+    "New Zealand",
+    null,
+    2,
+    1
+   ],
+   [
+    "India",
+    "Pakistan",
+    null,
+    5,
+    4
+   ],
+   [
+    "India",
+    "South Africa",
+    "India",
+    9,
+    5
+   ],
+   [
+    "India",
+    "South Africa",
+    "South Africa",
+    2,
+    1
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    null,
+    5,
+    5
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "Sri Lanka",
+    4,
+    2
+   ],
+   [
+    "India",
+    "West Indies",
+    "India",
+    3,
+    2
+   ],
+   [
+    "India",
+    "West Indies",
+    null,
+    3,
+    3
+   ],
+   [
+    "India",
+    "West Indies",
+    "West Indies",
+    5,
+    5
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    "Pakistan",
+    3,
+    2
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    "Ireland",
+    3,
+    1
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    "Ireland",
+    2,
+    1
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "Ireland",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "West Indies",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    null,
+    2,
+    2
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Zimbabwe",
+    5,
+    5
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "New Zealand",
+    2,
+    0
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "New Zealand",
+    4,
+    3
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    null,
+    2,
+    2
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "South Africa",
+    3,
+    1
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    null,
+    4,
+    4
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    2
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "West Indies",
+    4,
+    3
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "Pakistan",
+    6,
+    4
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "South Africa",
+    7,
+    2
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    null,
+    4,
+    2
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Pakistan",
+    3,
+    3
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Sri Lanka",
+    1,
+    0
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    null,
+    2,
+    1
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "Pakistan",
+    7,
+    2
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "West Indies",
+    2,
+    0
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "South Africa",
+    6,
+    3
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "South Africa",
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "West Indies",
+    2,
+    1
+   ],
+   [
+    "Sri Lanka",
+    "West Indies",
+    "Sri Lanka",
+    2,
+    1
+   ]
+  ]
+ },
+ "odi-men": {
+  "window": "2019+",
+  "matches": 336,
+  "teams": {
+   "Australia": {
+    "n": 79,
+    "winRate": 0.62,
+    "homeN": 21,
+    "homeWinRate": 0.714,
+    "awayN": 39,
+    "awayWinRate": 0.462,
+    "neutralN": 19,
+    "neutralWinRate": 0.842,
+    "firstN": 45,
+    "firstInnings": 277.2,
+    "firstSd": 64.1,
+    "runsPerWicket": 34.85
+   },
+   "Bangladesh": {
+    "n": 69,
+    "winRate": 0.464,
+    "homeN": 20,
+    "homeWinRate": 0.65,
+    "awayN": 32,
+    "awayWinRate": 0.344,
+    "neutralN": 17,
+    "neutralWinRate": 0.471,
+    "firstN": 35,
+    "firstInnings": 258.9,
+    "firstSd": 50.7,
+    "runsPerWicket": 31.97
+   },
+   "England": {
+    "n": 66,
+    "winRate": 0.561,
+    "homeN": 37,
+    "homeWinRate": 0.676,
+    "awayN": 23,
+    "awayWinRate": 0.435,
+    "neutralN": 6,
+    "neutralWinRate": 0.333,
+    "firstN": 34,
+    "firstInnings": 293.0,
+    "firstSd": 71.7,
+    "runsPerWicket": 35.4
+   },
+   "India": {
+    "n": 89,
+    "winRate": 0.64,
+    "homeN": 40,
+    "homeWinRate": 0.725,
+    "awayN": 41,
+    "awayWinRate": 0.537,
+    "neutralN": 8,
+    "neutralWinRate": 0.75,
+    "firstN": 42,
+    "firstInnings": 296.8,
+    "firstSd": 72.6,
+    "runsPerWicket": 39.46
+   },
+   "Ireland": {
+    "n": 31,
+    "winRate": 0.29,
+    "homeN": 13,
+    "homeWinRate": 0.308,
+    "awayN": 12,
+    "awayWinRate": 0.333,
+    "neutralN": 6,
+    "neutralWinRate": 0.167,
+    "firstN": 15,
+    "firstInnings": 244.3,
+    "firstSd": 64.3,
+    "runsPerWicket": 28.05
+   },
+   "New Zealand": {
+    "n": 62,
+    "winRate": 0.565,
+    "homeN": 21,
+    "homeWinRate": 0.81,
+    "awayN": 29,
+    "awayWinRate": 0.345,
+    "neutralN": 12,
+    "neutralWinRate": 0.667,
+    "firstN": 23,
+    "firstInnings": 270.1,
+    "firstSd": 70.2,
+    "runsPerWicket": 34.59
+   },
+   "Pakistan": {
+    "n": 57,
+    "winRate": 0.526,
+    "homeN": 18,
+    "homeWinRate": 0.778,
+    "awayN": 23,
+    "awayWinRate": 0.478,
+    "neutralN": 16,
+    "neutralWinRate": 0.312,
+    "firstN": 24,
+    "firstInnings": 276.3,
+    "firstSd": 65.3,
+    "runsPerWicket": 37.64
+   },
+   "South Africa": {
+    "n": 63,
+    "winRate": 0.54,
+    "homeN": 36,
+    "homeWinRate": 0.583,
+    "awayN": 11,
+    "awayWinRate": 0.273,
+    "neutralN": 16,
+    "neutralWinRate": 0.625,
+    "firstN": 33,
+    "firstInnings": 282.5,
+    "firstSd": 79.0,
+    "runsPerWicket": 37.67
+   },
+   "Sri Lanka": {
+    "n": 63,
+    "winRate": 0.413,
+    "homeN": 24,
+    "homeWinRate": 0.75,
+    "awayN": 26,
+    "awayWinRate": 0.154,
+    "neutralN": 13,
+    "neutralWinRate": 0.308,
+    "firstN": 38,
+    "firstInnings": 245.7,
+    "firstSd": 61.9,
+    "runsPerWicket": 28.16
+   },
+   "West Indies": {
+    "n": 63,
+    "winRate": 0.333,
+    "homeN": 30,
+    "homeWinRate": 0.533,
+    "awayN": 24,
+    "awayWinRate": 0.167,
+    "neutralN": 9,
+    "neutralWinRate": 0.111,
+    "firstN": 30,
+    "firstInnings": 236.5,
+    "firstSd": 81.3,
+    "runsPerWicket": 30.45
+   },
+   "Zimbabwe": {
+    "n": 30,
+    "winRate": 0.2,
+    "homeN": 15,
+    "homeWinRate": 0.2,
+    "awayN": 15,
+    "awayWinRate": 0.2,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 17,
+    "firstInnings": 214.7,
+    "firstSd": 59.7,
+    "runsPerWicket": 23.35
+   }
+  },
+  "h2h": {
+   "Pakistan v South Africa": {
+    "n": 11,
+    "winRate": {
+     "Pakistan": 0.636,
+     "South Africa": 0.364
+    }
+   },
+   "England v South Africa": {
+    "n": 9,
+    "winRate": {
+     "England": 0.444,
+     "South Africa": 0.556
+    }
+   },
+   "England v Pakistan": {
+    "n": 9,
+    "winRate": {
+     "England": 0.889,
+     "Pakistan": 0.111
+    }
+   },
+   "India v South Africa": {
+    "n": 11,
+    "winRate": {
+     "India": 0.545,
+     "South Africa": 0.455
+    }
+   },
+   "Bangladesh v New Zealand": {
+    "n": 12,
+    "winRate": {
+     "Bangladesh": 0.083,
+     "New Zealand": 0.917
+    }
+   },
+   "Australia v India": {
+    "n": 22,
+    "winRate": {
+     "Australia": 0.5,
+     "India": 0.5
+    }
+   },
+   "Australia v Pakistan": {
+    "n": 13,
+    "winRate": {
+     "Australia": 0.692,
+     "Pakistan": 0.308
+    }
+   },
+   "England v West Indies": {
+    "n": 9,
+    "winRate": {
+     "England": 0.556,
+     "West Indies": 0.444
+    }
+   },
+   "Bangladesh v West Indies": {
+    "n": 12,
+    "winRate": {
+     "Bangladesh": 0.75,
+     "West Indies": 0.25
+    }
+   },
+   "Australia v England": {
+    "n": 11,
+    "winRate": {
+     "Australia": 0.727,
+     "England": 0.273
+    }
+   },
+   "New Zealand v Pakistan": {
+    "n": 9,
+    "winRate": {
+     "New Zealand": 0.333,
+     "Pakistan": 0.667
+    }
+   },
+   "India v West Indies": {
+    "n": 12,
+    "winRate": {
+     "India": 0.833,
+     "West Indies": 0.167
+    }
+   },
+   "England v India": {
+    "n": 8,
+    "winRate": {
+     "England": 0.375,
+     "India": 0.625
+    }
+   },
+   "Sri Lanka v West Indies": {
+    "n": 9,
+    "winRate": {
+     "Sri Lanka": 0.667,
+     "West Indies": 0.333
+    }
+   },
+   "India v Sri Lanka": {
+    "n": 11,
+    "winRate": {
+     "India": 0.818,
+     "Sri Lanka": 0.182
+    }
+   },
+   "Australia v South Africa": {
+    "n": 11,
+    "winRate": {
+     "Australia": 0.273,
+     "South Africa": 0.727
+    }
+   },
+   "India v New Zealand": {
+    "n": 14,
+    "winRate": {
+     "India": 0.571,
+     "New Zealand": 0.429
+    }
+   },
+   "Bangladesh v Sri Lanka": {
+    "n": 11,
+    "winRate": {
+     "Bangladesh": 0.364,
+     "Sri Lanka": 0.636
+    }
+   },
+   "Bangladesh v Zimbabwe": {
+    "n": 8,
+    "winRate": {
+     "Bangladesh": 0.75,
+     "Zimbabwe": 0.25
+    }
+   }
+  },
+  "fixtures": [
+   [
+    "Australia",
+    "Bangladesh",
+    null,
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "England",
+    "Australia",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "England",
+    "England",
+    8,
+    5
+   ],
+   [
+    "Australia",
+    "England",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "India",
+    "Australia",
+    6,
+    3
+   ],
+   [
+    "Australia",
+    "India",
+    "India",
+    15,
+    8
+   ],
+   [
+    "Australia",
+    "India",
+    null,
+    1,
+    0
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "Australia",
+    4,
+    4
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    null,
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Australia",
+    3,
+    1
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    null,
+    7,
+    7
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Pakistan",
+    3,
+    1
+   ],
+   [
+    "Australia",
+    "South Africa",
+    null,
+    3,
+    1
+   ],
+   [
+    "Australia",
+    "South Africa",
+    "South Africa",
+    8,
+    2
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    null,
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    1
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "Australia",
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "West Indies",
+    2,
+    1
+   ],
+   [
+    "Australia",
+    "Zimbabwe",
+    "Australia",
+    3,
+    2
+   ],
+   [
+    "Bangladesh",
+    "England",
+    "Bangladesh",
+    3,
+    1
+   ],
+   [
+    "Bangladesh",
+    "England",
+    "England",
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "England",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "India",
+    "Bangladesh",
+    3,
+    2
+   ],
+   [
+    "Bangladesh",
+    "India",
+    "India",
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "India",
+    null,
+    2,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    "Bangladesh",
+    2,
+    2
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    "Ireland",
+    1,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    null,
+    2,
+    2
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "Bangladesh",
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "New Zealand",
+    8,
+    1
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    null,
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    null,
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Pakistan",
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    null,
+    2,
+    1
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    "South Africa",
+    3,
+    2
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Bangladesh",
+    5,
+    3
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Sri Lanka",
+    5,
+    0
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    "Bangladesh",
+    3,
+    3
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    null,
+    3,
+    3
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    "West Indies",
+    6,
+    3
+   ],
+   [
+    "Bangladesh",
+    "Zimbabwe",
+    "Bangladesh",
+    2,
+    2
+   ],
+   [
+    "Bangladesh",
+    "Zimbabwe",
+    "Zimbabwe",
+    6,
+    4
+   ],
+   [
+    "England",
+    "India",
+    "England",
+    4,
+    2
+   ],
+   [
+    "England",
+    "India",
+    "India",
+    4,
+    1
+   ],
+   [
+    "England",
+    "Ireland",
+    "England",
+    4,
+    3
+   ],
+   [
+    "England",
+    "Ireland",
+    "Ireland",
+    1,
+    1
+   ],
+   [
+    "England",
+    "New Zealand",
+    "England",
+    5,
+    4
+   ],
+   [
+    "England",
+    "New Zealand",
+    null,
+    1,
+    0
+   ],
+   [
+    "England",
+    "Pakistan",
+    "England",
+    8,
+    7
+   ],
+   [
+    "England",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "England",
+    "South Africa",
+    "England",
+    3,
+    2
+   ],
+   [
+    "England",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "England",
+    "South Africa",
+    "South Africa",
+    5,
+    2
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "England",
+    3,
+    2
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    null,
+    1,
+    0
+   ],
+   [
+    "England",
+    "West Indies",
+    "England",
+    1,
+    1
+   ],
+   [
+    "England",
+    "West Indies",
+    "West Indies",
+    8,
+    4
+   ],
+   [
+    "India",
+    "New Zealand",
+    "India",
+    5,
+    5
+   ],
+   [
+    "India",
+    "New Zealand",
+    "New Zealand",
+    8,
+    3
+   ],
+   [
+    "India",
+    "New Zealand",
+    null,
+    1,
+    0
+   ],
+   [
+    "India",
+    "Pakistan",
+    "India",
+    1,
+    1
+   ],
+   [
+    "India",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "South Africa",
+    "India",
+    4,
+    3
+   ],
+   [
+    "India",
+    "South Africa",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "South Africa",
+    "South Africa",
+    6,
+    2
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "India",
+    4,
+    4
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "Sri Lanka",
+    6,
+    4
+   ],
+   [
+    "India",
+    "West Indies",
+    "India",
+    6,
+    5
+   ],
+   [
+    "India",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "West Indies",
+    "West Indies",
+    5,
+    4
+   ],
+   [
+    "India",
+    "Zimbabwe",
+    "Zimbabwe",
+    3,
+    3
+   ],
+   [
+    "Ireland",
+    "New Zealand",
+    "Ireland",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    "Ireland",
+    2,
+    1
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    null,
+    3,
+    1
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    null,
+    1,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "Ireland",
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "West Indies",
+    4,
+    1
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Ireland",
+    4,
+    3
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Zimbabwe",
+    2,
+    2
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    null,
+    1,
+    0
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "Pakistan",
+    8,
+    3
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    null,
+    2,
+    1
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "New Zealand",
+    5,
+    5
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    null,
+    2,
+    2
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "West Indies",
+    2,
+    1
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    null,
+    2,
+    1
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "South Africa",
+    9,
+    6
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    null,
+    1,
+    1
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Pakistan",
+    2,
+    2
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "Pakistan",
+    2,
+    2
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    "Pakistan",
+    2,
+    2
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    "Zimbabwe",
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    null,
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "South Africa",
+    3,
+    3
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "Sri Lanka",
+    2,
+    0
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "South Africa",
+    2,
+    1
+   ],
+   [
+    "Sri Lanka",
+    "West Indies",
+    null,
+    2,
+    2
+   ],
+   [
+    "Sri Lanka",
+    "West Indies",
+    "Sri Lanka",
+    4,
+    4
+   ],
+   [
+    "Sri Lanka",
+    "West Indies",
+    "West Indies",
+    3,
+    0
+   ],
+   [
+    "Sri Lanka",
+    "Zimbabwe",
+    "Sri Lanka",
+    4,
+    3
+   ],
+   [
+    "Sri Lanka",
+    "Zimbabwe",
+    "Zimbabwe",
+    1,
+    1
+   ],
+   [
+    "West Indies",
+    "Zimbabwe",
+    "Zimbabwe",
+    1,
+    0
+   ]
+  ]
+ },
+ "odi-women": {
+  "window": "2019+",
+  "matches": 220,
+  "teams": {
+   "Australia": {
+    "n": 51,
+    "winRate": 0.961,
+    "homeN": 23,
+    "homeWinRate": 0.957,
+    "awayN": 20,
+    "awayWinRate": 0.95,
+    "neutralN": 8,
+    "neutralWinRate": 1.0,
+    "firstN": 25,
+    "firstInnings": 282.1,
+    "firstSd": 49.2,
+    "runsPerWicket": 44.5
+   },
+   "Bangladesh": {
+    "n": 23,
+    "winRate": 0.348,
+    "homeN": 9,
+    "homeWinRate": 0.444,
+    "awayN": 7,
+    "awayWinRate": 0.286,
+    "neutralN": 7,
+    "neutralWinRate": 0.286,
+    "firstN": 10,
+    "firstInnings": 168.0,
+    "firstSd": 68.2,
+    "runsPerWicket": 20.66
+   },
+   "England": {
+    "n": 58,
+    "winRate": 0.638,
+    "homeN": 26,
+    "homeWinRate": 0.654,
+    "awayN": 22,
+    "awayWinRate": 0.636,
+    "neutralN": 10,
+    "neutralWinRate": 0.6,
+    "firstN": 29,
+    "firstInnings": 250.7,
+    "firstSd": 62.3,
+    "runsPerWicket": 30.85
+   },
+   "India": {
+    "n": 56,
+    "winRate": 0.554,
+    "homeN": 22,
+    "homeWinRate": 0.636,
+    "awayN": 28,
+    "awayWinRate": 0.5,
+    "neutralN": 6,
+    "neutralWinRate": 0.5,
+    "firstN": 31,
+    "firstInnings": 236.3,
+    "firstSd": 62.6,
+    "runsPerWicket": 31.64
+   },
+   "Ireland": {
+    "n": 23,
+    "winRate": 0.261,
+    "homeN": 10,
+    "homeWinRate": 0.2,
+    "awayN": 13,
+    "awayWinRate": 0.308,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 15,
+    "firstInnings": 207.8,
+    "firstSd": 59.8,
+    "runsPerWicket": 22.7
+   },
+   "New Zealand": {
+    "n": 52,
+    "winRate": 0.327,
+    "homeN": 31,
+    "homeWinRate": 0.419,
+    "awayN": 21,
+    "awayWinRate": 0.19,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 30,
+    "firstInnings": 219.8,
+    "firstSd": 54.4,
+    "runsPerWicket": 24.58
+   },
+   "Pakistan": {
+    "n": 46,
+    "winRate": 0.283,
+    "homeN": 15,
+    "homeWinRate": 0.4,
+    "awayN": 20,
+    "awayWinRate": 0.25,
+    "neutralN": 11,
+    "neutralWinRate": 0.182,
+    "firstN": 18,
+    "firstInnings": 197.5,
+    "firstSd": 56.2,
+    "runsPerWicket": 23.71
+   },
+   "South Africa": {
+    "n": 52,
+    "winRate": 0.654,
+    "homeN": 18,
+    "homeWinRate": 0.778,
+    "awayN": 28,
+    "awayWinRate": 0.571,
+    "neutralN": 6,
+    "neutralWinRate": 0.667,
+    "firstN": 22,
+    "firstInnings": 215.4,
+    "firstSd": 65.5,
+    "runsPerWicket": 32.98
+   },
+   "Sri Lanka": {
+    "n": 25,
+    "winRate": 0.28,
+    "homeN": 10,
+    "homeWinRate": 0.4,
+    "awayN": 15,
+    "awayWinRate": 0.2,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 13,
+    "firstInnings": 194.2,
+    "firstSd": 49.5,
+    "runsPerWicket": 22.99
+   },
+   "West Indies": {
+    "n": 46,
+    "winRate": 0.37,
+    "homeN": 20,
+    "homeWinRate": 0.35,
+    "awayN": 18,
+    "awayWinRate": 0.389,
+    "neutralN": 8,
+    "neutralWinRate": 0.375,
+    "firstN": 25,
+    "firstInnings": 181.1,
+    "firstSd": 61.5,
+    "runsPerWicket": 20.84
+   },
+   "Zimbabwe": {
+    "n": 8,
+    "winRate": 0.125,
+    "homeN": 8,
+    "homeWinRate": 0.125,
+    "awayN": 0,
+    "awayWinRate": null,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 2,
+    "firstInnings": 125.0,
+    "firstSd": 75.0,
+    "runsPerWicket": 16.36
+   }
+  },
+  "h2h": {
+   "India v South Africa": {
+    "n": 11,
+    "winRate": {
+     "India": 0.636,
+     "South Africa": 0.364
+    }
+   },
+   "Australia v New Zealand": {
+    "n": 11,
+    "winRate": {
+     "Australia": 1.0,
+     "New Zealand": 0.0
+    }
+   },
+   "Australia v England": {
+    "n": 10,
+    "winRate": {
+     "Australia": 0.9,
+     "England": 0.1
+    }
+   },
+   "India v New Zealand": {
+    "n": 12,
+    "winRate": {
+     "India": 0.417,
+     "New Zealand": 0.583
+    }
+   },
+   "Pakistan v South Africa": {
+    "n": 9,
+    "winRate": {
+     "Pakistan": 0.222,
+     "South Africa": 0.778
+    }
+   },
+   "England v India": {
+    "n": 10,
+    "winRate": {
+     "England": 0.4,
+     "India": 0.6
+    }
+   },
+   "Australia v India": {
+    "n": 10,
+    "winRate": {
+     "Australia": 0.9,
+     "India": 0.1
+    }
+   },
+   "England v New Zealand": {
+    "n": 14,
+    "winRate": {
+     "England": 0.786,
+     "New Zealand": 0.214
+    }
+   },
+   "Pakistan v West Indies": {
+    "n": 13,
+    "winRate": {
+     "Pakistan": 0.231,
+     "West Indies": 0.769
+    }
+   }
+  },
+  "fixtures": [
+   [
+    "Australia",
+    "Bangladesh",
+    "Bangladesh",
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "Bangladesh",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "England",
+    "Australia",
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "England",
+    "England",
+    5,
+    4
+   ],
+   [
+    "Australia",
+    "England",
+    null,
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "India",
+    "Australia",
+    6,
+    5
+   ],
+   [
+    "Australia",
+    "India",
+    "India",
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "India",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Ireland",
+    "Ireland",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "Australia",
+    6,
+    6
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "New Zealand",
+    5,
+    5
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Australia",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "South Africa",
+    "Australia",
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "South Africa",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "Sri Lanka",
+    "Australia",
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "Australia",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "West Indies",
+    null,
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "West Indies",
+    2,
+    2
+   ],
+   [
+    "Bangladesh",
+    "England",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "India",
+    "Bangladesh",
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "India",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    "Bangladesh",
+    3,
+    3
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "New Zealand",
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Bangladesh",
+    2,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    null,
+    2,
+    2
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    "South Africa",
+    3,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Sri Lanka",
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Zimbabwe",
+    "Zimbabwe",
+    1,
+    1
+   ],
+   [
+    "England",
+    "India",
+    "England",
+    6,
+    2
+   ],
+   [
+    "England",
+    "India",
+    "India",
+    3,
+    1
+   ],
+   [
+    "England",
+    "India",
+    null,
+    1,
+    1
+   ],
+   [
+    "England",
+    "Ireland",
+    "Ireland",
+    2,
+    2
+   ],
+   [
+    "England",
+    "New Zealand",
+    "England",
+    7,
+    6
+   ],
+   [
+    "England",
+    "New Zealand",
+    "New Zealand",
+    7,
+    5
+   ],
+   [
+    "England",
+    "Pakistan",
+    "England",
+    2,
+    2
+   ],
+   [
+    "England",
+    "Pakistan",
+    null,
+    3,
+    3
+   ],
+   [
+    "England",
+    "South Africa",
+    "England",
+    3,
+    3
+   ],
+   [
+    "England",
+    "South Africa",
+    null,
+    2,
+    1
+   ],
+   [
+    "England",
+    "South Africa",
+    "South Africa",
+    2,
+    1
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "England",
+    2,
+    2
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "Sri Lanka",
+    2,
+    2
+   ],
+   [
+    "England",
+    "West Indies",
+    "England",
+    1,
+    1
+   ],
+   [
+    "England",
+    "West Indies",
+    null,
+    1,
+    0
+   ],
+   [
+    "England",
+    "West Indies",
+    "West Indies",
+    3,
+    3
+   ],
+   [
+    "India",
+    "New Zealand",
+    "India",
+    3,
+    2
+   ],
+   [
+    "India",
+    "New Zealand",
+    "New Zealand",
+    9,
+    3
+   ],
+   [
+    "India",
+    "Pakistan",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "South Africa",
+    "India",
+    10,
+    7
+   ],
+   [
+    "India",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "India",
+    "Sri Lanka",
+    "Sri Lanka",
+    3,
+    3
+   ],
+   [
+    "India",
+    "West Indies",
+    "India",
+    3,
+    3
+   ],
+   [
+    "India",
+    "West Indies",
+    null,
+    1,
+    1
+   ],
+   [
+    "India",
+    "West Indies",
+    "West Indies",
+    3,
+    2
+   ],
+   [
+    "Ireland",
+    "Pakistan",
+    "Pakistan",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "South Africa",
+    "Ireland",
+    3,
+    0
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    "Ireland",
+    3,
+    2
+   ],
+   [
+    "Ireland",
+    "West Indies",
+    "West Indies",
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Zimbabwe",
+    5,
+    4
+   ],
+   [
+    "New Zealand",
+    "Pakistan",
+    "New Zealand",
+    3,
+    3
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "New Zealand",
+    4,
+    0
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "South Africa",
+    2,
+    0
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "Sri Lanka",
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "New Zealand",
+    1,
+    0
+   ],
+   [
+    "New Zealand",
+    "West Indies",
+    "West Indies",
+    2,
+    1
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    null,
+    1,
+    0
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "Pakistan",
+    3,
+    1
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "South Africa",
+    5,
+    1
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Pakistan",
+    3,
+    2
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    null,
+    3,
+    2
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "Pakistan",
+    6,
+    0
+   ],
+   [
+    "Pakistan",
+    "West Indies",
+    "West Indies",
+    4,
+    1
+   ],
+   [
+    "Pakistan",
+    "Zimbabwe",
+    "Zimbabwe",
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "South Africa",
+    4,
+    3
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "South Africa",
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "West Indies",
+    4,
+    4
+   ],
+   [
+    "Sri Lanka",
+    "West Indies",
+    "Sri Lanka",
+    3,
+    3
+   ]
+  ]
+ },
+ "test-men": {
+  "window": "2023+",
+  "matches": 75,
+  "teams": {
+   "Australia": {
+    "n": 18,
+    "winRate": 0.667,
+    "homeN": 8,
+    "homeWinRate": 0.75,
+    "awayN": 9,
+    "awayWinRate": 0.556,
+    "neutralN": 1,
+    "neutralWinRate": 1.0,
+    "firstN": 9,
+    "firstInnings": 361.1,
+    "firstSd": 111.1,
+    "runsPerWicket": 29.55
+   },
+   "Bangladesh": {
+    "n": 13,
+    "winRate": 0.385,
+    "homeN": 7,
+    "homeWinRate": 0.286,
+    "awayN": 6,
+    "awayWinRate": 0.5,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 5,
+    "firstInnings": 197.0,
+    "firstSd": 77.6,
+    "runsPerWicket": 24.19
+   },
+   "England": {
+    "n": 24,
+    "winRate": 0.542,
+    "homeN": 11,
+    "homeWinRate": 0.727,
+    "awayN": 13,
+    "awayWinRate": 0.385,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 12,
+    "firstInnings": 330.7,
+    "firstSd": 74.3,
+    "runsPerWicket": 33.81
+   },
+   "India": {
+    "n": 20,
+    "winRate": 0.55,
+    "homeN": 13,
+    "homeWinRate": 0.615,
+    "awayN": 6,
+    "awayWinRate": 0.5,
+    "neutralN": 1,
+    "neutralWinRate": 0.0,
+    "firstN": 8,
+    "firstInnings": 243.4,
+    "firstSd": 147.0,
+    "runsPerWicket": 29.74
+   },
+   "Ireland": {
+    "n": 5,
+    "winRate": 0.2,
+    "homeN": 1,
+    "homeWinRate": 1.0,
+    "awayN": 4,
+    "awayWinRate": 0.0,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 3,
+    "firstInnings": 292.7,
+    "firstSd": 173.9,
+    "runsPerWicket": 25.82
+   },
+   "New Zealand": {
+    "n": 18,
+    "winRate": 0.556,
+    "homeN": 11,
+    "homeWinRate": 0.545,
+    "awayN": 7,
+    "awayWinRate": 0.571,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 7,
+    "firstInnings": 348.9,
+    "firstSd": 150.4,
+    "runsPerWicket": 29.9
+   },
+   "Pakistan": {
+    "n": 11,
+    "winRate": 0.364,
+    "homeN": 5,
+    "homeWinRate": 0.4,
+    "awayN": 6,
+    "awayWinRate": 0.333,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 6,
+    "firstInnings": 361.3,
+    "firstSd": 124.9,
+    "runsPerWicket": 30.43
+   },
+   "South Africa": {
+    "n": 12,
+    "winRate": 0.75,
+    "homeN": 7,
+    "homeWinRate": 0.857,
+    "awayN": 5,
+    "awayWinRate": 0.6,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 8,
+    "firstInnings": 280.4,
+    "firstSd": 157.2,
+    "runsPerWicket": 28.37
+   },
+   "Sri Lanka": {
+    "n": 15,
+    "winRate": 0.467,
+    "homeN": 6,
+    "homeWinRate": 0.667,
+    "awayN": 9,
+    "awayWinRate": 0.333,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 9,
+    "firstInnings": 375.3,
+    "firstSd": 159.6,
+    "runsPerWicket": 34.74
+   },
+   "West Indies": {
+    "n": 12,
+    "winRate": 0.25,
+    "homeN": 4,
+    "homeWinRate": 0.25,
+    "awayN": 8,
+    "awayWinRate": 0.25,
+    "neutralN": 0,
+    "neutralWinRate": null,
+    "firstN": 6,
+    "firstInnings": 250.3,
+    "firstSd": 122.7,
+    "runsPerWicket": 20.72
+   }
+  },
+  "h2h": {},
+  "fixtures": [
+   [
+    "Australia",
+    "England",
+    "England",
+    4,
+    2
+   ],
+   [
+    "Australia",
+    "India",
+    "Australia",
+    3,
+    2
+   ],
+   [
+    "Australia",
+    "India",
+    "India",
+    3,
+    1
+   ],
+   [
+    "Australia",
+    "India",
+    null,
+    1,
+    1
+   ],
+   [
+    "Australia",
+    "New Zealand",
+    "New Zealand",
+    2,
+    2
+   ],
+   [
+    "Australia",
+    "Pakistan",
+    "Australia",
+    3,
+    3
+   ],
+   [
+    "Australia",
+    "West Indies",
+    "Australia",
+    2,
+    1
+   ],
+   [
+    "Bangladesh",
+    "India",
+    "India",
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Ireland",
+    "Bangladesh",
+    1,
+    1
+   ],
+   [
+    "Bangladesh",
+    "New Zealand",
+    "Bangladesh",
+    2,
+    1
+   ],
+   [
+    "Bangladesh",
+    "Pakistan",
+    "Pakistan",
+    2,
+    2
+   ],
+   [
+    "Bangladesh",
+    "South Africa",
+    "Bangladesh",
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "Sri Lanka",
+    "Bangladesh",
+    2,
+    0
+   ],
+   [
+    "Bangladesh",
+    "West Indies",
+    "West Indies",
+    2,
+    1
+   ],
+   [
+    "England",
+    "India",
+    "India",
+    5,
+    1
+   ],
+   [
+    "England",
+    "Ireland",
+    "England",
+    1,
+    1
+   ],
+   [
+    "England",
+    "New Zealand",
+    "New Zealand",
+    5,
+    3
+   ],
+   [
+    "England",
+    "Pakistan",
+    "Pakistan",
+    3,
+    1
+   ],
+   [
+    "England",
+    "Sri Lanka",
+    "England",
+    3,
+    2
+   ],
+   [
+    "England",
+    "West Indies",
+    "England",
+    3,
+    3
+   ],
+   [
+    "India",
+    "New Zealand",
+    "India",
+    3,
+    0
+   ],
+   [
+    "India",
+    "South Africa",
+    "South Africa",
+    2,
+    1
+   ],
+   [
+    "India",
+    "West Indies",
+    "West Indies",
+    1,
+    1
+   ],
+   [
+    "Ireland",
+    "Sri Lanka",
+    "Sri Lanka",
+    2,
+    0
+   ],
+   [
+    "Ireland",
+    "Zimbabwe",
+    "Ireland",
+    1,
+    1
+   ],
+   [
+    "New Zealand",
+    "South Africa",
+    "New Zealand",
+    2,
+    2
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "New Zealand",
+    2,
+    2
+   ],
+   [
+    "New Zealand",
+    "Sri Lanka",
+    "Sri Lanka",
+    2,
+    0
+   ],
+   [
+    "Pakistan",
+    "South Africa",
+    "South Africa",
+    1,
+    0
+   ],
+   [
+    "Pakistan",
+    "Sri Lanka",
+    "Sri Lanka",
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "Sri Lanka",
+    "South Africa",
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "South Africa",
+    2,
+    2
+   ],
+   [
+    "South Africa",
+    "West Indies",
+    "West Indies",
+    1,
+    1
+   ],
+   [
+    "West Indies",
+    "Zimbabwe",
+    "Zimbabwe",
+    1,
+    1
+   ]
+  ]
+ }
+}

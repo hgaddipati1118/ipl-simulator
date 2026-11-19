@@ -1,7 +1,10 @@
 /**
  * Per-player pitch sensitivity, estimated and validated out of sample (docs/VENUE-SENSITIVITY.md).
  *
- *   npx tsx src/pipeline/pitch-sensitivity.ts [--split 2024] [--gender male|female]
+ *   npx tsx src/pipeline/pitch-sensitivity.ts [--split 2024] [--gender male|female] [--format t20|test]
+ *
+ * --format test: the same test on men's Tests (Cricsheet from 2001; venue measures on the years before the split, balls-based shrinkage
+ * scaled to a Test venue; 600+ training balls a player). Output data/analysis/pitch_sensitivity_test_<gender>.json.
  *
  * Do players perform differently by pitch? Two venue dimensions from Cricsheet T20 matches (men, club and international, 2016
  * on): FLAT (the venue's runs per ball against the all-venue mean, shrunk: high = a flat deck) and TURNS (the share of the
@@ -21,7 +24,11 @@ const DIR = `${ROOT}data/analysis/`;
 const arg = (n: string, d: string) => (process.argv.includes(n) ? process.argv[process.argv.indexOf(n) + 1] : d);
 const SPLIT = Number(arg("--split", "2024"));
 const GENDER = arg("--gender", "male");
-const K_VENUE_BALLS = 3000, K_VENUE_WKTS = 60;
+const FORMAT = arg("--format", "t20");
+const TEST = FORMAT === "test";
+const K_VENUE_BALLS = TEST ? 12000 : 3000, K_VENUE_WKTS = TEST ? 120 : 60;
+const MATCH_TYPES = TEST ? "'Test'" : "'T20', 'IT20'";
+const SINCE = TEST ? "2001-01-01" : "2016-01-01";
 
 function duck<T>(sql: string): T[] {
   const out = execFileSync("duckdb", ["-json", "-c", sql], { encoding: "utf-8", cwd: DIR, maxBuffer: 2 * 1024 * 1024 * 1024 });
@@ -36,7 +43,7 @@ SELECT d.${side === "bat" ? "batter_id" : "bowler_id"} pid, coalesce(m.venue, '?
   sum(CASE WHEN d.is_wicket = 1 AND ${side === "bat" ? "d.player_out_id = d.batter_id AND d.wicket_kind NOT IN ('retired hurt', 'retired not out')" : "d.wicket_kind IN ('bowled', 'caught', 'lbw', 'stumped', 'caught and bowled', 'hit wicket')"} THEN 1 ELSE 0 END)::BIGINT wkts,
   0::BIGINT spinW
 FROM 'deliveries.parquet' d JOIN 'matches.parquet' m USING(match_id)
-WHERE m.match_type IN ('T20', 'IT20') AND m.gender = '${GENDER}' AND m.date >= DATE '2016-01-01' AND d.super_over = 0 GROUP BY 1, 2, 3`);
+WHERE m.match_type IN (${MATCH_TYPES}) AND m.gender = '${GENDER}' AND m.date >= DATE '${SINCE}' AND d.super_over = 0 GROUP BY 1, 2, 3`);
 
 function main() {
   // bowling type per player: ESPN profile bowling style (spin or pace)
@@ -64,7 +71,50 @@ function main() {
   const turns = new Map<string, number>();
   for (const [v, x] of venueSpin) turns.set(v, ((x.sw + (gSW / gW) * K_VENUE_WKTS) / (x.w + K_VENUE_WKTS) - gSW / gW) * 4); // x4: about one unit of sd
   const sd = (m: Map<string, number>) => { const xs = [...m.values()]; const mu = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - mu) ** 2, 0) / xs.length); };
-  console.log(`${GENDER} T20, split ${SPLIT}: ${venueRuns.size} venues; flat sd ${sd(flat).toFixed(3)} (log run rate), turns sd ${sd(turns).toFixed(3)}`);
+  console.log(`${GENDER} ${FORMAT}, split ${SPLIT}: ${venueRuns.size} venues; flat sd ${sd(flat).toFixed(3)} (log run rate), turns sd ${sd(turns).toFixed(3)}`);
+
+  // Player x venue effects (--format test): does a player do better or worse at a particular ground than his overall rate and the
+  // ground's own factor predict? Held-out Poisson log-likelihood of the later years' (player, venue) cells with the player's training
+  // record at that ground shrunk toward the prediction by K balls, against K = infinity (no ground-specific effect).
+  const venueEffect: Record<string, unknown>[] = [];
+  if (TEST) {
+    for (const side of ["bat", "bowl"] as const) {
+      for (const outcome of ["runs", "wkts"] as const) {
+        const cells = side === "bat" ? bat : bowl;
+        const y = (c: Cell) => (outcome === "runs" ? c.runs : c.wkts);
+        const vTot = new Map<string, { b: number; y: number }>();
+        for (const c of cells.filter(train)) { const v = vTot.get(c.venue) ?? { b: 0, y: 0 }; v.b += c.balls; v.y += y(c); vTot.set(c.venue, v); }
+        const gB = [...vTot.values()].reduce((a, v) => a + v.b, 0), gY = [...vTot.values()].reduce((a, v) => a + v.y, 0);
+        const KV = TEST ? 12000 : 3000;
+        const vf = (v: string) => { const x = vTot.get(v); return x ? ((x.y + (gY / gB) * KV) / (x.b + KV)) / (gY / gB) : 1; };
+        const byP = new Map<string, Cell[]>();
+        for (const c of cells) { if (!byP.has(c.pid)) byP.set(c.pid, []); byP.get(c.pid)!.push(c); }
+        const Ks = [300, 1000, 3000, 10000];
+        const lik = (yy: number, mu: number) => (yy > 0 ? yy * Math.log(mu) : 0) - mu;
+        let ll0 = 0, nb = 0; const llK = Ks.map(() => 0);
+        for (const rows of byP.values()) {
+          const tr = rows.filter(train), te = rows.filter(c => !train(c));
+          const trB = tr.reduce((a, c) => a + c.balls, 0);
+          if (trB < 600 || te.length === 0) continue;
+          // the player's rate net of ground factors
+          const exp = tr.reduce((a, c) => a + c.balls * vf(c.venue), 0);
+          const r = (tr.reduce((a, c) => a + y(c), 0) + 0.5) / (exp + 1);
+          for (const c of te) {
+            if (c.balls === 0) continue;
+            const base = r * vf(c.venue);
+            const at = tr.filter(t => t.venue === c.venue);
+            const atB = at.reduce((a, t) => a + t.balls, 0), atY = at.reduce((a, t) => a + y(t), 0);
+            ll0 += lik(y(c), c.balls * base); nb += c.balls;
+            Ks.forEach((K, k) => { const rate = (atY + K * base) / (atB + K); llK[k] += lik(y(c), c.balls * rate); });
+          }
+        }
+        const gains = llK.map(l => +(((l - ll0) / Math.max(1, nb)) * 1000).toFixed(4));
+        const res = { side, outcome, dim: "player x venue", testBalls: nb, gainPer1000BallsByK: Object.fromEntries(Ks.map((K, k) => [K, gains[k]])) };
+        console.log(JSON.stringify(res));
+        venueEffect.push(res);
+      }
+    }
+  }
 
   const results: Record<string, unknown>[] = [];
   const specialists: Record<string, unknown>[] = [];
@@ -99,7 +149,7 @@ function main() {
           const det = haa * hbb - hab * hab;
           return { a, b, se: Math.sqrt(Math.abs(haa / det)) };
         };
-        const MIN_BALLS = 300;
+        const MIN_BALLS = TEST ? 600 : 300;
         const players = [...byPlayer].map(([pid, rows]) => ({ pid, cls: classOf(pid), tr: rows.filter(train), te: rows.filter(c => !train(c)) }))
           .filter(p => p.cls !== "?" && p.tr.reduce((s, c) => s + c.balls, 0) >= MIN_BALLS);
         // raw slopes (a weak ridge for stability), class means by inverse variance, tau^2 by moments
@@ -143,6 +193,6 @@ function main() {
       }
     }
   }
-  writeFileSync(`${DIR}pitch_sensitivity_${GENDER}.json`, JSON.stringify({ split: SPLIT, results, specialists }));
+  writeFileSync(`${DIR}pitch_sensitivity_${TEST ? "test_" : ""}${GENDER}.json`, JSON.stringify({ split: SPLIT, results, venueEffect, specialists }));
 }
 main();

@@ -5,7 +5,8 @@ import { it } from "vitest";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import { MATCH_CONDITIONS } from "@ipl-sim/engine";
-import { createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender } from "../international";
+import { XI_SHARPEN } from "../realistic-xi";
+import { availabilitySource, createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender } from "../international";
 import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
 import { createPoolLoader } from "../extended-pool";
 
@@ -22,7 +23,9 @@ import { createPoolLoader } from "../extended-pool";
  * A row is marked OFF when the simulated figure is outside the tolerance of the real one (the larger of a fixed band and two
  * standard errors of the real figure): win rates 0.08 / 0.10 home-away, total the larger of 8% and two standard errors of the real mean, runs per wicket 10%, head-to-head 0.15.
  *   BENCH_COUNTRIES=1 npx vitest run packages/app/src/__tests__/benchmark-countries.test.ts --reporter=verbose
- * BENCH_ONLY=t20i-men,odi-men limits the sets; BENCH_MD=1 prints markdown tables.
+ * BENCH_ONLY=t20i-men,odi-men limits the sets; BENCH_MD=1 prints markdown tables. BENCH_REALISTIC=1 plays realistic line-ups (an XI
+ * sampled per match from the side's pool by real selection rates, realistic-xi.ts); BENCH_AVAIL_2024=1 uses the rates of 2024 matches
+ * only, BENCH_HOLDOUT=1 scores against the real fixtures of 2025+ (BENCH_HOLDOUT=fit: those up to 2024, where the sharpening is fitted).
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..", "..", "..");
@@ -56,10 +59,11 @@ function runSet(key: string, real: RealSet, replays: number, FILE: FormatRatings
   const fixtureWins: number[] = [], fixtureN: number[] = [];
   real.fixtures.forEach(([a, b, host, n], i) => {
     let fw = 0, fn = 0;
-    const series = createSeries({ format: fmt, gender, nations: [a, b], length: 1, host: host === a ? "a" : host === b ? "b" : "neutral", userSide: null, seed: 3000 + i }, FILE, ACTIVITY, extended);
+    const series = createSeries({ format: fmt, gender, nations: [a, b], length: 1, host: host === a ? "a" : host === b ? "b" : "neutral", userSide: null, seed: 3000 + i, realistic: !!process.env.BENCH_REALISTIC }, FILE, ACTIVITY, extended);
     const squads = seriesSquads(series, FILE, extended);
     for (let j = 0; j < n * replays; j++) {
-      const ctx = { ...matchContext(series, 0, squads), seed: 7919 * i + 104729 * (j + seed), key: undefined };
+      // realistic line-ups: a fresh XI per replayed match (the XI is sampled from the match seed)
+      const ctx = { ...matchContext(process.env.BENCH_REALISTIC ? { ...series, seedBase: 104729 * (j + seed) + i } : series, 0, squads), seed: 7919 * i + 104729 * (j + seed), key: undefined };
       const rec = def.simulate(ctx as Parameters<typeof def.simulate>[0]);
       const sideOf = (teamId: string) => (teamId === series.sides[0].id ? a : b);
       const winner = rec.winnerId ? sideOf(rec.winnerId) : null;
@@ -86,7 +90,10 @@ function runSet(key: string, real: RealSet, replays: number, FILE: FormatRatings
 }
 
 async function setup() {
-  const REAL = JSON.parse(readFileSync(join(REPO, "docs", "data", "country_validation.json"), "utf-8")) as Record<string, RealSet>;
+  if (process.env.BENCH_GAMMA) for (const k of ["t20i-men", "t20i-women", "odi-men", "odi-women", "test-men"]) XI_SHARPEN[k] = Number(process.env.BENCH_GAMMA);
+  // BENCH_HOLDOUT=1: selection rates from 2024 matches only, scored against the real fixtures of 2025+ (docs/data/country_validation_2025.json)
+  const REAL = JSON.parse(readFileSync(join(REPO, "docs", "data", process.env.BENCH_HOLDOUT === "fit" ? "country_validation_to2024.json" : process.env.BENCH_HOLDOUT ? "country_validation_2025.json" : "country_validation.json"), "utf-8")) as Record<string, RealSet>;
+  if (process.env.BENCH_AVAIL_2024) availabilitySource.data = JSON.parse(readFileSync(join(REPO, "docs", "data", "intl_availability_2024.json"), "utf-8"));
   const FILE = JSON.parse(readFileSync(join(PUBLIC, "data", "format-ratings.json"), "utf-8")) as FormatRatingsFile;
   const ACTIVITY = JSON.parse(readFileSync(join(PUBLIC, "data", "player-activity.json"), "utf-8")) as PlayerActivityFile;
   if (process.env.BENCH_NO_ADJUST) delete FILE.adjust;
@@ -111,7 +118,12 @@ it.skipIf(!process.env.BENCH_COUNTRIES)("per-country results against real", asyn
     if (only && !only.includes(key)) continue;
     const gender = key.split("-")[1] as SeriesGender;
     const real = REAL[key];
-    const { teams, h2h } = runSet(key, real, replays, FILE, ACTIVITY, await ext(gender));
+    const { teams, h2h, fixtureWins, fixtureN } = runSet(key, real, replays, FILE, ACTIVITY, await ext(gender));
+    let nll = 0, tot = 0;
+    real.fixtures.forEach(([, , , n, w], k) => {
+      const p = Math.min(0.97, Math.max(0.03, (fixtureWins[k] + 1) / (fixtureN[k] + 2)));
+      nll -= w * Math.log(p) + (n - w) * Math.log(1 - p); tot += n;
+    });
     const flags: string[] = [];
     const cmp = (name: string, label: string, sim: number | null, real: number | null, tol: number) => {
       const bad = sim !== null && real !== null && Math.abs(sim - real) > tol;
@@ -144,7 +156,7 @@ it.skipIf(!process.env.BENCH_COUNTRIES)("per-country results against real", asyn
       const sim = (h.wins[a] ?? 0) / h.n;
       console.log(`  ${a} v ${b}: ${f(sim, 2)} / ${f(r.winRate[a], 2)} (n ${r.n})${cmp(`${a} v ${b}`, "h2h", sim, r.winRate[a], Math.max(0.15, 2 * se(r.winRate[a], r.n)))}`);
     }
-    summary.push(`${key}: ${flags.length} OFF${flags.length ? ` (${flags.join("; ")})` : ""}`);
+    summary.push(`${key}: ${flags.length} OFF, log loss ${(nll / tot).toFixed(4)}${flags.length ? ` (${flags.join("; ")})` : ""}`);
   }
   console.log("\nSummary\n" + summary.join("\n"));
 }, 14_400_000);

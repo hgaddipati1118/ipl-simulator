@@ -17,6 +17,7 @@ innings (runs / wickets lost), and the head-to-head records of the pairs with en
 country, count, wins of the first-named side) are what the benchmark replays and what the series tuning is fitted on.
 """
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -36,7 +37,10 @@ SETS = {
     ("odi", "women"): (("ODI", "ODM"), "female", "2019-01-01"),
     ("test", "men"): (("Test",), "male", "2023-01-01"),
 }
-H2H_MIN = 8
+H2H_MIN = int(os.environ.get("COUNTRY_H2H_MIN", "8"))
+# COUNTRY_SINCE=2025-01-01 COUNTRY_OUT=../../docs/data/country_validation_2025.json: the held-out window of the realistic line-up check
+SINCE_OVERRIDE = os.environ.get("COUNTRY_SINCE")
+UNTIL = os.environ.get("COUNTRY_UNTIL")  # an upper date bound (the fit half of the held-out check: 2024-12-31)
 
 
 def duck(sql: str) -> list:
@@ -48,13 +52,16 @@ def duck(sql: str) -> list:
 
 def build(fmt: str, gender: str) -> dict:
     types, g, since = SETS[(fmt, gender)]
+    if SINCE_OVERRIDE:
+        since = SINCE_OVERRIDE
+    until_sql = f" AND m.date <= DATE '{UNTIL}'" if UNTIL else ""
     members = ", ".join(f"'{t}'" for t in FULL)
     mt = ", ".join(f"'{t}'" for t in types)
     rows = duck(f"""
 WITH vm AS (SELECT raw_venue, coalesce(raw_city, '') raw_city, any_value(country) country FROM read_csv('venue_map.csv', header=true, all_varchar=true) WHERE source = 'cs' GROUP BY 1, 2),
 m AS (SELECT m.match_id, m.team1, m.team2, m.winner, m.result, m.outcome_method, coalesce(vm.country, 'UNK') vc FROM 'matches.parquet' m
   LEFT JOIN vm ON vm.raw_venue = m.venue AND vm.raw_city = coalesce(m.city, '')
-  WHERE m.match_type IN ({mt}) AND m.gender = '{g}' AND m.team_type = 'international' AND m.date >= DATE '{since}'
+  WHERE m.match_type IN ({mt}) AND m.gender = '{g}' AND m.team_type = 'international' AND m.date >= DATE '{since}'{until_sql}
     AND m.team1 IN ({members}) AND m.team2 IN ({members})),
 inn AS (SELECT match_id, innings, batting_team bt, sum(runs_total) runs, sum(CASE WHEN is_wicket = 1 AND wicket_kind NOT IN ('retired hurt', 'retired not out') THEN 1 ELSE 0 END) w,
   sum(CASE WHEN wides = 0 AND noballs = 0 THEN 1 ELSE 0 END) legal FROM 'deliveries.parquet' WHERE super_over = 0 GROUP BY 1, 2, 3)
@@ -119,7 +126,7 @@ SELECT m.*, (SELECT list(struct_pack(i := inn.innings, t := inn.bt, r := inn.run
 
 def main():
     res = {f"{fmt}-{gender}": build(fmt, gender) for fmt, gender in SETS}
-    OUT.write_text(json.dumps(res, indent=1))
+    (Path(os.environ["COUNTRY_OUT"]) if os.environ.get("COUNTRY_OUT") else OUT).write_text(json.dumps(res, indent=1))
     for k, v in res.items():
         print(k, v["matches"], "matches,", len(v["teams"]), "teams,", len(v["h2h"]), "pairs,", len(v["fixtures"]), "fixtures")
 

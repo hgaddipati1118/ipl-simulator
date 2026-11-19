@@ -21,6 +21,8 @@ import { getRealPlayers, getPoolPlayers } from "@ipl-sim/ratings/dist/real-playe
 import { WPL_PLAYERS } from "@ipl-sim/ratings/dist/wpl-players.js";
 import type { ExtendedPlayer } from "@ipl-sim/ratings/dist/extended-pool.js";
 import { applyOppositionAdjust, applySeriesTuning, tuningFor } from "./series-tuning";
+import { INTL_AVAILABILITY, type IntlAvailability } from "./intl-availability-data";
+import { sampleXI, xiSeed, XI_SHARPEN, type Rates } from "./realistic-xi";
 import { markTestKeepers, pickTestSquad, testSeriesFormat } from "./test-match/test-series";
 
 // ── Formats ────────────────────────────────────────────────────────────
@@ -288,7 +290,7 @@ export function seriesNations(gender: SeriesGender, activity?: PlayerActivityFil
  */
 export function buildNationSquad(
   country: string, gender: SeriesGender, ratingFormat: "t20" | LongFormat, file: FormatRatingsFile | null, ids?: string[],
-  activity?: PlayerActivityFile | null, extended?: readonly ExtendedPlayer[] | null,
+  activity?: PlayerActivityFile | null, extended?: readonly ExtendedPlayer[] | null, poolRates?: Rates,
 ): Player[] {
   const fmt: ActivityFormat = ratingFormat;
   const tierOf = new Map<string, number>();
@@ -313,6 +315,10 @@ export function buildNationSquad(
   if (ids && ids.length > 0) {
     const byId = new Map(inFormat.map(p => [p.id, p]));
     squad = ids.map(id => byId.get(id)).filter((p): p is Player => !!p);
+    if (ratingFormat === "test") markTestKeepers(squad);
+  } else if (poolRates && inFormat.filter(p => (poolRates[p.sourceId ?? p.id] ?? 0) > 0).length >= 14) {
+    // realistic line-ups (realistic-xi.ts): the pool every real XI of the window was drawn from, not a best-sixteen squad
+    squad = inFormat.filter(p => (poolRates[p.sourceId ?? p.id] ?? 0) > 0);
     if (ratingFormat === "test") markTestKeepers(squad);
   } else if (ratingFormat === "test") {
     // a Test squad is picked for its shape (keepers, seamers, spinners, batters), recent Test players first (test-series.ts)
@@ -425,6 +431,8 @@ export interface IntlSeries {
   host: SeriesHost;
   /** The side the user captains (index), or null to watch */
   userSide: 0 | 1 | null;
+  /** Realistic line-ups (realistic-xi.ts): each match's XI sampled from the squads (pools of recent players) by real selection rates; watched series only */
+  realistic?: boolean;
   /** The user's lineup for his side (kept from match to match until he changes it) */
   lineup?: SeriesLineup;
   results: SeriesMatchRecord[];
@@ -441,6 +449,17 @@ export interface NewSeriesOptions {
   host: SeriesHost;
   userSide: 0 | 1 | null;
   seed?: number;
+  /** Realistic line-ups for both sides (ignored when the user plays a side) */
+  realistic?: boolean;
+}
+
+/** The selection rates realistic line-ups sample from (swap `data` to test another window) */
+export const availabilitySource: { data: IntlAvailability } = { data: INTL_AVAILABILITY };
+
+/** A side's selection rates in a series' format, or undefined when the data has none for it */
+export function selectionRates(format: string, gender: SeriesGender, country: string): Rates | undefined {
+  const set = availabilitySource.data.rates[`${format}-${gender}`]?.[country];
+  return set && Object.keys(set).length >= 14 ? set : undefined;
 }
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -452,7 +471,8 @@ export function createSeries(
   const def = seriesFormat(opts.format);
   const sides = opts.nations.map((country, i) => {
     const info = NATION_INFO[country];
-    const squad = buildNationSquad(country, opts.gender, def.ratingFormat, file, undefined, activity, extended);
+    const rates = opts.realistic && opts.userSide === null ? selectionRates(opts.format, opts.gender, country) : undefined;
+    const squad = buildNationSquad(country, opts.gender, def.ratingFormat, file, undefined, activity, extended, rates);
     return {
       id: `${slug(country)}-${i}`, country, name: opts.gender === "women" ? `${country} Women` : country,
       shortName: info?.short ?? country.slice(0, 3).toUpperCase(),
@@ -467,6 +487,7 @@ export function createSeries(
     v: 1, id: `${Date.now().toString(36)}-${seedBase.toString(36)}`, createdAt: new Date().toISOString(),
     format: def.id, gender: opts.gender, sides, length: opts.length, host: opts.host, userSide: opts.userSide,
     results: [], seedBase,
+    ...(opts.realistic && opts.userSide === null ? { realistic: true } : {}),
   };
 }
 
@@ -495,11 +516,23 @@ export function matchName(series: IntlSeries, n: number): string {
 export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], Player[]]): { home: Team; away: Team; venue: SeriesVenue } {
   const venue = venueFor(series, n);
   const homeIdx = series.host === "b" ? 1 : 0;
-  const copies = squads.map(sq => sq.map(p => {
+  // realistic line-ups: each side's XI sampled from its pool by real selection rates (realistic-xi.ts), the user's side never
+  const xiOf = (sq: Player[], i: number): Player[] => {
+    if (!series.realistic || series.userSide === i || sq.length <= 11) return sq;
+    const rates = selectionRates(series.format, series.gender, series.sides[i].country);
+    if (!rates) return sq;
+    return sampleXI(sq, rates, xiSeed(matchSeed(series, n), i), series.format === "test" ? 4 : 5, XI_SHARPEN[`${series.format}-${series.gender}`] ?? 1);
+  };
+  const copies = squads.map((sq0, i) => xiOf(sq0, i).map(p => {
     const copy = Player.fromJSON(p.toJSON());
     copy.injured = false; copy.injuryGamesLeft = 0; copy.fatigue = 0;
     return copy;
   })) as [Player[], Player[]];
+  for (const side of copies) {
+    if (side.length > 0 && !side.some(p => p.isWicketKeeper)) {
+      (([...side].filter(p => p.role !== "bowler").sort((a, b) => keepingRating(b) - keepingRating(a))[0]) ?? side[0]).isWicketKeeper = true;
+    }
+  }
   // limited-overs series: the sides' gap and the home advantage fitted on real results (series-tuning.ts)
   if (series.format === "t20i" || series.format === "odi") applySeriesTuning(copies, tuningFor(series.format, series.gender), venue.neutral ? -1 : homeIdx, series.sides[homeIdx].country);
   const make = (i: 0 | 1) => {
