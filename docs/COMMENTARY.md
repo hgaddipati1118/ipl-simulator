@@ -188,8 +188,10 @@ a player in the match; no real name from the source survives in any template (ch
 - Scraper: measured ~45 matches/hour (about 70 s of page time + 5-11 s pacing per T20, 0 Akamai blocks in the first hours). Planned set is roughly
   1,250 IPL, ~90 WPL, ~550 World Cup (incl. women's), ~560 T20Is since 2023/24 and ~1,900 league matches since 2021, about 4,300 matches, i.e. around 4 days
   of scraping; the IPL alone is ~27 hours.
-- Rebuilt 2026-11-09 from 1,969 matches (448,679 balls: IPL 1,247, T20 World Cups 377, T20Is 343; 98.3% with text, 99.0% with shot tags,
-  71.5% with line and length): 45,470 templates, 4.86 MB raw / 1.36 MB gzipped. The build also strips leading punctuation and drops any
+- Rebuilt 2026-11-18 from 2,424 matches (554,621 balls: IPL 1,254, BBL 309, T20 World Cups 378, T20Is 363, PSL 120; 98.5% with text, 99.0% with shot tags,
+  76.8% with line and length; scraper still running, 9 matches failed on abandoned / not-started pages, fixed in the scraper since): 46,078 templates, 4.93 MB raw / 1.38 MB gzipped.
+  (Rebuilt 2026-11-09 from 1,969 matches: 45,470 templates, 4.86 MB raw / 1.36 MB gzipped.) The Super Over patch works: Sri Lanka v India 3rd T20I 2024 (1442989, a tie)
+  comes through with all four innings (125 + 127 + 4 + 1 balls); the build keeps the record with the most balls, and the earlier 12-ball record is dropped. The build also strips leading punctuation and drops any
   template with a capitalised word that is a first or last name in the game's name pools and never appears in lowercase in the kept
   templates ("Duff ball", "Sow and down leg"; the test checks the same). The older text: the first committed model was built from 37 matches
   (IPL 2026, 8,619 balls): 5,583 templates, 0.62 MB raw / 159 KB gzipped. Run outs: 12 striker and 10 non-striker run-out balls in the corpus gave 7 striker and
