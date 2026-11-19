@@ -20,6 +20,7 @@ from its own model fitted on Cricsheet ODIs, in both engines (`odi-model.ts`; ge
 (`__tests__/benchmark-odi.ts`) and refitting: `docs/FORMATS.md`. `__tests__/fingerprint-matches.ts` shows an engine change leaves T20 / Hundred play unchanged.
 In the app, `/international` plays international series (ODI, T20I; men and women; `packages/app/src/international.ts`, a pluggable
 `SERIES_FORMATS` list a Test entry joins) and Draft Match has a T20 / ODI option (docs/FORMATS.md, "In the app").
+A watched men's T20I series can use realistic line-ups (XI sampled by real 2024+ selection rates, `realistic-xi.ts`; docs/COUNTRY-VALIDATION.md "Realistic line-ups": other sets did not improve out of sample and do not offer it).
 Test cricket has its own engine (`test-match.ts`: rules, ball model and captains' policies fitted on Cricsheet Tests, generated
 `test-model-data.ts` from `packages/ratings/src/analysis/test-match-model.py`; live driver `test-live.ts`; validation
 `__tests__/benchmark-test.ts`; docs/FORMATS.md, "Test"). In the app a Test is a format of the International series

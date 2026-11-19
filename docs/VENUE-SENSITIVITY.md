@@ -52,3 +52,23 @@ turning venues is -0.09: batters as a group barely notice.
 More data (a decade of women's and Test cricket), a venue dimension that predicts more than scoring level and spin share (soil, grass cover and
 day / night from the ground), and a held-out test per player rather than per likelihood cell would be the places to look; the pipeline takes
 `--gender female` and a different `--split`.
+
+## Tests, retried (not shipped)
+
+`npx tsx src/pipeline/pitch-sensitivity.ts --format test`: men's Tests from Cricsheet (2001 on, 120 venues, split at 2024), venue measures
+on the years before the split, 600+ training balls a player, plus a player x ground test (does a player's record at a particular ground
+beat his overall rate times the ground's factor?). Held-out gain per 1,000 balls (the likelihood against the class slope alone):
+
+| test | at full spread / tau x 0.5 / x 0.25 / x 0.1 |
+|---|---|
+| batter runs, flat | -0.345 / -0.116 / -0.033 / -0.006 |
+| batter runs, turns (spin-friendly) | -1.600 / -0.800 / -0.232 / -0.009 |
+| bowler runs, flat (pace / spin) | -0.333 / -0.096 / -0.017 / +0.012 |
+| bowler runs, turns | -1.201 / -0.651 / -0.203 / -0.010 |
+| wickets, either side, either dimension | within +-0.05, mostly 0 (tau 0.1-0.2 and flat) |
+| player x ground (runs / wickets, any shrinkage 300-10,000 balls) | all negative or 0.002 |
+
+Same verdict as T20: a player's own slope is noise (it makes the held-out likelihood worse; the best case, a bowler's flat-deck slope at a tenth
+of its spread, is +0.012 per 1,000 balls). The class effects (spinners take more wickets on turners: +0.25 per unit for spin, -0.17 for pace;
+batters' runs move 1.4 for one with flatness) are already in the engine through the per-ground bowler-type edges and ground factors. Nothing
+shipped; players with little data stay at their role's normal level, as everyone else.

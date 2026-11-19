@@ -56,8 +56,15 @@ describe("realistic line-ups", () => {
     expect([...count.values()].reduce((x, y) => x + y, 0)).toBe(11 * N);
   });
 
+  it("only men's T20I has realistic line-ups: other sets ignore the option (they did not improve out of sample)", () => {
+    expect(make("odi", true).realistic).toBeUndefined();
+    expect(make("test", true).realistic).toBeUndefined();
+    const w = createSeries({ format: "t20i", gender: "women", nations: ["India", "Australia"], length: 1, host: "neutral", userSide: null, seed: 3, realistic: true }, FILE);
+    expect(w.realistic).toBeUndefined();
+  });
+
   it("the user's side is never sampled", () => {
-    const s = createSeries({ format: "odi", gender: "men", nations: ["India", "Australia"], length: 1, host: "neutral", userSide: 0, seed: 3, realistic: true }, FILE);
+    const s = createSeries({ format: "t20i", gender: "men", nations: ["India", "Australia"], length: 1, host: "neutral", userSide: 0, seed: 3, realistic: true }, FILE);
     expect(s.realistic).toBeUndefined();
     expect(seriesSquads(s, FILE)[0]).toHaveLength(16);
   });

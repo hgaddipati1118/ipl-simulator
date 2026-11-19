@@ -1220,6 +1220,11 @@ tolerances; docs/COUNTRY-VALIDATION.md has the method, the fit and the before / 
 fitted strength stretch and home advantage (`series-tuning.ts`, both engines); figures outside tolerance in men's / women's T20I
 went from 33 / 37 to 20 / 29, and in round 2 (per-country home advantage, an ODI opposition-strength rating adjustment) to 17 / 22; men's / women's ODI 15 / 22 to 13 / 21, Test 7. Players' pitch sensitivity was tested and not shipped (docs/VENUE-SENSITIVITY.md).
 
+Realistic line-ups (watched men's T20I series, opt-in on the setup page): each match's XI is sampled from the side's pool of recent
+players by real selection rates since 2024 (`realistic-xi.ts`), which brings weak sides (West Indies) closer to real results; fitted
+up to 2024 and better on the 2025+ holdout for men's T20I only (log loss 0.623 -> 0.611); women's T20I, ODI and Test did not improve and
+do not offer it. Tests' player pitch sensitivity was retried and not shipped (docs/VENUE-SENSITIVITY.md). Details: docs/COUNTRY-VALIDATION.md.
+
 ## T20I level
 
 A series' T20Is play at a level fitted on real T20Is, in both engines; men's leagues stay on the league tables (the instant

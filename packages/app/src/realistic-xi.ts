@@ -18,7 +18,14 @@ export type Rates = Readonly<Record<string, number>>;
  * reproduces the real rates (every fringe player plays as often as he did) and larger values favour the regulars (infinity: the most
  * frequent XI). Fitted on the real fixtures (docs/COUNTRY-VALIDATION.md, "Realistic line-ups"); a set without an entry is not realistic.
  */
-export const XI_SHARPEN: Record<string, number> = {};
+export const XI_SHARPEN: Record<string, number> = {
+  // men's T20I only: fitted on the fixtures up to 2024 (rates from 2024 matches), better than the best XI on the 2025+ holdout too
+  // (log loss 0.623 -> 0.611; countries OFF 23 -> 19). Women's T20I, ODI and Test did not improve out of sample: not realistic.
+  "t20i-men": 3,
+};
+
+/** Whether a format-gender set ("t20i-men") has realistic line-ups */
+export const realisticAvailable = (format: string, gender: string): boolean => `${format}-${gender}` in XI_SHARPEN;
 
 function mulberry(seed: number): () => number {
   let a = seed >>> 0;

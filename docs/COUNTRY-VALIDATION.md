@@ -55,6 +55,34 @@ real results are. The real ODI home advantage (65% for men) is **not** explained
 0.44 away; Sri Lanka 0.72 / 0.24): it is pitches and conditions of particular countries, which the neutral-ground ODI replay has no
 way to carry. Left as it is.
 
+## Realistic line-ups (men's T20I ships; the other sets do not)
+
+Series fielded each nation's best eleven, so weak sides (West Indies with Pooran / Russell / Hope, Sri Lanka, Zimbabwe) won more than
+they did. Realistic line-ups (`packages/app/src/realistic-xi.ts`, data `intl-availability-data.ts` from
+`packages/ratings/src/pipeline/generate-intl-availability.ts`, real Cricsheet selection since 2024-01-01: the share of a side's matches a
+player played): each match's XI is sampled from the side's pool of recent players with inclusion probabilities from those rates
+raised to a sharpening power `gamma` (1 = the real rates; large = the usual XI), always eleven, a keeper and 5 bowling options.
+Availability only decides who plays; no rating changes (the elite-player check is untouched). Only watched series use it (the
+user's own side keeps his XI) and the setup page offers it as an opt-in checkbox.
+
+**Check.** `gamma` fitted on the real fixtures up to 2024 (rates from 2024 matches only, `BENCH_HOLDOUT=fit`), judged on the 2025+
+fixtures with the same 2024-only rates, so nothing leaks (`BENCH_HOLDOUT=1 BENCH_REALISTIC=1 BENCH_AVAIL_2024=1 BENCH_GAMMA=g`; real
+targets `docs/data/country_validation_to2024.json` / `country_validation_2025.json`, rates `docs/data/intl_availability_2024.json`).
+24 replays of every fixture. Log loss per real match (lower is better) and countries OFF:
+
+| set | fit half (to 2024): best XI | realistic, gamma | holdout (2025+): best XI | realistic, same gamma | decision |
+|---|---|---|---|---|---|
+| men's T20I | 0.655 (14 OFF) | 0.6405 (13), g 3 | 0.623 (23 OFF) | 0.611 (19) | **ships** (better in every setting tried, both halves) |
+| women's T20I | 0.562 (22) | 0.547 (21), g 2 | 0.471 (27) | 0.486 (24) | no: worse out of sample |
+| men's ODI | 0.633 (16) | none better (best 0.644, g 1) | 0.686 (15) | 0.676 at g 1 only, 0.70-0.72 at the others | no |
+| women's ODI | 0.514 (20) | 0.501 (18), g 2 | 0.479 (18) | 0.473 (19) | no: gain inside the noise (about 0.01) |
+| men's Test | 0.593 (10) | none better (best 0.610, g 3) | 0.587 (12) | 0.619-0.638 | no (58 holdout matches; a worse log loss both halves) |
+
+The noise of one cell is about 0.01 (the curve over gamma is not smooth), so only men's T20I is a clear gain; its weak sides move the
+right way: West Indies 0.50 -> 0.40 win rate in the holdout (real 0.38), 0.51 -> 0.44 in the fit half (real 0.42); Sri Lanka 0.49 -> 0.47
+(real 0.37) and Zimbabwe 0.39 -> 0.36 (real 0.23) move less; Bangladesh moves the wrong way (0.39 -> 0.46, real 0.36). Shipped:
+`XI_SHARPEN = { "t20i-men": 3 }`; sets without an entry ignore the option. The shipped rates cover every match since 2024-01-01.
+
 ## Left over
 
 - Sri Lanka, West Indies and Zimbabwe men's T20I still win 0.40-0.49 against 0.29-0.41: their squads rate higher than they played

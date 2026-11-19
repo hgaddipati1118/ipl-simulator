@@ -15,6 +15,7 @@ import {
   simulateRestOfSeries, simulateSeriesMatch, teamsForMatch, venueFor,
   type IntlSeries, type SeriesGender, type SeriesHost, type SeriesLineup, type SeriesMatchRecord,
 } from "../international";
+import { realisticAvailable } from "../realistic-xi";
 import { loadFormatRatings } from "../format-ratings";
 import { loadPlayerActivity } from "../player-activity";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
@@ -236,6 +237,7 @@ function SeriesSetup({ file, activity, existing, loadPlayers, onStart, onResume,
   const [host, setHost] = useState<SeriesHost>("a");
   const [role, setRole] = useState<"a" | "b" | "watch">("a");
   const [busy, setBusy] = useState(false);
+  const [realistic, setRealistic] = useState(false);
 
   // keep the picks valid when the gender changes
   useEffect(() => {
@@ -251,7 +253,7 @@ function SeriesSetup({ file, activity, existing, loadPlayers, onStart, onResume,
     setBusy(true);
     // the nations' senior players from the extended pool (fetched once), then the squads
     const extended = await loadPlayers(gender);
-    onStart(createSeries({ format, gender, nations: [a, b], length, host, userSide: role === "watch" ? null : role === "a" ? 0 : 1 }, file, activity, extended));
+    onStart(createSeries({ format, gender, nations: [a, b], length, host, userSide: role === "watch" ? null : role === "a" ? 0 : 1, realistic: realistic && role === "watch" }, file, activity, extended));
     setBusy(false);
   };
 
@@ -323,6 +325,12 @@ function SeriesSetup({ file, activity, existing, loadPlayers, onStart, onResume,
             <button onClick={() => setRole("b")} className={chip(role === "b")} data-testid="series-role-b">Captain {b}</button>
             <button onClick={() => setRole("watch")} className={chip(role === "watch")} data-testid="series-role-watch">Watch</button>
           </div>
+          {role === "watch" && realisticAvailable(format, gender) && (
+            <label className="flex items-center gap-2 mt-3 text-xs font-display text-th-secondary cursor-pointer" data-testid="series-realistic">
+              <input type="checkbox" checked={realistic} onChange={e => setRealistic(e.target.checked)} />
+              Realistic line-ups: each match's XI is drawn from the players each side really used since 2024, by how often they played
+            </label>
+          )}
           <p className="text-[11px] text-th-faint font-display mt-2">
             A captain picks his XI and batting order before each match and makes the decisions in live matches (bowling changes, reviews).
             {file === null ? " ODI and Test ratings are unavailable: everyone plays on his T20 ratings." : ""}

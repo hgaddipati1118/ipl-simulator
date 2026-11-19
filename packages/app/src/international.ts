@@ -22,7 +22,7 @@ import { WPL_PLAYERS } from "@ipl-sim/ratings/dist/wpl-players.js";
 import type { ExtendedPlayer } from "@ipl-sim/ratings/dist/extended-pool.js";
 import { applyOppositionAdjust, applySeriesTuning, tuningFor } from "./series-tuning";
 import { INTL_AVAILABILITY, type IntlAvailability } from "./intl-availability-data";
-import { sampleXI, xiSeed, XI_SHARPEN, type Rates } from "./realistic-xi";
+import { realisticAvailable, sampleXI, xiSeed, XI_SHARPEN, type Rates } from "./realistic-xi";
 import { markTestKeepers, pickTestSquad, testSeriesFormat } from "./test-match/test-series";
 
 // ── Formats ────────────────────────────────────────────────────────────
@@ -462,6 +462,9 @@ export function selectionRates(format: string, gender: SeriesGender, country: st
   return set && Object.keys(set).length >= 14 ? set : undefined;
 }
 
+/** Realistic line-ups apply to a watched series in a set that has them (realistic-xi.ts `XI_SHARPEN`) */
+const realisticOn = (opts: NewSeriesOptions) => !!opts.realistic && opts.userSide === null && realisticAvailable(opts.format, opts.gender);
+
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 /** A new series; `extended` adds the extended pool's senior players of the gender to the squads' candidates */
@@ -471,7 +474,7 @@ export function createSeries(
   const def = seriesFormat(opts.format);
   const sides = opts.nations.map((country, i) => {
     const info = NATION_INFO[country];
-    const rates = opts.realistic && opts.userSide === null ? selectionRates(opts.format, opts.gender, country) : undefined;
+    const rates = realisticOn(opts) ? selectionRates(opts.format, opts.gender, country) : undefined;
     const squad = buildNationSquad(country, opts.gender, def.ratingFormat, file, undefined, activity, extended, rates);
     return {
       id: `${slug(country)}-${i}`, country, name: opts.gender === "women" ? `${country} Women` : country,
@@ -487,7 +490,7 @@ export function createSeries(
     v: 1, id: `${Date.now().toString(36)}-${seedBase.toString(36)}`, createdAt: new Date().toISOString(),
     format: def.id, gender: opts.gender, sides, length: opts.length, host: opts.host, userSide: opts.userSide,
     results: [], seedBase,
-    ...(opts.realistic && opts.userSide === null ? { realistic: true } : {}),
+    ...(realisticOn(opts) ? { realistic: true } : {}),
   };
 }
 
