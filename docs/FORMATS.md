@@ -1062,6 +1062,8 @@ CRICSHEET_TEST_JSON_DIR=/path/to/tests_json python3 -I src/analysis/test-player-
 Reached from the Setup page ("International") and the top navigation. `packages/app/src/international.ts` holds the logic
 (pure TypeScript, unit-tested in `src/__tests__/international.test.ts`); `src/pages/InternationalPage.tsx` the screens.
 
+- **Tactics** (docs/TACTICS.md): on the series page the pitch, the light (ODI) and the weather (Test) can be set for the matches to come (`ConditionsBar`); on a side's XI screen its bowling plan
+  (phases and fixed overs in a T20I / ODI; who opens and when spin comes on in a Test) next to the batting order. Both default to what real captains and real grounds do.
 - **Setup**: men or women; two nations (every nation with 14+ shipped players aged 40 or under and six bowling options:
   `ALL_PLAYERS` for men, `WPL_PLAYERS` for women); the format; 1, 3 or 5 matches; the venue (the host's grounds in turn,
   most used first, from the ODI venue analysis; or neutral); captain one side or watch.

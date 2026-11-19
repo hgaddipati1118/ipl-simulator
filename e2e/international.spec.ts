@@ -88,7 +88,7 @@ test.describe("International series and ODIs in the app", () => {
     await expect(page.getByTestId("series-scorecard-0")).toBeVisible({ timeout: 30000 });
   });
 
-  test("tactics: a bowling plan is set, kept and played (T20I)", async ({ page }) => {
+  test("tactics: a bowling plan and the match conditions are set, kept and played (T20I), light and pitch for an ODI", async ({ page }) => {
     await page.getByTestId("international-quick").click();
     await expect(page.getByTestId("series-setup")).toBeVisible({ timeout: 20000 });
     await page.getByTestId("series-format-t20i").click();
@@ -116,6 +116,29 @@ test.describe("International series and ODIs in the app", () => {
     await expect(page.getByTestId("plan-over-0")).not.toHaveValue("");
     await page.getByTestId("lineup-confirm").click();
 
+    // conditions: a pitch for a T20I (no light select: the T20 day / night gap is inside its noise)
+    await expect(page.getByTestId("series-conditions")).toBeVisible();
+    await expect(page.getByTestId("series-light")).toHaveCount(0);
+    await page.getByTestId("series-pitch").selectOption("turning");
+    await expect(page.getByTestId("series-pitch")).toHaveValue("turning");
+    await page.getByTestId("series-sim-match").click();
+    await expect(page.getByTestId("series-scorecard-0")).toBeVisible({ timeout: 30000 });
+  });
+
+  test("tactics: an ODI series offers light and the pitch, kept across a reload", async ({ page }) => {
+    await page.getByTestId("international-quick").click();
+    await expect(page.getByTestId("series-setup")).toBeVisible({ timeout: 20000 });
+    await page.getByTestId("series-format-odi").click();
+    await page.getByTestId("series-length-3").click();
+    await page.getByTestId("series-role-a").click();
+    await page.getByTestId("series-start").click();
+    await expect(page.getByTestId("series-hub")).toBeVisible({ timeout: 30000 });
+    await page.getByTestId("series-light").selectOption("night");
+    await page.getByTestId("series-pitch").selectOption("flat");
+    await page.reload();
+    await waitForAppReady(page);
+    await expect(page.getByTestId("series-light")).toHaveValue("night", { timeout: 20000 });
+    await expect(page.getByTestId("series-pitch")).toHaveValue("flat");
     await page.getByTestId("series-sim-match").click();
     await expect(page.getByTestId("series-scorecard-0")).toBeVisible({ timeout: 30000 });
   });

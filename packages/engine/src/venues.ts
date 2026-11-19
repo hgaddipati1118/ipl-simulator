@@ -68,6 +68,8 @@ export interface VenueProfile {
   /** P(chasing side wins) - 0.5 for equal teams at this ground */
   chaseAdvantage: number;
   source: string;
+  /** ODI, user-set light: the chasing side's extra edge (conditions.ts), on the engine's chase-edge term */
+  chaseTilt?: number;
   /** Format calibration of applyVenueProfile (absent = the T20 values VENUE_RUN_GAIN, SIX_RUN_SHARE) */
   runGain?: number;
   sixRunShare?: number;
@@ -326,7 +328,7 @@ export function applyChaseEdge(probs: Probs, chaseAdvantage: number): void {
 /** Gain on an ODI ground's run factor (benchmark-odi.ts: simulated first-innings totals move one-for-one with it) */
 export const ODI_VENUE_RUN_GAIN = 1.6;
 /** Share of ODI runs that come from sixes (Cricsheet men's ODIs 2019+: ~12%) */
-const ODI_SIX_RUN_SHARE = 0.12;
+export const ODI_SIX_RUN_SHARE = 0.12;
 
 const groundKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 

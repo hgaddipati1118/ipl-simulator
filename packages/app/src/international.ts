@@ -14,7 +14,7 @@ import {
   keepingRating, xiSelectionValue, IPL_TEAMS, WPL_TEAMS, EXTRA_LEAGUES,
   type DetailedBallEvent, type DetailedMatchResult, type InningsScorecard, type LongFormat, type MatchState, type PlayerData,
   type RuleSet, type TeamConfig,
-  type BowlingPlan,
+  type BowlingPlan, type ConditionsSetting,
 } from "@ipl-sim/engine";
 import { attachFormatRatings, type FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import { playerActivity, squadTier, type ActivityFormat, type PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
@@ -42,6 +42,8 @@ export interface SeriesMatchContext {
   venue: SeriesVenue;
   /** The match's stable key (series id and match number, seriesMatchKey), for a format that keeps more than the record */
   key?: string;
+  /** Pitch / light / weather the user set for the series (engine conditions.ts); absent = the ground as it is */
+  conditions?: ConditionsSetting;
 }
 
 /**
@@ -84,7 +86,7 @@ function limitedOversFormat(def: Omit<SeriesFormatDef, "simulate" | "live"> & { 
     viewer: "limited-overs",
     create(ctx, userTeamId) {
       return createMatchState(ctx.home, ctx.away, ctx.rules ?? def.rules(ctx.gender), userTeamId, ctx.seed,
-        { rain: true, ...(ctx.venue.neutral ? { neutralVenue: true } : { venueName: ctx.venue.name }) });
+        { rain: true, ...(ctx.conditions ? { conditions: ctx.conditions } : {}), ...(ctx.venue.neutral ? { neutralVenue: true } : { venueName: ctx.venue.name }) });
     },
     finish(state, ctx) {
       return recordFromDetailed(buildDetailedResultFromState(state), ctx.venue, ctx.seed, "live");
@@ -96,6 +98,7 @@ function limitedOversFormat(def: Omit<SeriesFormatDef, "simulate" | "live"> & { 
       const res = simulateMatch(ctx.home, ctx.away, ctx.rules ?? def.rules(ctx.gender), ctx.seed, {
         countTowardStandings: false,
         rain: true, // rain, DLS and no results at the fitted rates, as in a season
+        ...(ctx.conditions ? { conditions: ctx.conditions } : {}),
         ...(ctx.venue.neutral ? { neutralVenue: true } : { venueName: ctx.venue.name }),
       });
       return recordFromDetailed(res.detailed!, ctx.venue, ctx.seed, "sim");
@@ -451,6 +454,8 @@ export interface IntlSeries {
   lineups?: [SeriesLineup | null, SeriesLineup | null];
   /** The host's ground by name (one of its `homeGrounds`) instead of its busiest one; ignored at a neutral venue or when no ground matches */
   ground?: string;
+  /** Pitch, light (ODI) and weather (Test) for every match of the series, set by the user; absent = the ground as it is, the day's fitted draw */
+  conditions?: ConditionsSetting;
   results: SeriesMatchRecord[];
   /** A live match in progress (its match number) */
   liveMatch?: number;
@@ -647,6 +652,7 @@ export function matchContext(series: IntlSeries, n: number, squads: [Player[], P
   return {
     home, away, venue, ...(def.rules ? { rules: def.rules(series.gender) } : {}), gender: series.gender, seed: matchSeed(series, n),
     key: seriesMatchKey(series, n),
+    ...(series.conditions && Object.keys(series.conditions).length ? { conditions: series.conditions } : {}),
   };
 }
 

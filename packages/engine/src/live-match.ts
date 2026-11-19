@@ -7,6 +7,7 @@
 
 import { Player } from "./player.js";
 import { Team, type BowlingPlan } from "./team.js";
+import { applyConditionsToProfile, type ConditionsSetting } from "./conditions.js";
 import { bowlerKind, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
@@ -803,6 +804,8 @@ export interface LiveMatchOptions {
   venueName?: string;
   /** A neutral venue (playoffs, a neutral series): no ground effects, as in simulateMatch */
   neutralVenue?: boolean;
+  /** Pitch, light (ODI) set by the user (conditions.ts); absent = the ground's measured profile */
+  conditions?: ConditionsSetting;
   /** Rain, DLS and no results at the fitted rates, a T20 league's or the ODI's (default off, as in simulateMatch) */
   rain?: boolean;
 }
@@ -846,9 +849,12 @@ export function createMatchState(
   const isUserTossWinner = userTeamId !== null && tossWinner.id === userTeamId;
 
   const odiGender = genderOf(rules);
-  const venueProfile = odi
+  const groundProfile = odi
     ? (neutral ? null : getOdiVenueProfile(options.venueName ?? homeTeam.config.stadiumName, odiGender))
     : neutral ? getNeutralVenueProfile(rules.league) : getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id);
+  // pitch / light set by the user (conditions.ts) laid over the ground, as simulateMatch does
+  const venueProfile = applyConditionsToProfile(groundProfile, options.conditions, odi ? "odi" : "t20",
+    odi ? ODI_CONDITIONS.chaseAdvantage[odiGender] : getLeagueChaseAdvantage(rules.league, rules.gender));
   const chaseAdvantage = odi
     ? venueProfile?.chaseAdvantage ?? ODI_CONDITIONS.chaseAdvantage[odiGender]
     : neutral ? getLeagueChaseAdvantage(rules.league, rules.gender) : venueProfile?.chaseAdvantage ?? getLeagueChaseAdvantage(rules.league, rules.gender);
@@ -863,7 +869,7 @@ export function createMatchState(
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
   const bowlingFirst = battingFirst === homeTeam ? awayTeam : homeTeam;
 
-  const stadiumRating = (odi || neutral ? 1 : stadiumRatingFor(homeTeam, venueProfile)) * (2 - rules.scoringMultiplier);
+  const stadiumRating = (odi || neutral ? 1 : stadiumRatingFor(homeTeam, groundProfile)) * (2 - rules.scoringMultiplier);
 
   // An ODI orders its batters and bowlers on their ODI ratings (the XIs as they play the format, Player.forFormat)
   const asPlayed = (xi: Player[]) => (odi ? xi.map(p => p.forFormat("odi")) : xi);

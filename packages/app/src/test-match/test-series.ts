@@ -137,6 +137,7 @@ export function testFixture(ctx: SeriesMatchContext): TestFixtureSetup {
     ...(ctx.venue.neutral ? { neutral: true } : { country: testCountryCode(nationName(ctx.home.name)) }),
     ...(Object.keys(xi).length ? { xi } : {}),
     ...(england ? { bazballTeamId: england.id } : {}),
+    ...(ctx.conditions ? { conditions: ctx.conditions } : {}),
     ...(Object.keys(bowling).length ? { bowling } : {}),
   };
 }

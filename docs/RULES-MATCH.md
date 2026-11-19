@@ -437,7 +437,7 @@ DEF / ATK move scoring from the calibrated level), and the field setting (standa
 of them: the live engine's own base matrix and phase table, the "IPL 2025 scoring era" boost, the home and day/night edges, the boundary-running and dew
 tables, the batter's form, and the set-batter / bowler-fatigue terms. Around the ball the live engine now does what the instant one does: a CPU side bowls
 one of its three best bowlers by rating each over, the first over too (a user's own phase plan still comes first; the old automatic phase plan for CPU
-sides is gone), each side bats and bowls in its team's order in both innings (the toss and the innings break no longer re-sort the XI), a neutral venue
+sides is gone; this rule has since been replaced by the fitted captain's choice and the user's bowling plan in both engines: docs/TACTICS.md section 1), each side bats and bowls in its team's order in both innings (the toss and the innings break no longer re-sort the XI), a neutral venue
 (playoffs, a neutral series) has no ground effects, and rain comes only with the `rain` option, from the instant engine's fitted plan (the league's
 rates, DLS on T20 resources); the old once-an-innings rain check is gone. The season's live matches pass `rain` and neutral playoff grounds as the season's
 instant matches do, and every CPU bowling choice uses the match's seeded generator.

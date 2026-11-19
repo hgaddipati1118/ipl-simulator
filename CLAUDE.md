@@ -34,6 +34,11 @@ T20 / Hundred matches draw their own conditions (a skewed run multiplier for the
 bats by wickets in hand and overs left, and a new batter plays himself in, as real sides do (`wickets-in-hand.ts`, fitted with batter and
 bowler held fixed; 12.9, 12.10).
 
+Tactics (docs/TACTICS.md): who bowls which over in the T20 and the ODI is a captain's choice model fitted on 1,788 real internationals (`bowling-choice.ts`; both engines),
+a user sets a side's bowling plan (phases, fixed overs; in a Test who opens and when spin comes on, `BowlingPlanEditor.tsx`, `SeriesLineup.bowling`), the T20 bowler type x phase effects
+are fitted (`t20-bowler-type.ts`, out-of-sample tested against the hand-set ones they replaced), and a series takes pitch / light / weather (`conditions.ts`, `IntlSeries.conditions`, `ConditionsBar`),
+each acting through a fitted ground term. Ball-age terms were tested out of sample and not shipped.
+
 Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ball text (scraper, templates, engine API: `docs/COMMENTARY.md`;
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).
 

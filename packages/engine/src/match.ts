@@ -36,6 +36,7 @@ import {
   getNeutralVenueProfile,
   applyVenueProfile,
   applyChaseEdge,
+  ENGINE_INTRINSIC_CHASE,
   deriveStadiumBowlingRating,
   getOdiVenueProfile,
   type VenueProfile,
@@ -61,6 +62,7 @@ import { applyMatchConditions, drawMatchConditions, type MatchConditions } from 
 import { applyWicketsInHand, wicketsInHandKey as wicketsInHandKeyFor } from "./wickets-in-hand.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
 import { applyT20BowlerType } from "./t20-bowler-type.js";
+import { applyConditionsToProfile, type ConditionsSetting } from "./conditions.js";
 import { bowlerKind, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, planBowlerIds, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
 import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
@@ -361,6 +363,8 @@ export interface MatchOptions {
   neutralVenue?: boolean;
   countTowardStandings?: boolean;
   venueName?: string;
+  /** Pitch, light (ODI) and weather set by the user (conditions.ts); absent = the ground's measured profile and the day's fitted draw */
+  conditions?: ConditionsSetting;
   /** Settle a tie with super overs. Default: yes in T20 and The Hundred; no in an ODI, where a tie stands (bilateral
    *  series, group stages). Pass true for an ODI knockout whose competition plays one (ICC event semi-finals, finals). */
   superOver?: boolean;
@@ -529,7 +533,8 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
   // Measured ground: run / six / wicket factors and bowler-type edges
   if (venue.profile) applyVenueProfile(probs, venue.profile, bowler.bowlingStyle);
   if (isSecondInnings && !own) applyChaseEdge(probs, venue.chaseAdvantage);
-
+  // an ODI under the user's light setting: the chase edge by day or under lights (conditions.ts); otherwise the fitted model's own chase terms stand
+  else if (isSecondInnings && own && venue.profile?.chaseTilt) applyChaseEdge(probs, ENGINE_INTRINSIC_CHASE + venue.profile.chaseTilt);
 
   // Style, handedness, and venue context
   const matchupMods = getMatchupModifiers({
@@ -910,7 +915,8 @@ function getVenueContext(
   if (hasOwnBallModel(fmt)) {
     // An ODI: the ground's measured ODI conditions where the venue analysis has them (by name), never the T20 league levels
     const gender = genderOf(rules);
-    const profile = options?.neutralVenue ? null : getOdiVenueProfile(options?.venueName ?? homeTeam.config.stadiumName, gender);
+    const ground = options?.neutralVenue ? null : getOdiVenueProfile(options?.venueName ?? homeTeam.config.stadiumName, gender);
+    const profile = applyConditionsToProfile(ground, options?.conditions, "odi", ODI_CONDITIONS.chaseAdvantage[gender]);
     return {
       stadiumBowlRating: 1.0 * (2 - rules.scoringMultiplier),
       pitchType: options?.neutralVenue ? "balanced" : homeTeam.config.pitchType ?? "balanced",
@@ -931,7 +937,7 @@ function getVenueContext(
       pitchType: "balanced",
       boundarySize: "medium",
       dewFactor: "none",
-      profile: getNeutralVenueProfile(rules.league),
+      profile: applyConditionsToProfile(getNeutralVenueProfile(rules.league), options?.conditions, "t20", leagueChase),
       chaseAdvantage: leagueChase,
       gender: genderOf(rules),
       ...(context ? { context } : {}),
@@ -939,9 +945,10 @@ function getVenueContext(
     };
   }
 
-  const profile = getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id);
+  const ground = getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id);
+  const profile = applyConditionsToProfile(ground, options?.conditions, "t20", leagueChase);
   return {
-    stadiumBowlRating: stadiumRatingFor(homeTeam, profile) * (2 - rules.scoringMultiplier),
+    stadiumBowlRating: stadiumRatingFor(homeTeam, ground) * (2 - rules.scoringMultiplier),
     pitchType: homeTeam.config.pitchType ?? "balanced",
     boundarySize: homeTeam.config.boundarySize ?? "medium",
     dewFactor: homeTeam.config.dewFactor ?? "none",

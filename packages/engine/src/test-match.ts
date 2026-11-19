@@ -20,6 +20,7 @@
  */
 
 import type { BowlingPlan } from "./bowling-choice.js";
+import { type ConditionsSetting, type PitchPreset, type WeatherPreset } from "./conditions.js";
 import { Player, type PlayerRatings } from "./player.js";
 import type { Team } from "./team.js";
 import type { RNG } from "./rng.js";
@@ -116,6 +117,8 @@ export interface TestMatchOptions {
   oversPerDay?: number;
   /** Time lost to weather and bad light (default on) */
   weather?: boolean;
+  /** Pitch and weather set by the user (conditions.ts): the match's run / wicket spread drawn at the top-tenth mean of a flat, seaming or slow pitch, and clear or unsettled weather */
+  conditions?: ConditionsSetting;
   /** DRS: unsuccessful reviews per side per innings (default 3; 0 = no DRS) */
   reviews?: number;
   /** Explicit XIs in batting order, by team id (else picked from the squad on Test ratings) */
@@ -683,9 +686,13 @@ function drawOverRate(rng: RNG): number {
  * fitted share of its play (TEST_MODEL.policy.time.weather): a wash-out with probability w, else 5-75% of the day, w chosen so
  * the mean is the fitted share.
  */
-function planWeather(st: TestMatchState, rng: RNG, on: boolean): void {
+function planWeather(st: TestMatchState, rng: RNG, on: boolean, setting?: WeatherPreset): void {
   const W = M.policy.time.weather;
-  const c = (W.byCountry as Readonly<Record<string, { p: number; share: number }>>)[st.country];
+  const byCountry = W.byCountry as Readonly<Record<string, { p: number; share: number; n?: number }>>;
+  let c = byCountry[st.country];
+  // unsettled: the wettest fitted host (days affected) among countries with 20+ Tests
+  if (setting === "unsettled") c = Object.values(byCountry).filter(x => (x.n ?? 0) >= 20).sort((a, b) => b.p - a.p)[0] ?? c;
+  if (setting === "clear") on = false;
   const p = c?.p ?? W.p;
   const share = c?.share ?? W.share;
   const washout = Math.max(0, Math.min(1, (share - 0.4) / 0.6));
@@ -715,6 +722,19 @@ function drawConditions(rng: RNG): number[] {
   const ur = s.run * z1;
   const uw = s.wicket * (s.corr * z1 + Math.sqrt(1 - s.corr * s.corr) * z2);
   // centred so the mean multiplier is 1 (the fitted match terms average 1)
+  return TEST_OUTCOMES.map((_, k) => (SCORING.includes(k) ? Math.exp(ur - s.run * s.run / 2) : k === IW ? Math.exp(uw - s.wicket * s.wicket / 2) : 1));
+}
+
+/**
+ * A pitch the user set: the run / wicket multipliers at the top-tenth mean of the fitted spread along the pitch's dimension (a normal's top
+ * tenth averages 1.75 sd; the spread is the real one, test_model.json matchSpread), the other dimension at its fitted correlation. A
+ * turning pitch is not a match-level term in the Test model (spin's edge is a host-country term), so it is not offered for a Test.
+ */
+export function pitchConditions(pitch: PitchPreset): number[] {
+  const s = M.matchSpread;
+  const Z = 1.755;
+  const [zr, zw] = pitch === "flat" ? [Z, s.corr * Z] : pitch === "slow" ? [-Z, -s.corr * Z] : pitch === "seaming" ? [s.corr * Z, Z] : [0, 0];
+  const ur = s.run * zr, uw = s.wicket * zw;
   return TEST_OUTCOMES.map((_, k) => (SCORING.includes(k) ? Math.exp(ur - s.run * s.run / 2) : k === IW ? Math.exp(uw - s.wicket * s.wicket / 2) : 1));
 }
 
@@ -783,8 +803,9 @@ export function createTestMatch(home: Team, away: Team, options: TestMatchOption
     commentary: options.commentary ?? !!options.userTeamId, events: [], ...(options.pickBatters ? { pickBatters: true } : {}),
   };
   const r = rngOf(st);
-  planWeather(st, r, options.weather ?? true);
+  planWeather(st, r, options.weather ?? true, options.conditions?.weather);
   st.cond = drawConditions(r);
+  if (options.conditions?.pitch) st.cond = pitchConditions(options.conditions.pitch);
   // how this pitch wears: a wicket-rate slope across the days (days 4-5 against 1-2 has the fitted spread)
   st.wear = (M as { wearSpread?: { wicket: number } }).wearSpread?.wicket ? M.wearSpread.wicket * normal(r) : 0;
   st.dayCap = st.dayPlan[0];

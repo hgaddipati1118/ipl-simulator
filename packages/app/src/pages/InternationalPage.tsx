@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { toDraftPlayer, type BowlingPlan, type MatchState, type Player, type Team, type TestMatchState } from "@ipl-sim/engine";
+import { PITCH_LABELS, toDraftPlayer, type BowlingPlan, type ConditionsSetting, type LightPreset, type MatchState, type PitchPreset, type WeatherPreset, type Player, type Team, type TestMatchState } from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import {
   SERIES_FORMATS, SERIES_SEASON_KEY, addResult, autoLineup, createSeries, homeGrounds, lineupProblems, loadSeries, matchContext,
@@ -212,6 +212,7 @@ export function InternationalPage() {
       onSimulate={n => update(simulateSeriesMatch({ ...series, liveMatch: undefined }, squads, n))}
       onSimRest={() => update(simulateRestOfSeries({ ...series, liveMatch: undefined }, squads))}
       onLineup={side => setView({ kind: "lineup", side })}
+      onConditions={conditions => update({ ...series, conditions })}
       onScorecard={n => setView({ kind: "scorecard", n })}
       onNewSeries={() => {
         if (series.results.length < series.length && seriesScore(series).done === false && !confirm("Abandon this series and start a new one?")) return;
@@ -360,7 +361,7 @@ function SeriesSetup({ file, activity, existing, loadPlayers, onStart, onResume,
 
 // ── Hub ─────────────────────────────────────────────────────────────────
 
-function SeriesHub({ series, squads, onPlayLive, onResumeLive, onAbandonLive, onSimulate, onSimRest, onLineup, onScorecard, onNewSeries }: {
+function SeriesHub({ series, squads, onPlayLive, onResumeLive, onAbandonLive, onSimulate, onSimRest, onLineup, onConditions, onScorecard, onNewSeries }: {
   series: IntlSeries;
   squads: [Player[], Player[]];
   onPlayLive: (n: number) => void;
@@ -369,6 +370,7 @@ function SeriesHub({ series, squads, onPlayLive, onResumeLive, onAbandonLive, on
   onSimulate: (n: number) => void;
   onSimRest: () => void;
   onLineup: (side: 0 | 1) => void;
+  onConditions: (c: ConditionsSetting | undefined) => void;
   onScorecard: (n: number) => void;
   onNewSeries: () => void;
 }) {
@@ -411,6 +413,7 @@ function SeriesHub({ series, squads, onPlayLive, onResumeLive, onAbandonLive, on
 
       {/* Matches */}
       <Section title="Matches">
+        {next !== null && <ConditionsBar series={series} onChange={onConditions} />}
         <div className="space-y-2">
           {Array.from({ length: series.length }, (_, n) => {
             const rec = series.results.find(r => r.n === n);
@@ -542,6 +545,53 @@ function StatTable({ title, head, rows }: { title: string; head: string[]; rows:
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── Conditions ──────────────────────────────────────────────────────────
+
+/**
+ * Pitch, light and weather for the matches still to play. Left on "as it is" the ground's measured profile and the day's fitted draw
+ * apply (what real matches there looked like); a choice acts through the fitted ground terms (engine conditions.ts, docs/FORMATS.md).
+ * Light is an ODI control (the T20 gap between day and night is inside its noise), weather a Test one, and a Test has no turning pitch
+ * (spin's edge there is a host-country term: pick an Asian host).
+ */
+function ConditionsBar({ series, onChange }: { series: IntlSeries; onChange: (c: ConditionsSetting | undefined) => void }) {
+  const c = series.conditions ?? {};
+  const set = (patch: Partial<ConditionsSetting>) => {
+    const next: ConditionsSetting = { ...c, ...patch };
+    for (const k of Object.keys(next) as (keyof ConditionsSetting)[]) if (!next[k]) delete next[k];
+    onChange(Object.keys(next).length ? next : undefined);
+  };
+  const pitches: PitchPreset[] = series.format === "test" ? ["flat", "seaming", "slow"] : ["flat", "seaming", "turning", "slow"];
+  const sel = "rounded-lg bg-th-raised border border-th text-xs font-display text-th-primary px-2 py-1.5";
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3" data-testid="series-conditions">
+      <label className="flex items-center gap-2 text-[11px] font-display text-th-muted">Pitch
+        <select value={c.pitch ?? ""} onChange={e => set({ pitch: (e.target.value || undefined) as PitchPreset | undefined })} data-testid="series-pitch" className={sel}>
+          <option value="">As the ground is</option>
+          {pitches.map(p => <option key={p} value={p}>{PITCH_LABELS[p]}</option>)}
+        </select>
+      </label>
+      {series.format === "odi" && (
+        <label className="flex items-center gap-2 text-[11px] font-display text-th-muted">Light
+          <select value={c.light ?? ""} onChange={e => set({ light: (e.target.value || undefined) as LightPreset | undefined })} data-testid="series-light" className={sel}>
+            <option value="">As usual</option>
+            <option value="day">Day match</option>
+            <option value="night">Day-night, under lights</option>
+          </select>
+        </label>
+      )}
+      {series.format === "test" && (
+        <label className="flex items-center gap-2 text-[11px] font-display text-th-muted">Weather
+          <select value={c.weather ?? ""} onChange={e => set({ weather: (e.target.value || undefined) as WeatherPreset | undefined })} data-testid="series-weather" className={sel}>
+            <option value="">As the host country usually is</option>
+            <option value="clear">Clear, no time lost</option>
+            <option value="unsettled">Unsettled, rain and bad light</option>
+          </select>
+        </label>
+      )}
     </div>
   );
 }

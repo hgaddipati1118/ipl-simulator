@@ -161,11 +161,9 @@ What this says:
 every format and gender, instant or live; a realistic series does not sample a side that has one; the series page has "Set / Edit XI" for both
 sides and "Back to the realistic XI" (`InternationalPage.tsx`). The ground can be named (`IntlSeries.ground`, a `homeGrounds` entry).
 
-**Not done in this pass** (the engine has pieces of each; none was fitted here): a bowling plan for the instant engine (the live engine has
-`BowlingPlan` per phase; the instant engine bowls one of the best three available, as the real captains' totals are fitted on), bowler-type
-by phase effects (T20 `matchups.ts getPhaseModifier` is hand-set; the ODI ball model carries its own fitted ones), ball age and a
-user-selectable light / pitch (`MatchConditions` draws a run multiplier only; the Test engine draws its own conditions). `actual_xi.json`
-carries the bowlers' overs per match (`bowl`) for that work.
+**Done since** (docs/TACTICS.md): the bowling plan for the instant engine (a fitted captain's choice by default, a user's plan on top), bowler type by phase refitted from Cricsheet, ball age tested out of
+sample (nothing beat the engine's terms, so nothing shipped), and the user-selectable pitch / light / weather. The allocation changed what the sim does with a given XI (the powerplay no longer has spin bowling half
+the overs), so the series tuning above was refitted again (TACTICS.md, section 2, with the win log loss before and after).
 
 ## Left over
 
