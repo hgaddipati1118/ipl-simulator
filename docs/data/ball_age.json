@@ -1,0 +1,50 @@
+{
+ "odi": {
+  "cut": 2023,
+  "base": {
+   "ll_per_ball": -1.34812,
+   "balls": 33313
+  },
+  "full": {
+   "ll_per_ball": -1.34835,
+   "balls": 33313
+  },
+  "gain_per_1000_balls": -0.23
+ },
+ "test": {
+  "cut": 2023,
+  "base": {
+   "ll_per_ball": -1.09883,
+   "balls": 38049
+  },
+  "full": {
+   "ll_per_ball": -1.09899,
+   "balls": 38049
+  },
+  "gain_per_1000_balls": -0.16
+ },
+ "odi-age": {
+  "cut": 2023,
+  "base": {
+   "ll_per_ball": -1.3484,
+   "balls": 33313
+  },
+  "full": {
+   "ll_per_ball": -1.34954,
+   "balls": 32777
+  },
+  "gain_per_1000_balls": -1.14
+ },
+ "t20": {
+  "cut": 2023,
+  "base": {
+   "ll_per_ball": -1.64615,
+   "balls": 174341
+  },
+  "full": {
+   "ll_per_ball": -1.64619,
+   "balls": 174341
+  },
+  "gain_per_1000_balls": -0.04
+ }
+}
