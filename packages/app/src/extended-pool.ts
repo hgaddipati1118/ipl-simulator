@@ -1,6 +1,6 @@
 /**
  * Extended player pool in the app: the CricketArchive players the bundled ESPN pool doesn't have (senior cricket
- * without an ESPN profile, then second XIs, university, club, youth and veterans), about 165k players today and far
+ * without an ESPN profile, then second XIs, university, club, youth and veterans), about 734k players today (the complete scrape) and far
  * more later. They are not in the JS bundle: public/pool/manifest.json lists gzip JSON shards (written by
  * packages/ratings/src/pipeline/generate-ca-pool.ts) that are fetched on demand and cached per session.
  *

@@ -569,15 +569,23 @@ projection (`projectPlayer`) adds `fielding` and, for designated keepers, `keepi
 ## Extended pool: every CricketArchive player, down to club cricket
 
 The bundled pool (5,541 men + 2,379 women, all with ESPN profiles) is joined by an **extended pool** of every other CricketArchive
-player with an appearance since 2000: `ca_<CricketArchive id>` ids, rated from CA scorecards only. Counts today (partial lower-level scrape, 10%):
+player with an appearance since 2000: `ca_<CricketArchive id>` ids, rated from CA scorecards only. Counts today (**complete** lower-level scrape of
+2026-11-16: 840,000 of 840,031 scorecard pages parsed, 31 failed; rebuilt 2026-11-18 from the full `scorecards-events.jsonl.gz`; before it, a 10% partial scrape):
 
 | | men | women |
 |---|---|---|
-| Senior (Twenty20 / List A / First-Class cards, no ESPN profile) | 18,573 | 12,406 |
-| Lower level, tier0: second XIs, touring and other senior sides (event-only cards) | 129,313 | 4,560 |
-| tier1 university / tier2 club-league / tier3 youth / tier4 veterans | 0 / 506 / 55 / 22 | 0 |
+| Senior (Twenty20 / List A / First-Class cards, no ESPN profile) | 18,559 (was 18,577) | 12,403 (12,408) |
+| Lower level, tier0: second XIs, touring and other senior sides (event-only cards) | 268,543 (129,313) | 7,635 (4,560) |
+| tier1 university | 3,872 (0) | 116 (0) |
+| tier2 club-league | 326,848 (506) | 9,741 (0) |
+| tier3 youth | 64,658 (55) | 11,853 (0) |
+| tier4 veterans | 9,626 (22) | 4 (0) |
 
-(165,435 players, 3.7 MB of gzip shards; the 4 tiers below tier0 are small only because the scraper walks tier0 first.)
+(733,858 players, 27 gzip shards, **22.1 MB** with the ODI / Test sets; before: 165,435 players, 10 shards, 5.0 MB. Shards are fetched on demand, never in the JS
+bundle; a league game loads senior + tier0 (about 9 MB gzipped for the men), the database search the tiers asked for. If this keeps growing, serve the shards from
+object storage (`VITE_POOL_BASE_URL`) or raise `LL_MIN_MATCHES`.) The complete scrape also completes the careers of bundled players whose international ODI / Test
+cards are event-only: their T20 ratings are untouched (`--verify`: 0 changed, both genders) but 4,902 of the 16,116 bundled ODI / Test sets moved (mean 2.2 on the
+largest attribute, 1,395 sets by 10 or more), and the opposition-strength adjustment was refit (480 players adjusted).
 
 ### Pipeline (from `packages/ratings`, in this order; the CA outputs in `data/analysis/` are gitignored)
 
@@ -621,8 +629,13 @@ on the senior scale as `a = L_c + rho_t * r` (r = rate vs. its competition-seaso
 players who also played senior cricket in the same year (the links between the levels, errors-in-variables corrected, rho clipped to [0.3, 1]);
 `L_c = alpha_t +` the shrunk mean residual of the links in that competition. A tier with < 40 link cells has no fit and falls back to rho 0.5 and a level below the
 weakest senior competitions (5th percentile of senior pools minus 0..1.5 SDs by tier). Ratings then use the senior estimator (decay, shrinkage K, role offset)
-over the player's senior and lower-level cells together; sd adds the link regression's residual. Partial-data fits (`ca_lower_validation.json`): T20 men tier0
-rho 0.30 (853 links), club rho 1.0 / alpha -24.9 (270 links); List A men tier0 rho 1.0 (561 links); the other tiers are on the fallback until the scrape reaches them.
+over the player's senior and lower-level cells together; sd adds the link regression's residual. Complete-scrape fits (`ca_lower_validation.json`): T20 men tier0 rho 0.30 (1,256 links), club rho 0.35 (1,065 links), List A men tier0 rho 1.0 (1,631 links), club rho 1.0
+(2,109); only the university tier and the thinnest women's tiers are still on the fallback. Because the links are selected, **a club / youth / veterans tier's alpha is capped at the
+weakest senior competitions' level** (`l_low`, `ca-lower-ratings.py`: without it the raw club fit, now on thousands of links, rated club cricketers like senior regulars), and in
+`generate-ca-pool.ts` the club / youth / veterans ceilings are also capped one point under the bundled pool's 80th percentile per discipline; a player with fewer than half his matches at
+senior level takes the ceiling of his best lower tier (a single senior card no longer lifts it). Where a senior player has a rating from senior cricket, a lower-level rating replaces it
+only if it is at least as high (`ca-model.ts`; event-only tour cards of retired internationals otherwise dragged Jacques Kallis's batting from 81 to 65). CricketArchive typos in a last
+year (2209) are clamped to the current year.
 The link players are selected (good enough to play senior cricket), which flatters alpha, hence the ceilings below.
 
 ### Game ratings (`generate-ca-pool.ts`)
@@ -643,10 +656,12 @@ The link players are selected (good enough to play senior cricket), which flatte
 
 ### Sanity checks (this run)
 
-- Overall distribution (p10 / median / p90 / p99 / max): ESPN men 44 / 59 / 77 / 87 / 97; extended senior men 34 / 51 / 73 / 81 / 89; tier0 men 26 / 28 / 45 / 67 / 77; club (tier2) men 27 / 28 / 41 / 60 / 69;
-  ESPN women 43 / 53 / 73 / 83 / 96; extended senior women 43 / 51 / 67 / 74 / 81; tier0 women 41 / 41 / 48 / 63 / 71.
+- Overall distribution (p10 / median / p90 / p99 / max), complete scrape: ESPN men 44 / 59 / 77 / 87 / 97; extended senior men 35 / 61 / 74 / 81 / 91; tier0 men 26 / 29 / 59 / 70 / 83;
+  club (tier2) men 26 / 29 / 59 / 69 / 73; ESPN women 43 / 53 / 73 / 83 / 96; extended senior women 42 / 53 / 67 / 74 / 82; tier0 women 41 / 41 / 55 / 66 / 71.
+  (The extended senior median used to sit well under the ESPN one, 51 vs 59: most of those players now have far more lower-level evidence behind them, so the test compares it with the
+  bundled pool's 75th percentile instead.)
 - Club, youth and veterans players never reach the median of the bundled pool's 100+-match players (77) and none is above the 80th percentile of the pool in either discipline (tests).
-- Spot checks: Anil Kumble, Jacques Kallis, Shane Watson (retired, so not in the ESPN pool) rate 87-89 in the extended senior pool.
+- Spot checks: Anil Kumble, Jacques Kallis, Shane Watson (retired, so not in the ESPN pool) rate 86-89 in the extended senior pool.
 - Retired players are included (`lastYear` in each row); the deep auction pool uses only players active since 2022 and 40 or younger.
 
 ### How the app loads it

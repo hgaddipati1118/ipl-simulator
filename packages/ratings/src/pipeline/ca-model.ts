@@ -167,8 +167,11 @@ export function loadCa(gender: "male" | "female", opts: { lower?: boolean } = {}
       const entry = { ...(byPlayer.get(id) ?? {}) };
       const base = entry[r.format];
       const merged: Row = { ...(base ?? { player_id: id, format: r.format, bat_rating: null, bat_sd: null, bowl_rating: null, bowl_sd: null, bat_balls: null, bat_inns: null, bowl_balls: null, bowl_inns: null }) };
-      if (r.bat_rating !== null) { merged.bat_rating = r.bat_rating; merged.bat_sd = r.bat_sd; merged.bat_balls = r.bat_balls; merged.bat_inns = r.bat_inns; }
-      if (r.bowl_rating !== null) { merged.bowl_rating = r.bowl_rating; merged.bowl_sd = r.bowl_sd; merged.bowl_balls = r.bowl_balls; merged.bowl_inns = r.bowl_inns; }
+      // A lower-level rating replaces the senior one only where it is at least as high: second-XI / tour-card cells (a retired
+      // international's ODI and Test cards are event-only too) add information and fill gaps, but never pull down a rating his senior
+      // cricket already earned (with the complete scrape Jacques Kallis's batting fell from 81 to 65 otherwise).
+      if (r.bat_rating !== null && (base?.bat_rating == null || r.bat_rating >= base.bat_rating)) { merged.bat_rating = r.bat_rating; merged.bat_sd = r.bat_sd; merged.bat_balls = r.bat_balls; merged.bat_inns = r.bat_inns; }
+      if (r.bowl_rating !== null && (base?.bowl_rating == null || r.bowl_rating >= base.bowl_rating)) { merged.bowl_rating = r.bowl_rating; merged.bowl_sd = r.bowl_sd; merged.bowl_balls = r.bowl_balls; merged.bowl_inns = r.bowl_inns; }
       entry[r.format] = merged;
       byPlayer.set(id, entry);
     }

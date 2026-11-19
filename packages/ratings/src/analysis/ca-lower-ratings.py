@@ -110,6 +110,11 @@ def translate(model, senior_py, ll_cells, fmt):
         sxy = sum(w * (x - mx) * (y - my) for x, y, w, _, _ in p)
         rho = min(1.0, max(0.3, sxy / sxx)) if sxx > 0 else 1.0
         alpha = my - rho * mx
+        # The links are selected (they also played senior cricket), so a club / youth / veterans tier is never put above the
+        # weakest senior competitions (l_low). With the complete scrape these tiers have thousands of links and the raw fit
+        # alone rated club cricketers like senior regulars.
+        if t >= 2:
+            alpha = min(alpha, l_low)
         resid = sum(w * (y - alpha - rho * x) ** 2 for x, y, w, _, _ in p) / sw
         # the regression residual includes the sampling noise of the lower-level value; keep only the rest
         noise = sum(w * rho ** 2 * n for _, _, w, _, n in p) / sw

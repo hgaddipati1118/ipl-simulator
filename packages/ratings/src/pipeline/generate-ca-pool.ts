@@ -350,7 +350,20 @@ function run(gender: "male" | "female"): { rows: Built[]; stats: Record<string, 
     } as RatedPlayer;
   });
   const tierOf = new Map(candidates.map((c, i) => [extended[i].id, level(c.rows)]));
-  const lastYearOf = new Map(candidates.map((c, i) => [extended[i].id, Math.max(...c.rows.map(r => r.last_year))]));
+  // A year after the scrape (CricketArchive typos such as 2209) is not a real last appearance
+  const MAX_YEAR = new Date().getFullYear();
+  const lastYearOf = new Map(candidates.map((c, i) => [extended[i].id, Math.max(...c.rows.map(r => Math.min(r.last_year, MAX_YEAR)))]));
+  // The tier a player's ceiling comes from. A single senior card used to lift the ceiling for a player whose record is almost
+  // all lower-level cricket (the scrape is now complete, so these are many): he is capped as a lower-level player unless at
+  // least half of his matches are senior.
+  const capTierOf = new Map(candidates.map((c, i) => {
+    const lvl = level(c.rows);
+    if (lvl >= 0) return [extended[i].id, lvl] as const;
+    const total = c.rows.reduce((s, r) => s + r.matches, 0);
+    const senior = c.rows.filter(r => r.level === "senior").reduce((s, r) => s + r.matches, 0);
+    const lower = c.rows.filter(r => r.level !== "senior").map(r => Number(r.level.slice(4)));
+    return [extended[i].id, senior * 2 >= total || lower.length === 0 ? -1 : Math.min(...lower)] as const;
+  }));
   const matchesOf = new Map(candidates.map((c, i) => [extended[i].id, c.rows.reduce((s, r) => s + r.matches, 0)]));
 
   const all = [...espn, ...extended];
@@ -367,11 +380,15 @@ function run(gender: "male" | "female"): { rows: Built[]; stats: Record<string, 
     const ovr = side === "bat" ? battingOvr : bowlingOvr;
     const est = espn.filter(p => ev(p, side) >= threshold).map(p => ovr(p.ratings)).sort((a, b) => a - b);
     ceilings[side] = TIER_CEILING_PCT.map(q => est[Math.floor(q * (est.length - 1))] ?? 99);
+    // club, youth and veterans never reach the 80th percentile of the bundled pool in a discipline (docs/RATINGS-PIPELINE.md)
+    const bundledSorted = espn.map(p => ovr(p.ratings)).sort((a, b) => a - b);
+    const p80 = bundledSorted[Math.floor(0.8 * (bundledSorted.length - 1))] ?? 99;
+    for (let t = 2; t < ceilings[side].length; t++) ceilings[side][t] = Math.min(ceilings[side][t], p80 - 1);
     const regulars = espn.filter(p => ev(p, side) >= 240).map(p => ovr(p.ratings)).sort((a, b) => a - b);
     const median = regulars[Math.floor(0.5 * (regulars.length - 1))] ?? 99;
     const keys = side === "bat" ? (["battingIQ", "timing", "power", "running"] as const) : (["wicketTaking", "economy"] as const);
     for (const p of extended) {
-      const tier = tierOf.get(p.id)!;
+      const tier = capTierOf.get(p.id)!;
       let cap = tier >= 0 ? ceilings[side][tier] : 99;
       // no usable CA record in this discipline: rated from a thin stat line only
       const c = caMap.get(playerKey(p))?.[side];

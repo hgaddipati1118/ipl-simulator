@@ -501,10 +501,19 @@ describe("ODI scoring on the real national pools, seeded (benchmark-odi.ts in sm
 
   it("full members beat associates far more often than not", () => {
     const fm = new Set(["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies", "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]);
-    const mixed = results.filter(x => fm.has(x.a) !== fm.has(x.b));
-    expect(mixed.length).toBeGreaterThan(10);
-    const fmWins = mixed.filter(x => x.r.winnerId !== null && fm.has(x.r.winnerId)).length;
-    expect(fmWins / mixed.length).toBeGreaterThan(0.55);
+    // only ~11 fixtures pair a full member with an associate (Zimbabwe and Ireland against the UAE or the Netherlands are
+    // near coin flips), so each is played with 20 seeds (true rate about 58%; one seed of 11 games moved it across the bar)
+    const mixedFixtures = fixtures.filter(([a, b]) => fm.has(a) !== fm.has(b));
+    expect(mixedFixtures.length).toBeGreaterThan(10);
+    let games = 0, fmWins = 0;
+    for (const [i, [a, b]] of mixedFixtures.entries()) {
+      for (let k = 0; k < 20; k++) {
+        const r = simulateMatch(teams.get(a)!, teams.get(b)!, men, 31000 + i + 1000 * k, { countTowardStandings: false, neutralVenue: true });
+        games++;
+        if (r.winnerId !== null && fm.has(r.winnerId)) fmWins++;
+      }
+    }
+    expect(fmWins / games).toBeGreaterThan(0.55);
   });
 });
 

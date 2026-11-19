@@ -54,7 +54,7 @@ describe("extended pool loader", () => {
     expect(seniorHits.some(p => p.name === "Jacques Kallis")).toBe(true);
     const lowerOnly = await loader.search("zzzzqq", "men", ["tier2"], 5);
     expect(lowerOnly).toEqual([]);
-  });
+  }, 60_000);
 
   it("copes with a server that already decoded the gzip", async () => {
     const { gunzipSync } = await import("node:zlib");
