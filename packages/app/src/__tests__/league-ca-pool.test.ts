@@ -31,5 +31,5 @@ describe("league squads use the extended pool", () => {
     expect(Object.entries(keepers).filter(([, n]) => n === 0)).toEqual([]);
     const ids = getLeaguePlayers(league).map(p => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-  });
+  }, 60_000); // loads the senior and tier0 shards (about 9 MB gzipped for the men)
 });
