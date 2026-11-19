@@ -3,6 +3,7 @@
  * Ported from IndianCricketLeague/TeamClass.js
  */
 
+import type { BowlingPlan } from "./bowling-choice.js";
 import { Player, type TrainingIntensity } from "./player.js";
 import { fieldingValueBonus, keepingRating, pickKeeper } from "./fielding.js";
 import {
@@ -82,11 +83,7 @@ function isExtraBowlingDepthCandidate(player: Player): boolean {
   );
 }
 
-export interface BowlingPlan {
-  powerplay: string[]; // player IDs preferred for overs 1-6
-  middle: string[];    // player IDs preferred for overs 7-15
-  death: string[];     // player IDs preferred for overs 16-20
-}
+export type { BowlingPlan } from "./bowling-choice.js";
 
 export interface TeamConfig {
   id: string;

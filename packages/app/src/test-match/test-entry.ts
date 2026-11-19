@@ -7,7 +7,7 @@
 
 import {
   createTestMatch, simulateTestMatch, startLiveTest, Team,
-  type TestMatchOptions, type TestMatchResult, type TestMatchState,
+  type BowlingPlan, type TestMatchOptions, type TestMatchResult, type TestMatchState,
 } from "@ipl-sim/engine";
 
 export interface TestFixtureSetup {
@@ -28,12 +28,14 @@ export interface TestFixtureSetup {
   bazballTeamId?: string;
   /** Post-match injury checks (instant only) */
   injuries?: boolean;
+  /** Bowling plans by team id: who opens, when spin comes on */
+  bowling?: Record<string, BowlingPlan>;
 }
 
 function engineOptions(s: TestFixtureSetup): TestMatchOptions {
   return {
     seed: s.seed, country: s.country, venueName: s.venueName, xi: s.xi, days: s.days, weather: s.weather, neutral: s.neutral,
-    gender: s.gender, bazballTeamId: s.bazballTeamId, injuries: s.injuries,
+    gender: s.gender, bazballTeamId: s.bazballTeamId, injuries: s.injuries, bowling: s.bowling,
   };
 }
 

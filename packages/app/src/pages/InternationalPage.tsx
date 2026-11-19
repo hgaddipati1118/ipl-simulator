@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { toDraftPlayer, type MatchState, type Player, type Team, type TestMatchState } from "@ipl-sim/engine";
+import { toDraftPlayer, type BowlingPlan, type MatchState, type Player, type Team, type TestMatchState } from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import {
   SERIES_FORMATS, SERIES_SEASON_KEY, addResult, autoLineup, createSeries, homeGrounds, lineupProblems, loadSeries, matchContext,
@@ -22,6 +22,7 @@ import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.j
 import { LiveMatchPage } from "./LiveMatchPage";
 import { BattingCard, BowlingCard } from "./MatchPage";
 import { LineupEditor } from "../components/DraftMatchParts";
+import { BowlingPlanEditor } from "../components/BowlingPlanEditor";
 import { WormChart } from "../components/WormChart";
 import { TeamBadge } from "../components/TeamBadge";
 import { clearInProgressMatch } from "../match-db";
@@ -566,8 +567,11 @@ function LineupScreen({ series, side: sideIdx, squad, initial, onSave, onCancel,
   onClear?: () => void;
 }) {
   const [xi, setXi] = useState<string[]>(initial.xi);
+  const [bowling, setBowling] = useState<BowlingPlan | undefined>(initial.bowling);
   const side = series.sides[sideIdx];
   const fmt = seriesFormat(series.format);
+  // a bowling plan: per phase and over in the limited-overs formats, who opens and when spin comes on in a Test
+  const planFormat = series.format === "t20i" ? "t20" : series.format === "odi" ? "odi" : series.format === "test" ? "test" : null;
   const problems = (fmt.lineupProblems ?? lineupProblems)(squad, { xi, order: xi });
   const chosen = squad.filter(p => xi.includes(p.id));
   // keep the saved batting order for the players still in the XI, the newcomers after them
@@ -607,13 +611,16 @@ function LineupScreen({ series, side: sideIdx, squad, initial, onSave, onCancel,
         </div>
         <div>
           {xi.length === 11 ? (
-            <LineupEditor
-              key={xi.slice().sort().join(",")}
-              players={draftPlayers}
-              confirmLabel="Save XI and batting order"
-              disabled={problems.length > 0}
-              onConfirm={l => onSave({ xi, order: l.battingOrder })}
-            />
+            <div className="space-y-4">
+              <LineupEditor
+                key={xi.slice().sort().join(",")}
+                players={draftPlayers}
+                confirmLabel="Save XI and batting order"
+                disabled={problems.length > 0}
+                onConfirm={l => onSave({ xi, order: l.battingOrder, ...(bowling ? { bowling } : {}) })}
+              />
+              {planFormat && <BowlingPlanEditor xi={chosen} format={planFormat} gender={series.gender === "women" ? "female" : "male"} value={bowling} onChange={setBowling} />}
+            </div>
           ) : (
             <div className="rounded-2xl border border-th bg-th-surface p-5 text-sm text-th-muted font-display">Pick eleven players to set the batting order.</div>
           )}

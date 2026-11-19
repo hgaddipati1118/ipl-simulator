@@ -7,6 +7,7 @@
 
 import { Player } from "./player.js";
 import { Team, type BowlingPlan } from "./team.js";
+import { bowlerKind, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
@@ -347,6 +348,8 @@ interface MatchStateInternal {
   batterSlotIdx?: number;
   /** Bowlers who left the field hurt (or were removed from the attack) this innings */
   unavailableBowlers?: string[];
+  /** The bowler of each completed over of the innings in play (index = over): the captain's choice model reads gaps and phase use from it */
+  overBowlers?: string[];
   /** Beamers per bowler this innings (two remove him from the attack) */
   beamers?: Record<string, number>;
   /** The over-rate restriction has been announced this innings */
@@ -892,8 +895,10 @@ export function createMatchState(
   for (const b of bowlingOrder) bowlerOvers[b.id] = 0;
 
   // Pick first bowler
+  const openFmt = choiceFormatFor(rules.matchFormat ?? "t20", fmt.overs, odi ? 50 : 20);
   const firstBowlerIdx = openingBowlerIdx(bowlingOrder.map(p => p.id), playerDataMap, fmt.maxOversPerBowler, userTeamId === bowlingFirst.id, rng,
-    odi ? { scheduledOvers: ODI_FORMAT.overs, unavailable: [] } : undefined);
+    odi ? { scheduledOvers: ODI_FORMAT.overs, unavailable: [] } : undefined, bowlingFirst.getBowlingPlan() ?? undefined,
+    openFmt ? { fmt: openFmt, gender: genderOf(rules), history: [], xiIds: (bowlingFirst === homeTeam ? homeXI : awayXI).map(p => p.id), unavailable: [], scheduledOvers: fmt.overs } : undefined);
   const firstBowler = bowlingOrder[firstBowlerIdx];
 
   const firstBowlerStats: LiveBowlerStats = {
@@ -1094,8 +1099,8 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
   if (bowlerOversSoFar >= int.maxOversPerBowler || (int.currentOverLegalBalls === 0 && bowlerId === int.lastBowlerId)) {
     ensureFreshBowlerOption(state, int);
     const nextIdx = odi
-      ? pickNextBowler(int.bowlingOrderIds, int.bowlerOvers, int.maxOversPerBowler, int.lastBowlerId, pm, undefined, state.overs, int.rng, odiPick(state, int))
-      : pickNextBowler(int.bowlingOrderIds, int.bowlerOvers, int.maxOversPerBowler, int.lastBowlerId, pm, undefined, state.overs, int.rng);
+      ? pickNextBowler(int.bowlingOrderIds, int.bowlerOvers, int.maxOversPerBowler, int.lastBowlerId, pm, undefined, state.overs, int.rng, odiPick(state, int), choiceInput(state, int))
+      : pickNextBowler(int.bowlingOrderIds, int.bowlerOvers, int.maxOversPerBowler, int.lastBowlerId, pm, undefined, state.overs, int.rng, undefined, choiceInput(state, int));
     assignNextBowler(state, int, pm, nextIdx);
     bowlerId = int.bowlingOrderIds[state.currentBowlerIdx];
   }
@@ -1711,6 +1716,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     // Update bowler overs
     ni.bowlerOvers[bowlerId] = (ni.bowlerOvers[bowlerId] ?? 0) + 1;
     ni.lastBowlerId = bowlerId;
+    (ni.overBowlers ??= [])[newState.overs] = bowlerId;
 
     // Check for maiden: six legal balls by this bowler in the over and nothing charged to him
     const overBalls = rawInnings.ballLog.filter(b => b.over === newState.overs && b.bowler === bowlerId && !b.deadBall);
@@ -1939,7 +1945,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
         const currentBowlingPlan = newState.bowlingTeamId === newState.homeTeam.id
           ? ni.homeBowlingPlan : ni.awayBowlingPlan;
         const nextBowlerIdx = pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm, currentBowlingPlan, newState.overs, rng,
-          odi ? odiPick(newState, ni) : undefined);
+          odi ? odiPick(newState, ni) : undefined, choiceInput(newState, ni));
         assignNextBowler(newState, ni, pm, nextBowlerIdx);
       }
     }
@@ -2659,6 +2665,7 @@ export function applyDecision(
 
       // Reset bowler overs
       ni.bowlerOvers = {};
+      ni.overBowlers = [];
       for (const id of ni.bowlingOrderIds) ni.bowlerOvers[id] = 0;
 
       // Re-initialize openers
@@ -2678,7 +2685,8 @@ export function applyDecision(
 
       // Re-initialize first bowler
       const firstIdx = openingBowlerIdx(ni.bowlingOrderIds, pm, ni.maxOversPerBowler, ni.userTeamId === bowlingFirstId, ni.rng,
-        ni.rules.matchFormat === "odi" ? odiPick(newState, ni) : undefined);
+        ni.rules.matchFormat === "odi" ? odiPick(newState, ni) : undefined,
+        bowlingFirstId === newState.homeTeam.id ? ni.homeBowlingPlan : ni.awayBowlingPlan, choiceInput(newState, ni, bowlingFirstId));
       const firstBowlerId = ni.bowlingOrderIds[firstIdx];
       newState.currentBowlerIdx = firstIdx;
       newState.currentBowlerName = pm[firstBowlerId].name;
@@ -3102,8 +3110,8 @@ export function applyDecision(
       // CPU auto-pick bowler
       const currentBowlingPlan = newState.bowlingTeamId === newState.homeTeam.id ? ni.homeBowlingPlan : ni.awayBowlingPlan;
       const nextBowlerIdx = odiMatch
-        ? pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm, currentBowlingPlan, newState.overs, ni.rng, odiPick(newState, ni))
-        : pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm, currentBowlingPlan, newState.overs, ni.rng);
+        ? pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm, currentBowlingPlan, newState.overs, ni.rng, odiPick(newState, ni), choiceInput(newState, ni))
+        : pickNextBowler(ni.bowlingOrderIds, ni.bowlerOvers, ni.maxOversPerBowler, ni.lastBowlerId, pm, currentBowlingPlan, newState.overs, ni.rng, undefined, choiceInput(newState, ni));
       assignNextBowler(newState, ni, pm, nextBowlerIdx);
     }
   }
@@ -3280,6 +3288,7 @@ export function startSecondInnings(state: MatchState): MatchState {
 
   // Reset bowler overs
   ni.bowlerOvers = {};
+  ni.overBowlers = [];
   for (const id of ni.bowlingOrderIds) ni.bowlerOvers[id] = 0;
   ni.lastBowlerId = null;
   ni.currentOverLegalBalls = 0;
@@ -3309,7 +3318,8 @@ export function startSecondInnings(state: MatchState): MatchState {
 
   // Pick first bowler
   const firstBowlerIdx = openingBowlerIdx(ni.bowlingOrderIds, pm, ni.maxOversPerBowler, ni.userTeamId === newBowlingTeamId, ni.rng,
-    ni.rules.matchFormat === "odi" ? odiPick(newState, ni) : undefined);
+    ni.rules.matchFormat === "odi" ? odiPick(newState, ni) : undefined,
+    newBowlingTeamId === newState.homeTeam.id ? ni.homeBowlingPlan : ni.awayBowlingPlan, choiceInput(newState, ni, newBowlingTeamId));
   const firstBowlerId = ni.bowlingOrderIds[firstBowlerIdx];
   newState.currentBowlerIdx = firstBowlerIdx;
   newState.currentBowlerName = pm[firstBowlerId].name;
@@ -3716,9 +3726,11 @@ function sideOrder(ni: MatchStateInternal, teamId: string, xiIds: string[], kind
 function openingBowlerIdx(
   orderIds: string[], pm: Record<string, SerializedPlayer>, maxOversPerBowler: number, isUserSide: boolean, rng: RNG,
   odi?: { scheduledOvers: number; unavailable: readonly string[] },
+  plan?: BowlingPlan,
+  choice?: ChoiceInput,
 ): number {
   if (isUserSide) return 0;
-  return pickNextBowler(orderIds, {}, maxOversPerBowler, null, pm, undefined, 0, rng, odi);
+  return pickNextBowler(orderIds, {}, maxOversPerBowler, null, pm, plan, 0, rng, odi, choice);
 }
 
 function computeBattingOrder(
@@ -3821,6 +3833,7 @@ function pickNextBowler(
   rng: RNG = Math.random,
   /** An ODI: the captain spreads the quotas over 50 overs (odi-model.ts odiBowlerChoices); the plan's phases are the ODI's */
   odi?: { scheduledOvers: number; unavailable: readonly string[] },
+  choice?: ChoiceInput,
 ): number {
   let eligibleIndices = bowlingOrderIds
     .map((id, idx) => ({ id, idx }))
@@ -3843,12 +3856,39 @@ function pickNextBowler(
     eligibleIndices = eligibleIndices.filter(e => keep.has(e.id));
   }
 
-  // A captain bowls his best, as the instant engine's do: the user's own bowling plan for the phase first (if he set one),
-  // then by bowling rating, one of the top three
+  // A captain bowls as the instant engine's does (bowling-choice.ts): the user's own bowling plan narrows the choice, the fitted
+  // model draws from what is left. A full-length T20 or ODI innings only; The Hundred and a rain-cut innings keep the former rule
+  // (the plan's bowlers first, then one of the best three on rating)
+  if (choice && currentOver !== undefined) {
+    const ids = narrowByPlan(eligibleIndices, bowlingPlan, choice.fmt, currentOver);
+    const rank = rankByBowling(choice.xiIds.filter(id => pm[id]).map(id => ({ id, rating: pm[id].bowlingOvr, keeper: pm[id].isWicketKeeper, role: pm[id].role })));
+    const cap = maxOversPerBowler;
+    const attack = [...new Set(bowlingOrderIds)].filter(id => !choice.unavailable.includes(id) && pm[id]);
+    const front = (id: string) => (rank.get(id) ?? 9) < 5 && pm[id].role !== "batsman";
+    const left = (id: string) => Math.max(0, cap - (bowlerOvers[id] ?? 0));
+    const slack = slackBin(attack.filter(front).reduce((t, id) => t + left(id), 0), choice.scheduledOvers - currentOver);
+    const paceLeft = attack.filter(id => front(id) && ["fast", "medium"].includes(bowlerKind(pm[id].bowlingStyle))).reduce((t, id) => t + left(id), 0);
+    const cands = ids.map(e => ({
+      id: e.id, rank: rank.get(e.id) ?? 9, style: pm[e.id]?.bowlingStyle, partTimer: pm[e.id]?.role === "batsman",
+      used: bowlerOvers[e.id] ?? 0, lastOver: lastOverOf(choice.history, e.id), phaseUsed: phaseUsedOf(choice.history, e.id, choice.fmt, currentOver), slack, paceLeft,
+    }));
+    return ids[chooseByModel(choice.fmt, choice.gender, currentOver, cands, cap, rng)].idx;
+  }
   const phase = currentOver !== undefined ? getMatchPhase(odi ? phaseOver(currentOver, ODI_FORMAT) : currentOver) : undefined;
   const planned = new Set(bowlingPlan && phase ? bowlingPlan[phase] ?? [] : []);
   eligibleIndices.sort((a, b) => ((planned.has(a.id) ? 0 : 1) - (planned.has(b.id) ? 0 : 1)) || (pm[b.id]?.bowlingOvr ?? 0) - (pm[a.id]?.bowlingOvr ?? 0));
   return eligibleIndices[Math.floor(rng() * Math.min(3, eligibleIndices.length))].idx;
+}
+
+/** What the fitted captain's-choice model needs from the live match (absent for The Hundred and a rain-cut innings) */
+interface ChoiceInput { fmt: ChoiceFormat; gender: "male" | "female"; history: readonly string[]; xiIds: readonly string[]; unavailable: readonly string[]; scheduledOvers: number }
+
+/** The choice model's input for the innings in play, or undefined if it does not run here */
+function choiceInput(state: MatchState, ni: MatchStateInternal, bowlingTeamId = state.bowlingTeamId): ChoiceInput | undefined {
+  const fmt = choiceFormatFor(ni.rules.matchFormat ?? "t20", state.maxOvers, ni.rules.matchFormat === "odi" ? 50 : 20);
+  if (!fmt) return undefined;
+  const xiIds = (bowlingTeamId === state.homeTeam.id ? ni.homeXIIds : ni.awayXIIds) ?? ni.bowlingOrderIds;
+  return { fmt, gender: genderOf(ni.rules), history: ni.overBowlers ?? [], xiIds, unavailable: ni.unavailableBowlers ?? [], scheduledOvers: state.maxOvers };
 }
 
 function formatOvers(overs: number, ballsInOver: number): string {

@@ -42,6 +42,8 @@ export {
 export type { VenueProfile } from "./venues.js";
 
 export type { TeamConfig, BowlingPlan } from "./team.js";
+export { bowlerKind, modelPlanFor, planPhase, planIsSet, rankByBowling, choiceProbabilities, chooseByModel } from "./bowling-choice.js";
+export type { ChoiceFormat, PlanPhase, BowlerKind, ChoiceCandidate } from "./bowling-choice.js";
 
 export { getMatchupModifiers, getMatchPhase, isPaceBowler, isFastBowler, isSpinBowler, isSlowBowler, getBatterAffinityModifier } from "./matchups.js";
 export type { PitchType, BoundarySize, DewFactor, MatchPhase } from "./matchups.js";

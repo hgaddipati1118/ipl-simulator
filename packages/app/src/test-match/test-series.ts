@@ -12,7 +12,7 @@
 import {
   TEST_RECENCY_WEIGHT, isTestOpener, pickTestXI, testBattingSlot, testCountryCode, testDropped, testInningsScorecard, testKeeps,
   testPlayerOf, testProfileOf, testRecency,
-  type Player, type Team, type TestMatchState,
+  type BowlingPlan, type Player, type Team, type TestMatchState,
 } from "@ipl-sim/engine";
 import type {
   IntlSeries, SeriesFormatDef, SeriesLineup, SeriesMatchContext, SeriesMatchRecord, SeriesVenue,
@@ -129,12 +129,15 @@ export function testFixture(ctx: SeriesMatchContext): TestFixtureSetup {
     const ids = userXI(t);
     if (ids) xi[t.id] = ids;
   }
+  const bowling: Record<string, BowlingPlan> = {};
+  for (const t of [ctx.home, ctx.away]) { const p = t.getBowlingPlan(); if (p) bowling[t.id] = p; }
   const england = ctx.gender === "men" ? [ctx.home, ctx.away].find(t => nationName(t.name) === "England") : undefined;
   return {
     home: ctx.home, away: ctx.away, seed: ctx.seed, venueName: ctx.venue.name,
     ...(ctx.venue.neutral ? { neutral: true } : { country: testCountryCode(nationName(ctx.home.name)) }),
     ...(Object.keys(xi).length ? { xi } : {}),
     ...(england ? { bazballTeamId: england.id } : {}),
+    ...(Object.keys(bowling).length ? { bowling } : {}),
   };
 }
 

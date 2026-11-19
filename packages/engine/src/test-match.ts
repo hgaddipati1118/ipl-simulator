@@ -19,6 +19,7 @@
  * delivery commentary (commentary.ts), the post-match injury model with its Test multiplier (injury.ts), Player.forFormat.
  */
 
+import type { BowlingPlan } from "./bowling-choice.js";
 import { Player, type PlayerRatings } from "./player.js";
 import type { Team } from "./team.js";
 import type { RNG } from "./rng.js";
@@ -129,6 +130,8 @@ export interface TestMatchOptions {
   pickBatters?: boolean;
   /** Bowl England's batting from June 2022 style: the fitted Bazball factor for this team id (default none) */
   bazballTeamId?: string;
+  /** Bowling plans by team id: who opens and when spin comes on (overs of an innings fixed to a bowler; `spinFrom`: the over spin may first be used) */
+  bowling?: Record<string, BowlingPlan>;
 }
 
 /** A player as the Test engine sees him: his Test ratings (T20 when he has none) and his fitted outcome multipliers */
@@ -278,6 +281,8 @@ export interface TestTeamState {
   /** The user's batting approach (null = the captain's own choice: the fitted policy) */
   approach: TestApproach | null;
   bazball?: boolean;
+  /** The user's bowling plan for this side (bowling-choice.ts BowlingPlan): overs of an innings fixed to a bowler (0 and 1: who opens) and `spinFrom` */
+  bowling?: BowlingPlan;
 }
 
 export type TestDecisionType = "toss" | "follow_on" | "drs_batting" | "drs_fielding" | "new_ball" | "next_batter";
@@ -764,6 +769,7 @@ export function createTestMatch(home: Team, away: Team, options: TestMatchOption
     keeperId: testKeeperOf(xi).id,
     home: isHome && !options.neutral, approach: null,
     ...(options.bazballTeamId === t.id ? { bazball: true } : {}),
+    ...(options.bowling?.[t.id] ? { bowling: options.bowling[t.id] } : {}),
   });
 
   const st: TestMatchState = {
@@ -1577,6 +1583,14 @@ function chooseBowler(st: TestMatchState, inn: TestInnings, rng: RNG): string {
   const overs = Math.floor(inn.legalBalls / 6);
   const capOf = (id: string) => st.players[id].spin ? M.policy.workload.day_spin[2] : M.policy.workload.day_pace[2];
   const today = (id: string) => inn.bowlers[id]?.dayOvers?.[st.day - 1] ?? 0;
+  // the user's plan: an over of the innings fixed to a bowler (0 and 1: who opens) goes to him when he can bowl it
+  const plan = st.teams[inn.bowlingTeamId].bowling;
+  const fixed = plan?.overs?.[overs];
+  if (fixed && fixed !== other && fixed !== st.teams[inn.bowlingTeamId].keeperId && st.teams[inn.bowlingTeamId].xi.includes(fixed) && today(fixed) < capOf(fixed)) {
+    const l = bowlerLine(inn, fixed);
+    if (inn.ends[e] !== fixed) { l.spellOvers = 0; l.spellPlan = drawSpell(st, fixed, rng); }
+    return fixed;
+  }
   if (cur && cur !== other) {
     const l = inn.bowlers[cur];
     if (l && l.spellOvers < l.spellPlan && today(cur) < capOf(cur)) return cur;
@@ -1594,7 +1608,9 @@ function chooseBowler(st: TestMatchState, inn: TestInnings, rng: RNG): string {
   let pStart = (ps * MEAN_SPELL.pace) / (ps * MEAN_SPELL.pace + (1 - ps) * MEAN_SPELL.spin);
   const day = inn.dayTypeOvers?.[st.day - 1];
   if (day && day[0] + day[1] >= 6) pStart = Math.max(0, Math.min(1, pStart + SHARE_TRACKING * (ps - day[1] / (day[0] + day[1]))));
-  const wantSpin = rng() < pStart;
+  let wantSpin = rng() < pStart;
+  // the user's plan: no spin before the over `spinFrom` (while a seamer can bowl)
+  if (wantSpin && plan?.spinFrom !== undefined && overs < plan.spinFrom && pool.some(id => !st.players[id].spin && st.players[id].bowler)) wantSpin = false;
   const attack = (spin: boolean, list: readonly string[]) => list.filter(id => st.players[id].spin === spin && st.players[id].bowler);
   let ofType = pool.filter(id => st.players[id].spin === wantSpin);
   // with no front-line bowler of the type free, a front-line one still resting is a better call than a part-timer: real

@@ -60,6 +60,7 @@ import { applyScoringContext, scoringContextFor, type T20Context } from "./scori
 import { applyMatchConditions, drawMatchConditions, type MatchConditions } from "./match-conditions.js";
 import { applyWicketsInHand, wicketsInHandKey as wicketsInHandKeyFor } from "./wickets-in-hand.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
+import { bowlerKind, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, planBowlerIds, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
 import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
   EXTRAS_RATE_CAL,
@@ -527,6 +528,7 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
   // Measured ground: run / six / wicket factors and bowler-type edges
   if (venue.profile) applyVenueProfile(probs, venue.profile, bowler.bowlingStyle);
   if (isSecondInnings && !own) applyChaseEdge(probs, venue.chaseAdvantage);
+
 
   // Style, handedness, and venue context
   const matchupMods = getMatchupModifiers({
@@ -1120,6 +1122,14 @@ function simulateInnings(
   let consecutiveOvers = 0; // overs in a row by the current bowler (The Hundred allows two sets in a row)
   const bowlerOvers = new Map<string, number>();
   for (const b of bowlers) bowlerOvers.set(b.id, 0);
+  /** The bowler of each over so far (index = over): the captain's choice model reads gaps and phase use from it */
+  const overHistory: string[] = [];
+  // A user's bowling plan (a super over has one bowler): a bowler it names joins the attack
+  const bowlingPlan = so ? undefined : bowlingTeam.getBowlingPlan();
+  for (const id of planBowlerIds(bowlingPlan)) {
+    const p = fieldXI.find(f => f.id === id);
+    if (p && !bowlers.includes(p)) { bowlers.push(p); bowlerOvers.set(p.id, 0); }
+  }
   const unavailable = new Set<string>(); // bowlers who left the field hurt
 
   // Impact player tracking (each side gets one sub per innings)
@@ -1259,7 +1269,28 @@ function simulateInnings(
       const keep = new Set(odiBowlerChoices(pool.map(opt), bowlers.filter(b => !unavailable.has(b.id)).map(opt), over, maxOvers, maxOversPerBowler).map(o => o.id));
       pool = pool.filter(b => keep.has(b.id));
     }
-    let bowler = pool[Math.floor(rng() * Math.min(3, pool.length))];
+    // The captain's choice (bowling-choice.ts): the user's plan narrows it, the fitted model draws from what is left. A full-length
+    // T20 or ODI innings only; The Hundred and a rain-cut innings keep the former rule (one of the best three on rating)
+    const choiceFmt: ChoiceFormat | null = so ? null : choiceFormatFor(fmt.id, maxOvers, fmt.overs);
+    let bowler: Player;
+    if (so) bowler = pool[0];
+    else if (choiceFmt) {
+      pool = narrowByPlan(pool, bowlingPlan, choiceFmt, over);
+      const rank = rankByBowling(fieldXI.map(p => ({ id: p.id, rating: p.effectiveBowlingOvr, keeper: !!p.isWicketKeeper, role: p.role })));
+      const slack = slackBin(
+        bowlers.filter(b => !unavailable.has(b.id) && (rank.get(b.id) ?? 9) < 5 && b.role !== "batsman").reduce((s, b) => s + Math.max(0, maxOversPerBowler - (bowlerOvers.get(b.id) ?? 0)), 0),
+        maxOvers - over);
+      const paceLeft = bowlers.filter(b => !unavailable.has(b.id) && (rank.get(b.id) ?? 9) < 5 && b.role !== "batsman" && ["fast", "medium"].includes(bowlerKind(b.bowlingStyle)))
+        .reduce((s, b) => s + Math.max(0, maxOversPerBowler - (bowlerOvers.get(b.id) ?? 0)), 0);
+      const cands = pool.map(b => ({
+        id: b.id, rank: rank.get(b.id) ?? 9, style: b.bowlingStyle, partTimer: b.role === "batsman",
+        used: bowlerOvers.get(b.id) ?? 0, lastOver: lastOverOf(overHistory, b.id), phaseUsed: phaseUsedOf(overHistory, b.id, choiceFmt, over), slack, paceLeft,
+      }));
+      bowler = pool[chooseByModel(choiceFmt, gender, over, cands, maxOversPerBowler, rng)];
+    } else {
+      pool = narrowByPlan(pool, bowlingPlan, fmt.id === "odi" ? "odi" : "t20", over);
+      bowler = pool[Math.floor(rng() * Math.min(3, pool.length))];
+    }
 
     const streakBefore = consecutiveOvers; // how many overs in a row the last over's bowler had bowled
     consecutiveOvers = bowler.id === lastBowlerId ? consecutiveOvers + 1 : 1;
@@ -1429,6 +1460,7 @@ function simulateInnings(
 
     // Update over count (a part-bowled over still counts towards the bowler's four)
     bowlerOvers.set(bowler.id, (bowlerOvers.get(bowler.id) ?? 0) + 1);
+    overHistory[over] = bowler.id;
     innings.overs = over + 1;
     innings.balls = 0;
     if (inningsOver) break;

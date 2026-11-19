@@ -14,6 +14,7 @@ import {
   keepingRating, xiSelectionValue, IPL_TEAMS, WPL_TEAMS, EXTRA_LEAGUES,
   type DetailedBallEvent, type DetailedMatchResult, type InningsScorecard, type LongFormat, type MatchState, type PlayerData,
   type RuleSet, type TeamConfig,
+  type BowlingPlan,
 } from "@ipl-sim/engine";
 import { attachFormatRatings, type FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import { playerActivity, squadTier, type ActivityFormat, type PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
@@ -398,6 +399,8 @@ export interface SeriesLineup {
   xi: string[];
   /** Batting order (ids of the XI) */
   order: string[];
+  /** The side's bowling plan: who bowls which phase and overs fixed to a bowler (T20I, ODI); in a Test who opens (overs 0 and 1) and `spinFrom`. Absent = the captain's fitted choice (bowling-choice.ts, test-match.ts) */
+  bowling?: BowlingPlan;
 }
 
 export interface SeriesMatchRecord {
@@ -577,6 +580,8 @@ export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], 
         team.isUserControlled = true;
         team.userPlayingXI = xi;
         team.userBattingOrder = set.order.filter(id => xi.includes(id));
+        const plan = cleanBowlingPlan(set.bowling, xi);
+        if (plan) team.setBowlingPlan(plan);
       }
     } else if (series.userSide === i) {
       team.isUserControlled = true;
@@ -585,6 +590,19 @@ export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], 
   };
   const a = make(0), b = make(1);
   return homeIdx === 0 ? { home: a, away: b, venue } : { home: b, away: a, venue };
+}
+
+/** A bowling plan with only the XI's players in it (the XI can change after the plan was set); undefined if nothing is left of it */
+export function cleanBowlingPlan(plan: BowlingPlan | undefined, xi: readonly string[]): BowlingPlan | undefined {
+  if (!plan) return undefined;
+  const ok = (id: string) => xi.includes(id);
+  const overs: Record<number, string> = {};
+  for (const [o, id] of Object.entries(plan.overs ?? {})) if (ok(id)) overs[Number(o)] = id;
+  const out: BowlingPlan = {
+    powerplay: plan.powerplay.filter(ok), middle: plan.middle.filter(ok), death: plan.death.filter(ok),
+    ...(Object.keys(overs).length ? { overs } : {}), ...(plan.spinFrom !== undefined ? { spinFrom: plan.spinFrom } : {}),
+  };
+  return out.powerplay.length + out.middle.length + out.death.length + Object.keys(overs).length > 0 || out.spinFrom !== undefined ? out : undefined;
 }
 
 /** The engine's own pick for a side: its XI and batting order */

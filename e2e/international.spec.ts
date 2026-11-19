@@ -88,6 +88,38 @@ test.describe("International series and ODIs in the app", () => {
     await expect(page.getByTestId("series-scorecard-0")).toBeVisible({ timeout: 30000 });
   });
 
+  test("tactics: a bowling plan is set, kept and played (T20I)", async ({ page }) => {
+    await page.getByTestId("international-quick").click();
+    await expect(page.getByTestId("series-setup")).toBeVisible({ timeout: 20000 });
+    await page.getByTestId("series-format-t20i").click();
+    await page.getByTestId("series-length-1").click();
+    await page.getByTestId("series-role-a").click();
+    await page.getByTestId("series-start").click();
+    await expect(page.getByTestId("series-hub")).toBeVisible({ timeout: 30000 });
+
+    // the bowling plan: the default shows over by over, a phase list and a fixed over are kept
+    await page.getByTestId("series-edit-xi").click();
+    await expect(page.getByTestId("series-lineup")).toBeVisible();
+    await expect(page.getByTestId("bowling-plan")).toBeVisible();
+    await expect(page.getByTestId("bowling-plan-default")).toContainText("1 ");
+    await expect(page.getByTestId("bowling-plan-reset")).toBeDisabled();
+    await page.locator('[data-testid^="plan-powerplay-"]').first().click();
+    await expect(page.getByTestId("bowling-plan-reset")).toBeEnabled();
+    await page.getByTestId("bowling-plan-overs").locator("summary").click();
+    await page.getByTestId("bowling-plan-from-default").click();
+    await expect(page.getByTestId("plan-over-0")).not.toHaveValue("");
+    await page.getByTestId("lineup-confirm").click();
+    await expect(page.getByTestId("series-hub")).toBeVisible();
+
+    // the plan survives opening the lineup again
+    await page.getByTestId("series-edit-xi").click();
+    await expect(page.getByTestId("plan-over-0")).not.toHaveValue("");
+    await page.getByTestId("lineup-confirm").click();
+
+    await page.getByTestId("series-sim-match").click();
+    await expect(page.getByTestId("series-scorecard-0")).toBeVisible({ timeout: 30000 });
+  });
+
   test("Draft Match ODI: the pool on ODI ratings, a 50-over match", async ({ page }) => {
     await page.getByTestId("draft-match-quick").click();
     await expect(page).toHaveURL(/\/draft-match/);

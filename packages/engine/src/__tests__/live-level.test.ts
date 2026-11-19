@@ -81,16 +81,21 @@ describe("live T20 level", () => {
     for (const a of [20, 80]) expect(Math.abs(per(sides[a], "runs") / per(sides[50], "runs") - 1)).toBeLessThan(0.1);
   });
 
-  it("a CPU side opens with one of its three best bowlers and never plans phases for itself", () => {
-    for (let i = 0; i < 20; i++) {
+  it("a CPU side opens with a bowler of its attack (the captain's fitted choice, pace first) and never plans phases for itself", () => {
+    let paceOpeners = 0;
+    for (let i = 0; i < 40; i++) {
       const [h, a] = pairing(iplTeams(), i);
       const s = createMatchState(h, a, RULES, null, 2100 + i);
       const bowling = s.bowlingTeamId === h.id ? h : a;
-      const best = [...bowling.getBowlingOrder(bowling.getPlayingXI(RULES.maxOverseasInXI))].sort((x, y) => y.bowlingOvr - x.bowlingOvr).slice(0, 3).map(p => p.id);
-      expect(best).toContain(s._internal.bowlingOrderIds[s.currentBowlerIdx]);
+      const attack = bowling.getBowlingOrder(bowling.getPlayingXI(RULES.maxOverseasInXI)).map(p => p.id);
+      const opener = s._internal.bowlingOrderIds[s.currentBowlerIdx];
+      expect(attack).toContain(opener);
+      if (["right-arm-fast", "right-arm-fast-medium", "right-arm-medium-fast", "right-arm-medium", "left-arm-fast", "left-arm-fast-medium", "left-arm-medium-fast", "left-arm-medium"].includes(s._internal.playerDataMap[opener].bowlingStyle)) paceOpeners++;
       expect(s._internal.homeBowlingPlan).toBeUndefined();
       expect(s._internal.awayBowlingPlan).toBeUndefined();
     }
+    // real T20 captains open with pace about three times in four (a spinner opens a quarter of the time; the former rule: any of the best three)
+    expect(paceOpeners).toBeGreaterThan(20);
   });
 });
 
