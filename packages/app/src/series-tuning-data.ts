@@ -10,11 +10,11 @@ export interface SeriesTuning { spread: number; home: number; /** the home side'
 
 export const SERIES_TUNING: Record<string, Partial<Record<"men" | "women", SeriesTuning>>> = {
   t20i: {
-    men: { spread: 2.5, home: 6, homeBy: { "Australia": 12, "New Zealand": 10, "Pakistan": 2, "South Africa": 0, "Sri Lanka": 0, "Zimbabwe": 4, "Ireland": 2 } },
-    women: { spread: 3.5, home: 2, homeBy: { "Bangladesh": 0, "India": 4, "Ireland": 6, "South Africa": 4, "West Indies": 0, "Sri Lanka": 4, "Zimbabwe": 0 } },
+    men: { spread: 2, home: 4, homeBy: { "Australia": 2, "New Zealand": 8, "Pakistan": 6, "South Africa": 2, "Sri Lanka": 2, "West Indies": 2, "Zimbabwe": 2, "Ireland": 0 } },
+    women: { spread: 3.5, home: 4, homeBy: { "Australia": 6, "England": 6, "India": 0, "New Zealand": 8, "West Indies": 2, "Sri Lanka": 8, "Zimbabwe": 2 } },
   },
   odi: {
-    men: { spread: 1, home: 2, homeBy: { "Australia": 4, "Pakistan": 4, "Sri Lanka": 8, "West Indies": 4, "Ireland": 0, "New Zealand": 4, "Zimbabwe": 0 } },
-    women: { spread: 1.5, home: 2, homeBy: { "Bangladesh": 4, "Australia": 6, "India": 0, "Ireland": 4, "New Zealand": 0, "West Indies": 4, "South Africa": 6 } },
+    men: { spread: 1.5, home: 6, homeBy: { "Australia": 8, "South Africa": 8, "Sri Lanka": 14, "West Indies": 4, "New Zealand": 8, "Zimbabwe": 2 } },
+    women: { spread: 2, home: 2, homeBy: { "Bangladesh": 4, "Australia": 4, "India": 0, "Ireland": 4, "New Zealand": 0, "West Indies": 6, "South Africa": 4, "Sri Lanka": 4, "Zimbabwe": 4, "Pakistan": 0 } },
   },
 };

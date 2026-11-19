@@ -60,6 +60,7 @@ import { applyScoringContext, scoringContextFor, type T20Context } from "./scori
 import { applyMatchConditions, drawMatchConditions, type MatchConditions } from "./match-conditions.js";
 import { applyWicketsInHand, wicketsInHandKey as wicketsInHandKeyFor } from "./wickets-in-hand.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
+import { applyT20BowlerType } from "./t20-bowler-type.js";
 import { bowlerKind, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, planBowlerIds, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
 import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
@@ -540,8 +541,10 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
     dewFactor: venue.dewFactor,
     isSecondInnings,
     measuredVenue: venue.profile !== null,
-    ...(own ? { noPhase: true } : {}),
+    // the ODI's bowler type x phase is in its own model; a T20's is the fitted table below (t20-bowler-type.ts), not the hand-set modifiers
+    noPhase: true,
   });
+  if (!own) applyT20BowlerType(probs, rules.gender, bowler.bowlingStyle, over);
   probs.wicket *= matchupMods.wicketMod;
   probs["4"] *= matchupMods.fourMod;
   probs["6"] *= matchupMods.sixMod;

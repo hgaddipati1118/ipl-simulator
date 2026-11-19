@@ -308,9 +308,9 @@ describe("no-balls, beamers and the slow over rate", () => {
   });
 
   it("the over-rate restriction is drawn per innings and raises the boundary rate", () => {
-    // 400 matches a side: a last over's boundary rate is noisy (a few percent at 150 matches, against a 10% effect)
-    const control = withOverrides({ overRatePenaltyPerInnings: 0 }, () => play(400, { seed: 41 }));
-    const pen = withOverrides({ overRatePenaltyPerInnings: 1 }, () => play(400, { seed: 41 }));
+    // 1,000 matches a side: a last over's boundary rate is noisy (a few percent at 150 matches, against a 10% effect)
+    const control = withOverrides({ overRatePenaltyPerInnings: 0 }, () => play(1000, { seed: 41 }));
+    const pen = withOverrides({ overRatePenaltyPerInnings: 1 }, () => play(1000, { seed: 41 }));
     for (const inn of innings(pen)) expect(inn.overRatePenaltyFrom).toBeDefined();
     const lastOver = (rs: MatchResult[], pick: (inn: InningsScore) => boolean) => {
       let b = 0, n = 0;

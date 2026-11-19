@@ -42,6 +42,8 @@ export {
 export type { VenueProfile } from "./venues.js";
 
 export type { TeamConfig, BowlingPlan } from "./team.js";
+export { T20_BOWLER_TYPE, T20_TYPES } from "./t20-bowler-type-data.js";
+export { t20TypeFactors, t20TypeIndex } from "./t20-bowler-type.js";
 export { bowlerKind, modelPlanFor, planPhase, planIsSet, rankByBowling, choiceProbabilities, chooseByModel } from "./bowling-choice.js";
 export type { ChoiceFormat, PlanPhase, BowlerKind, ChoiceCandidate } from "./bowling-choice.js";
 
