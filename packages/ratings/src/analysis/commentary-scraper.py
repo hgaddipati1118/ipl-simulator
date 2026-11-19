@@ -311,6 +311,8 @@ def scrape_match(mm, series, prior=None, attempt=0):
         if innings_ok(st_): skip_ok.add(n_)
     for c in content.get('comments') or []:
         stores.setdefault(c.get('inningNumber') or cur, {})[c['id']] = c
+    stores.pop(None, None)                # a match with no innings yet (abandoned / not started) has no innings number
+    if not stores: raise RuntimeError('no innings on the page (abandoned or not started)')
     complete = {}
     # Super Overs (ties): the page opens on its "Super Over" view and embeds every super-over ball in __NEXT_DATA__
     # (recentBallCommentary.superOverBallComments, innings 3.. = one over per innings), so no paging is needed for them; but
