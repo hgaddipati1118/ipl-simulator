@@ -19,9 +19,11 @@ export type Rates = Readonly<Record<string, number>>;
  * frequent XI). Fitted on the real fixtures (docs/COUNTRY-VALIDATION.md, "Realistic line-ups"); a set without an entry is not realistic.
  */
 export const XI_SHARPEN: Record<string, number> = {
-  // men's T20I only: fitted on the fixtures up to 2024 (rates from 2024 matches), better than the best XI on the 2025+ holdout too
-  // (log loss 0.623 -> 0.611; countries OFF 23 -> 19). Women's T20I, ODI and Test did not improve out of sample: not realistic.
+  // men's T20I: fitted on the fixtures up to 2024 (rates from 2024 matches), better than the best XI on the 2025+ holdout too. Women's
+  // T20I: since the series tuning was refitted on the XIs that really played (docs/COUNTRY-VALIDATION.md, "Actual XI") it is better in
+  // both halves at every sharpening tried; 1 is the fit half's best. ODI and Test did not improve out of sample: not realistic.
   "t20i-men": 3,
+  "t20i-women": 1,
 };
 
 /** Whether a format-gender set ("t20i-men") has realistic line-ups */

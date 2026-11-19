@@ -305,7 +305,12 @@ export function buildNationSquad(
   attachFormatRatings(players, file);
   const inFormat = players.map(p => {
     const set = ratingFormat === "t20" ? undefined : p.formatRatings?.[ratingFormat];
-    if (set) p.ratings = { ...set.ratings };
+    if (set) {
+      p.ratings = { ...set.ratings };
+      // the ODI engine plays a player on his format set (Player.forFormat reads formatRatings.odi.ratings): that set is this very object, so
+      // the opposition adjust and a series' tuning below move the ratings the engine reads (they moved a copy it never read until now)
+      p.formatRatings![ratingFormat as LongFormat] = { ...set, ratings: p.ratings };
+    }
     // a record made mostly against weak opposition counts for less (ratings pipeline generate-intl-adjust.ts); national sides only
     const adj = ratingFormat === "test" ? undefined : file?.adjust?.[p.sourceId ?? p.id];
     if (adj) applyOppositionAdjust(p, adj[ratingFormat === "odi" ? 2 : 0] ?? 0, adj[ratingFormat === "odi" ? 3 : 1] ?? 0);
@@ -435,6 +440,14 @@ export interface IntlSeries {
   realistic?: boolean;
   /** The user's lineup for his side (kept from match to match until he changes it) */
   lineup?: SeriesLineup;
+  /**
+   * XIs set for either side, by side index (kept from match to match): the same path the user's own XI takes, so the engines play
+   * exactly these eleven in this batting order whoever captains. A side without one plays its realistic / best XI. When the user
+   * captains a side, `lineup` stays his; a `lineups` entry for that side is ignored.
+   */
+  lineups?: [SeriesLineup | null, SeriesLineup | null];
+  /** The host's ground by name (one of its `homeGrounds`) instead of its busiest one; ignored at a neutral venue or when no ground matches */
+  ground?: string;
   results: SeriesMatchRecord[];
   /** A live match in progress (its match number) */
   liveMatch?: number;
@@ -505,6 +518,11 @@ export function venueFor(series: IntlSeries, n: number): SeriesVenue {
   if (series.host === "neutral") return NEUTRAL_VENUE;
   const host = series.sides[series.host === "a" ? 0 : 1];
   const grounds = homeGrounds(host.country);
+  if (series.ground) {
+    const want = groundKey(series.ground);
+    const hit = grounds.find(g => groundKey(g.name) === want) ?? grounds.find(g => want.startsWith(groundKey(g.name)) || groundKey(g.name).startsWith(want));
+    if (hit) return hit;
+  }
   return grounds.length > 0 ? grounds[n % grounds.length] : { name: `${host.country}`, city: host.country };
 }
 
@@ -516,12 +534,14 @@ export function matchName(series: IntlSeries, n: number): string {
 }
 
 /** Build the two playing Teams for match n (home side first). The user's lineup applies to his side. */
+const ratingFormatOf = (format: SeriesFormatId): LongFormat => seriesFormat(format).ratingFormat as LongFormat;
+
 export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], Player[]]): { home: Team; away: Team; venue: SeriesVenue } {
   const venue = venueFor(series, n);
   const homeIdx = series.host === "b" ? 1 : 0;
   // realistic line-ups: each side's XI sampled from its pool by real selection rates (realistic-xi.ts), the user's side never
   const xiOf = (sq: Player[], i: number): Player[] => {
-    if (!series.realistic || series.userSide === i || sq.length <= 11) return sq;
+    if (!series.realistic || series.userSide === i || sq.length <= 11 || series.lineups?.[i]) return sq;
     const rates = selectionRates(series.format, series.gender, series.sides[i].country);
     if (!rates) return sq;
     return sampleXI(sq, rates, xiSeed(matchSeed(series, n), i), series.format === "test" ? 4 : 5, XI_SHARPEN[`${series.format}-${series.gender}`] ?? 1);
@@ -529,6 +549,8 @@ export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], 
   const copies = squads.map((sq0, i) => xiOf(sq0, i).map(p => {
     const copy = Player.fromJSON(p.toJSON());
     copy.injured = false; copy.injuryGamesLeft = 0; copy.fatigue = 0;
+    const own = copy.formatRatings?.[ratingFormatOf(series.format)];
+    if (own) own.ratings = copy.ratings; // the copy keeps the link the squad's players have (see buildNationSquad)
     return copy;
   })) as [Player[], Player[]];
   for (const side of copies) {
@@ -548,12 +570,13 @@ export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], 
     };
     const team = new Team(config, 999);
     for (const copy of copies[i]) team.addPlayer(copy, 0);
-    if (series.userSide === i && series.lineup) {
-      const xi = series.lineup.xi.filter(id => team.roster.some(p => p.id === id));
+    const set = series.userSide === i ? series.lineup : series.lineups?.[i];
+    if (set) {
+      const xi = set.xi.filter(id => team.roster.some(p => p.id === id));
       if (xi.length === 11) {
         team.isUserControlled = true;
         team.userPlayingXI = xi;
-        team.userBattingOrder = series.lineup.order.filter(id => xi.includes(id));
+        team.userBattingOrder = set.order.filter(id => xi.includes(id));
       }
     } else if (series.userSide === i) {
       team.isUserControlled = true;

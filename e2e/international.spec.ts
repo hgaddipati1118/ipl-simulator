@@ -64,6 +64,30 @@ test.describe("International series and ODIs in the app", () => {
     await expect(page.getByText(/Inn [12]: \d+\.\d \/ (50|[1-4]\d)$/)).toBeVisible({ timeout: 20000 });
   });
 
+  test("watching: set both sides' XIs, the realistic option is on by default for a T20I", async ({ page }) => {
+    await page.getByTestId("international-quick").click();
+    await expect(page.getByTestId("series-setup")).toBeVisible({ timeout: 20000 });
+    await page.getByTestId("series-format-t20i").click();
+    await page.getByTestId("series-length-1").click();
+    await page.getByTestId("series-role-watch").click();
+    await expect(page.getByTestId("series-realistic").locator("input")).toBeChecked();
+    await page.getByTestId("series-start").click();
+    await expect(page.getByTestId("series-hub")).toBeVisible({ timeout: 30000 });
+    // set the second side's XI: it is kept, shown, and can be cleared
+    await page.getByTestId("series-edit-xi-1").click();
+    await expect(page.getByTestId("series-lineup")).toBeVisible();
+    await page.getByTestId("lineup-confirm").click();
+    await expect(page.getByTestId("series-set-xi")).toContainText("(set by you)");
+    await page.getByTestId("series-edit-xi-1").click();
+    await page.getByTestId("series-clear-xi").click();
+    await expect(page.getByTestId("series-set-xi")).toHaveCount(0);
+    // a side's set XI plays
+    await page.getByTestId("series-edit-xi-0").click();
+    await page.getByTestId("lineup-confirm").click();
+    await page.getByTestId("series-sim-match").click();
+    await expect(page.getByTestId("series-scorecard-0")).toBeVisible({ timeout: 30000 });
+  });
+
   test("Draft Match ODI: the pool on ODI ratings, a 50-over match", async ({ page }) => {
     await page.getByTestId("draft-match-quick").click();
     await expect(page).toHaveURL(/\/draft-match/);

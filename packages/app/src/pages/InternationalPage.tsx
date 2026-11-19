@@ -46,7 +46,7 @@ function loadExtendedSenior(gender: SeriesGender): Promise<ExtendedPlayer[] | nu
 type View =
   | { kind: "setup" }
   | { kind: "hub" }
-  | { kind: "lineup" }
+  | { kind: "lineup"; side: 0 | 1 }
   | { kind: "live"; n: number; state: MatchState | TestMatchState | null }
   | { kind: "scorecard"; n: number };
 
@@ -116,15 +116,20 @@ export function InternationalPage() {
   const def = seriesFormat(series.format);
   const userTeamId = series.userSide !== null ? series.sides[series.userSide].id : null;
 
-  if (view.kind === "lineup" && series.userSide !== null) {
-    const squad = squads[series.userSide];
+  if (view.kind === "lineup") {
+    // the user's own side keeps `lineup`; the other side (or either, when watching) takes `lineups`, the same way into the match
+    const i = view.side;
+    const squad = squads[i];
+    const set = series.userSide === i ? series.lineup : series.lineups?.[i] ?? undefined;
     return (
       <LineupScreen
         series={series}
+        side={i}
         squad={squad}
-        initial={series.lineup ?? def.autoLineup?.(squad, series) ?? autoLineup(squad, def.rules?.(series.gender))}
+        initial={set ?? def.autoLineup?.(squad, series) ?? autoLineup(squad, def.rules?.(series.gender))}
         onCancel={() => setView({ kind: "hub" })}
-        onSave={lineup => { update({ ...series, lineup }); setView({ kind: "hub" }); }}
+        onSave={lineup => { update(withLineup(series, i, lineup)); setView({ kind: "hub" }); }}
+        onClear={set ? () => { update(withLineup(series, i, null)); setView({ kind: "hub" }); } : undefined}
       />
     );
   }
@@ -205,7 +210,7 @@ export function InternationalPage() {
       }}
       onSimulate={n => update(simulateSeriesMatch({ ...series, liveMatch: undefined }, squads, n))}
       onSimRest={() => update(simulateRestOfSeries({ ...series, liveMatch: undefined }, squads))}
-      onLineup={() => setView({ kind: "lineup" })}
+      onLineup={side => setView({ kind: "lineup", side })}
       onScorecard={n => setView({ kind: "scorecard", n })}
       onNewSeries={() => {
         if (series.results.length < series.length && seriesScore(series).done === false && !confirm("Abandon this series and start a new one?")) return;
@@ -237,7 +242,8 @@ function SeriesSetup({ file, activity, existing, loadPlayers, onStart, onResume,
   const [host, setHost] = useState<SeriesHost>("a");
   const [role, setRole] = useState<"a" | "b" | "watch">("a");
   const [busy, setBusy] = useState(false);
-  const [realistic, setRealistic] = useState(false);
+  // on by default where the set has realistic line-ups (T20I); the checkbox turns it off
+  const [realistic, setRealistic] = useState(true);
 
   // keep the picks valid when the gender changes
   useEffect(() => {
@@ -328,7 +334,7 @@ function SeriesSetup({ file, activity, existing, loadPlayers, onStart, onResume,
           {role === "watch" && realisticAvailable(format, gender) && (
             <label className="flex items-center gap-2 mt-3 text-xs font-display text-th-secondary cursor-pointer" data-testid="series-realistic">
               <input type="checkbox" checked={realistic} onChange={e => setRealistic(e.target.checked)} />
-              Realistic line-ups: each match's XI is drawn from the players each side really used since 2024, by how often they played
+              Realistic line-ups (on by default): each match's XI is drawn from the players each side really used since 2024, by how often they played. Set a side's XI on the series page to override it
             </label>
           )}
           <p className="text-[11px] text-th-faint font-display mt-2">
@@ -361,7 +367,7 @@ function SeriesHub({ series, squads, onPlayLive, onResumeLive, onAbandonLive, on
   onAbandonLive: () => void;
   onSimulate: (n: number) => void;
   onSimRest: () => void;
-  onLineup: () => void;
+  onLineup: (side: 0 | 1) => void;
   onScorecard: (n: number) => void;
   onNewSeries: () => void;
 }) {
@@ -443,15 +449,27 @@ function SeriesHub({ series, squads, onPlayLive, onResumeLive, onAbandonLive, on
                     {series.length - series.results.length > 1 && (
                       <button onClick={onSimRest} data-testid="series-sim-rest" className="px-4 py-2 rounded-xl border border-th bg-th-surface text-xs font-display font-semibold text-th-secondary hover:bg-th-hover">Simulate the rest</button>
                     )}
-                    {userSide && (
-                      <button onClick={onLineup} data-testid="series-edit-xi" className="px-4 py-2 rounded-xl border border-th bg-th-surface text-xs font-display font-semibold text-th-secondary hover:bg-th-hover">Pick {userSide.shortName} XI</button>
-                    )}
+                    {[a, b].map((s, i) => (
+                      <button key={s.id} onClick={() => onLineup(i as 0 | 1)} data-testid={series.userSide === i ? "series-edit-xi" : `series-edit-xi-${i}`}
+                        className="px-4 py-2 rounded-xl border border-th bg-th-surface text-xs font-display font-semibold text-th-secondary hover:bg-th-hover">
+                        {series.userSide === i || series.lineups?.[i] ? `Edit ${s.shortName} XI` : `Set ${s.shortName} XI`}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
             );
           })}
         </div>
+        {series.lineups?.some(Boolean) && next !== null && (
+          <p className="text-[11px] text-th-muted font-display mt-3" data-testid="series-set-xi">
+            {[a, b].map((s, i) => {
+              const l = series.lineups?.[i];
+              if (!l || series.userSide === i) return null;
+              return <span key={s.id} className="block"><span className="text-th-secondary font-semibold">{s.shortName} XI (set by you):</span> {l.order.map(id => squads[i].find(p => p.id === id)?.name).filter(Boolean).join(", ")}</span>;
+            })}
+          </p>
+        )}
         {userSide && next !== null && (
           <p className="text-[11px] text-th-muted font-display mt-3" data-testid="series-user-xi">
             <span className="text-th-secondary font-semibold">{userSide.shortName} XI{series.lineup ? "" : " (auto)"}:</span> {userXI.map(p => p.name).join(", ")}
@@ -529,15 +547,26 @@ function StatTable({ title, head, rows }: { title: string; head: string[]; rows:
 
 // ── Lineup ──────────────────────────────────────────────────────────────
 
-function LineupScreen({ series, squad, initial, onSave, onCancel }: {
+/** `series` with side `i`'s XI set (null clears it); the user's own side keeps his in `lineup`, the other in `lineups` */
+function withLineup(series: IntlSeries, i: 0 | 1, lineup: SeriesLineup | null): IntlSeries {
+  if (series.userSide === i) return { ...series, lineup: lineup ?? undefined };
+  const lineups: [SeriesLineup | null, SeriesLineup | null] = [series.lineups?.[0] ?? null, series.lineups?.[1] ?? null];
+  lineups[i] = lineup;
+  return { ...series, lineups: lineups[0] || lineups[1] ? lineups : undefined };
+}
+
+function LineupScreen({ series, side: sideIdx, squad, initial, onSave, onCancel, onClear }: {
   series: IntlSeries;
+  side: 0 | 1;
   squad: Player[];
   initial: SeriesLineup;
   onSave: (l: SeriesLineup) => void;
   onCancel: () => void;
+  /** Go back to the side's own XI (realistic or best) */
+  onClear?: () => void;
 }) {
   const [xi, setXi] = useState<string[]>(initial.xi);
-  const side = series.sides[series.userSide!];
+  const side = series.sides[sideIdx];
   const fmt = seriesFormat(series.format);
   const problems = (fmt.lineupProblems ?? lineupProblems)(squad, { xi, order: xi });
   const chosen = squad.filter(p => xi.includes(p.id));
@@ -552,6 +581,7 @@ function LineupScreen({ series, squad, initial, onSave, onCancel }: {
         <button onClick={onCancel} className="text-xs font-display text-th-muted hover:text-th-primary">&larr; Series</button>
         <h2 className="text-lg font-display font-bold text-th-primary">{side.name} XI</h2>
         <span className="text-xs text-th-muted font-display">{fmt.label} ratings · {xi.length}/11 picked</span>
+        {onClear && <button onClick={onClear} data-testid="series-clear-xi" className="ml-auto text-xs font-display text-th-muted hover:text-th-primary">Back to the {series.realistic ? "realistic" : "best"} XI</button>}
       </div>
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-th bg-th-surface p-4">

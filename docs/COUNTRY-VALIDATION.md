@@ -57,7 +57,7 @@ way to carry. Left as it is.
 
 ## Realistic line-ups (men's T20I ships; the other sets do not)
 
-Series fielded each nation's best eleven, so weak sides (West Indies with Pooran / Russell / Hope, Sri Lanka, Zimbabwe) won more than
+*(Numbers in this section are from the first version of the check, before the actual-XI refit below, which supersedes the shipped tuning; the sets that ship are updated in the next section.)* Series fielded each nation's best eleven, so weak sides (West Indies with Pooran / Russell / Hope, Sri Lanka, Zimbabwe) won more than
 they did. Realistic line-ups (`packages/app/src/realistic-xi.ts`, data `intl-availability-data.ts` from
 `packages/ratings/src/pipeline/generate-intl-availability.ts`, real Cricsheet selection since 2024-01-01: the share of a side's matches a
 player played): each match's XI is sampled from the side's pool of recent players with inclusion probabilities from those rates
@@ -82,6 +82,90 @@ The noise of one cell is about 0.01 (the curve over gamma is not smooth), so onl
 right way: West Indies 0.50 -> 0.40 win rate in the holdout (real 0.38), 0.51 -> 0.44 in the fit half (real 0.42); Sri Lanka 0.49 -> 0.47
 (real 0.37) and Zimbabwe 0.39 -> 0.36 (real 0.23) move less; Bangladesh moves the wrong way (0.39 -> 0.46, real 0.36). Shipped:
 `XI_SHARPEN = { "t20i-men": 3 }`; sets without an entry ignore the option. The shipped rates cover every match since 2024-01-01.
+
+## Actual XI: what the sim does with the line-ups a user sets (and a refit on them)
+
+**The benchmark.** `docs/data/actual_xi.json` (`packages/ratings/src/pipeline/generate-actual-xi.ts`, from the Cricsheet ball-by-ball json,
+which lists each side's players) holds, for every match of the per-country benchmark (same filters: full members, a result, no DLS), the
+eleven each side fielded, the batting order it used (order of arrival at the crease in its first innings, then the non-batters), the host and
+the ground, the bowlers' overs and each batter's runs and balls. 99.8% of the 63,000 places map to a player in the pool; the rest, and the
+handful of matches with fewer than eleven listed, are filled from the side's best. `BENCH_ACTUAL=1 npx vitest run
+packages/app/src/__tests__/benchmark-countries.test.ts -t "actual XI" --reporter=verbose` plays every real match 24 times with the XIs that
+really played through `IntlSeries.lineups` (the code path a user's XI takes in the app) and the real ground (`IntlSeries.ground`), and scores
+the win log loss per real match against the best XI and the realistic sampler (`BENCH_MODES`, `BENCH_ONLY`, `BENCH_LIST=1` prints the
+figures OFF). Totals and runs per wicket by country are scored as in the country benchmark (the OFF counts). Fit on matches to 2024,
+judged on 2025+; the realistic sampler uses the rates of 2024 matches only. `BENCH_FIT_ON=actual` makes the three fit tests
+(`BENCH_FIT`, `BENCH_FITHOME`, `BENCH_EVAL`) fit on actual-XI play, `BENCH_HOLDOUT=fit` on the fit half only. `BENCH_POSITIONS=1` compares
+runs and balls by batting position.
+
+**A bug found on the way (ODI).** The ODI engine plays a player on his ODI set (`Player.forFormat("odi")`), but the squad builder had made a
+copy of that set, so the ODI opposition adjust and the series tuning (strength stretch, home advantage) moved a copy the engine never
+read: in an ODI they only moved who was picked. `buildNationSquad` and `teamsForMatch` now keep the player's ODI set and his ratings as one
+object, and a test checks it (`set-lineups.test.ts`). The ODI tuning had therefore been fitted on nothing, and was refitted. The adjust now
+does what it was shipped to do; on actual-XI play it helps women's ODI in the fit half and is neutral for men's, and ships unchanged.
+
+**Refit on actual-XI play** (fit half only, 6-8 replays, `BENCH_FIT` then `BENCH_FITHOME`; ratings are untouched). The best-XI tuning was
+fitted on sides that were stronger than the ones that played, so it stretched and rewarded home more than real XIs need:
+
+| set | before (best-XI fit): spread / home | after (actual-XI fit, to 2024): spread / home |
+|---|---|---|
+| men's T20I | 2 / 4 | 2.5 / 6 (Australia 12, New Zealand 10, Pakistan 2, Zimbabwe 4, Ireland 2, South Africa 0, Sri Lanka 0) |
+| women's T20I | 3 / 6 | 3.5 / 2 (India 4, Ireland 6, South Africa 4, Sri Lanka 4, Bangladesh 0, West Indies 0, Zimbabwe 0) |
+| men's ODI | 1 / 8 | 1 / 2 (Australia 4, Pakistan 4, New Zealand 4, West Indies 4, Sri Lanka 8, Ireland 0, Zimbabwe 0) |
+| women's ODI | 3 / 12 | 1.5 / 2 (Australia 6, South Africa 6, Bangladesh 4, Ireland 4, West Indies 4, India 0, New Zealand 0) |
+
+The ODI home advantages fall because the real ground now carries them (the ODI venue tables). The T20I conditions (FORMATS.md, "T20I level")
+were not refitted.
+
+**Result.** Log loss per real match (0.693 is a coin flip; lower is better), 24 replays of every match, the same tuning (the refit one) in
+every column, countries OFF in brackets. Ratings are those of the extended pool rebuilt on 2026-11-17.
+
+| set | half | best XI | realistic sampler | actual XI | actual XI, engine's batting order |
+|---|---|---|---|---|---|
+| men's T20I | fit (to 2024) | 0.650 (14) | 0.631 (13), g 3 | 0.634 (10) | 0.634 (10) |
+| | **holdout (2025+)** | **0.629 (19)** | **0.596 (16)** | **0.592 (17)** | 0.612 (19) |
+| women's T20I | fit | 0.553 (19) | 0.536 (16), g 1 | 0.524 (18) | 0.538 (16) |
+| | **holdout** | **0.478 (25)** | **0.468 (20)** | **0.436 (21)** | 0.471 (22) |
+| men's ODI | fit | 0.587 (22) | none better (0.602-0.604) | 0.575 (6) | 0.585 (8) |
+| | **holdout** | **0.645 (19)** | 0.665-0.671 | **0.653 (17)** | 0.665 (17) |
+| women's ODI | fit | 0.481 (13) | 0.476-0.486 | 0.497 (15) | 0.492 (16) |
+| | **holdout** | **0.446 (14)** | 0.448-0.460 | **0.465 (10)** | 0.460 (12) |
+| men's Test | fit | 0.636 (11) | 0.660-0.678 | 0.578 (6) | = |
+| | **holdout** | **0.574 (10)** | 0.600-0.616 | **0.592 (12)** | = |
+
+Before the refit and the ODI fix (the numbers of the realistic-line-ups section, on the refreshed ratings), the holdout read: men's T20I best
+0.617, realistic 0.611, actual 0.599; women's T20I 0.475 / 0.475 / 0.460; men's ODI 0.680 / - / 0.682; women's ODI 0.494 / - / 0.471; Test
+0.574 / - / 0.592.
+
+What this says:
+
+- **The ratings and the engine are right where the XI is right.** In T20I, men's and women's, the XIs that really played give the best
+  predictions on the holdout by a clear margin (0.592 against 0.629, 0.436 against 0.478), and in the fit half for men's ODI (0.575 against
+  0.587) and Test (0.578 against 0.636). The remaining misses in the best-XI column are the line-ups, not the players.
+- **Women's ODI and the Test holdout**: the actual XI is not better than the best XI (0.465 against 0.446; 0.592 against 0.574). Both are
+  within the noise of the sample (about 0.03 for 95 women's ODIs and 58 Tests), the fit halves go the other way for the Test, and nothing
+  in the engine points at a cause; open.
+- **Batting order is worth playing as set.** The real order beats the engine's order for the same eleven on the holdout in every limited-overs
+  set but women's ODI (men's T20I 0.592 against 0.612, women's T20I 0.436 against 0.471, men's ODI 0.653 against 0.665). By batting
+  position the sim matches the real runs and balls well from 1 to 7 (men's T20I: 27.1 / 20.4 against 27.4 / 19.8 for the opener, 12.5 / 9.5
+  against 12.6 / 9.6 at seven); the tail (9-11) scores 1-2 runs more than real tails.
+- **Realistic line-ups still help men's T20I, and now women's T20I** (better than the best XI in both halves at every sharpening tried, so
+  `XI_SHARPEN` has `"t20i-women": 1`, the fit half's best; the gain is 0.01-0.016, small). They do not help the ODI or the Test. With the
+  refit tuning, the realistic sampler for men's T20I is 0.033 better than the best XI on the holdout (it was 0.012): the best-XI column is
+  worse than before the refit because the tuning now fits the line-ups real sides field.
+- Countries OFF fall for actual XIs in most cells (men's ODI fit half 22 to 6, Test fit half 11 to 6); the exceptions are women's ODI in
+  the fit half (13 to 15) and the Test holdout (10 to 12). Totals and runs per wicket by country stay as they were (the weakest women's sides
+  still score too much, Left over below).
+
+**What the user can do.** `IntlSeries.lineups` (and the user's own `lineup`) set an XI and a batting order for either side of a series, in
+every format and gender, instant or live; a realistic series does not sample a side that has one; the series page has "Set / Edit XI" for both
+sides and "Back to the realistic XI" (`InternationalPage.tsx`). The ground can be named (`IntlSeries.ground`, a `homeGrounds` entry).
+
+**Not done in this pass** (the engine has pieces of each; none was fitted here): a bowling plan for the instant engine (the live engine has
+`BowlingPlan` per phase; the instant engine bowls one of the best three available, as the real captains' totals are fitted on), bowler-type
+by phase effects (T20 `matchups.ts getPhaseModifier` is hand-set; the ODI ball model carries its own fitted ones), ball age and a
+user-selectable light / pitch (`MatchConditions` draws a run multiplier only; the Test engine draws its own conditions). `actual_xi.json`
+carries the bowlers' overs per match (`bowl`) for that work.
 
 ## Left over
 
