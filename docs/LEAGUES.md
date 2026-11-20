@@ -192,7 +192,14 @@ wicket row (TACTICS.md section 6), the eight men's leagues' `wicket` and `dot` l
 steps on the response pooled over the leagues, verified over 32 seasons; the wicket factors moved from 0.84-0.90 to 0.83-0.96: the
 former XIs' thin tails had needed fewer wickets). The 32-season verification, men's leagues (the women's and The Hundred's levels are
 unchanged): IPL 176.6 runs / 5.94 wickets, BBL 161.1 / 6.44, PSL 169.7 / 6.49, SA20 151.3 / 6.08, CPL 159.7 / 6.35, ILT20 156.4 / 6.15,
-MLC 166.6 / 6.37, BPL 152.9 / 6.25, LPL 177.4 / 6.48 (real as in the table). The table below is the earlier fit.
+MLC 166.6 / 6.37, BPL 152.9 / 6.25, LPL 177.4 / 6.48 (real as in the table).
+
+Since the bowling attack (TACTICS.md section 8: CPU sides choose their bowlers from the whole eleven, so part-timers bowl as real ones do,
+which adds about 2 runs and takes 0.08 wickets an innings), the same eight leagues were refitted again (a common correction from the
+pooled response, then one Newton step per league at 64 seasons; wicket factors up 0.025-0.055, dot factors -0.024 to +0.037). The
+64-season verification: BBL 158.9 / 6.47, PSL 169.1 / 6.43, SA20 153.1 / 6.27, CPL 158.1 / 6.23, ILT20 154.8 / 6.21, MLC 165.9 / 6.45,
+BPL 152.4 / 6.43, LPL 174.7 / 6.58 (the IPL, which keeps the former attack and has no levels, 176.4 / 6.00). The table below is the
+earlier fit.
 
 | League | Runs/innings sim | real | Wickets/innings sim | real | Balls/innings sim | real |
 |---|---|---|---|---|---|---|
