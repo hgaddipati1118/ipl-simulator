@@ -34,7 +34,11 @@ export function generateRandomPlayer(overrides?: Partial<PlayerData>, rng: RNG =
   if (overrides) {
     const { ratings, ...rest } = overrides;
     Object.assign(player, rest);
-    if (ratings) player.ratings = { ...player.ratings, ...ratings };
+    if (ratings) {
+      player.ratings = { ...player.ratings, ...ratings };
+      if (!rest.formatRatings) player.formatRatings = undefined; // derived from the ratings it replaced
+      player.ensureDerivedFormatRatings();
+    }
   }
   return player;
 }

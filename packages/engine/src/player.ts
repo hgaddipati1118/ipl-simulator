@@ -7,6 +7,7 @@ import { clamp, randomNormal, displayOversToReal } from "./math.js";
 import { fieldingValueBonus } from "./fielding.js";
 import { sampleFieldingChange } from "./fielding-progression.js";
 import { attributeTilt } from "./attribute-tilt.js";
+import { coupleFormatChange, deriveFormatSets } from "./format-career.js";
 import type { RNG } from "./rng.js";
 import {
   sampleChange, estimateExperience, meanPathOvr, type ProgressionState, type ProgressionGender,
@@ -121,6 +122,8 @@ export interface FormatRatings {
   ratings: PlayerRatings;
   /** "data": measured in the format (List A / ODI, first-class / Test); "derived": translated from other formats for want of data */
   source?: "data" | "derived";
+  /** Fractions of a rating point not yet applied when the set follows the player's T20 changes (format-career.ts) */
+  carry?: Partial<Record<CoreRatingKey, number>>;
 }
 
 export interface PlayerProgressReport {
@@ -399,7 +402,7 @@ export class Player implements PlayerData {
     if (data.formatRatings) {
       this.formatRatings = {};
       for (const [f, fr] of Object.entries(data.formatRatings) as [LongFormat, FormatRatings][]) {
-        if (fr) this.formatRatings[f] = { ...fr, ratings: { ...fr.ratings } };
+        if (fr) this.formatRatings[f] = { ...fr, ratings: { ...fr.ratings }, ...(fr.carry ? { carry: { ...fr.carry } } : {}) };
       }
     }
     this.isInternational = data.isInternational;
@@ -613,6 +616,7 @@ export class Player implements PlayerData {
     const focus = this.trainingFocus ?? "balanced";
     const bias = TRAINING_FOCUS_BIAS[focus];
     const changes: { attr: string; from: number; to: number }[] = [];
+    const moved: Partial<Record<CoreRatingKey, number>> = {};
     for (const [attr, weight] of Object.entries(bias) as [CoreRatingKey, number][]) {
       // fielding and keeping training lands at the season rollover only
       if ((attr as string) === "fielding" || (attr as string) === "keeping") continue;
@@ -623,10 +627,12 @@ export class Player implements PlayerData {
           this.ratings[attr] = clamp(from + gain, 15, 99);
           if (this.ratings[attr] !== from) {
             changes.push({ attr, from, to: this.ratings[attr] });
+            moved[attr] = this.ratings[attr] - from;
           }
         }
       }
     }
+    if (changes.length > 0) this.followFormats(moved, "male");
     return changes;
   }
 
@@ -767,6 +773,9 @@ export class Player implements PlayerData {
       this.ratings[kind] = next;
     }
 
+    // ODI / Test ratings develop with the T20 ones (format-career.ts); this and fielding / keeping draw nothing
+    this.followFormats(ratingChanges, gender);
+
     this.trainingFocus = focus;
     this.stats = this.emptyStats();
     this.resetCondition();
@@ -779,6 +788,22 @@ export class Player implements PlayerData {
       overallChange: this.overall - beforeOverall,
       ratingChanges,
     };
+  }
+
+  /** Move the ODI / Test sets by the T20 attribute changes just made (no-op for a player without format sets) */
+  private followFormats(changes: Partial<Record<keyof PlayerRatings, number>>, gender: ProgressionGender): void {
+    if (!this.formatRatings) return;
+    coupleFormatChange(this.formatRatings, changes as Partial<Record<CoreRatingKey, number>>, this.ratings, this.isFemale ? "female" : gender === "female" ? "female" : "male");
+  }
+
+  /**
+   * Give a player with no real ODI / Test sets (generated: no sourceId) sets derived from his T20 ratings, as the ratings
+   * pipeline derives them for a real player with no record (format-career.ts). Returns whether sets were added.
+   */
+  ensureDerivedFormatRatings(): boolean {
+    if (this.formatRatings && Object.keys(this.formatRatings).length > 0) return false;
+    this.formatRatings = deriveFormatSets(this.ratings, this.battingOvr, this.bowlingOvr, this.isFemale ? "female" : "male");
+    return true;
   }
 
   /** Reset season stats (keep ratings) */
@@ -834,6 +859,8 @@ export class Player implements PlayerData {
     if (data.potential !== undefined) player.potential = data.potential;
     if (data.morale !== undefined) player.morale = data.morale;
     if (data.contractYears !== undefined) player.contractYears = data.contractYears;
+    // a saved generated player from before format sets existed: derive his, as a new one gets them (a real player is attached from the ratings file)
+    if (!player.sourceId) player.ensureDerivedFormatRatings();
     return player;
   }
 }

@@ -515,9 +515,11 @@ female: {"espn":{"odiData":472,"testData":128,"odiDerived":1907,"testDerived":22
 - **Part-timers** who bowl 6+ balls a match in a format sit at the batsman's secondary ceiling (about 45) whatever their
   T20 bowling (Tim David, Rinku Singh, Travis Head); front-line bowlers by workload are bowlers or all-rounders in that
   format even when their T20 role is batsman (Romario Shepherd, Chamika Karunaratne, Cameron Green, Shivam Dube).
-- **Static in career mode.** Format sets don't progress with `Player.progress()`; after some seasons a player's ODI / Test
-  ratings lag his T20 development. Generated players (regens, youth, generated pools) have none and play every format on
-  their T20 ratings.
+- **Career mode** (was a gap: sets did not progress, and generated players had none): sets now develop with the T20 ratings and
+  generated players get derived sets; see docs/RATINGS-PIPELINE.md, "ODI and Test ratings in career mode". Remaining
+  judgement: the share of a T20 change that carries over (`FORMAT_COUPLING`) is a stated point between the slope on the
+  measured change and the slope on the true change, and a format's own noise (a Test average drifting for reasons T20 does
+  not see) is not simulated.
 - **The Test specialists group check** (format-ratings-report.ts) shows no group-level lift: first-class specialists with a
   thin T20 record were already rated from first-class cricket by the T20 pipeline. Named specialists with real T20 records
   do move (Root +20, Labuschagne +14, Latham +10, Williamson +9, Pujara +6 batting overall).

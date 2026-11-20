@@ -722,9 +722,41 @@ Not in the JS bundle (the loader, switch and decode add about 3 KB). `app/src/fo
 `sourceId` on every player a game state holds (an effect in `App.tsx`; pages that show format ratings call
 `useFormatRatings` to re-render once the file is in). Players that already have sets keep them. Extended-pool players carry
 theirs from the shards: `decodeShard` -> `toRealPlayerData` -> `createPlayerFromData` keep `formatRatings`, as do league
-records resolved from the extended pool. Sets are saved with the player (`Player.toJSON`); a save or player without them
-plays every format on the T20 ratings. The Player Ratings page and the player page's Attributes card have a T20 / ODI / Test
+records resolved from the extended pool. Sets are saved with the player (`Player.toJSON`); a real player without them
+plays every format on the T20 ratings (generated players always have derived ones, below). The Player Ratings page and the player page's Attributes card have a T20 / ODI / Test
 switch ("est." marks a derived set, "T20" a player without format ratings).
+
+### ODI and Test ratings in career mode
+
+Two engine pieces (`packages/engine/src/format-career.ts`, constants in generated `format-career-data.ts`, fitted by
+`npx tsx packages/ratings/src/pipeline/fit-format-career.ts`, which needs the engine built and duckdb; it reads the shipped
+ESPN pool, `format-ratings.json` and `ca_ratings_by_year.parquet`).
+
+**Sets develop with the player.** `Player.progress()` (and the mid-season training tick) moves each ODI / Test attribute by the
+player's own T20 change in that attribute times a coupling for the side (batting: battingIQ, timing, power, running; bowling:
+wicketTaking, economy, accuracy; clutch the mean), so a player's format-specific offsets are kept and his ODI / Test move the way his
+T20 does. Fractions of a point are carried (`FormatRatings.carry`) so nothing is lost to rounding, fielding and keeping follow the
+T20 values, and nothing is drawn, so every T20 result is as before. A "data" set and a "derived" set move the same way.
+The coupling is fitted on CricketArchive's per-year ratings: for players rated in T20 and the format in two years three to five seasons
+apart, the slope of the format's overall change on the T20 overall change (men: List A 0.29 batting / 0.33 bowling, first-class 0.21 /
+0.10; women List A 0.25 / 0.15; women's first-class is too thin and uses the men's), divided by the reliability of the T20 change
+(1 - the noise from the ratings' posterior sds / the variance of the change), floored at 0.5 because the sds overstate the noise: the
+game's T20 change is the true change, and the slope on a noisy measured change understates it. Result `FORMAT_COUPLING`: men ODI
+0.58 bat / 0.65 bowl, Test 0.41 / 0.19; women ODI 0.50 / 0.29, Test as men's. The slope on the measured change (a lower bound) and
+the corrected one (an upper bound) bracket it; the point is a judgement. One-year changes are almost uncorrelated across formats
+(r 0.03 to 0.16: a rating year is mostly noise), which is why the fit uses three to five seasons.
+
+**Generated players have derived sets.** Regens, youth prospects, generated pool and fill players (`generatePlayer`) get
+`formatRatings` with `source: "derived"` from their T20 ratings: per gender, format and attribute, a regression
+(intercept, own T20 attribute, T20 batting overall, T20 bowling overall) fitted on the ESPN-pool players whose set the pipeline
+itself derived (no usable record in the format: the translation shrunk to a below-average prior and capped at the median of the
+format's regulars), `FORMAT_DERIVE_COEF`. Held-out-free (in-sample) rmse against those sets: 3 to 10 points per attribute against
+4 to 11 for copying the T20 value. The cap shows: a generated player with a T20 batting overall in the 60s rates mid-40s to 50s in
+ODIs, as the pipeline rates a real player with no ODI record. Derivation draws nothing from the generation stream.
+
+**Saves.** A saved generated player (no `sourceId`) without sets gets them derived in `Player.fromJSON`; a real player without sets
+still gets his from the ratings file (`attachFormatRatings`, only for players that have none), and a save with sets keeps them
+(progressed values and carry included). Tests: `format-career.test.ts`.
 
 ## Venues, pitches, toss/chase and geography (analysis only)
 

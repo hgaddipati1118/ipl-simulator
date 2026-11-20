@@ -289,6 +289,7 @@ export type { Cohort, CohortPlayer, ValidationReport, HorizonMetrics } from "./p
 export { RATING_HISTORY_MAX } from "./player.js";
 export type { RatingHistoryEntry } from "./player.js";
 export { sampleFieldingRatings } from "./player-generator.js";
+export { deriveFormatSets, coupleFormatChange } from "./format-career.js";
 export { validateFieldingProgression, simulateFieldingChange, formatFieldingValidation } from "./fielding-progression-validation.js";
 export type { FieldingTarget, FieldingCohortFixture, FieldingValidationRow } from "./fielding-progression-validation.js";
 export { expectedFieldingChange, sampleFieldingChange, fieldingFit } from "./fielding-progression.js";

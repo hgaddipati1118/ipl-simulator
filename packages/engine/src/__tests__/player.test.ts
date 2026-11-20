@@ -438,6 +438,8 @@ describe("Player.forFormat", () => {
     const q = Player.fromJSON(JSON.parse(JSON.stringify(p.toJSON())));
     expect(q.formatRatings?.test?.ratings).toEqual(odi);
     expect(q.forFormat("test").ratings.battingIQ).toBe(90);
-    expect(Player.fromJSON(JSON.parse(JSON.stringify(new Player(makePlayerData()).toJSON()))).formatRatings).toBeUndefined();
+    // a real player (has a sourceId) without sets is left for the ratings file; a generated one (none) gets derived sets (format-career.ts)
+    expect(Player.fromJSON(JSON.parse(JSON.stringify(new Player(makePlayerData({ sourceId: "espn_1" })).toJSON()))).formatRatings).toBeUndefined();
+    expect(Player.fromJSON(JSON.parse(JSON.stringify(new Player(makePlayerData()).toJSON()))).formatRatings?.odi?.source).toBe("derived");
   });
 });

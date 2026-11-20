@@ -242,6 +242,10 @@ export function generatePlayer(rng: RNG, opts: GeneratePlayerOptions = {}): Play
   // other draw of a seeded generation exactly as it was (same players, same later draws)
   Object.assign(player.ratings, sampleFieldingRatings(rc, gender, player.battingOvr, player.bowlingOvr, createRNG(playerSeed(player))));
 
+  // No record in any format: ODI / Test sets derived from the T20 ratings, as the pipeline does for a real player without one (format-career.ts)
+  player.formatRatings = undefined;
+  player.ensureDerivedFormatRatings();
+
   if (kind === "youth" || kind === "regen" || (kind === "pool" && age <= 23)) assignPotential(player, gender, rng);
   return player;
 }
