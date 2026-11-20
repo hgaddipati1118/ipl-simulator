@@ -28,10 +28,12 @@ export function shiftSide(players: readonly Player[], delta: number): void {
 /**
  * Move two sides' players for a match: the gap between their strengths stretched by `spread` (each side moves (spread - 1) / 2
  * of the gap, apart), and the home side's ratings up and the away side's down by `home / 2` at a ground that is not neutral.
- * `homeIdx` is the home side (0 or 1), or -1 at a neutral ground.
+ * `homeIdx` is the home side (0 or 1), or -1 at a neutral ground. A side's `strengthBy` (its country's own offset, rating points, where the ratings place the
+ * side wrongly) is added to its ratings wherever it plays.
  */
-export function applySeriesTuning(sides: [Player[], Player[]], tuning: SeriesTuning | undefined, homeIdx: number, homeCountry?: string): void {
+export function applySeriesTuning(sides: [Player[], Player[]], tuning: SeriesTuning | undefined, homeIdx: number, homeCountry?: string, countries?: [string, string]): void {
   if (!tuning) return;
+  if (tuning.strengthBy && countries) for (const i of [0, 1] as const) shiftSide(sides[i], tuning.strengthBy[countries[i]] ?? 0);
   const home = (homeCountry ? tuning.homeBy?.[homeCountry] : undefined) ?? tuning.home;
   const gap = sideStrength(sides[0]) - sideStrength(sides[1]);
   const stretch = ((tuning.spread - 1) / 2) * gap;

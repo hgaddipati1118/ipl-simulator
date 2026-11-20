@@ -567,7 +567,7 @@ export function teamsForMatch(series: IntlSeries, n: number, squads: [Player[], 
     }
   }
   // limited-overs series: the sides' gap and the home advantage fitted on real results (series-tuning.ts)
-  if (series.format === "t20i" || series.format === "odi" || series.format === "test") applySeriesTuning(copies, tuningFor(series.format, series.gender), venue.neutral ? -1 : homeIdx, series.sides[homeIdx].country);
+  if (series.format === "t20i" || series.format === "odi" || series.format === "test") applySeriesTuning(copies, tuningFor(series.format, series.gender), venue.neutral ? -1 : homeIdx, series.sides[homeIdx].country, [series.sides[0].country, series.sides[1].country]);
   const make = (i: 0 | 1) => {
     const side = series.sides[i];
     const isHome = i === homeIdx && !venue.neutral;

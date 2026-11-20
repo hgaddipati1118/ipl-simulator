@@ -969,10 +969,11 @@ better in the next two seasons, home grounds and Ranji / Sheffield Shield cricke
 grounds take runs away), and an opposition adjustment for Tests could only raise them. Against the 133 real Tests since 2023 with
 the elevens that played, the sim wins India 66% (real 53%) and Australia 73% (real 69%): the best-eleven comparison is 2026 squads
 against history. What was left was the engine's home edge: home sides won 62.8% of decided Tests against a real 57.3% (the "57.5% against 51.4%" mixed
-decided with all matches; India at home 82% against 59%). A Test entry in the series tuning (`test.men = { spread: 1, home: -1.5 }`, fitted on
-the 2023-24 Tests with the XIs that played and judged on 2025+; docs/COUNTRY-VALIDATION.md, "Test and ODI series tuning") brings the home
-share to 57.4% with the draw rate unchanged. Still off after it: South Africa (0.54 against 0.78, home and away), New Zealand (0.51
-against 0.65), India and England (0.66 and 0.62 against 0.53), the sides as rated, which no stretch or ground term fixes. Five-fors stayed at
+decided with all matches; India at home 82% against 59%). A Test entry in the series tuning (`test.men = { spread: 1, home: -1.5,
+strengthBy: { "South Africa": 2 } }`, fitted on the 2023-24 Tests with the XIs that played and judged on 2025+; docs/COUNTRY-VALIDATION.md,
+"Test and ODI series tuning") brings the home share to 57.7% with the draw rate unchanged, and South Africa from 55% to 64% (real 78%).
+Still off after it: New Zealand (0.51 against 0.65), India and England (0.64 and 0.62 against 0.53), the sides as rated, which no stretch or
+ground term fixes. Five-fors stayed at
 1.07 here: the bowler's wicket term already reaches its true spread, and the gap was in how the sim shared the overs (its
 leading bowler bowled 27% of them, real 30%); fixed in section 6.11.
 

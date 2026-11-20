@@ -54,6 +54,26 @@ describe("series tuning for the Test", () => {
     expect(med(shifts(n, n).a)).toBe(0);
   });
 
+  it("a side with a strength term (South Africa) gains its rating points wherever it plays, home, away or neutral", () => {
+    const t = tuningFor("test", "men")!;
+    const sa = t.strengthBy?.["South Africa"] ?? 0;
+    expect(sa).toBeGreaterThan(0);
+    const med = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+    const nations: [string, string] = ["South Africa", "Pakistan"];
+    const n = series("test", "neutral", nations);
+    // neutral ground: no home term, so the whole shift is the strength term (the stretch is 1)
+    const base = (s: IntlSeries) => { const tn = teamsForMatch(s, 0, seriesSquads(s, FILE)); return new Map([...tn.home.roster, ...tn.away.roster].map(p => [p.id, p])); };
+    const saved = SERIES_TUNING.test.men;
+    SERIES_TUNING.test.men = { ...saved!, strengthBy: {} };
+    const without = base(n);
+    SERIES_TUNING.test.men = saved;
+    const withTerm = base(n);
+    const d = n.sides[0].squad.filter(id => withTerm.has(id)).map(id => SIX.reduce((m, k) => m + (withTerm.get(id)!.ratings[k] - without.get(id)!.ratings[k]), 0) / SIX.length);
+    expect(med(d)).toBeCloseTo(sa, 5);
+    const dPak = n.sides[1].squad.filter(id => withTerm.has(id)).map(id => SIX.reduce((m, k) => m + (withTerm.get(id)!.ratings[k] - without.get(id)!.ratings[k]), 0) / SIX.length);
+    expect(med(dPak)).toBe(0);
+  });
+
   it("the user's pitch, light and weather do not change the home shift (the home term is not counted again with the pitch)", () => {
     const n = series("test", "neutral");
     for (const conditions of [{ pitch: "seaming" as const }, { pitch: "flat" as const, weather: "unsettled" as const }]) {
