@@ -187,6 +187,13 @@ playoff ground. Fitted per league by a linear fit of simulated runs / wickets / 
 `deliveries.parquet` / `matches.parquet`, then verified with 16 simulated seasons per league (this table). The harness
 is `packages/app/src/__tests__/calibrate-leagues.test.ts` (`CALIBRATE_LEAGUES=1`).
 
+Since the league XIs (TACTICS.md section 7: CPU franchises pick XIs as real ones do, which bat deeper) and the innings clock's
+wicket row (TACTICS.md section 6), the eight men's leagues' `wicket` and `dot` levels were refitted to the same targets (two Newton
+steps on the response pooled over the leagues, verified over 32 seasons; the wicket factors moved from 0.84-0.90 to 0.83-0.96: the
+former XIs' thin tails had needed fewer wickets). The 32-season verification, men's leagues (the women's and The Hundred's levels are
+unchanged): IPL 176.6 runs / 5.94 wickets, BBL 161.1 / 6.44, PSL 169.7 / 6.49, SA20 151.3 / 6.08, CPL 159.7 / 6.35, ILT20 156.4 / 6.15,
+MLC 166.6 / 6.37, BPL 152.9 / 6.25, LPL 177.4 / 6.48 (real as in the table). The table below is the earlier fit.
+
 | League | Runs/innings sim | real | Wickets/innings sim | real | Balls/innings sim | real |
 |---|---|---|---|---|---|---|
 | IPL (engine baseline, not refitted) | 167.6 | 183.7 | 6.84 | 6.05 | 110.4 | 113.7 |

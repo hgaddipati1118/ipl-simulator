@@ -121,6 +121,14 @@ The Lineup page shows each player's fielding (and keeping, for keepers) in the F
 adds "Sharp in the Field" / "Leaky Fielding" (XI mean fielding >= 54 / <= 42), "Keeper Choice" (a benched keeper keeps 15+ points better and is
 worth more behind the stumps) and "No Specialist Keeper" insights.
 
+### Men's T20 leagues: the fitted league selection
+In a men's T20 league (the IPL and the eight men's leagues; not internationals, ODIs, The Hundred or the women's leagues) the XI is chosen by
+`xi-selection.ts` instead (docs/TACTICS.md section 7): a value of the whole XI fitted on the XIs real franchises fielded since 2021 (rank-weighted
+batting and bowling overall, fielding, the keeper's keeping), within the overseas limit and with a designated keeper when the squad has one. A CPU
+side draws its XI per match from the fitted distribution (seeded by the match, so instant and live agree); the Lineup page's Auto Select and a user
+side that set nothing get the most likely XI. Such an XI can have four front-line bowlers and an all-rounder or part-timer, as about a quarter of
+real XIs do; the bowling rotation fills the overs as before. Steps 4-5 above (a designated keeper; a stand-in keeper) still apply.
+
 ### Impact Sub Considerations
 - If team plans to use batting impact sub: can start with 5 bowlers (sub in 6th batter later)
 - If team plans to use bowling impact sub: can start with 5 batters + WK (sub in 5th bowler later)
