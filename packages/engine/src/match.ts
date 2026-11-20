@@ -67,7 +67,7 @@ import { applyLastPair } from "./last-pair.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
 import { applyT20BowlerType } from "./t20-bowler-type.js";
 import { applyConditionsToProfile, type ConditionsSetting } from "./conditions.js";
-import { captainModelFor, bowlerKind, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, planBowlerIds, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
+import { attackStateOf, attackTableFor, attackTally, captainModelFor, bowlerKind, choiceFormatFor, chooseByModel, inAttackPool, lastOverOf, narrowByPlan, phaseUsedOf, planBowlerIds, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
 import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
   EXTRAS_RATE_CAL,
@@ -1156,6 +1156,12 @@ function simulateInnings(
     if (p && !bowlers.includes(p)) { bowlers.push(p); bowlerOvers.set(p.id, 0); }
   }
   const unavailable = new Set<string>(); // bowlers who left the field hurt
+  // The attack table (bowling-choice.ts, docs/TACTICS.md section 8): a men's T20 side whose user has not set its own bowling order chooses
+  // each over from the whole eleven, so the fitted model also decides who joins the attack and when a sixth or seventh bowler comes on
+  const userAttack = bowlingTeam.isUserControlled && (bowlingTeam.userBowlingOrder?.length ?? 0) > 0;
+  const attackTable = so || own || userAttack || fmt.id !== "t20" ? null : attackTableFor(gender, !!venue.wicketsInHandKey?.startsWith("t20i"));
+  /** The side's own bowling order (the impact-player decision reads it, not the eleven the attack table chooses from) */
+  const orderIds = new Set(bowlers.map(b => b.id));
 
   // Impact player tracking (each side gets one sub per innings)
   let battingImpactUsed = false;
@@ -1229,12 +1235,14 @@ function simulateInnings(
       // Bowling team impact sub
       if (!bowlingImpactUsed && availBowlingSubs.length > 0) {
         const decision = evaluateBowlingImpact(
-          over, innings, bowlers, availBowlingSubs, [...bowlingXI],
+          over, innings, bowlers.filter(b => orderIds.has(b.id)), availBowlingSubs, [...bowlingXI],
         );
         if (decision) {
           const outIdx = bowlers.indexOf(decision.subOut);
           if (outIdx >= 0) {
             bowlers[outIdx] = decision.subIn;
+            orderIds.delete(decision.subOut.id);
+            orderIds.add(decision.subIn.id);
             bowlerOvers.set(decision.subIn.id, 0);
             const fi = fieldXI.indexOf(decision.subOut);
             if (fi >= 0) { fieldXI[fi] = decision.subIn; fieldingUnit = buildFieldingUnit(fieldXI); }
@@ -1253,6 +1261,8 @@ function simulateInnings(
       ? innings.ballLog[innings.ballLog.length - 1].bowler
       : null;
 
+    const attackOver = attackTable && choiceFormatFor(fmt.id, maxOvers, fmt.overs) ? attackTable : null;
+    if (attackOver) for (const p of fieldXI) if (inAttackPool(p) && !bowlers.includes(p)) { bowlers.push(p); bowlerOvers.set(p.id, bowlerOvers.get(p.id) ?? 0); }
     const ableBowlers = bowlers.filter(b => !unavailable.has(b.id));
     let eligibleBowlers = ableBowlers.filter(b =>
       (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler &&
@@ -1307,11 +1317,13 @@ function simulateInnings(
         maxOvers - over);
       const paceLeft = bowlers.filter(b => !unavailable.has(b.id) && (rank.get(b.id) ?? 9) < 5 && b.role !== "batsman" && ["fast", "medium"].includes(bowlerKind(b.bowlingStyle)))
         .reduce((s, b) => s + Math.max(0, maxOversPerBowler - (bowlerOvers.get(b.id) ?? 0)), 0);
+      const tally = attackOver ? attackTally(innings.ballLog, overHistory) : null;
       const cands = pool.map(b => ({
         id: b.id, rank: rank.get(b.id) ?? 9, style: b.bowlingStyle, partTimer: b.role === "batsman",
         used: bowlerOvers.get(b.id) ?? 0, lastOver: lastOverOf(overHistory, b.id), phaseUsed: phaseUsedOf(overHistory, b.id, choiceFmt, over), slack, paceLeft,
+        ...(tally ? { attack: attackStateOf(tally, overHistory, b.id, b.effectiveBowlingOvr, isSecondInnings ? 2 : 1, over) } : {}),
       }));
-      bowler = pool[chooseByModel(choiceFmt, gender, over, cands, maxOversPerBowler, rng)];
+      bowler = pool[chooseByModel(choiceFmt, gender, over, cands, maxOversPerBowler, rng, attackOver)];
     } else {
       pool = narrowByPlan(pool, bowlingPlan, fmt.id === "odi" ? "odi" : "t20", over);
       bowler = pool[Math.floor(rng() * Math.min(3, pool.length))];

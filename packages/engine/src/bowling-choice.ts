@@ -15,6 +15,8 @@
  * powerplay gets him, and the match model charges him what a spinner costs there (matchups.ts, phase x bowler type).
  */
 import { BOWLING_CHOICE } from "./bowling-choice-data.js";
+import { BOWLING_ATTACK } from "./bowling-attack-data.js";
+import { isBowlerWicket, type DismissalKind } from "./dismissal-kinds.js";
 import { isFastBowler, isPaceBowler, isSpinBowler, type BowlingStyle } from "./matchups.js";
 import type { RNG } from "./rng.js";
 import type { RuleSet } from "./rules.js";
@@ -83,6 +85,8 @@ export interface ChoiceCandidate {
   slack: number;
   /** Overs the front-line pace bowlers (fast / medium, rank 0-4, not part-timers) have left; the same for every candidate of an over */
   paceLeft: number;
+  /** The match state, read by the attack table (section 8) only */
+  attack?: AttackState;
 }
 
 /** The features of a candidate (names as in bowling-choice.py `features`); `left` is the one continuous feature */
@@ -109,10 +113,17 @@ export function choiceFeatures(fmt: ChoiceFormat, over: number, c: ChoiceCandida
   return out;
 }
 
-/** The model's probability of each candidate bowling the over (softmax of the fitted utilities) */
-export function choiceProbabilities(fmt: ChoiceFormat, gender: Gender, over: number, cands: readonly ChoiceCandidate[], cap: number): number[] {
-  const w = BOWLING_CHOICE[`${fmt}-${gender}`];
-  const u = cands.map(c => choiceFeatures(fmt, over, c, cap).reduce((s, [name, v]) => s + (w[name] ?? 0) * v, 0));
+/**
+ * The model's probability of each candidate bowling the over (softmax of the fitted utilities). With `table` (attackTableFor), the attack
+ * table's weights over the whole eleven, its attack features added (candidates carry `attack`)
+ */
+export function choiceProbabilities(fmt: ChoiceFormat, gender: Gender, over: number, cands: readonly ChoiceCandidate[], cap: number, table?: string | null): number[] {
+  const w = table ? BOWLING_ATTACK[table] : BOWLING_CHOICE[`${fmt}-${gender}`];
+  const u = cands.map(c => {
+    let s = choiceFeatures(fmt, over, c, cap).reduce((t, [name, v]) => t + (w[name] ?? 0) * v, 0);
+    if (table && c.attack) for (const name of attackFeatures(over, c, c.attack)) s += w[name] ?? 0;
+    return s;
+  });
   const mx = Math.max(...u);
   const e = u.map(x => Math.exp(x - mx));
   const t = e.reduce((a, b) => a + b, 0);
@@ -120,9 +131,9 @@ export function choiceProbabilities(fmt: ChoiceFormat, gender: Gender, over: num
 }
 
 /** Draw one candidate by the model (index into `cands`) */
-export function chooseByModel(fmt: ChoiceFormat, gender: Gender, over: number, cands: readonly ChoiceCandidate[], cap: number, rng: RNG): number {
+export function chooseByModel(fmt: ChoiceFormat, gender: Gender, over: number, cands: readonly ChoiceCandidate[], cap: number, rng: RNG, table?: string | null): number {
   if (cands.length <= 1) return 0;
-  const p = choiceProbabilities(fmt, gender, over, cands, cap);
+  const p = choiceProbabilities(fmt, gender, over, cands, cap, table);
   let x = rng();
   for (let i = 0; i < p.length; i++) { x -= p[i]; if (x <= 0) return i; }
   return p.length - 1;
@@ -239,4 +250,105 @@ export function rankByBowling(xi: readonly { id: string; rating: number; keeper:
 export function choiceFormatFor(formatId: string, scheduledOvers: number, fullOvers: number): ChoiceFormat | null {
   if (scheduledOvers !== fullOvers) return null;
   return formatId === "t20" ? "t20" : formatId === "odi" ? "odi" : null;
+}
+
+// ── The attack (docs/TACTICS.md section 8): the choice over the whole eleven, so the model also decides who joins the attack ──
+
+/**
+ * Where the attack table plays (a men's full-length T20 innings of a CPU side, or of a user side that has not set its own bowling order):
+ * `league` every men's T20 league, `t20i` the men's T20I. Benchmarks switch it.
+ */
+export const ATTACK_MODEL = { league: true, t20i: false };
+
+/** The attack table of a men's T20 innings (null: the section-1 model over the side's bowling order, as before) */
+export function attackTableFor(gender: Gender, t20i: boolean): string | null {
+  if (gender !== "male") return null;
+  if (t20i) return ATTACK_MODEL.t20i ? "t20-male-t20i" : null;
+  return ATTACK_MODEL.league ? "t20-male-league" : null;
+}
+
+/** May this player of the eleven be chosen by the attack table (the players the rank covers: keepers apart, unless all-rounders)? */
+export function inAttackPool(p: { isWicketKeeper?: boolean; role: string }): boolean {
+  return !p.isWicketKeeper || p.role === "all-rounder";
+}
+
+/** The match state the attack table reads for a candidate (bowling-attack.py `attack_features`) */
+export interface AttackState {
+  /** His bowling rating (effective) */
+  ovr: number;
+  /** Wickets the bowling side's bowlers have taken this innings (credited to a bowler: not run outs or retirements) */
+  wkts: number;
+  /** 1 bowling first, 2 in the chase */
+  inn: 1 | 2;
+  /** The batting side's runs per over so far (all runs, extras included) */
+  rr: number;
+  /** Bowlers used so far this innings */
+  nused: number;
+  /** Runs off his last over (all runs of it) */
+  lastRuns: number;
+  /** Runs off his overs so far */
+  runs: number;
+  /** His wickets so far */
+  wk: number;
+}
+
+function binOf(x: number, edges: readonly number[]): number {
+  for (let k = 0; k < edges.length; k++) if (x < edges[k]) return k;
+  return edges.length;
+}
+
+/** The attack table's extra features of a candidate (names as in bowling-attack.py `attack_features`; a T20 innings) */
+export function attackFeatures(over: number, c: ChoiceCandidate, a: AttackState): string[] {
+  const ph = modelPhase("t20", over);
+  const extra = c.rank >= 5 || c.partTimer;
+  const f: string[] = [];
+  if (c.rank >= 6) f.push(`rank${Math.min(c.rank, 8)}`);
+  if (extra) {
+    f.push(`xlvl${binOf(a.ovr, [30, 40, 50, 60])}`);
+    f.push(`xwd${binOf(a.wkts, [2, 4, 6])}`);
+    if (a.inn === 2) f.push("x2nd");
+    if (over >= 3) f.push(`xrr${binOf(a.rr, [7, 8.5, 10])}`);
+  }
+  if (c.lastOver === null) f.push(`newk${Math.min(Math.max(a.nused + 1, 5), 8)}@${ph}`);
+  else {
+    f.push(`last${binOf(a.lastRuns, [7, 11, 15])}`);
+    f.push(`econ${binOf(a.runs / Math.max(1, c.used), [7, 9, 11])}`);
+    if (a.wk > 0) f.push(`wk${Math.min(a.wk, 2)}`);
+  }
+  return f;
+}
+
+/** What the attack table needs of the innings so far, from its ball log (the over of each ball, its bowler, runs and extras, wicket) */
+export interface AttackTally { overRuns: number[]; runs: number; wkts: number; bowlerRuns: Map<string, number>; bowlerWk: Map<string, number> }
+
+export function attackTally(
+  log: readonly { over: number; bowler: string; runs: number; extras: number; isWicket: boolean; wicketType?: DismissalKind }[],
+  history: readonly string[],
+): AttackTally {
+  const overRuns: number[] = [];
+  const bowlerWk = new Map<string, number>();
+  let runs = 0, wkts = 0;
+  for (const b of log) {
+    const r = b.runs + b.extras;
+    overRuns[b.over] = (overRuns[b.over] ?? 0) + r;
+    runs += r;
+    // a wicket counts for the over's bowler (the first ball's: the record's convention), credited kinds only
+    if (b.isWicket && (b.wicketType === undefined || isBowlerWicket(b.wicketType))) {
+      wkts++;
+      const who = history[b.over] ?? b.bowler;
+      bowlerWk.set(who, (bowlerWk.get(who) ?? 0) + 1);
+    }
+  }
+  const bowlerRuns = new Map<string, number>();
+  history.forEach((id, o) => { if (id) bowlerRuns.set(id, (bowlerRuns.get(id) ?? 0) + (overRuns[o] ?? 0)); });
+  return { overRuns, runs, wkts, bowlerRuns, bowlerWk };
+}
+
+/** A candidate's attack state at the start of `over` (history: the bowler of each over so far) */
+export function attackStateOf(t: AttackTally, history: readonly string[], id: string, ovr: number, inn: 1 | 2, over: number): AttackState {
+  const last = lastOverOf(history, id);
+  return {
+    ovr, wkts: t.wkts, inn, rr: t.runs / Math.max(1, over), nused: new Set(history.filter(Boolean)).size,
+    lastRuns: last === null ? 0 : t.overRuns[last] ?? 0, runs: t.bowlerRuns.get(id) ?? 0, wk: t.bowlerWk.get(id) ?? 0,
+  };
 }

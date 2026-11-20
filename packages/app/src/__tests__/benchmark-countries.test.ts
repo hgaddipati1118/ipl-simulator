@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
-import { BATTER_RESPONSE, CAPTAIN_MODEL, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LAST_PAIR_SWITCH, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
+import { ATTACK_MODEL, BATTER_RESPONSE, CAPTAIN_MODEL, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LAST_PAIR_SWITCH, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
 import { XI_SHARPEN } from "../realistic-xi";
 import { availabilitySource, createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender, type SeriesMatchRecord } from "../international";
 import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
@@ -99,6 +99,9 @@ async function setup() {
   // women's T20I variants: BENCH_CAPTAIN_WOMEN=off plays their bowling by the former rule, BENCH_WTYPE=neutral drops the women's bowler type x phase table,
   // BENCH_NO_RESPONSE=1 the refitted batter response (the engine before docs/TACTICS.md section 5's refit, with the contexts as they stand)
   if (process.env.BENCH_CAPTAIN_WOMEN === "off") CAPTAIN_MODEL.womenT20I = false;
+  // BENCH_ATTACK=t20i: the men's T20I chooses its bowlers from the whole eleven with its attack table (docs/TACTICS.md section 8); =off: no attack table anywhere
+  if (process.env.BENCH_ATTACK === "t20i") ATTACK_MODEL.t20i = true;
+  if (process.env.BENCH_ATTACK === "off") { ATTACK_MODEL.t20i = false; ATTACK_MODEL.league = false; }
   if (process.env.BENCH_WTYPE === "neutral") for (const t of T20_BOWLER_TYPE.female) for (const b of t) b.fill(1);
   // BENCH_BR_FILE=table.json: another batter response (the json of t20-batter-response.py, BR_DUMP) in place of the shipped one
   if (process.env.BENCH_BR_FILE) { const t = JSON.parse(readFileSync(process.env.BENCH_BR_FILE, "utf-8")); for (const g of ["male", "female"] as const) for (const k of Object.keys(t[g])) BATTER_RESPONSE[g][k] = t[g][k]; }

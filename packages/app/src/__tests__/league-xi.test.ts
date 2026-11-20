@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
-import { createPlayerFromData, fieldingValueBonus, selectLeagueXI, simulateMatch, EXTRA_LEAGUES, LEAGUE_XI_SWITCH, isOverseasIn, RULE_PRESETS, Team, type BallEvent, type Player, type RuleSet } from "@ipl-sim/engine";
+import { ATTACK_MODEL, createPlayerFromData, fieldingValueBonus, selectLeagueXI, simulateMatch, EXTRA_LEAGUES, LEAGUE_XI_SWITCH, isOverseasIn, RULE_PRESETS, Team, type BallEvent, type Player, type RuleSet } from "@ipl-sim/engine";
 import { getPoolPlayers, getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { toRealPlayerData } from "@ipl-sim/ratings/dist/extended-pool.js";
 import { createGameState } from "../game-state";
@@ -110,12 +110,13 @@ it.skipIf(!process.env.LXI_SIM)("league XIs: the CPU's XIs in play", async () =>
   if (process.env.LXI_OFF) LEAGUE_XI_SWITCH.off = true;
   const N = Number(process.env.LXI_MATCHES ?? 1000);
   const loader = createPoolLoader(async f => new Uint8Array(readFileSync(join(PUBLIC, "pool", f))));
-  const out: Record<string, { used: number[]; ov50: number[]; ov60: number[]; depth: number[][]; nb60: number[] }> = {};
+  if (process.env.LXI_ATTACK_OFF) ATTACK_MODEL.league = false;
+  const out: Record<string, { used: number[]; ov50: number[]; ov60: number[]; depth: number[][]; nb60: number[]; overs: number[]; extras: number[] }> = {};
   for (const [lg, r0] of [["ipl", RULE_PRESETS.modern2026], ...EXTRA_LEAGUES.filter(l => l.gender === "men" && l.rules.matchFormat !== "hundred").map(l => [l.id, l.rules])] as [string, RuleSet][]) {
     await prepareLeaguePool(lg, loader);
     const rules = { ...r0, injuriesEnabled: false } as RuleSet;
     const teams = createGameState(rules).teams;
-    const o: (typeof out)[string] = { used: [], ov50: [], ov60: [], depth: [], nb60: [] };
+    const o: (typeof out)[string] = { used: [], ov50: [], ov60: [], depth: [], nb60: [], overs: [], extras: [] };
     out[lg] = o;
     for (let i = 0; i < N; i++) {
       const home = teams[i % teams.length];
@@ -130,6 +131,8 @@ it.skipIf(!process.env.LXI_SIM)("league XIs: the CPU's XIs in play", async () =>
         o.used.push(new Set(bowlers).size);
         o.ov50.push(bowlers.filter(b => (byId.get(b)?.bowlingOvr ?? 0) < 50).length);
         o.ov60.push(bowlers.filter(b => (byId.get(b)?.bowlingOvr ?? 0) < 60).length);
+        o.overs.push(bowlers.length);
+        o.extras.push((inn.ballLog as BallEvent[]).reduce((t, e) => t + e.extras, 0));
       }
       for (const inn of r.innings) {
         const ps = [...inn.batterStats.keys()].map(id => byId.get(id)).filter((p): p is Player => !!p);
@@ -149,7 +152,7 @@ it.skipIf(!process.env.LXI_SIM)("league XIs: the CPU's XIs in play", async () =>
  */
 it.skipIf(!process.env.LXI_TRAIN)("league XIs: bowling-attack training rows", async () => {
   const ACT = JSON.parse(readFileSync(join(REPO, "docs", "data", "league_xi.json"), "utf-8")) as Record<string, LeagueMatch[]>;
-  const OV = JSON.parse(readFileSync(join(REPO, "docs", "data", "bowling_overs.json"), "utf-8")) as { league: Record<string, Record<string, { inn: number; overs: [number, number, number][] } | null>> };
+  const OV = JSON.parse(readFileSync(join(REPO, "docs", "data", "bowling_overs.json"), "utf-8")) as { league: Record<string, Record<string, { inn: number; overs: [number, number, number, number][] } | null>> };
   const loader = createPoolLoader(async f => new Uint8Array(readFileSync(join(PUBLIC, "pool", f))));
   const data = new Map<string, Parameters<typeof createPlayerFromData>[0]>();
   for (const p of await loader.players("men", ["senior", "tier0"])) data.set(p.id, { ...toRealPlayerData(p), id: p.id });
@@ -165,7 +168,7 @@ it.skipIf(!process.env.LXI_TRAIN)("league XIs: bowling-attack training rows", as
     out.push({
       key: lg, id: m.id, date: m.date, team: s.team, inn: ov.inn, off: s.off,
       xi: xi.map(p => ({ id: ID(p!), ovr: p!.bowlingOvr, style: p!.bowlingStyle, kp: !!p!.isWicketKeeper, role: p!.role, bat: p!.battingOvr })),
-      overs: ov.overs.map(([i, r, w]) => [i >= 0 ? s.xi[i] : null, r, w]),
+      overs: ov.overs.map(([i, r, w, x]) => [i >= 0 ? s.xi[i] : null, r, w, x]),
     });
   }
   writeFileSync(process.env.LXI_TRAIN!, JSON.stringify(out));
