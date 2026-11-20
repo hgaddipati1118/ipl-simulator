@@ -139,7 +139,7 @@ it.skipIf(!process.env.BENCH_TACTICS)("bowling allocation against real", async (
         // the training rows of the bowling-choice fit (packages/ratings/src/analysis/bowling-choice.py): XI with the ratings the engine plays on
         for (const side of [0, 1] as const) {
           const xi = squads[side].filter(p => series.lineups![side]!.xi.includes(p.id));
-          train.push({ key, date: m.date, host: m.host, side, overs: side === 0 ? m.bowl.a : m.bowl.b,
+          train.push({ key, id: m.id, date: m.date, host: m.host, side, overs: side === 0 ? m.bowl.a : m.bowl.b,
             xi: xi.map(p => ({ id: p.id, ovr: p.effectiveBowlingOvr, wt: p.ratings.wicketTaking, acc: p.ratings.accuracy, style: p.bowlingStyle, kp: !!p.isWicketKeeper, role: p.role, bat: p.battingOvr })) });
         }
       }

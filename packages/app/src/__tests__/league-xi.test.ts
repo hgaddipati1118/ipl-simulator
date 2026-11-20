@@ -141,3 +141,33 @@ it.skipIf(!process.env.LXI_SIM)("league XIs: the CPU's XIs in play", async () =>
   }
   writeFileSync(process.env.LXI_SIM!, JSON.stringify(out));
 }, 7_200_000);
+
+/**
+ * LXI_TRAIN=/path/train.json: the training rows of the bowling-attack fit (packages/ratings/src/analysis/bowling-choice.py `attack`):
+ * every league match side of docs/data/league_xi.json with its players' ratings (the real squads' players, as above) and the overs it
+ * bowled (docs/data/bowling_overs.json, packages/ratings/src/pipeline/generate-bowling-overs.ts: the bowler's id, runs, his wickets).
+ */
+it.skipIf(!process.env.LXI_TRAIN)("league XIs: bowling-attack training rows", async () => {
+  const ACT = JSON.parse(readFileSync(join(REPO, "docs", "data", "league_xi.json"), "utf-8")) as Record<string, LeagueMatch[]>;
+  const OV = JSON.parse(readFileSync(join(REPO, "docs", "data", "bowling_overs.json"), "utf-8")) as { league: Record<string, Record<string, { inn: number; overs: [number, number, number][] } | null>> };
+  const loader = createPoolLoader(async f => new Uint8Array(readFileSync(join(PUBLIC, "pool", f))));
+  const data = new Map<string, Parameters<typeof createPlayerFromData>[0]>();
+  for (const p of await loader.players("men", ["senior", "tier0"])) data.set(p.id, { ...toRealPlayerData(p), id: p.id });
+  for (const p of [...getRealPlayers(), ...getPoolPlayers()]) data.set(p.id, { ...p, teamId: undefined, bid: undefined });
+  const made = new Map<string, Player>();
+  const player = (id: string) => { if (!made.has(id)) { const d = data.get(id); if (d) made.set(id, createPlayerFromData(d)); } return made.get(id); };
+  const out: unknown[] = [];
+  for (const [lg, ms] of Object.entries(ACT)) for (const m of ms) for (const s of m.sides) {
+    const ov = OV.league[m.id]?.[s.team];
+    if (!ov) continue;
+    const xi = s.xi.map(id => (id ? player(id) : undefined));
+    if (xi.some(p => !p)) continue;
+    out.push({
+      key: lg, id: m.id, date: m.date, team: s.team, inn: ov.inn, off: s.off,
+      xi: xi.map(p => ({ id: ID(p!), ovr: p!.bowlingOvr, style: p!.bowlingStyle, kp: !!p!.isWicketKeeper, role: p!.role, bat: p!.battingOvr })),
+      overs: ov.overs.map(([i, r, w]) => [i >= 0 ? s.xi[i] : null, r, w]),
+    });
+  }
+  writeFileSync(process.env.LXI_TRAIN!, JSON.stringify(out));
+  console.log(`wrote ${out.length} rows`);
+}, 1_800_000);
