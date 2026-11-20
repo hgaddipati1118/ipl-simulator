@@ -198,6 +198,7 @@ a user side. The ODI work left every line as it was. Since then, on purpose:
 | the IPL's shape and match conditions (RULES-MATCH.md 12.8): all but the women's line | `48ec01dbb07dbc66` / `a4b19bc607589f48` / women unchanged / `35656ed4f9692502` | `c6092d833b2d11a6` / `b8cea85a7ee08af0` | `efa2366c3cb4e486` |
 | wickets in hand, conditions refitted (RULES-MATCH.md 12.9): every line | `c3ec93bf630671cb` / `c7eb7766f258c4a9` / `bc0c2eaf9dd01cf8` / `85a482996e20d465` | `81b3d54bfe0ed362` / `b12b68652253c070` | `fa1132e42d640731` |
 | a new batter's set term, refits (RULES-MATCH.md 12.10): every line | `fb77411d4def97b1` / `fcd1034152f2d622` / `a620d4744798119a` / `19c5499b6b2e0689` | `affd24e1d22c9d81` / `253902f78c7f51a5` | `8323aef815cac7df` |
+| the last pair, nine down (TACTICS.md section 5): men's T20 and Test | `8bd0d8775a66d7fc` / `9cfd6073b970d993` / `0c8aa066f2e29355` / `fe6316f1505c8955` | `034711f8e1ebc075` / `ed71b7a5881a8c56` | `93237d22e06be31a` |
 
 ### Refitting
 
