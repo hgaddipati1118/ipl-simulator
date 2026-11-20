@@ -327,6 +327,24 @@ def score(params, gi, cell) -> float:
 GENDERS = ["male", "female"]
 
 
+def diff_se(params, gi, cell) -> tuple:
+    """Mean per-ball log-loss difference (fitted - engine) over a set of cells and its standard error over the balls (a ball's difference is its class's)"""
+    a, b, av, bv = params
+    _, real, simsh, bio, sv, sv2 = cell
+    z = (np.zeros_like(a), np.zeros_like(b), np.zeros_like(av), np.zeros_like(bv))
+
+    def ll(par):
+        th = theta(*par, gi, bio, sv, sv2)
+        logit = np.log(simsh) + th
+        return logit - np.log(np.exp(logit).sum(1, keepdims=True))
+
+    d = ll(params) - ll(z)                       # [cell, class]: the log-likelihood gain of a ball of that class
+    n = real.sum()
+    mean = float((real * d).sum() / n)
+    var = float((real * d ** 2).sum() / n - mean ** 2)
+    return -mean, float(np.sqrt(max(var, 0) / n))
+
+
 # the strength each table is applied at, per format and gender (the fitted term x this): chosen on the position table of the matches to 2023 and read on 2024+ (docs/TACTICS.md section 5)
 POWER = {}   # every table is played as fitted (1.0): the position tables of both halves saturate at the fitted strength (docs/TACTICS.md section 5)
 NEUTRAL_WICKET = {"t20"}   # formats whose wicket term is made neutral: the pair's total hazard stays where the engine had it (docs/TACTICS.md section 5: a wicket row moves the all-outs)
@@ -381,7 +399,8 @@ def cmd_fit(db: Path, simdir: Path, write: bool, lam_u: float, lam_v: float, pow
         for gi, (gender, kind) in enumerate(slots):
             print(f"\n{fmt} {gender} {kind}: nine-down balls fit {cf[gi][1].sum():.0f}, test {ct[gi][1].sum():.0f}  (H1 {H1}, H2 {H2})")
             for name, c in (("fit", cf[gi]), ("test", ct[gi])):
-                print(f"  {name}: log loss / ball: engine {score(zero, gi, c):.4f}  fitted {score((a * power, b * power, av * power, bv * power), gi, c):.4f}  (balls {c[1].sum():.0f})")
+                d, se = diff_se((a * power, b * power, av * power, bv * power), gi, c)
+                print(f"  {name}: log loss / ball: engine {score(zero, gi, c):.4f}  fitted {score((a * power, b * power, av * power, bv * power), gi, c):.4f}  difference {d:+.4f} +- {se:.4f}  (balls {c[1].sum():.0f})")
             print("  a (the pair): " + " ".join(f"{c}={a[gi, i]:+.2f}" for i, c in enumerate(FITTED)))
             print("  b (per unit gap): " + " ".join(f"{c}={b[gi, i]:+.2f}" for i, c in enumerate(FITTED)))
             if gi == 0:

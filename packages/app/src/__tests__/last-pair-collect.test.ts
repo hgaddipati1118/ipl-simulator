@@ -150,7 +150,7 @@ it.skipIf(!process.env.LP_COLLECT)("last pair: simulated deliveries", async () =
             lines.push(...inningsLines(key, matchNo, q + 1, log, rating, minWk, summary));
           });
         } else {
-          const rules = (ctx.rules ?? (fmt === "odi" ? odiRules(gender === "women" ? "female" : "male") : (RULE_PRESETS.modern2026 as RuleSet))) as RuleSet;
+          const rules = (ctx.rules ?? (fmt === "odi" ? odiRules(gender) : (RULE_PRESETS.modern2026 as RuleSet))) as RuleSet;
           const res = simulateMatch(ctx.home, ctx.away, rules, ctx.seed, { countTowardStandings: false, rain: true, ...(ctx.venue.neutral ? { neutralVenue: true } : { venueName: ctx.venue.name }) });
           res.innings.forEach((inn, q) => {
             const log = (inn.ballLog as BallEvent[]).map(e => ({ over: e.over, batter: e.batter, nonStriker: e.nonStriker ?? "", wides: e.wides ?? 0, noBalls: e.noBalls ?? 0, runs: e.runs, extras: e.extras ?? 0, wicket: e.isWicket, out: e.playerOutId, outcome: e.outcome, dead: !!e.deadBall }));
