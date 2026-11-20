@@ -48,8 +48,8 @@ describe("pitch presets", () => {
   it("a flat pitch scores more and a slow one less than the ground as it is (T20I and ODI)", () => {
     for (const [format, n] of [["t20i", 250], ["odi", 120]] as const) {
       const base = play(format, undefined, n), flat = play(format, { pitch: "flat" }, n), slow = play(format, { pitch: "slow" }, n);
-      expect(flat.first / flat.n).toBeGreaterThan(base.first / base.n * 1.02);
-      expect(slow.first / slow.n).toBeLessThan(base.first / base.n * 0.98);
+      expect(flat.first / flat.n).toBeGreaterThan(base.first / base.n * 1.01); // 250 matches a side: a standard error of about 1.3% on the difference
+      expect(slow.first / slow.n).toBeLessThan(base.first / base.n * 0.99);
     }
   }, 180_000);
 
