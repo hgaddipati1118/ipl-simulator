@@ -598,7 +598,7 @@ largest attribute, 1,395 sets by 10 or more), and the opposition-strength adjust
 
     npx tsx src/pipeline/generate-intl-pool.ts              # international top-up (below), after generate-format-ratings.ts
 
-**Opposition-strength adjustment** (`generate-intl-adjust.ts`, after `generate-format-ratings.ts` and `generate-intl-pool.ts`; it rewrites `adjust` in `format-ratings.json`): ODI deltas for national sides from each player's record against strong opposition (docs/COUNTRY-VALIDATION.md, round 2); T20 deltas are computed and reported (docs/data/intl_adjust.json) but not shipped.
+**Opposition-strength adjustment** (`generate-intl-adjust.ts`, after `generate-format-ratings.ts` and `generate-intl-pool.ts`; it rewrites `adjust` in `format-ratings.json`): ODI deltas for national sides from each player's record against strong opposition (docs/COUNTRY-VALIDATION.md, round 2); T20 deltas are computed and reported (docs/data/intl_adjust.json) but not shipped. There is none for Tests: it could only lower weak nations' players, which would raise India and Australia (docs/FORMAT-RATINGS-REPORT.md, "Bias round").
 
 **International top-up** (`generate-intl-pool.ts`): every player with an international appearance since 2024-01-01 for one of the
 app's nations (the twelve full members and ten associates, men and women) who is in neither the ESPN pool nor the extended pool
@@ -695,6 +695,10 @@ validation and sanity tables: docs/FORMAT-RATINGS-REPORT.md.
     npm run build --workspace=packages/engine && npm run build --workspace=packages/ratings
     npx tsx packages/ratings/src/pipeline/generate-format-ratings.ts      # ~15 s; --gender male|female, --no-pool
     npx tsx packages/ratings/src/pipeline/format-ratings-report.ts        # report tables + sanity checks (exit 1 on failure)
+    npx tsx packages/ratings/src/pipeline/format-bias-check.ts            # where the level over-rates (hitters, thin records, teams, grounds); ~40 s
+
+The chain after it, in this order: `generate-intl-pool.ts`, `generate-intl-adjust.ts` (both below), then `fit-format-career.ts`
+("ODI and Test ratings in career mode"), because the generated players' derived sets are a regression on the pipeline's derived sets.
 
 `generate-format-ratings.ts` first re-runs the out-of-sample validation (`format-validation.ts`) to tune DATA_VAR, then rates
 every player. It reads the shipped pools from the TypeScript modules themselves (`all-players.ts`, `wpl-players.ts`,
@@ -712,6 +716,11 @@ re-run this after that script). Outputs:
 - the pool shards rewritten as version 2 (`extended-pool.ts`): each row gains its two sets after the 23 version 1 fields; the
   T20 fields are checked unchanged on write. Shards total 5.1 MB gzipped (3.7 MB before; men's senior shard 622 -> 931 KB);
 - `data/analysis/format_ratings.json` (per-player diagnostics), `format_ratings_validation.json`, `format-ratings-report.md`.
+
+The level has three calibrations fitted inside `validate` / `fitTranslations` on each fold's own data (so a held-out fold never sees
+its own pairs), docs/FORMAT-RATINGS-REPORT.md "Bias round": a hinge on T20 hitterness in the batting translation from T20
+(`OPTS.hitterH0`), a thin-record calibration of batting estimates (`EstimateContext.thin`, `thinBalls`), and a prior from T20 and
+List A together for Test batting (`OPTS.multi`, `multiCells`). `OPTS` in `format-model.ts` holds the shipped switches; the checks flip them.
 
 ICC ODI / Test rankings for the report's check live in `data/external-rankings-format/` (validation only, never an input).
 

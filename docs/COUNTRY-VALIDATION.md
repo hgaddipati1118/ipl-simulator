@@ -179,6 +179,11 @@ Tail batters: numbers 10 and 11 still score 1-2 runs more than real tails (TACTI
 
 ## Left over
 
+- Men's Test with the elevens that played (133 Tests since 2023, 512 replays): India 66% against a real 53%, England 63% against 52%,
+  South Africa 55% against 78%, New Zealand 51% against 65%, Australia 73% against 69%. The ratings were checked for it and are not the
+  cause (docs/FORMAT-RATINGS-REPORT.md, "Bias round", section 2); the Test has no entry in the series tuning (spread, home advantage), and
+  its home sides win 57.5% against a real 51.4%. The ratings change of that round moved the Test log loss per real match -0.005 +- 0.008 on
+  the 2025+ holdout and the ODI's -0.011 +- 0.007 (paired, 512 / 256 replays).
 - Sri Lanka, West Indies and Zimbabwe men's T20I still win 0.40-0.49 against 0.29-0.41: their squads rate higher than they played
   over 2019-26 (an order-of-sides error, not a spread one).
 - Women's Zimbabwe and Bangladesh (real 0.00 and 0.18) are still too strong at 0.19 / 0.37, and score 20-25 runs more per

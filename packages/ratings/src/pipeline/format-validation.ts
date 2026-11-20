@@ -13,7 +13,7 @@
 import { execFileSync } from "child_process";
 import {
   DOM_COUNTRIES, fitWls, loadIntlEvidence,
-  buildContext, doesSide, estimateFormat, fitTranslations, loadCaFormats, RANK_CONSERVATISM,
+  buildContext, doesSide, estimateFormat, fitTranslations, loadCaFormats, RANK_CONSERVATISM, thinBalls,
   type CaFormat, type CaPlayerFormats, type EstimateContext, type Gender, type Side,
 } from "./format-model.js";
 
@@ -42,6 +42,26 @@ export function intlRecords(gender: Gender, format: "ListA" | "FC", from: number
   for (const r of rows) out[r.side].set(Number(r.player_id), { balls: r.balls, adj: r.adj, raw: r.raw });
   return out;
 }
+
+/** Per player and side: adjusted value per 100 balls in ALL competitions of the format in [from, to] (not only internationals): who he was in later cricket, selected or not */
+export function allRecords(gender: Gender, format: "ListA" | "FC", side: Side, from: number, to: number): Map<number, { balls: number; adj: number }> {
+  const rows = duck<{ player_id: number; balls: number; adj: number }>(`
+    WITH s AS (SELECT side, format, gender, comp, strength FROM read_csv('${DIR}ca_comp_strength.csv'))
+    SELECT c.player_id, sum(c.balls) AS balls, 100 * sum(c.value_ms + c.balls * coalesce(s.strength, 0) / 100) / sum(c.balls) AS adj
+    FROM '${DIR}ca_cells.parquet' c LEFT JOIN s USING (side, format, gender, comp)
+    WHERE c.gender = '${gender}' AND c.format = '${format}' AND c.side = '${side}' AND c.year BETWEEN ${from} AND ${to} AND c.balls > 0 GROUP BY ALL`);
+  return new Map(rows.map(r => [Number(r.player_id), r]));
+}
+
+/** Later-cricket balls (all competitions) for a player to enter the thin-record fit */
+const THIN_TARGET_BALLS = 300;
+/**
+ * Batting only: the fitted slope is steady for batting (0.30 and 0.31 in List A and first-class, 0.33 the same way on the 2023 fold alone)
+ * and not for bowling (0 in List A, 0.5-0.8 in first-class, where it lowers the pooled correlation 0.451 -> 0.443).
+ */
+const THIN_SIDES: Side[] = ["bat"];
+/** Fewer rows than this: no thin-record calibration (women's Tests) */
+const MIN_THIN_ROWS = 400;
 
 export interface Metric { n: number; corr: number; mse: number; bias: number }
 
@@ -102,6 +122,8 @@ export interface FormatValidation {
   masked: FoldResult[];
   /** All four folds pooled (the tuning folds chose DATA_VAR from a flat grid, so mildly in-sample): more players */
   pooled: FoldResult[];
+  /** Thin-record calibration (EstimateContext.thin) fitted on the tuning folds: kappa (0 = none), m0, rows */
+  thin: { kappa: number; m0: number; n: number };
 }
 
 const DATA_VAR_GRID = [0.25, 0.5, 1, 2, 4, 1e9];
@@ -117,6 +139,40 @@ function withoutFormat(p: CaPlayerFormats, format: CaFormat, side: Side): CaPlay
   delete f[side];
   q[format] = f;
   return q;
+}
+
+/**
+ * Does a thin record (fewer balls in the format than the caps' small-sample threshold) overstate a high estimate? On the tuning folds,
+ * against who every rated player was in ALL later cricket of the format (selected for internationals or not): the slope of
+ * (later value - estimate) on -thinness x max(0, estimate - median estimate), thinness = 1 - balls / thinBalls. Ranks within thick or
+ * within thin records are untouched; it lowers a thin record's top relative to a thick one's.
+ */
+function fitThin(
+  gender: Gender, format: "ListA" | "FC", side: Side, dataVar: number,
+  folds: { y: number; players: Map<number, CaPlayerFormats>; translations: ReturnType<typeof fitTranslations> }[],
+): { kappa: number; m0: number; n: number } {
+  const rows: { est: number; tgt: number; w: number; thin: number }[] = [];
+  for (const f of folds) {
+    const ctx = buildContext(f.players, format, gender, f.y, dataVar, f.translations);
+    const thr = thinBalls(ctx.params[`${side}/${format}`].K);
+    for (const [id, t] of allRecords(gender, format, side, f.y + 1, f.y + 2)) {
+      const p = f.players.get(id);
+      if (!p || t.balls < THIN_TARGET_BALLS) continue;
+      const e = estimateFormat(p, format, side, ctx);
+      if (!e) continue;
+      rows.push({ est: e.mean, tgt: t.adj, w: t.balls, thin: Math.max(0, 1 - (p[format]?.[side]?.balls ?? 0) / thr) });
+    }
+  }
+  if (rows.length < MIN_THIN_ROWS || !THIN_SIDES.includes(side)) return { kappa: 0, m0: 0, n: rows.length };
+  const sorted = rows.map(r => r.est).sort((a, b) => a - b);
+  const m0 = sorted[Math.floor(0.5 * (sorted.length - 1))];
+  const g = (r: { est: number; thin: number }) => -r.thin * Math.max(0, r.est - m0);
+  const sw = rows.reduce((a, r) => a + r.w, 0);
+  const mx = rows.reduce((a, r) => a + r.w * g(r), 0) / sw, my = rows.reduce((a, r) => a + r.w * (r.tgt - r.est), 0) / sw;
+  let sxy = 0, sxx = 0;
+  for (const r of rows) { sxy += r.w * (g(r) - mx) * (r.tgt - r.est - my); sxx += r.w * (g(r) - mx) ** 2; }
+  const kappa = sxx > 0 ? Math.max(0, Math.min(1, sxy / sxx)) : 0;
+  return { kappa, m0, n: rows.length };
 }
 
 /** Tune DATA_VAR on the pooled tuning folds and report the held-out fold, for one gender, format and side */
@@ -154,7 +210,9 @@ export function validate(gender: Gender, format: "ListA" | "FC", side: Side, cac
   const target = intlRecords(gender, format, HOLDOUT_YEAR + 1, HOLDOUT_YEAR + 2)[side];
   const hist = intlHistory(gender, format, HOLDOUT_YEAR);
   const translations = fitTranslations(players.values(), gender);
+  const thin = fitThin(gender, format, side, best.dataVar, folds);
   const ctx: EstimateContext = buildContext(players, format, gender, HOLDOUT_YEAR, best.dataVar, translations);
+  if (thin.kappa > 0) ctx.thin = { [side]: thin };
   const t20 = translations[`${side}/T20>${format}`];
   const t20Rating: Predictor = (_id, p) => doesSide(p.T20?.[side]) ? p.T20![side]!.rating : undefined;
   const holdout = evaluate(players, target, minBalls, {
@@ -185,6 +243,7 @@ export function validate(gender: Gender, format: "ListA" | "FC", side: Side, cac
   const preds: Record<string, Map<number, number>> = { final: new Map(), own: new Map(), t20: new Map() };
   for (const f of [...folds, { y: HOLDOUT_YEAR, players, target, translations }]) {
     const c = buildContext(f.players, format, gender, f.y, best.dataVar, f.translations);
+    if (thin.kappa > 0) c.thin = { [side]: thin };
     for (const [id, t] of f.target) {
       const p = f.players.get(id);
       if (t.balls < minBalls || !p || !hasData(id, p)) continue;
@@ -201,7 +260,7 @@ export function validate(gender: Gender, format: "ListA" | "FC", side: Side, cac
     "format rating, own record only": key => preds.own.get(key),
     "T20 rating (no format ratings)": key => preds.t20.get(key),
   });
-  return { gender, format, side, dataVar: best.dataVar, tuning, holdout, masked, pooled };
+  return { gender, format, side, dataVar: best.dataVar, tuning, holdout, masked, pooled, thin };
 }
 
 /**

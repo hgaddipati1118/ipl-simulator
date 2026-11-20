@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  doesSide, doesSideNow, estimateFormat, formatRole, fitLine, fitWls, linkCurve, percentile, quantile, readCurve, translatedPrior,
+  doesSide, doesSideNow, estimateFormat, fitTranslations, formatRole, fitLine, fitWls, linkCurve, OPTS, percentile, quantile, readCurve, thinBalls, translatedPrior,
   type CaPlayerFormats, type EstimateContext, type SideRating,
 } from "../pipeline/format-model.js";
 
@@ -157,5 +157,64 @@ describe("format model: score -> overall curve", () => {
     expect(percentile(sorted, 30)).toBe(0.5);
     expect(percentile(sorted, 5)).toBe(0);
     expect(percentile(sorted, 99)).toBe(1);
+  });
+});
+
+describe("format model: T20 hitters, thin records, two-source prior", () => {
+  /** Synthetic players with T20, List A and first-class ratings and a T20 style, from a known rule */
+  const synthetic = (n: number): CaPlayerFormats[] => Array.from({ length: n }, (_, i) => {
+    const t20 = ((i * 37) % 41) - 10, h = (((i * 53) % 61) - 30) / 10 + 1; // hitterness -2..4
+    const noise = (((i * 17) % 11) - 5) * 0.2, noise2 = (((i * 29) % 13) - 6) * 0.2;
+    const laRating = 2 + 0.7 * t20 - 3 * Math.max(0, h - 1) + noise;
+    const fcRating = 3 + 0.3 * t20 + 0.5 * laRating + noise2;
+    return {
+      T20: { bat: side(t20, 5, 2026, 2000, 100) }, ListA: { bat: side(laRating, 8, 2026, 3000, 100) }, FC: { bat: side(fcRating, 8, 2026, 5000, 100) },
+      style: { bat: [h, 0] as [number, number] },
+    };
+  });
+
+  it("the hinge on hitterness is recovered from the pairs and lowers a hitter's prior only above its threshold", () => {
+    const saved = { ...OPTS };
+    try {
+      OPTS.hitterH0 = 1; OPTS.hitterH0FC = null;
+      const t = fitTranslations(synthetic(600), "male")["bat/T20>ListA"]!;
+      expect(t.hit!.c).toBeCloseTo(-3, 0);
+      expect(t.hit!.h0).toBe(1);
+      expect(fitTranslations(synthetic(600), "male")["bat/T20>FC"]!.hit).toBeUndefined(); // null: no term for first-class
+      const c = ctx({ translations: { "bat/T20>ListA": t } });
+      const base = { T20: { bat: side(20, 5, 2026, 2000, 100) } };
+      const prior = (h: number) => translatedPrior({ ...base, style: { bat: [h, 0] } }, "ListA", "bat", c)!.mean;
+      expect(prior(0.5) - prior(1)).toBeCloseTo(0, 6); // below the threshold: same
+      expect(prior(1) - prior(3)).toBeGreaterThan(5); // two units above it: about 2 x 3
+    } finally { Object.assign(OPTS, saved); OPTS.hitterH0FC = saved.hitterH0FC; }
+  });
+
+  it("a thin record's high estimate is taken down, a thick record's is not, and a low estimate is left alone", () => {
+    const thin = { bat: { kappa: 0.3, m0: 0 } };
+    const est = (balls: number, rating: number, over: Partial<EstimateContext> = {}) =>
+      estimateFormat({ ListA: { bat: side(rating, 6, 2026, balls, Math.ceil(balls / 30)) } }, "ListA", "bat", ctx(over))!.mean;
+    const half = thinBalls(400) / 2; // 1000 balls is the threshold at K = 400: half of it is a thinness of 0.5
+    expect(est(half, 30, { thin })).toBeCloseTo(30 - 0.3 * 0.5 * 30, 6);
+    expect(est(thinBalls(400) + 1, 30, { thin })).toBeCloseTo(30, 6);
+    expect(est(half, -10, { thin })).toBeCloseTo(-10, 6);
+    expect(est(half, 30)).toBeCloseTo(30, 6); // no calibration: unchanged
+  });
+
+  it("T20 and the other long format together predict better than either alone, and the combined prior is used when the player has both", () => {
+    const saved = { ...OPTS };
+    try {
+      OPTS.multi = true; OPTS.multiCells = undefined; OPTS.hitterH0 = undefined; OPTS.hitterH0FC = undefined;
+      const tr = fitTranslations(synthetic(600), "male");
+      const m = tr.multi!["bat/FC"]!;
+      expect(m.other).toBe("ListA");
+      expect(m.b2).toBeGreaterThan(0.3);
+      const c = ctx({ translations: tr });
+      const player: CaPlayerFormats = { T20: { bat: side(10, 1, 2026, 2000, 100) }, ListA: { bat: side(25, 1, 2026, 3000, 100) } }; // precise records: the pair's residual is below either single prior's
+      const both = translatedPrior(player, "FC", "bat", c)!.mean;
+      const t20Only = translatedPrior({ T20: player.T20 }, "FC", "bat", c)!.mean;
+      expect(both).toBeGreaterThan(t20Only); // a good List A record lifts the Test prior of a middling T20 batter
+      OPTS.multiCells = ["bat/ListA"];
+      expect(translatedPrior(player, "FC", "bat", c)!.mean).not.toBeCloseTo(both, 3); // the cell is switched off: the best single prior
+    } finally { Object.assign(OPTS, saved); OPTS.multiCells = saved.multiCells; }
   });
 });

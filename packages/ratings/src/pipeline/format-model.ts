@@ -69,6 +69,31 @@ export const RANK_CONSERVATISM = 0.5;
 /** Prior for a side with no data in the format: this percentile of the format's regulars (below average) */
 export const DERIVED_PRIOR_PCT = 0.35;
 
+/**
+ * Switches of the estimate: the shipped values are the defaults; the out-of-sample checks (format-validation.ts, format-bias-check.ts)
+ * flip them to compare ("Bias round" in docs/FORMAT-RATINGS-REPORT.md).
+ */
+export const OPTS: {
+  /**
+   * T20 hitters: the batting translation from T20 gets a hinge on how far the player's T20 style is toward hitting rather than staying
+   * in (hitterness = strike-rate z minus survival z, format-model.ts T20Style) above this value, fitted with the line on the players
+   * rated in both. Pairs show the long-format rating falling below the T20 line for the top hitters (docs, "Bias round"); undefined: none.
+   */
+  hitterH0?: number;
+  /** Override of hitterH0 for the first-class (Test) translation; null: none there */
+  hitterH0FC?: number | null;
+  /** Prior from T20 and the other long format together (one regression) where the player has both and its variance is the smaller */
+  multi: boolean;
+  /** Cells (side/target) that use the two-source prior; undefined: all of them. Shipped: first-class batting */
+  multiCells?: string[];
+  /**
+   * A rating's sd is widened for at most this many seasons without the format: an old but long record keeps some weight against the
+   * translated prior. Held-out correlation for Test batting: unlimited 0.621, 2 seasons 0.624, none 0.618; on all later cricket of players
+   * whose record is 2+ seasons old (ODI batting) 2 seasons 0.437, 1: 0.434, 4: 0.433, none 0.411; the other sides are within 0.001.
+   */
+  staleCap: number;
+} = { hitterH0: 1.5, multi: true, multiCells: ["bat/FC"], staleCap: 2 };
+
 export interface SideRating {
   rating: number;
   sd: number;
@@ -264,6 +289,12 @@ export function loadIntlEvidence(players: Map<number, CaPlayerFormats>, gender: 
   }
 }
 
+/** The hitterness threshold of the batting translation from T20 to a long format (OPTS), undefined: no hitter term */
+function hitterThreshold(to: CaFormat): number | undefined {
+  const v = to === "FC" && OPTS.hitterH0FC !== undefined ? OPTS.hitterH0FC : OPTS.hitterH0;
+  return v ?? undefined;
+}
+
 /** Seasons of a format, counted back from the player's last one, that say whether he still does a side in it */
 export const RECENT_SEASONS = 3;
 
@@ -368,9 +399,13 @@ export interface Translation {
   a: number; b: number; residVar: number; n: number;
   /** Coefficients on the T20 style z-scores (translations from T20 only) */
   c?: [number, number];
+  /** Batting translations from T20: coefficient on max(0, hitterness - h0), hitterness = SR z - survival z (OPTS.hitterH0) */
+  hit?: { c: number; h0: number };
 }
 export type TranslationKey = `${Side}/${CaFormat}>${CaFormat}`;
-export type Translations = Partial<Record<TranslationKey, Translation>>;
+/** Two-source translation: T20 and the other long format together into the target (OPTS.multi) */
+export interface Translation2 { a: number; b1: number; b2: number; residVar: number; n: number; other: CaFormat; c?: [number, number]; hit?: { c: number; h0: number } }
+export type Translations = Partial<Record<TranslationKey, Translation>> & { multi?: Partial<Record<`${Side}/${CaFormat}`, Translation2>> };
 
 /** Weighted least squares of y on x (same estimator as ca-model.ts fitTranslation) */
 export function fitLine(pairs: { x: number; y: number; w: number }[]): Translation {
@@ -451,8 +486,38 @@ export function fitTranslations(players: Iterable<CaPlayerFormats>, gender: Gend
           const fit = fitWls(styled.map(q => ({ xs: [q.x, q.s![0], q.s![1]], y: q.y, w: q.w })));
           if (fit) t = { a: fit.coef[0], b: fit.coef[1], c: [fit.coef[2], fit.coef[3]], residVar: fit.residVar, n: styled.length };
         }
+        const h0 = from === "T20" && side === "bat" ? hitterThreshold(to) : undefined;
+        if (h0 !== undefined && styled.length >= 100) {
+          const fit = fitWls(styled.map(q => ({ xs: [q.x, Math.max(0, q.s![0] - q.s![1] - h0)], y: q.y, w: q.w })));
+          if (fit) t = { a: fit.coef[0], b: fit.coef[1], hit: { c: fit.coef[2], h0 }, residVar: fit.residVar, n: styled.length };
+        }
         out[`${side}/${from}>${to}`] = t;
       }
+    }
+  }
+  if (OPTS.multi) {
+    out.multi = {};
+    for (const side of SIDES) for (const to of ["ListA", "FC"] as const) {
+      const other: CaFormat = to === "ListA" ? "FC" : "ListA";
+      const h0 = side === "bat" ? hitterThreshold(to) : undefined;
+      const rows: { xs: number[]; y: number; w: number }[] = [];
+      for (const p of list) {
+        const a = p.T20?.[side], b = p[other]?.[side], y = p[to]?.[side];
+        if (!doesSide(a, minBalls.T20) || !doesSide(b, minBalls[other]) || !doesSide(y, minBalls[to])) continue;
+        if (Math.abs(a.year - y.year) > TRANSLATE_MAX_GAP || Math.abs(b.year - y.year) > TRANSLATE_MAX_GAP) continue;
+        const st = p.style?.[side];
+        const xs = [a.rating, b.rating];
+        if (side === "bowl") { if (!st) continue; xs.push(st[0], st[1]); }
+        else if (h0 !== undefined) { if (!st) continue; xs.push(Math.max(0, st[0] - st[1] - h0)); }
+        rows.push({ xs, y: y.rating, w: 3 / (1 / a.balls + 1 / b.balls + 1 / y.balls) });
+      }
+      if (rows.length < 100) continue;
+      const fit = fitWls(rows);
+      if (!fit) continue;
+      const t: Translation2 = { a: fit.coef[0], b1: fit.coef[1], b2: fit.coef[2], residVar: fit.residVar, n: rows.length, other };
+      if (side === "bowl") t.c = [fit.coef[3], fit.coef[4]];
+      else if (h0 !== undefined) t.hit = { c: fit.coef[3], h0 };
+      out.multi[`${side}/${to}`] = t;
     }
   }
   return out;
@@ -483,14 +548,16 @@ export interface EstimateContext {
   dataVar: number;
   /** Career balls in the target format for the side to count as "data" (DATA_BALLS) */
   dataBalls: number;
+  /**
+   * Thin-record calibration per side (format-validation.ts fits it out of sample): an estimate above the regulars' median `m0` that
+   * rests on fewer balls than `thinBalls` (the caps' small-sample threshold) falls short of it in later cricket, by `kappa` x thinness
+   * (1 - balls / thinBalls) x the excess over m0, so it is taken down by that much.
+   */
+  thin?: Partial<Record<Side, { kappa: number; m0: number }>>;
 }
 
-/**
- * A rating's sd is widened for at most this many seasons without the format (held-out correlation: unlimited 0.621,
- * 2 seasons 0.624, none 0.618 for Test batting; the other sides are within 0.001): an old but long record keeps
- * some weight against the translated prior
- */
-const MAX_STALE_SEASONS = 2;
+/** Balls of a side in a format below which its record is thin: the small-sample threshold of the caps (7/3 of the CA model's K, to 100) */
+export function thinBalls(K: number): number { return Math.ceil((K * 0.7) / 0.3 / 100) * 100; }
 
 function lastRated(p: CaPlayerFormats): number | undefined {
   let last = 0;
@@ -510,7 +577,7 @@ export function lastSeason(p: CaPlayerFormats, asOf: number): number {
 
 /** Variance of a rating, widened for the seasons since it was last updated (the CA model's half-life) */
 function staleVar(r: SideRating, fmt: CaFormat, side: Side, ctx: EstimateContext, last: number): number {
-  const gap = Math.min(MAX_STALE_SEASONS, Math.max(0, last - r.year));
+  const gap = Math.min(OPTS.staleCap, Math.max(0, last - r.year));
   return r.sd ** 2 * 2 ** (gap / ctx.params[`${side}/${fmt}`].half_life);
 }
 
@@ -524,8 +591,21 @@ export function translatedPrior(p: CaPlayerFormats, target: CaFormat, side: Side
     if (!doesSide(r) || !t || t.n < 30) continue;
     const v = t.b ** 2 * staleVar(r, from, side, ctx, lastSeason(p, ctx.asOf)) + t.residVar;
     const st = t.c && p.style?.[side];
-    const cand = { mean: t.a + t.b * r.rating + (st ? t.c![0] * st[0] + t.c![1] * st[1] : 0), var: v, from };
+    const sty = p.style?.[side];
+    const hit = t.hit && sty ? t.hit.c * Math.max(0, sty[0] - sty[1] - t.hit.h0) : 0;
+    const cand = { mean: t.a + t.b * r.rating + (st ? t.c![0] * st[0] + t.c![1] * st[1] : 0) + hit, var: v, from };
     if (!best || cand.var < best.var) best = cand;
+  }
+  const m = OPTS.multi && (!OPTS.multiCells || OPTS.multiCells.includes(`${side}/${target}`)) ? ctx.translations.multi?.[`${side}/${target}`] : undefined;
+  if (m) {
+    const r1 = p.T20?.[side], r2 = p[m.other]?.[side];
+    if (doesSide(r1) && doesSide(r2)) {
+      const last = lastSeason(p, ctx.asOf);
+      const st = p.style?.[side];
+      const v = m.b1 ** 2 * staleVar(r1, "T20", side, ctx, last) + m.b2 ** 2 * staleVar(r2, m.other, side, ctx, last) + m.residVar;
+      const mean = m.a + m.b1 * r1.rating + m.b2 * r2.rating + (m.c && st ? m.c[0] * st[0] + m.c[1] * st[1] : 0) + (m.hit && st ? m.hit.c * Math.max(0, st[0] - st[1] - m.hit.h0) : 0);
+      if (!best || v < best.var) best = { mean, var: v, from: "T20" };
+    }
   }
   return best;
 }
@@ -540,9 +620,13 @@ export function estimateFormat(p: CaPlayerFormats, target: CaFormat, side: Side,
     const last = lastSeason(p, ctx.asOf);
     const vD = staleVar(data, target, side, ctx, last) * ctx.dataVar;
     const source = data.balls >= ctx.dataBalls && last - data.year <= DATA_MAX_AGE ? "data" : "derived";
-    if (!prior || !Number.isFinite(prior.var)) return { mean: data.rating, sd: Math.sqrt(vD), dataWeight: 1, source, balls };
+    const thin = (m: number) => {
+      const t = ctx.thin?.[side];
+      return t ? m - t.kappa * Math.max(0, 1 - data.balls / thinBalls(ctx.params[`${side}/${target}`].K)) * Math.max(0, m - t.m0) : m;
+    };
+    if (!prior || !Number.isFinite(prior.var)) return { mean: thin(data.rating), sd: Math.sqrt(vD), dataWeight: 1, source, balls };
     const wD = 1 / Math.max(1e-6, vD), wP = 1 / prior.var;
-    const mean = (data.rating * wD + prior.mean * wP) / (wD + wP);
+    const mean = thin((data.rating * wD + prior.mean * wP) / (wD + wP));
     return { mean, sd: Math.sqrt(1 / (wD + wP)), dataWeight: wD / (wD + wP), source, from: prior.from, balls };
   }
   if (!prior) return undefined;

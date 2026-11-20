@@ -439,6 +439,7 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
       const v = validation.find(x => x.format === fmt.ca && x.side === side);
       const dataVar = UNTUNED_DATA_VAR[`${gender}/${fmt.ca}`] ?? v?.dataVar ?? 1;
       const ctx: EstimateContext = buildContext(senior, fmt.ca, gender, AS_OF, dataVar, translations);
+      if (v?.thin && v.thin.kappa > 0) ctx.thin = { [side]: v.thin };
       const est = shipped.map(p => estimateFormat(formatsOf(p), fmt.ca, side, ctx));
       const score = est.map(e => (e ? e.mean - RANK_CONSERVATISM * e.sd : undefined));
       // Bowling regulars are the format's front-line bowlers: a part-timer's thin record is shrunk to about average while

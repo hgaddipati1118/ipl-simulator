@@ -963,8 +963,13 @@ was 0.42) and dismissals (0.34, was 0.44). The fours mix now uses timing (+0.06 
 
 Still off: strong sides draw too rarely against weak ones, and India (70%) and Australia (69%) win too often (real since
 2015: 56% and 57%). Their regulars rate highest on both survival and wicket-taking. The top seven batters' wicket term is
-0.90 for India and 0.88 for Australia; the bowlers' is 1.12 and 1.17. The XI mean over all sides is 0.98 and 0.95. That is a
-ratings question. Five-fors stayed at
+0.90 for India and 0.88 for Australia; the bowlers' is 1.12 and 1.17. The XI mean over all sides is 0.98 and 0.95. The ratings
+were checked for it (docs/FORMAT-RATINGS-REPORT.md, "Bias round", section 2) and are not the cause: their players did as rated or
+better in the next two seasons, home grounds and Ranji / Sheffield Shield cricket do not inflate their records (India's Test
+grounds take runs away), and an opposition adjustment for Tests could only raise them. Against the 133 real Tests since 2023 with
+the elevens that played, the sim wins India 66% (real 53%) and Australia 73% (real 69%): the best-eleven comparison is 2026 squads
+against history. What is left is the engine: home sides win 57.5% against a real 51.4% (India at home 82% against 59%), and the
+Test has no spread / home entry in the series tuning (`series-tuning-data.ts`). Five-fors stayed at
 1.07 here: the bowler's wicket term already reaches its true spread, and the gap was in how the sim shared the overs (its
 leading bowler bowled 27% of them, real 30%); fixed in section 6.11.
 
