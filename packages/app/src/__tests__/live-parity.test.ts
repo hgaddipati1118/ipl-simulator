@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import {
-  EXTRA_LEAGUES, RULE_PRESETS, simulateMatch, createMatchState, simulateRemaining, setAggression,
+  EXTRA_LEAGUES, LAST_PAIR_SWITCH, RULE_PRESETS, simulateMatch, createMatchState, simulateRemaining, setAggression,
   type BallEvent, type RuleSet, type Team,
 } from "@ipl-sim/engine";
 import { createGameState } from "../game-state";
@@ -105,6 +105,7 @@ it.skipIf(!process.env.LIVE_PARITY)("live batting approach (IPL, the user side's
 it.skipIf(!process.env.LIVE_PARITY)("live v instant parity: the last pair", () => {
   const rules = { ...RULE_PRESETS.modern2026, injuriesEnabled: false } as RuleSet;
   const M = Number(process.env.PARITY_LAST_PAIR_MATCHES ?? 800);
+  if (process.env.PARITY_LP_OFF) LAST_PAIR_SWITCH.off.t20 = true; // the engines without the term: what the two differ by anyway
   const stat = (kind: "instant" | "live") => {
     const teams = createGameState(rules).teams;
     const byId = new Map(teams.flatMap(t => t.roster).map(p => [p.id, p]));

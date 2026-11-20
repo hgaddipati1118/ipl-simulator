@@ -539,7 +539,7 @@ Mean absolute error against the real innings: runs 3.62 -> 3.30, wickets 0.128 -
 
 (The men's T20I is within noise of before on both halves, so it is not worse and not better at match level, the term acting on the last two wickets; the Test improves on both. **Not shipped, their holdouts:** women's T20I with the term +0.003 +- 0.002 on 2025+ (120 matches; fit half -0.001 +- 0.002), men's ODI with its level made neutral +0.001 +- 0.006 (109; fit half +0.002 +- 0.003) and +0.013 +- 0.009 with its level as fitted (fit half -0.004 +- 0.004), women's ODI with the term -0.003 +- 0.005 (103; fit half +0.000 +- 0.004): none of the three improves out of sample, so they stay off (`SHIPPED` in `last-pair.py`; the tables are in `docs/data/last_pair.json`, `"shipped": false`).)
 
-**Live v instant** (`LIVE_PARITY=1`, the last-pair block of `live-parity.test.ts`): @@PARITY@@
+**Live v instant** (`LIVE_PARITY=1`, the last-pair block of `live-parity.test.ts`): the IPL, 1,500 matches each way, innings that reached nine down: instant 622 stands of 7.23 balls and 8.21 runs, the tenth wicket 66.2%, the weaker partner 47.4% of the balls; live CPU 596 stands of 6.64 balls and 6.83 runs, 66.8%, 52.1%. Without the term (`PARITY_LP_OFF=1`): instant 6.65 / 7.83 / 69.6% / 52.2%, live 6.31 / 6.99 / 68.6% / 57.3%. The live engine's CPU sides give the weaker batters about 5 points more of the strike than the instant engine's with or without the term (a batting order the live CPU sets for itself), and the term moves both by the same amount (-4.8 and -5.2 points): the two engines read it alike. The rest of the live-v-instant table (`LIVE_PARITY=1 PARITY_MATCHES=300`, five leagues) is as before.
 
 ## Refitting
 

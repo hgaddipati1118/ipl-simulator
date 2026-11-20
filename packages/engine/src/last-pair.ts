@@ -10,8 +10,10 @@
  * docs/TACTICS.md section 5).
  *
  * It is a STATE (nine wickets down), not a position: who is "the senior partner" is the partner's rating against the striker's, so a star
- * at number 11 bats and farms as himself, and a pair of equals shows only the part they share. Neither engine gets a place in the order. The T20 (not The Hundred, whose ends change every ten balls), the ODI and the
- * Test, in the instant and the live engine through the same ball model (match.ts ballProbabilities; test-match.ts testBallProbs).
+ * at number 11 bats and farms as himself, and a pair of equals shows only the part they share. Neither engine gets a place in the order.
+ * Wired for the T20 (not The Hundred, whose ends change every ten balls), the ODI and the Test, in the instant and the live engine through the
+ * same ball model (match.ts ballProbabilities; test-match.ts testBallProbs); a table ships only where it improved the actual-XI holdout or left it
+ * alone with the tail better (the men's T20 and Test; the ODI's and the women's T20I's are fitted and left out: docs/TACTICS.md section 5).
  */
 import type { BallOutcome } from "./match.js";
 import type { Gender } from "./delivery-rules.js";
