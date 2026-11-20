@@ -115,7 +115,8 @@ it.skipIf(!process.env.LXI_SIM)("league XIs: the CPU's XIs in play", async () =>
     await prepareLeaguePool(lg, loader);
     const rules = { ...r0, injuriesEnabled: false } as RuleSet;
     const teams = createGameState(rules).teams;
-    const o = (out[lg] = { used: [], ov50: [], ov60: [], depth: [], nb60: [] });
+    const o: (typeof out)[string] = { used: [], ov50: [], ov60: [], depth: [], nb60: [] };
+    out[lg] = o;
     for (let i = 0; i < N; i++) {
       const home = teams[i % teams.length];
       let away = teams[(i * 7 + 3) % teams.length];
