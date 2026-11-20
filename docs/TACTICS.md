@@ -8,18 +8,22 @@ the data was thin the setting is neutral or not offered, and where a test failed
 
 | control | where | what it does |
 |---|---|---|
-| Bowling plan: who bowls the powerplay, the middle overs, the death | the side's XI screen (T20I, ODI) | bowlers listed for a phase are chosen from, by the captain's fitted model |
+| Bowling plan: who bowls the powerplay, the middle overs, the death | the side's XI screen (T20I, ODI) | bowlers listed for a phase are chosen from (T20I: by the captain's fitted model; ODI: the best of them on rating, by turns) |
 | Bowling plan: fix individual overs | same, "Fix individual overs" | the over goes to that bowler when the rules allow him |
 | Bowling plan, Test: who opens, spin not before over N | same (Test) | the first over from each end; no spin before the over while a seamer is free |
 | Pitch: flat, green and seaming, dry and turning, slow and low | the series page, per series | the profile of the top tenth of real grounds on that dimension |
 | Light: day, day-night (ODI) | same | the chasing side's edge by day against under lights |
 | Weather: clear, unsettled (Test) | same | no time lost, or the wettest fitted host's rate |
 
-Left alone, a side bowls as real captains do and the ground plays as the real ground did: every control defaults to the realistic choice. Code:
+Left alone, a T20I side bowls as real captains do (the ODI keeps the former rule, the best bowlers on rating by turns: section 2, "Regression on the real fixtures") and the ground plays as the real ground did: every control defaults to the realistic choice. Code:
 `packages/engine/src/bowling-choice.ts`, `t20-bowler-type.ts`, `conditions.ts` (+ `test-match.ts` `chooseBowler`, `pitchConditions`); app:
 `components/BowlingPlanEditor.tsx`, `InternationalPage.tsx` (`ConditionsBar`, `LineupScreen`), `international.ts` (`SeriesLineup.bowling`, `IntlSeries.conditions`).
 
 ## 1. Bowling plan
+
+**Status.** The captain model below is the default for every T20 innings (T20I and the leagues). The **ODI does not use it by default**: it predicted the 2025+ ODIs worse than the former rule (section 2, "Regression on the real fixtures"), so the ODI keeps
+the former rule (one of the best three on rating, uniformly; `captainModelFor`) with the user's plan narrowing it (fixed overs, the ODI phase lists), and the ODI figures in the tables of this section describe the model as fitted, not the ODI default. The model's plan strip in the editor
+stays as a starting point for a user who wants to bowl like real captains.
 
 **Before.** The instant engine (and the live engine's CPU side) bowled, each over, one of the three best available bowlers on rating, uniformly, bar the caps (4 overs a
 bowler in a T20, 10 in an ODI) and no two overs in a row. Against what 1,788 real international T20Is and ODIs since 2019 did (the `bowl` lists of
@@ -56,7 +60,7 @@ bowler now would leave the attack short of pace for the death. Fit on matches to
 | women's ODI | 15,058 / 7,592 | **-0.937** | -1.644 | -2.252 |
 
 The former rule put the real bowler among its top three 68-72% of the time. The ODI keeps its feasibility filter (`odiBowlerChoices`: five bowlers, all ten overs needed, so only choices
-that leave every quota finishable) and the model chooses within it. The Hundred and a rain-cut innings keep the former rule (not fitted there). Both engines use the same function: the
+that leave every quota finishable); the model would choose within it, but the ODI default is the former rule (Status above). The Hundred and a rain-cut innings keep the former rule (not fitted there). Both engines use the same function: the
 live engine's CPU side (and a user's plan on a CPU-controlled side) goes through `pickNextBowler`, the instant engine through `simulateInnings`.
 
 **The plan** (`BowlingPlan`: `powerplay`, `middle`, `death` (ids), `overs` (over index to id), and for a Test `spinFrom`). In an over: the bowler fixed to it if the rules allow him (cap,
@@ -105,29 +109,61 @@ there rarely, in the data and now in the sim, and the fitted cost is small. The 
 
 **The ODI's own.** The ODI model carries pace / spin by ten overs (`odi-model-data.ts`). Whether finer buckets (the first three overs, 4-10, then 5s) predict better: they do not (section 3, `odi`).
 
-**What had to be refit because of the new allocation and the new table.** Both change who bowls what, so the scoring level moved: the ODI per-outcome calibration (`ODI_CAL`) was refitted
-(`benchmark-odi.ts CALIBRATE=1`, three rounds; the ODI men's replay of the real fixtures was 234 runs against 253 real before, 252 after; women's 227 real, 223 after) and the series tuning (strength stretch and
-home advantage per set, fitted on actual-XI play to 2024 as before, `BENCH_FIT` then `BENCH_FITHOME`):
+**Regression on the real fixtures, and what shipped.** After the allocation and the bowler-type table went in (with the ODI calibration and the series tuning refitted for them), the win prediction on the 2025+ holdouts got worse in all four
+limited-overs sets (24 replays of every real match with the XIs that played, log loss per real match, 0.693 a coin flip: men's T20I 0.592 -> 0.611, women's T20I 0.436 -> 0.471, men's ODI 0.653 -> 0.704, women's ODI 0.465 -> 0.490), while the ball-level fits
+and the fit halves had barely moved. That is the number that decides, so it was chased down (the Test is untouched throughout).
 
-| set | before: spread / home (country homes) | after |
-|---|---|---|
-| men's T20I | 2.5 / 6 (Australia 12, New Zealand 10, Pakistan 2 ...) | 2 / 4 (Australia 2, New Zealand 8, Pakistan 6, South Africa 2, Sri Lanka 2, West Indies 2, Zimbabwe 2, Ireland 0) |
-| women's T20I | 3.5 / 2 (India 4, Ireland 6, South Africa 4 ...) | 3.5 / 4 (Australia 6, England 6, India 0, New Zealand 8, West Indies 2, Sri Lanka 8, Zimbabwe 2) |
-| men's ODI | 1 / 2 (Sri Lanka 8, Australia 4 ...) | 1.5 / 6 (Australia 8, South Africa 8, Sri Lanka 14, West Indies 4, New Zealand 8, Zimbabwe 2) |
-| women's ODI | 1.5 / 2 (Australia 6, South Africa 6 ...) | 2 / 2 (Bangladesh 4, Australia 4, India 0, Ireland 4, New Zealand 0, West Indies 6, South Africa 4, Sri Lanka 4, Zimbabwe 4, Pakistan 0) |
+*Method.* Every figure below replays each real match 48 times (96 for the final table) with the XIs that really played, through the code path a user's XI takes, and compares configurations **per match** (the same 168 / 120 / 109 / 103 holdout matches,
+418 / 315 / 336 / 219 in the fit half): the difference in log loss and its standard error over the matches. The holdouts are small, so a paired standard error is 0.011-0.035; a difference is real only when it is well past that. The baseline is `7d2c5b9`
+(a worktree at `7d2c5b9` itself and today's code with the four changes switched off agree: the ODI exactly, the T20I within 0.003; at 48 replays that worktree reads 0.471 for the women's T20I holdout, not the 0.436 of the 24-replay run, so single figures move by a few hundredths with the draw).
 
-**Win prediction on the real fixtures** (`BENCH_ACTUAL=1 BENCH_REPLAYS=24`, every real match replayed with the XIs that played, log loss per real match, 0.693 a coin flip; the Test is untouched):
+*Attribution* (holdout, difference in log loss from `7d2c5b9`, plus is worse; fit half in brackets; each row changes one thing and leaves the rest as it was at `7d2c5b9`):
 
-| set | fit half (to 2024) before -> after | holdout (2025+) before -> after |
-|---|---|---|
-| men's T20I | 0.634 -> **0.630** | 0.592 -> 0.611 |
-| women's T20I | 0.524 -> 0.526 | 0.436 -> 0.471 |
-| men's ODI | 0.575 -> **0.559** | 0.653 -> 0.704 |
-| women's ODI | 0.497 -> 0.520 | 0.465 -> 0.490 |
+| change alone | men's T20I | women's T20I | men's ODI | women's ODI |
+|---|---|---|---|---|
+| default allocation (the captain model) | +0.021 +- 0.014 (+0.002) | -0.010 +- 0.016 (+0.013) | +0.039 +- 0.022 (+0.007) | **+0.041 +- 0.025 (+0.042 +- 0.015)** |
+| bowler-type table | +0.023 +- 0.013 (+0.009) | -0.004 +- 0.013 (+0.016) | 0 (ODI has its own table) | 0 |
+| ODI calibration refit (on the old allocation) | 0 | 0 | +0.008 +- 0.019 (+0.002) | +0.030 +- 0.020 (-0.003) |
+| series tuning refit (on the old engine) | +0.007 +- 0.013 (+0.026 +- 0.008) | +0.004 +- 0.011 (+0.003) | +0.012 +- 0.032 (-0.001) | +0.025 +- 0.026 (+0.021 +- 0.014) |
+| all four, as shipped | **+0.025 +- 0.014** (-0.002) | **+0.020 +- 0.019** (+0.009) | **+0.058 +- 0.035** (+0.004) | **+0.018 +- 0.024 (+0.054 +- 0.018)** |
 
-This is the cost, stated plainly: the ball-level effects it rests on improved (the choice of bowler, the bowler-type table, both out of sample), and the fit halves are level or better in two sets, but the win prediction on the
-2025+ holdouts is 0.02-0.05 worse in all four limited-overs sets (the holdouts are 60-120 matches, a paired noise of about 0.03, but four of four in one direction is more than noise). Retuning the spread and home terms did not close it (the
-old tuning on the new engine scored the same on the holdouts at 8 replays).
+*Mechanism.* Not a leak or a bug: the benchmark plays the same XIs, bowling plan (none) and ground as the app path, and `7d2c5b9`'s numbers reproduce. The allocation is the main cause, in the ODI above all. The fitted captain spreads the overs over the attack
+the way real captains do: by rating rank, the sim's k-th best bowler now bowls 3.40 / 3.40 / 3.29 / 3.12 / 2.95 overs of a men's T20I against 3.60 / 3.29 / 3.20 / 3.07 / 2.78 real, where the former rule (one of the best three on rating) gave 3.85 / 3.84 / 3.71 / 3.44 / 2.53.
+That is faithful to what captains do, but captains pick on what they know of the bowlers and the ratings only partly capture it, so the real overs are less tied to the ratings than the sim's ratings need: with the model the stronger side's best-rated bowlers bowl a smaller
+share and the gap between the sides narrows (the full members' win rate against associates in the ODI fell from 57% to 54%, which is why `odi.test.ts` had to be loosened). The slope of the sim's win probability on the real result confirms it where it matters: men's ODI holdout 0.65 -> 0.39
+(1 would be calibrated), women's ODI fit half 0.82 -> 0.65, while the T20I's slopes are above 1 (more spread would help: men's holdout 1.27 -> 1.39). The ODI's loss is in discrimination, not only in scale (with the allocation alone the area under the ROC curve of the sim's probability falls 0.658 -> 0.613 men's holdout,
+0.867 -> 0.848 women's fit half), so a refit of the spread cannot repair it; the T20I's is mostly scale.
+
+*What was tried to fix it* (all fit-half decisions, holdout read once):
+
+- **Refit the series tuning on the new engine, fit half only, more replays.** The shipped refit used 6-8 replays (finite replays make a sharp probability look worse, which pulls the spread down) and picked the smallest spread within 0.01 of the best loss, which in a flat grid is an arbitrary
+  low value. At 32 replays on the fit half the loss over spread x home is flat to within noise for the men's T20I (best at spread 3, home 2-4; the old pick was 2) and has its minimum at the old women's value (3.5, home 4). Men's T20I: spread 2 -> 3, home 4 -> 2, country homes refitted (Australia 4, India 4,
+  New Zealand 4, Pakistan 0, Zimbabwe 0). Women's T20I: unchanged. For the ODI no spread helps (running the new engine with the spread cut or left alone: women's holdout +0.055 / +0.075, men's +0.049).
+- **Make the default choose by quality as the old rule did** (the model's rank weights x3 and x8; the model restricted to the best three or four on rating): the ODI loss closes by half at best (women's ODI holdout +0.041 -> +0.013 to +0.021, men's +0.039 -> +0.011 to +0.024) and the fit halves stay worse in all four sets; the T20I moves by less than its noise. Nothing reaches the old rule's level. Not shipped.
+- **Old allocation on the new tuning and the other way round**, to see whether the refit alone caused it: the new engine on the old tuning scores the same as on the new (men's T20I +0.020 +- 0.013 against +0.025), so it is not the tuning.
+
+*What shipped.*
+
+- **ODI: the former allocation is the default again** (`captainModelFor`: one of the best three on rating, uniformly, with the user's plan narrowing it: fixed overs and the phase lists still work, in both engines), and `ODI_CAL` and the ODI series tuning are the values
+  of `7d2c5b9` (fitted on that allocation; a refit on the model's went with the model). The ODI play with no plan is then identical to `7d2c5b9`'s, ball for ball. The plan editor says so (the strip shows how real captains share the overs, as a starting point).
+- **T20I and every T20 league: the captain model and the fitted bowler-type table stay** (the realistic allocation: spin 24% of powerplay overs, not 51%), with the men's T20I tuning refitted above. On the holdout they are level with `7d2c5b9`, not better; the fit halves are level too.
+  They stay because the ball-level fits are out-of-sample better, the league benchmarks are unchanged or a little closer (below) and the users' controls rest on them; if the next holdout (2026 matches) goes against them, `captainModelFor` is the one switch.
+
+**Win prediction on the real fixtures, final** (`BENCH_ACTUAL=1 BENCH_REPLAYS=96 BENCH_DUMP=...`; log loss per real match, +- standard error over the matches; difference is paired against `7d2c5b9`, minus is better):
+
+| set | half (matches) | `7d2c5b9` | now | difference |
+|---|---|---|---|---|
+| men's T20I | holdout 2025+ (168) | 0.596 +- 0.026 | 0.590 +- 0.027 | **-0.005 +- 0.015** |
+| | fit to 2024 (418) | 0.632 +- 0.016 | 0.632 +- 0.017 | +0.000 +- 0.009 |
+| women's T20I | holdout (120) | 0.462 +- 0.037 | 0.476 +- 0.043 | +0.014 +- 0.014 |
+| | fit (315) | 0.520 +- 0.026 | 0.521 +- 0.028 | +0.001 +- 0.009 |
+| men's ODI | holdout (109) | 0.673 +- 0.040 | 0.673 +- 0.040 | 0 (identical) |
+| | fit (336) | 0.587 +- 0.022 | 0.587 +- 0.022 | 0 |
+| women's ODI | holdout (103) | 0.435 +- 0.061 | 0.435 +- 0.061 | 0 |
+| | fit (219) | 0.501 +- 0.050 | 0.501 +- 0.050 | 0 |
+
+(Single-draw figures at fewer replays move by +-0.008: the same `7d2c5b9` read 0.588 at 48 replays and 0.596 at 96 for the men's T20I holdout.) The women's T20I holdout is the one set not at or better than `7d2c5b9`: 0.014 worse, one standard error. The men's T20I and the ODI sets are at or better.
+
 
 **League benchmarks** (`calibrate-leagues.test.ts`, 8 simulated seasons, `LEAGUE_LEVELS` untouched; real in brackets): runs per innings / wickets per innings, before -> after:
 
@@ -209,10 +245,16 @@ the wicket dimension, with the fitted correlation for the other. A turning pitch
 
 ## 5. Tail batters
 
-By batting position the sim matches the real runs and balls from 1 to 8 (men's T20I: 1: 28.1 / 20.7 against 27.4 / 19.8; 7: 12.2 / 9.2 against 12.6 / 9.6) and the number 9 (6.4 / 5.8 against 6.3 / 5.7); numbers 10 and 11 still score
-more than real tails (5.0 / 4.7 against 4.2 / 4.3, and 3.9 / 3.8 against 2.3 / 2.9; women's 4.0 / 4.5 against 2.8 / 4.1 and 3.5 / 3.6 against 1.8 / 3.2). It was not fixed: a term by batting position would
-act on the order rather than the batter (a user who bats a star at 11 would get a tail-ender), and the route through ratings (the ODI model's `ODI_TAIL_WEIGHT`: a batter's shortfall below the reference counts for more) changes every low-rated batter in every
-league and would need the league levels fitted again. Left over.
+By batting position the sim matches the real runs and balls from 1 to 8 (men's T20I, `BENCH_POSITIONS=1`: 7: 12.6 / 9.5 against 12.6 / 9.6) and the number 9 (6.6 / 5.9 against 6.3 / 5.7); numbers 10 and 11 still score more than real tails (5.3 / 5.0 against 4.2 / 4.3,
+and 3.9 / 3.7 against 2.3 / 2.9; women's 4.0 / 4.5 against 2.8 / 4.1 and 3.5 / 3.6 against 1.8 / 3.2). Two things are off at the tail: a tail-ender hits too hard (1.05 runs a ball against 0.79 at number 11) and survives too long (3.7 balls against 2.9).
+
+*Why.* The T20 ball model answers a batter's rating with a shallow slope: a typical top-order batter (rating 0.80 on `(batting + timing) / 200`) and a number 11 (0.31) differ by 17% in runs a ball (1.36 against 1.13) and about 25% in wicket rate, where the real gap in runs a ball is about 40% (1.4 against 0.8).
+The batting-position tables above (mean rating by position 0.80 0.80 0.81 0.80 0.79 0.77 0.73 0.60 0.44 0.34 0.31) show the tail is rated as the tail; it is the response that is flat.
+
+*Tried* (`BENCH_POSITIONS=1`, men's T20I, 6 replays; not shipped): count a batter's shortfall below 0.45 at W times its weight in the ball model's batter-versus-bowler balance (the ODI model does this the other way, `ODI_TAIL_WEIGHT` = 0.5). No positional term: it acts on the batter's rating
+wherever he bats. W = 2 takes number 10 from 5.3 to 4.7 runs and number 11 from 3.9 to 3.7; W = 3 from 5.3 to 4.5 (real 4.2) and 3.9 to 3.4 (real 2.3), balls faced unchanged at about 3.7 (the survival is not fixed: the wicket rate has a ceiling in the ball model). It costs about 1.8 runs an innings
+(the tail's, nothing else moves), which is real T20I scoring the T20I context already sits 3.6 runs under (165.9 against 169.5), and in a league the same shortfall applies to every low-rated batter: the league levels and the T20I context would have to be fitted again for it, and the
+holdout and the league benchmarks checked on the refit. Not a clean fix, so not shipped. Left over.
 
 ## Refitting
 
@@ -220,4 +262,4 @@ league and would need the league levels fitted again. Left over.
   `BENCH_TACTICS=1 [BENCH_REPLAYS=2] [BENCH_ONLY=...]` prints the allocation tables above (real against the sim).
 - Bowler type: `python3 -I packages/ratings/src/analysis/t20-bowler-type.py --types 2 --write` (about 15 minutes; `--holdout` for the out-of-sample score, `--types 5|7` for finer types).
 - Ball age: `python3 -I packages/ratings/src/analysis/ball-age.py test|odi|odi-age|t20`.
-- After any of these the ODI calibration (`benchmark-odi.ts CALIBRATE=1`, with `ODI_TUNE` to try values) and the series tuning (`BENCH_FIT=1 BENCH_FIT_ON=actual BENCH_HOLDOUT=fit`) move: refit them.
+- After any of these the ODI calibration (`benchmark-odi.ts CALIBRATE=1`, with `ODI_TUNE` to try values; it is fitted on the ODI's former allocation) and the series tuning (`BENCH_FIT=1 BENCH_FIT_ON=actual BENCH_HOLDOUT=fit`) move: refit them, with 32+ replays and the whole grid in view (the minimum of a flat grid, not the smallest value within 0.01 of it), then judge the change **per match on the holdout with a paired standard error** (`BENCH_DUMP=<prefix>` writes the per-match replay counts; `BENCH_CAL_FILE` / `BENCH_TUNING_FILE` replace the ODI calibration / the series tuning from a json file to compare settings without a rebuild).

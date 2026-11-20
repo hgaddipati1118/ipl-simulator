@@ -121,20 +121,21 @@ export const ODI_RATING_SLOPES: Record<(typeof ODI_OUTCOMES)[number], { balance?
  * Calibration of the full engine to the real 2019+ per-delivery rates, per gender, per phase (overs 1-10, 11-40, 41-50)
  * and outcome: what the shared layers (hand matchups, fielding, free hits) and the game's ratings (their spread is not the
  * real ODI spread, and the states they lead to differ: more tail-enders batting at the death) add or take away.
- * From a replay of the real fixture list (benchmark-odi.ts CALIBRATE=1, repeated until it settles). Refitted when the captain's choice of bowler
- * (bowling-choice.ts) and the T20 bowler-type table replaced the former allocation, which had spin bowling too many of the powerplay and death overs.
+ * From a replay of the real fixture list (benchmark-odi.ts CALIBRATE=1, repeated until it settles). Fitted on the former allocation (one of the best
+ * three on rating, uniformly), which the ODI keeps as its default: a refit on the captain's choice of bowler (bowling-choice.ts) went with it
+ * when the model lost on the 2025+ fixtures (docs/TACTICS.md, "Regression on the real fixtures"): the ODI keeps the former rule, inside a user's plan too.
  */
 export const ODI_CAL: Record<"male" | "female", number[][]> = {
   //     dot    1      2      3      4      6      wicket wide   noball legbye
   male: [
-    [1.039, 0.937, 0.978, 1.023, 0.957, 0.627, 0.977, 1.141, 1.091, 1.269],
-    [1.041, 1.026, 0.943, 0.946, 0.854, 0.742, 0.899, 0.838, 0.852, 0.975],
-    [1.012, 1.016, 1.044, 0.969, 1.057, 0.884, 0.817, 1.038, 1.176, 1.124],
+    [1.063, 0.861, 0.996, 1.156, 0.915, 0.614, 0.963, 1.219, 0.899, 1.305],
+    [1.030, 1.036, 0.953, 0.948, 0.852, 0.802, 0.895, 0.856, 0.799, 0.991],
+    [1.007, 1.025, 1.027, 0.892, 1.044, 0.910, 0.829, 1.006, 1.008, 1.127],
   ],
   female: [
-    [1.090, 0.940, 0.803, 0.863, 0.721, 0.353, 1.217, 1.023, 0.901, 1.186],
-    [1.085, 0.997, 0.880, 0.906, 0.759, 0.553, 0.985, 0.738, 0.787, 0.963],
-    [1.084, 1.016, 0.943, 1.125, 0.908, 0.732, 0.880, 0.842, 0.794, 0.972],
+    [1.048, 0.892, 0.921, 1.000, 0.862, 0.384, 0.920, 1.273, 1.125, 1.370],
+    [1.039, 1.025, 0.930, 0.964, 0.844, 0.634, 0.900, 0.823, 0.829, 0.945],
+    [1.039, 1.034, 0.980, 1.063, 0.969, 0.881, 0.791, 0.878, 0.800, 0.969],
   ],
 };
 

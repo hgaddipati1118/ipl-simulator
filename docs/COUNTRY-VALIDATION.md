@@ -161,9 +161,21 @@ What this says:
 every format and gender, instant or live; a realistic series does not sample a side that has one; the series page has "Set / Edit XI" for both
 sides and "Back to the realistic XI" (`InternationalPage.tsx`). The ground can be named (`IntlSeries.ground`, a `homeGrounds` entry).
 
-**Done since** (docs/TACTICS.md): the bowling plan for the instant engine (a fitted captain's choice by default, a user's plan on top), bowler type by phase refitted from Cricsheet, ball age tested out of
+**Done since** (docs/TACTICS.md): the bowling plan for the instant engine (a fitted captain's choice by default in a T20I, a user's plan on top), bowler type by phase refitted from Cricsheet, ball age tested out of
 sample (nothing beat the engine's terms, so nothing shipped), and the user-selectable pitch / light / weather. The allocation changed what the sim does with a given XI (the powerplay no longer has spin bowling half
-the overs), so the series tuning above was refitted again (TACTICS.md, section 2, with the win log loss before and after).
+the overs), and the first refit of the series tuning on it scored **worse** on the 2025+ holdouts in all four limited-overs sets (0.592 -> 0.611, 0.436 -> 0.471, 0.653 -> 0.704, 0.465 -> 0.490 at 24 replays). That was traced and repaired
+(TACTICS.md, section 2, "Regression on the real fixtures"): the captain model narrows the gap between the sides, which cost the ODI most, so **the ODI keeps the former allocation and its calibration and tuning (identical to the table above)**; the T20I keeps the model
+and the men's T20I tuning is refitted (spread 3, home 2; women's unchanged). Final, paired against the table above's engine at 96 replays (the "actual XI" column of the Result table, re-read at that many replays; minus is better):
+
+| set | holdout (2025+) before -> now | paired difference (holdout) | fit half before -> now |
+|---|---|---|---|
+| men's T20I | 0.596 -> 0.590 | -0.005 +- 0.015 | 0.632 -> 0.632 |
+| women's T20I | 0.462 -> 0.476 | +0.014 +- 0.014 | 0.520 -> 0.521 |
+| men's ODI | 0.673 -> 0.673 | 0 (identical) | 0.587 -> 0.587 |
+| women's ODI | 0.435 -> 0.435 | 0 (identical) | 0.501 -> 0.501 |
+
+(The 24-replay figures of the Result table above are single draws; the same engine reads 0.596 / 0.462 / 0.673 / 0.435 at 96 replays. Differences of a few hundredths between replay counts are noise; the paired standard errors are the yardstick.)
+Tail batters: numbers 10 and 11 still score 1-2 runs more than real tails (TACTICS.md, section 5: a rating-based tail term was tried, did not fix survival and would need the league levels refitted; not shipped).
 
 ## Left over
 

@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { bowlerKind, createMatchState, simulateMatch, simulateRemaining, buildDetailedResultFromState, type BowlingPlan, type DetailedBallEvent, type Player } from "@ipl-sim/engine";
+import { bowlerKind, captainModelFor, createMatchState, simulateMatch, simulateRemaining, buildDetailedResultFromState, type BowlingPlan, type DetailedBallEvent, type Player } from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import { simulateTestMatch } from "@ipl-sim/engine";
 import { testFixture } from "../test-match/test-series";
@@ -60,6 +60,17 @@ describe("the CPU captain's default", () => {
       }
     });
   }
+
+  it("odi: the former rule runs (the opening bowler is one of the best three on rating); a T20 / T20I side uses the model", () => {
+    expect(captainModelFor(true)).toBe(false);
+    expect(captainModelFor(false)).toBe(true);
+    const s = make("odi");
+    const xi = new Set(lineupWith(s, 0).xi);
+    const rank = new Map(seriesSquads(s, FILE)[0].filter(p => xi.has(p.id) && !p.isWicketKeeper).sort((a, b) => b.effectiveBowlingOvr - a.effectiveBowlingOvr).map((p, i) => [p.id, i]));
+    const openers = oversOf(s, "odi", 40).map(seq => seq[0]);
+    expect(openers.length).toBeGreaterThan(30);
+    for (const id of openers) expect(rank.get(id)!).toBeLessThan(3);
+  });
 
   it("t20i: pace opens and spin takes the middle overs, as real captains do", () => {
     const s = make("t20i");

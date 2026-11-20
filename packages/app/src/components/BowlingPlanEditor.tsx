@@ -120,7 +120,11 @@ function LimitedOversPlanEditor({ xi, format, gender, value, onChange }: {
           className="text-[11px] text-th-muted hover:text-th-primary font-display disabled:opacity-40">Back to the default</button>
       </div>
       <p className="text-[11px] text-th-faint font-display mb-3">
-        {value ? "Your plan: bowlers you pick for a phase bowl it (the captain chooses among them); an over you fix goes to that bowler." : "Default: the captain bowls as real captains do (pace first, spin in the middle, the best pace bowlers at the death)."}
+        {value
+          ? (format === "odi" ? "Your plan: bowlers you pick for a phase bowl it (the best of them on rating, by turns); an over you fix goes to that bowler." : "Your plan: bowlers you pick for a phase bowl it (the captain chooses among them); an over you fix goes to that bowler.")
+          : (format === "odi"
+            ? "Default: the best bowlers on rating bowl, by turns. The strip shows how real captains share the overs (pace first, spin in the middle, the best pace bowlers at the death): start from it to bowl like them."
+            : "Default: the captain bowls as real captains do (pace first, spin in the middle, the best pace bowlers at the death).")}
       </p>
 
       <div className="flex flex-wrap gap-1 mb-3" data-testid="bowling-plan-default" aria-label="Default plan over by over">

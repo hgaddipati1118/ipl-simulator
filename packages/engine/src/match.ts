@@ -63,7 +63,7 @@ import { applyWicketsInHand, wicketsInHandKey as wicketsInHandKeyFor } from "./w
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
 import { applyT20BowlerType } from "./t20-bowler-type.js";
 import { applyConditionsToProfile, type ConditionsSetting } from "./conditions.js";
-import { bowlerKind, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, planBowlerIds, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
+import { captainModelFor, bowlerKind, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, planBowlerIds, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
 import { ODI_DISMISSAL_MIX, ODI_RAIN } from "./odi-model-data.js";
 import {
   EXTRAS_RATE_CAL,
@@ -1281,7 +1281,7 @@ function simulateInnings(
     }
     // The captain's choice (bowling-choice.ts): the user's plan narrows it, the fitted model draws from what is left. A full-length
     // T20 or ODI innings only; The Hundred and a rain-cut innings keep the former rule (one of the best three on rating)
-    const choiceFmt: ChoiceFormat | null = so ? null : choiceFormatFor(fmt.id, maxOvers, fmt.overs);
+    const choiceFmt: ChoiceFormat | null = so || !captainModelFor(own) ? null : choiceFormatFor(fmt.id, maxOvers, fmt.overs);
     let bowler: Player;
     if (so) bowler = pool[0];
     else if (choiceFmt) {

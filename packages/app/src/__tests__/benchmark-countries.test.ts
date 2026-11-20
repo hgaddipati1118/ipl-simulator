@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
-import { MATCH_CONDITIONS } from "@ipl-sim/engine";
+import { MATCH_CONDITIONS, ODI_CAL, type Player } from "@ipl-sim/engine";
 import { XI_SHARPEN } from "../realistic-xi";
 import { availabilitySource, createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender, type SeriesMatchRecord } from "../international";
 import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
@@ -90,6 +90,9 @@ function runSet(key: string, real: RealSet, replays: number, FILE: FormatRatings
 }
 
 async function setup() {
+  // BENCH_CAL_FILE / BENCH_TUNING_FILE: replace the ODI calibration / the series tuning with the values in a json file (regression attribution, refits)
+  if (process.env.BENCH_CAL_FILE) { const c = JSON.parse(readFileSync(process.env.BENCH_CAL_FILE, "utf-8")); for (const g of ["male", "female"] as const) c[g].forEach((row: number[], i: number) => row.forEach((v, j) => { ODI_CAL[g][i][j] = v; })); }
+  if (process.env.BENCH_TUNING_FILE) { const t = JSON.parse(readFileSync(process.env.BENCH_TUNING_FILE, "utf-8")); for (const k of Object.keys(SERIES_TUNING)) delete SERIES_TUNING[k]; Object.assign(SERIES_TUNING, t); }
   if (process.env.BENCH_GAMMA) for (const k of ["t20i-men", "t20i-women", "odi-men", "odi-women", "test-men"]) XI_SHARPEN[k] = Number(process.env.BENCH_GAMMA);
   // BENCH_HOLDOUT=1: selection rates from 2024 matches only, scored against the real fixtures of 2025+ (docs/data/country_validation_2025.json)
   const REAL = JSON.parse(readFileSync(join(REPO, "docs", "data", process.env.BENCH_HOLDOUT === "fit" ? "country_validation_to2024.json" : process.env.BENCH_HOLDOUT ? "country_validation_2025.json" : "country_validation.json"), "utf-8")) as Record<string, RealSet>;
@@ -324,14 +327,14 @@ function fixtureLoss(real: RealSet, run: SetRun): number {
   return nll / tot;
 }
 
-interface ActualRun extends SetRun { matchLoss: number; matches: number }
+interface ActualRun extends SetRun { matchLoss: number; matches: number; perMatch: { id: string; date: string; a: string; b: string; winner: string; mw: number; mn: number; aw: number; host: string | null }[] }
 interface ActualOpts {
   /** the real batting order (default); false: the engine's order for the real XI */
   order?: boolean;
   /** the real ground by name (default); false: the host's busiest ground */
   ground?: boolean;
   /** called with every replayed match's record, the real match and the XI's squads (BENCH_POSITIONS) */
-  collect?: (m: ActualMatch, rec: SeriesMatchRecord, sideOf: (teamId: string) => "a" | "b", order: [string[], string[]]) => void;
+  collect?: (m: ActualMatch, rec: SeriesMatchRecord, sideOf: (teamId: string) => "a" | "b", order: [string[], string[]], squads: [Player[], Player[]]) => void;
 }
 
 /**
@@ -355,6 +358,7 @@ function runActual(key: string, real: RealSet, matches: ActualMatch[], replays: 
   const fixtureIdx = new Map(real.fixtures.map(([a, b, host], i) => [`${a} v ${b}|${host}`, i]));
   const fixtureWins = real.fixtures.map(() => 0), fixtureN = real.fixtures.map(() => 0);
   let matchNll = 0, matchCount = 0;
+  const perMatch: ActualRun["perMatch"] = [];
   matches.forEach((m, i) => {
     const hostName = m.host === "a" ? m.a : m.host === "b" ? m.b : null;
     const [fa, fb] = [m.a, m.b].sort();
@@ -379,14 +383,14 @@ function runActual(key: string, real: RealSet, matches: ActualMatch[], replays: 
     const squads = seriesSquads(series, FILE, extended);
     const sideOf = (teamId: string) => (teamId === series.sides[0].id ? m.a : m.b);
     const winnerName = m.winner === "a" ? m.a : m.b;
-    let mw = 0, mn = 0;
+    let mw = 0, mn = 0, aw = 0;
     for (let j = 0; j < replays; j++) {
       const ctx = { ...matchContext(series, 0, squads), seed: 7919 * i + 104729 * (j + 1), key: undefined };
       const rec = def.simulate(ctx as Parameters<typeof def.simulate>[0]);
       const winner = rec.winnerId ? sideOf(rec.winnerId) : null;
-      opts.collect?.(m, rec, t => (t === series.sides[0].id ? "a" : "b"), [series.lineups![0]!.order, series.lineups![1]!.order]);
+      opts.collect?.(m, rec, t => (t === series.sides[0].id ? "a" : "b"), [series.lineups![0]!.order, series.lineups![1]!.order], squads);
       if (!winner) continue;
-      mn++; if (winner === winnerName) mw++;
+      mn++; if (winner === winnerName) mw++; if (winner === m.a) aw++;
       fixtureN[k]++; if (winner === fa) fixtureWins[k]++;
       const pair = [m.a, m.b].sort().join(" v ");
       const h = h2h.get(pair) ?? { n: 0, wins: {} as Record<string, number> };
@@ -402,12 +406,13 @@ function runActual(key: string, real: RealSet, matches: ActualMatch[], replays: 
         s.runs += inn.totalRuns; s.wkts += inn.totalWickets;
       });
     }
+    perMatch.push({ id: m.id, date: m.date, a: m.a, b: m.b, winner: winnerName, mw, mn, aw, host: hostName });
     if (mn > 0) {
       const p = Math.min(0.97, Math.max(0.03, (mw + 1) / (mn + 2)));
       matchNll -= Math.log(p); matchCount++;
     }
   });
-  return { teams, h2h, fixtureWins, fixtureN, matchLoss: matchNll / Math.max(1, matchCount), matches: matchCount };
+  return { teams, h2h, fixtureWins, fixtureN, matchLoss: matchNll / Math.max(1, matchCount), matches: matchCount, perMatch };
 }
 
 /**
@@ -440,6 +445,7 @@ it.skipIf(!process.env.BENCH_ACTUAL)("actual XI against best and realistic line-
         else {
           const r = runActual(key, real, ms, replays, FILE, ACTIVITY, players, { order: mode !== "actual-auto-order", ground: mode !== "actual-default-ground" });
           run = r; matchLoss = r.matchLoss;
+          if (process.env.BENCH_DUMP) writeFileSync(`${process.env.BENCH_DUMP}-${key}-${label.startsWith("fit") ? "fit" : "hold"}-${mode}.json`, JSON.stringify(r.perMatch));
         }
         const off = offFigures(key, real, run);
         const line = `${key} | ${label} | ${mode} | log loss ${fixtureLoss(real, run).toFixed(4)} | per match ${Number.isNaN(matchLoss) ? "-" : matchLoss.toFixed(4)} | ${off.length} OFF | ${((Date.now() - t0) / 1000).toFixed(0)}s`;
@@ -473,16 +479,21 @@ it.skipIf(!process.env.BENCH_POSITIONS)("batting position against real", async (
     const sims: Record<string, { r: number; b: number; n: number }[]> = {};
     for (const mode of ["real", "engine"]) {
       const acc = Array.from({ length: 11 }, () => ({ r: 0, b: 0, n: 0 }));
+      const rate = Array(11).fill(0) as number[];
       runActual(key, REAL[key], ms, replays, FILE, ACTIVITY, players, {
         order: mode === "real",
-        collect: (_m, rec) => {
+        collect: (_m, rec, _sideOf, _order, squads) => {
+          const byName = new Map(squads.flat().map(p => [p.name, p]));
           // each side's first innings
           for (const inn of rec.innings.slice(0, 2)) {
-            inn.batters.forEach((bt, i) => { if (i < 11) { acc[i].r += bt.runs; acc[i].b += bt.balls; acc[i].n++; } });
+            inn.batters.forEach((bt, i) => {
+              if (i < 11) { acc[i].r += bt.runs; acc[i].b += bt.balls; acc[i].n++; const p = byName.get(bt.playerName); if (p) { rate[i] += (p.battingOvr + p.ratings.timing) / 200; } }
+            });
           }
         },
       });
       sims[mode] = acc;
+      if (mode === "real") out.push("  mean batting rating (batOvr + timing) / 200 by position: " + rate.map((x, i) => (acc[i].n ? x / acc[i].n : 0).toFixed(2)).join(" "));
     }
     for (let i = 0; i < 11; i++) {
       const f1 = (x: { r: number; b: number; n: number }) => (x.n ? `${(x.r / x.n).toFixed(1)} / ${(x.b / x.n).toFixed(1)}` : "-");

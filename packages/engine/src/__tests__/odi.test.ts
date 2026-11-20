@@ -502,8 +502,9 @@ describe("ODI scoring on the real national pools, seeded (benchmark-odi.ts in sm
   it("full members beat associates far more often than not", () => {
     const fm = new Set(["India", "Australia", "England", "South Africa", "New Zealand", "Pakistan", "Sri Lanka", "West Indies", "Bangladesh", "Afghanistan", "Zimbabwe", "Ireland"]);
     // only ~11 fixtures pair a full member with an associate (Zimbabwe and Ireland against the UAE or the Netherlands are
-    // near coin flips), so each is played with 60 seeds (the true rate is about 54%, 57% before the captain's choice of bowler
-    // changed who bowls the powerplay and the death: one seed of 11 games moves it by 9 points, 120 seeds say 54.1%)
+    // near coin flips), so each is played with 60 seeds (the true rate is about 57% with the former bowler rule the ODI keeps as its
+    // default and 54% with the captain's model, which spreads the overs and narrows the gap between the sides: one seed of 11 games
+    // moves it by 9 points, 120 seeds say 54.1%). The bar is the model's, so it holds for either
     const mixedFixtures = fixtures.filter(([a, b]) => fm.has(a) !== fm.has(b));
     expect(mixedFixtures.length).toBeGreaterThan(10);
     let games = 0, fmWins = 0;

@@ -145,6 +145,17 @@ export function narrowByPlan<T extends { id: string }>(cands: readonly T[], plan
   return [...cands];
 }
 
+/**
+ * Does the captain's model choose the next bowler, or the former rule (one of the best three on rating, uniformly, inside the user's plan)?
+ * Every T20 innings uses the model; the ODI keeps the former rule. The model spreads the overs over the attack as real captains do, which
+ * narrows the gap between the sides (the stronger side's best bowlers bowl a smaller share), and the ODI's win log loss on the 2025+ fixtures
+ * got worse with it (0.673 -> 0.724 men's, 0.435 -> 0.450 women's, where the former rule scored the same as before; docs/TACTICS.md,
+ * "Regression on the real fixtures"). A plan still narrows the ODI's choice; the model's plan strip stays in the editor as a starting point.
+ */
+export function captainModelFor(odi: boolean): boolean {
+  return !odi;
+}
+
 /** Does the plan name anyone (so that a plan-less CPU side can be told from a user's)? */
 export function planIsSet(plan: BowlingPlan | undefined): boolean {
   return !!plan && (plan.powerplay.length + plan.middle.length + plan.death.length + Object.keys(plan.overs ?? {}).length > 0 || plan.spinFrom !== undefined);
