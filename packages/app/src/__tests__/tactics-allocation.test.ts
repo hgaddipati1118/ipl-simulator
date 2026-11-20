@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
-import { isFastBowler, isPaceBowler, isSpinBowler, simulateMatch, type Player } from "@ipl-sim/engine";
+import { ATTACK_MODEL, isFastBowler, isPaceBowler, isSpinBowler, simulateMatch, type Player } from "@ipl-sim/engine";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import { createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender } from "../international";
@@ -98,6 +98,8 @@ it.skipIf(!process.env.BENCH_TACTICS)("bowling allocation against real", async (
   const loader = createPoolLoader(async file => new Uint8Array(readFileSync(join(PUBLIC, "pool", file))));
   const ACT = JSON.parse(readFileSync(join(REPO, "docs", "data", "actual_xi.json"), "utf-8")) as Record<string, ActualMatch[]>;
   const replays = Number(process.env.BENCH_REPLAYS ?? 3);
+  // BENCH_ATTACK=t20i: the men's T20I with the attack table (docs/TACTICS.md section 8)
+  if (process.env.BENCH_ATTACK === "t20i") ATTACK_MODEL.t20i = true;
   const only = process.env.BENCH_ONLY?.split(",");
   const out: Record<string, unknown> = {};
   const train: unknown[] = [];

@@ -352,3 +352,6 @@ export function attackStateOf(t: AttackTally, history: readonly string[], id: st
     lastRuns: last === null ? 0 : t.overRuns[last] ?? 0, runs: t.bowlerRuns.get(id) ?? 0, wk: t.bowlerWk.get(id) ?? 0,
   };
 }
+
+/** The fitted attack tables (bowling-attack-data.ts), for tests and tools */
+export const BOWLING_ATTACK_TABLE = BOWLING_ATTACK;

@@ -48,7 +48,7 @@ export { PITCH_LABELS, PITCH_PRESETS, ODI_LIGHT_CHASE, applyConditionsToProfile 
 export type { ConditionsSetting, PitchPreset, LightPreset, WeatherPreset } from "./conditions.js";
 export { T20_BOWLER_TYPE, T20_TYPES } from "./t20-bowler-type-data.js";
 export { t20TypeFactors, t20TypeIndex } from "./t20-bowler-type.js";
-export { bowlerKind, captainModelFor, isWomenT20I, CAPTAIN_MODEL, modelPlanFor, planPhase, planIsSet, rankByBowling, choiceProbabilities, chooseByModel, ATTACK_MODEL, attackTableFor, attackFeatures } from "./bowling-choice.js";
+export { bowlerKind, captainModelFor, isWomenT20I, CAPTAIN_MODEL, modelPlanFor, planPhase, planIsSet, rankByBowling, choiceProbabilities, chooseByModel, ATTACK_MODEL, attackTableFor, attackFeatures, BOWLING_ATTACK_TABLE } from "./bowling-choice.js";
 export type { ChoiceFormat, PlanPhase, BowlerKind, ChoiceCandidate, AttackState } from "./bowling-choice.js";
 
 export { getMatchupModifiers, getMatchPhase, isPaceBowler, isFastBowler, isSpinBowler, isSlowBowler, getBatterAffinityModifier } from "./matchups.js";

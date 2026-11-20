@@ -53,4 +53,4 @@ it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {
     const t = TARGET[id];
     console.log(`${id.padEnd(10)} runs/inn ${(runs / inns).toFixed(1)} (real ${t.runs})  wkts/inn ${(wkts / inns).toFixed(2)} (${t.wkts})  balls/inn ${(balls / inns).toFixed(1)} (${t.balls})  1st ${(first / n).toFixed(1)} 2nd ${(second / n).toFixed(1)} chase-win ${(100 * wins2 / n).toFixed(0)}%  1st all out ${(100 * allOut1 / n).toFixed(1)}% 1st wkts ${(wk1 / n).toFixed(2)}  mult ${rules.scoringMultiplier}`);
   }
-}, 900_000);
+}, 3_600_000);

@@ -92,17 +92,17 @@ export const LEAGUE_LEVEL_WICKET = 1.0;
  * "Calibration"). Leagues not listed use the IPL levels.
  */
 export const LEAGUE_LEVELS: Record<string, { run: number; wicket: number; dot: number }> = {
-  "bbl": { run: 1.0, wicket: 0.909, dot: 1.152 },
+  "bbl": { run: 1.0, wicket: 0.964, dot: 1.179 },
   "wbbl": { run: 1.0, wicket: 0.98, dot: 1.445 },
-  "psl": { run: 1.0, wicket: 0.909, dot: 1.098 },
-  "sa20": { run: 1.0, wicket: 0.903, dot: 1.247 },
+  "psl": { run: 1.0, wicket: 0.934, dot: 1.13 },
+  "sa20": { run: 1.0, wicket: 0.951, dot: 1.223 },
   "hundred-m": { run: 1.0, wicket: 0.925, dot: 1.043 },
   "hundred-w": { run: 1.0, wicket: 1.062, dot: 1.397 },
-  "cpl": { run: 1.0, wicket: 0.956, dot: 1.2 },
-  "ilt20": { run: 1.0, wicket: 0.885, dot: 1.286 },
-  "mlc": { run: 1.0, wicket: 0.946, dot: 1.129 },
-  "bpl": { run: 1.0, wicket: 0.923, dot: 1.331 },
-  "lpl": { run: 1.0, wicket: 0.834, dot: 0.868 },
+  "cpl": { run: 1.0, wicket: 0.994, dot: 1.228 },
+  "ilt20": { run: 1.0, wicket: 0.926, dot: 1.307 },
+  "mlc": { run: 1.0, wicket: 1.0, dot: 1.156 },
+  "bpl": { run: 1.0, wicket: 0.966, dot: 1.337 },
+  "lpl": { run: 1.0, wicket: 0.87, dot: 0.905 },
 };
 
 /** Ground effects on wickets did not hold up out of sample, so keep only a quarter of them. */
