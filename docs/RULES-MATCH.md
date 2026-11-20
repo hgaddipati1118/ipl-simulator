@@ -789,7 +789,7 @@ It was fitted on Cricsheet ball by ball with the game's own ratings (to 2023, ju
 run rows at a power (men x1.25, women x1.5) and no wicket row; fit, out-of-sample check, what the sim does by batting position and why the wicket
 row and the ODI / Test are left out: docs/TACTICS.md section 5. The women's T20I context and conditions, the women's league contexts, the first-innings
 factors of five men's leagues and the series tuning of both T20I sets were refit for it (TACTICS.md section 5); the men's contexts, tables and
-conditions are as they were. The fingerprint of the men's and women's T20 lines moves (every line plays the response).
+conditions are as they were. The fingerprint (`fingerprint-matches.ts 300`) moves on every T20 / Hundred line, as it must when the ball model changes: instant men `884fc65618b8d6c0` -> `d7773a6bc11f472f`, men with rain `c415357a9c2b536b` -> `56c69521e182dd57`, women `dfba047dc990b81c` -> `0c8aa066f2e29355`, Hundred `04c677b5647f5c4a` -> `fe6316f1505c8955`, live CPU `6fa3abe606987f79` -> `828c51b11edc3ef6`, live user `0b6a24850ccf99e4` -> `04f5153f8872ba2f`, combined `addddf4793a9d543` -> `e62dd2b0cbddd226`.
 
 ---
 
