@@ -17,12 +17,12 @@ import { createPoolLoader } from "../extended-pool";
  *   BENCH_SERIES=1 BENCH_KEY=test-men BENCH_HALF=fit|hold|all BENCH_REPLAYS=256 BENCH_OUT=/path/out.json \
  *     [BENCH_TUNE='{"test":{"men":{"spread":1,"home":0,"homeBy":{"India":-2}}}}'] [BENCH_ONLY_HOST=India,England] \
  *     npx vitest run packages/app/src/__tests__/benchmark-series-fit.test.ts
- * BENCH_TUNE replaces the shipped tuning of that format and gender. The output file holds, per match, wins / decided / draws of the
+ * BENCH_PUBLIC=dir reads data/format-ratings.json, player-activity.json and pool/ from another directory (a variant of the ratings). BENCH_TUNE replaces the shipped tuning of that format and gender. The output file holds, per match, wins / decided / draws of the
  * real winner and of side a, so two runs are compared per match (paired standard errors) by `pairedDiff` below.
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..", "..", "..");
-const PUBLIC = join(HERE, "..", "..", "public");
+const PUBLIC = process.env.BENCH_PUBLIC ?? join(HERE, "..", "..", "public");
 
 interface ActualMatch {
   id: string; date: string; a: string; b: string; host: "a" | "b" | null; venue: string; winner: "a" | "b";

@@ -333,6 +333,136 @@ innings 1 324 -> 326, hundreds 1.64 -> 1.63, five-fors 1.45 -> 1.45: the Test en
 India and England gap, and South Africa's and New Zealand's shortfall); the ODI series tuning was not refitted on the new ratings
 (`series-tuning-data.ts` belongs to the tuning work; the holdout above is with the shipped tuning).
 
+## Test ratings by country: South Africa, New Zealand, India, England
+
+With the real elevens of the 133 Tests since 2023 the sim's win rates were off for four sides: South Africa 64% against a real 78% (the
+64% already included the side-level `strengthBy: { "South Africa": 2 }` of the series tuning, fitted on 23 Tests; 54% without it), New
+Zealand 50% against 65%, India 64% against 53%, England 62% against 53% (decisive results, 512 replays; the standard error of one side's
+rate is about 9 points). Spread, home and ground terms did not close them (docs/COUNTRY-VALIDATION.md, "Test and ODI series tuning"), so the
+question was whether the Test ratings of those sides' players are wrong. Everything below is on-field data; ICC rankings were not used.
+The evidence is `test-country-check.ts` (`data/analysis/test-country-check.md`).
+
+**Method.** Rate every first-class player with data to Y (the shipped estimate: tuned DATA_VAR, thin-record calibration), for Y = 2014, 2017,
+2020 (the tuning folds) and 2023 (the held-out fold), and compare it with what he did in Tests against full members in Y+1..Y+2
+(opposition-adjusted value per 100 balls, the validation's own target, 500+ balls), by the side he played for. 335 bowling and 376 batting
+player-folds. "Later minus estimate" is read against the mean of all sides (the target scale sits 7-8 above the estimate for everyone).
+
+| side | bowling: all folds (SE) | 2014 | 2017 | 2020 | 2023 | batting: all folds (SE) | 2014 | 2017 | 2020 | 2023 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| South Africa | **+8.2 (3.0)** | +9.6 | -0.7 | +14.8 | +10.3 | -3.6 (2.2) | -3.4 | -9.9 | -3.9 | +4.3 |
+| India | +5.1 (2.5) | +9.7 | +3.7 | +3.4 | +3.5 | -1.5 (1.6) | -2.5 | +2.5 | -4.7 | -1.6 |
+| England | -1.6 (1.4) | +0.4 | -0.2 | -0.8 | -6.2 | -2.8 (1.8) | -2.5 | -5.4 | -4.6 | +2.3 |
+| New Zealand | -2.4 (2.6) | -5.4 | -1.2 | -3.3 | +2.0 | +4.2 (2.2) | +1.7 | +6.3 | +7.4 | +1.9 |
+| Australia | +0.4 (2.3) | +2.1 | -3.3 | -3.4 | +9.5 | -0.8 (2.1) | +4.8 | -1.1 | +1.4 | -10.3 |
+| Pakistan | -1.7 (2.7) | -4.6 | +1.5 | -0.6 | +0.6 | +3.6 (2.1) | +1.9 | +7.5 | +9.0 | -8.9 |
+| Bangladesh | **-7.9 (1.5)** | -0.2 | -7.1 | -9.8 | -9.3 | +0.8 (1.7) | +4.0 | +2.0 | -3.0 | +1.8 |
+
+**What it says.**
+
+- *India and England players are not over-rated.* India's bowlers did better than their ratings (+5.1) and its batters as rated (-1.5);
+  England's bowlers as rated (-1.6) and its batters 2.8 below, which does not repeat (+2.3 in 2023). The 64% / 62% against 53% is a result of
+  the side, not of its players' ratings: a rating change for them would move it the wrong way (India's bowlers, if anything, are under-rated).
+- *New Zealand's batters did 4.2 better than rated, in all four folds, but it does not persist as a thing to correct*: batting side effects
+  do not carry from fold to fold (the effect fitted on three folds predicts the fourth with slope 0.09, correlation 0.05), and adding a
+  batting term lowers held-out correlation in three of four folds (table below). Not shipped; New Zealand stays 50% against 65%.
+- *Bowling is different.* The side effects on bowling repeat (the same slope 0.68, correlation 0.49): South Africa +8.2 (SE 3.0, positive
+  in three of four folds, 2023 +10.3), Bangladesh -7.9 (SE 1.5), Zimbabwe -6.0, India +5.1. South Africa's bowlers are under-rated.
+
+**What does not explain it** (each added to a regression of later minus estimate on side effects; the South Africa effect stays +6.8 to +9.1
+every time, Bangladesh -5 to -10):
+
+- *Home conditions in the records.* The CA cells carry no ground, so this was checked in the target and in the history: the share of
+  Test balls played at home (+6.9, SE 4.3 for bowling), and the ground run and wicket factors of the Tests he played (venue effect in
+  runs per 100 balls: +0.6, SE 0.7). South Africa's Test grounds take 6.8% more wickets and the effect is about 3 runs per 100 balls,
+  not 8, and the sides' home shares are 0.44-0.56 anyway.
+- *Opposition mix.* The mean strength of the opposition faced, in the history -0.3 (SE 0.4) and in the target +0.1 (0.7).
+- *Domestic competition strengths.* Within one player and one season, with 300+ balls in Tests and in his domestic competition (2012-26),
+  the Test-minus-domestic value by country should be the same if the strengths are right. Bowling: South Africa 1.9, India 1.7, New Zealand
+  2.4, England 2.5, West Indies 2.4, Sri Lanka 1.5, Zimbabwe 2.9, Bangladesh 5.5, Australia 6.3, Pakistan 8.5; batting: South Africa -0.4,
+  New Zealand 1.8, India 2.0, England -2.2, Australia -2.7, West Indies 5.4, Sri Lanka 4.8, Pakistan 6.8. South Africa's and India's domestic
+  bowling is not under-credited: it is credited at the generous end (a small gap), so a refit of the competition strengths (CSA 4-Day,
+  Plunket Shield against the Ranji Trophy and the County Championship) would not move these sides' bowlers the way the shortfall needs.
+- *Pace against spin* (spin -2.8, SE 1.5; South Africa +7.8 either way: pace +18.0, spin +13.5 raw), *the strength of the attack* (teammates'
+  mean estimate +0.38, SE 0.54, once the side effects are in), *thin records* (log balls -0.1).
+- A player who has played mostly domestic cricket does 12.5 (SE 4.1) per full share better than his estimate in every country, which
+  is who gets 500 Test balls in two seasons (selection on the outcome), not a country's competition.
+
+So the cause is not a competition strength, a ground, an opposition mix or the era, and it is not in the batters. What remains is a
+**national-side effect on bowling** that repeats across four eras and their attacks: South Africa's Test bowlers have done about
+8 runs per 100 balls better than their records said, at home and away alike (3 of 4 folds; the odd fold is 2017). We do not know the
+mechanism (the attack's depth, a selection effect specific to a small domestic pool, a real difference in how its bowlers' first-class
+records translate); the term is an empirical correction with its evidence, not an explanation.
+
+**What changed** (`test-bowling-terms.ts`, generated by `test-country-check.ts --write`; read by `generate-format-ratings.ts`):
+
+- A term on men's Test bowling for a side whose effect on the tuning folds (2014 / 2017 / 2020 only: the 2023 fold and the Tests since 2025
+  stay held out) is 2 standard errors from zero, shrunk by n / (n + 8): **South Africa +5.8** (raw +7.6, SE 3.2, 25 player-folds) and
+  Bangladesh -5.2 (raw -7.4, SE 1.7). It is added to the player's score where the score is read off the link to the game's scale; the link
+  curve itself is made from the scores as they are, so **no other player's rating moves** (first attempt, the term added to the score before
+  the curve was made, pushed Bumrah 97 -> 91 and Starc 92 -> 88 down by displacing them in the rank-based link: rejected on the elite rule).
+  It applies to the national sides' players in the ESPN pool, who are the regulars it was measured on, not to domestic players of the
+  extended pool. TEST_BOWLING_TERMS=off in the environment switches it off.
+- **Bangladesh's term is not shipped** (`NOT_SHIPPED`): it passes the player-level check (held-out fold -9.3), but the replays of its 24 Tests do
+  move (paired +0.000 +- 0.038) and its win rate falls from 0.41 to 0.33 against a real 0.46 (Ireland's nine matches, mostly against it, get
+  0.06 worse). The out-of-sample evidence is for its bowlers, not its results. Open decision.
+- **The South Africa +2 `strengthBy` of the series tuning is removed** (`series-tuning-data.ts`: `test.men = { spread: 1, home: -1.5 }`); the
+  mechanism stays in `series-tuning.ts`, tested with a term set in the test. The home term was checked against the new ratings on the fit half
+  (256 replays; loss 0.569 at home -1.5, 0.581 at -3, 0.592 at 0; stretch 1.5: 0.595): it stands.
+
+**Held-out correlation** (format-validation's target; the term of each fold fitted on the other three, K 8; correlation with the later value):
+
+| | 2014 | 2017 | 2020 | 2023 (held out) |
+|---|---|---|---|---|
+| Test bowling: estimate | 0.485 | 0.402 | 0.391 | 0.517 |
+| + terms kept at 2 SE (South Africa, Bangladesh) | 0.512 (+0.027) | 0.409 (+0.007) | 0.432 (+0.041) | 0.548 (+0.031) |
+| + the shipped term only (South Africa, fitted on 2014 / 2017 / 2020) | | | | 0.533 (+0.016) |
+| Test batting: estimate | 0.642 | 0.626 | 0.583 | 0.634 |
+| + terms kept at 2 SE | 0.642 (0) | 0.626 (0) | 0.583 (0) | 0.613 (-0.021) |
+| + every side's term (K 8) | 0.629 (-0.012) | 0.637 (+0.011) | 0.598 (+0.015) | 0.596 (-0.038) |
+
+Bowling gains in all four folds (mean +0.027); batting terms do not (mean -0.006 to -0.010), which is why there is none.
+
+**Test holdout** (actual XIs, 133 Tests since 2023, 512 replays of every match, the same seeds; log loss per real match, 0.693 a coin flip,
+standard error over matches; paired = the same matches, minus is better). "Before" is the shipped state (ratings of 3748662 with the South
+Africa +2); "without the offset" is the same ratings with it removed; "after" is the new ratings with no offset:
+
+| | before (offset) | without the offset | after (ratings, no offset) | paired after - before | paired after - without |
+|---|---|---|---|---|---|
+| holdout 2025+ (58) | 0.580 (0.078) | 0.609 (0.081) | **0.568 (0.078)** | **-0.012 +- 0.012** | -0.041 +- 0.028 |
+| fit to 2024 (75) | 0.577 (0.078) | 0.592 (0.078) | 0.573 (0.078) | -0.004 +- 0.004 | -0.019 +- 0.011 |
+| all 133 | 0.578 (0.055) | 0.599 (0.056) | 0.571 (0.056) | -0.008 +- 0.006 | -0.029 +- 0.014 |
+
+The ratings carry what the offset carried, and a little more, with no free parameter fitted on those Tests: the term comes from 2014-22 data.
+The comparison with "before" is within the noise (the holdout is 58 matches); the comparison that matters is with no offset, which the
+ratings now beat. Draw rate 8.5% (real 8.9%), home share of decided Tests 54.8% holdout / 61.0% fit against a real 54.4% / 59.5%.
+
+Win rate by country (decisive results; real / before / without the offset / after):
+
+| country | real | before | without offset | after |
+|---|---|---|---|---|
+| South Africa | 0.78 | 0.64 | 0.54 | **0.70** (home 0.74, away 0.67; real 0.82 / 0.73) |
+| New Zealand | 0.65 | 0.50 | 0.50 | 0.50 |
+| India | 0.53 | 0.64 | 0.66 | 0.64 |
+| England | 0.53 | 0.62 | 0.62 | 0.62 |
+| Australia | 0.69 | 0.72 | 0.74 | 0.71 |
+| Bangladesh | 0.46 | 0.41 | 0.42 | 0.41 |
+| Pakistan | 0.30 | 0.24 | 0.26 | 0.23 |
+| Sri Lanka | 0.40 | 0.41 | 0.42 | 0.40 |
+| West Indies | 0.28 | 0.29 | 0.30 | 0.29 |
+| Ireland / Zimbabwe | 0.22 / 0.18 | 0.30 / 0.12 | 0.30 / 0.13 | 0.30 / 0.12 |
+
+**Named players** (Test bowling overall, before -> after; nobody else's rating moved, no drop of an elite player): Kagiso Rabada 85 -> 97,
+Marco Jansen 81 -> 85, Keshav Maharaj 80 -> 84, Simon Harmer 79 -> 84, Lungi Ngidi 78 -> 82, Anrich Nortje 77 -> 82, Wiaan Mulder 76 -> 81 (and
+about 90 other South African players of the pool with a Test bowling set, by 1-16, the steepest at the thin tail: Shane Dadswell 55 -> 71). Unchanged: Joe Root 92, Virat
+Kohli 88, Steven Smith 89, Kane Williamson 87, Jasprit Bumrah 97, Pat Cummins 88, Mitchell Starc 92, Ravichandran Ashwin 83, Ravindra Jadeja
+81, Matt Henry 87, Tim Southee 78, Trent Boult 85, Harry Brook 93, Ben Stokes 81, Mohammed Siraj 79 (every Test set outside South Africa is as
+before). Rabada's +12 is the scale, not the size of the term (5.8 runs per 100 balls): at the top of the link a unit of score is worth two
+rating points and the next bowler is far off, so he now sits level with Bumrah. Open decision: cap a term's effect at +8 rating points?
+
+**Still off, and why it is not the ratings.** New Zealand (0.50 against 0.65, the sides as rated; the batters' record beyond the ratings does
+not persist), India and England (0.64 and 0.62 against 0.53: their players did as rated or better, so these two gaps are the engine's
+spread of team strength or the luck of 30-40 Tests, not a rating a data fit can move), and South Africa itself at 0.70 against 0.78.
+
 ## Tables (format-ratings-report.ts)
 
 ### Out-of-sample validation

@@ -54,10 +54,8 @@ describe("series tuning for the Test", () => {
     expect(med(shifts(n, n).a)).toBe(0);
   });
 
-  it("a side with a strength term (South Africa) gains its rating points wherever it plays, home, away or neutral", () => {
-    const t = tuningFor("test", "men")!;
-    const sa = t.strengthBy?.["South Africa"] ?? 0;
-    expect(sa).toBeGreaterThan(0);
+  it("a side with a strength term (set here: none ships) gains its rating points wherever it plays, home, away or neutral", () => {
+    const sa = 2;
     const med = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
     const nations: [string, string] = ["South Africa", "Pakistan"];
     const n = series("test", "neutral", nations);
@@ -66,8 +64,9 @@ describe("series tuning for the Test", () => {
     const saved = SERIES_TUNING.test.men;
     SERIES_TUNING.test.men = { ...saved!, strengthBy: {} };
     const without = base(n);
-    SERIES_TUNING.test.men = saved;
+    SERIES_TUNING.test.men = { ...saved!, strengthBy: { "South Africa": sa } };
     const withTerm = base(n);
+    SERIES_TUNING.test.men = saved;
     const d = n.sides[0].squad.filter(id => withTerm.has(id)).map(id => SIX.reduce((m, k) => m + (withTerm.get(id)!.ratings[k] - without.get(id)!.ratings[k]), 0) / SIX.length);
     expect(med(d)).toBeCloseTo(sa, 5);
     const dPak = n.sides[1].squad.filter(id => withTerm.has(id)).map(id => SIX.reduce((m, k) => m + (withTerm.get(id)!.ratings[k] - without.get(id)!.ratings[k]), 0) / SIX.length);

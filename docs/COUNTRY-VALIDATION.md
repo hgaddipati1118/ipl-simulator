@@ -215,7 +215,7 @@ correction belongs in the series tuning, which is what it is for.
 
 (standard errors 0.02-0.05 per cell; home share of decided Tests in the sim 44-51% at -4, 57% at -2, 61% at -1, 65% at 0, 72% at +2). A stretch
 is not worth having (0.75 and 1 are equal within the noise, 1.25 and 0.5 are worse, so the sides stay as rated), and the home term's best region is -2 to -1, where the sim's home share matches the real 59.5%.
-Shipped first: **`test.men = { spread: 1, home: -1.5 }`** (the home side's six attributes 0.75 points down, the away side's 0.75 up); a strength term for South Africa follows below. Women's Tests
+Shipped first: **`test.men = { spread: 1, home: -1.5 }`** (the home side's six attributes 0.75 points down, the away side's 0.75 up); a strength term for South Africa follows below (**since removed**: the ratings carry it, FORMAT-RATINGS-REPORT.md "Test ratings by country"). Women's Tests
 (17 real) have no entry.
 
 **Per-country home terms were tested and not shipped.** Each host country's loss over a grid of home terms (192 replays, prior sd 1.5 / 2 / 3
@@ -225,7 +225,7 @@ rating points around the uniform best): at 5-13 hosted matches a country's curve
 is not a home effect: they win 75% / 82% against a sim 61% / 51% in both halves **away as well as at home** (away 0.73 real against 0.51
 sim), so it is a strength shortfall of the side, not a ground term.
 
-**A strength term for South Africa (shipped), none for the others.** `SeriesTuning.strengthBy` adds rating points to a country's side wherever
+**A strength term for South Africa (shipped when this was written; removed since, see the end of this section), none for the others.** `SeriesTuning.strengthBy` adds rating points to a country's side wherever
 it plays (the stretch cannot do it: it moves sides apart in proportion to the gap, and South Africa and New Zealand are mid-table sides the
 ratings under-rate while India and England are over-rated). Fit half only, one country at a time (192 replays; the loss of the matches that
 country played, plus offset^2 / (2 sd^2), sd 1.5 / 2 / 3):
@@ -244,6 +244,14 @@ did not help the holdout further (-0.030 +- 0.023 against home alone, the same a
 Zealand (real 0.65, 26 Tests; the fit half says 0.56 against a sim 0.49 and the loss is flat) has no evidence to ship. **This is a
 side-level offset on the ratings' order of one country, fitted on 23 Tests: it is the thing to drop when the Test ratings are next
 refitted, and it follows any XI a user sets for South Africa. Open decision.**
+
+**Removed.** The Test ratings were then checked by country (FORMAT-RATINGS-REPORT.md, "Test ratings by country"): South Africa's bowlers
+did 8 runs per 100 balls better in Tests than their records said (2014-2025, three of four folds, at home and away), and the Test bowling
+ratings now carry a term for them (fitted on 2014-22 data, not on these Tests), which takes South Africa to 0.70 without the offset (0.54
+without both, 0.64 with the offset; real 0.78). `test.men` is back to `{ spread: 1, home: -1.5 }`. Paired on the same 512 replays the ratings
+without any offset beat the old ratings with it: holdout -0.012 +- 0.012 (0.580 -> 0.568), all 133 Tests -0.008 +- 0.006, and beat the
+ratings with neither by -0.041 +- 0.028 on the holdout. The home term was re-checked against the new ratings on the fit half (256 replays: loss
+0.569 at -1.5, 0.581 at -3, 0.592 at 0; stretch 1.5 0.595) and stands.
 
 **Result** (actual XIs, 512 replays of every match; log loss per real match, 0.693 a coin flip; SE of the mean over matches in
 brackets; "paired" is the difference of the same matches and its standard error, minus is better):
@@ -316,11 +324,12 @@ left over after the ground's own effect; a preset replaces the ground's effect a
 - Men's Test with the elevens that played (133 Tests since 2023): before the Test tuning (above) India won 66% against a real 53%, England
   62% against 53%, South Africa 55% against 78%, New Zealand 52% against 65%, Australia 72% against 69%, and home sides 62.8% of decided
   Tests against 57.3% real (the "57.5% against 51.4%" of the bias round compared decided with all matches). The home term brings the home
-  share to 57.4% and the away rates closer; South Africa's strength term brings its win rate to 0.64 (real 0.78). Left: **New Zealand
+  share to 57.4% and the away rates closer; South Africa's strength term brought its win rate to 0.64 (real 0.78; since replaced by the ratings' own term: 0.70). Left: **New Zealand
   (0.51 against 0.65) is underrated and India and England (0.64 and 0.62 against 0.53) overrated** as sides, with no ground term, stretch or
   well-supported offset that fixes them (New Zealand and India were tried; the loss is flat on the fit half); that is a question for the Test ratings, which the
-  bias round checked for India and Australia and did not find wrong. The South Africa offset is the one thing here that stands in for a
-  ratings error; drop it when the Test ratings are next refitted.
+  bias round checked for India and Australia and the country round for all nine sides: India's and England's players did as rated or better,
+  and New Zealand's batters did better than rated but not persistently (FORMAT-RATINGS-REPORT.md, "Test ratings by country"). The
+  South Africa offset is gone; the sides' remaining gaps are not a ratings error that out-of-sample data supports.
 - Sri Lanka, West Indies and Zimbabwe men's T20I still win 0.40-0.49 against 0.29-0.41: their squads rate higher than they played
   over 2019-26 (an order-of-sides error, not a spread one).
 - Women's Zimbabwe and Bangladesh (real 0.00 and 0.18) are still too strong at 0.19 / 0.37, and score 20-25 runs more per

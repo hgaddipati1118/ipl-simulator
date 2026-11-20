@@ -8,7 +8,9 @@
  * gap between the two sides' strengths (1 = as rated), `home` is the rating points the home side gains (and the away side
  * loses, half each) at a ground that is not neutral. The Test's is negative: the Test model's own home edge is a little too large
  * (a home side wins 62.8% of decided Tests in the sim against 57.3% real, with the XIs that played). `strengthBy` is a side-level offset for a
- * country the ratings place wrongly (Test: South Africa +2, fitted on 12 Tests and confirmed on the 2025+ holdout); drop it when the ratings are refitted.
+ * country the ratings place wrongly; none ships now: the Test's South Africa +2 (fitted on 23 Tests) was dropped when the ratings took on
+ * the national-side bowling term that explains it (packages/ratings/src/pipeline/test-bowling-terms.ts, docs/FORMAT-RATINGS-REPORT.md,
+ * "Test ratings by country").
  */
 export interface SeriesTuning { spread: number; home: number; /** the home side's country -> its own home advantage (rating points), else `home` */ homeBy?: Record<string, number>;
   /** the side's country -> rating points added to it wherever it plays (a side the ratings place wrongly, fitted with a prior; absent: none) */ strengthBy?: Record<string, number> }
@@ -23,6 +25,6 @@ export const SERIES_TUNING: Record<string, Partial<Record<"men" | "women", Serie
     women: { spread: 1.5, home: 2, homeBy: { "Australia": 6, "India": 0, "Sri Lanka": 0, "West Indies": 4, "Pakistan": 0, "Bangladesh": 4 } },
   },
   test: {
-    men: { spread: 1, home: -1.5, strengthBy: { "South Africa": 2 } },
+    men: { spread: 1, home: -1.5 },
   },
 };

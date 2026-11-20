@@ -54,6 +54,7 @@ import {
   type CaPlayerFormats, type EstimateContext, type FormatScore, type Gender, type RelativeRates, type Side, SIDES,
 } from "./format-model.js";
 import { checkIntlEvidence, validate, type FormatValidation } from "./format-validation.js";
+import { TEST_BOWLING_TERMS } from "./test-bowling-terms.js";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const DIR = `${ROOT}data/analysis/`;
@@ -458,7 +459,12 @@ function runGender(gender: Gender, pool: PoolFile[] | null, validation: FormatVa
       const curve = useLinked
         ? linkCurve(linked.map(i => score[i]!), linked.map(i => ovr(side, shipped[i].t20)))
         : linkCurve(regIdx.map(i => score[i]!), t20Ref[side].overalls);
-      const raw = shipped.map((_, i) => (score[i] !== undefined ? readCurve(curve, score[i]!) : undefined));
+      // Men's Test bowling: the national-side term (test-bowling-terms.ts) is added where a player's score is read off the link, after the
+      // curve is made from the scores as they are: it moves the ESPN-pool players of the sides it names (the national sides' regulars, whom
+      // it was measured on), and nobody else's rating
+      const terms = gender === "male" && fmt.ca === "FC" && side === "bowl" && process.env.TEST_BOWLING_TERMS !== "off"
+        ? (process.env.TEST_BOWLING_TERMS_JSON ? JSON.parse(process.env.TEST_BOWLING_TERMS_JSON) as Record<string, number> : TEST_BOWLING_TERMS) : undefined;
+      const raw = shipped.map((p, i) => (score[i] !== undefined ? readCurve(curve, score[i]! + (p.group === "espn" ? terms?.[p.country] ?? 0 : 0)) : undefined));
 
       // Sides with no CA evidence anywhere: follow the T20 overall along a line fitted on players rated from data
       const dataIdx = shipped.map((_, i) => i).filter(i => shipped[i].group === "espn" && est[i]?.source === "data");

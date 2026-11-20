@@ -147,7 +147,7 @@ function withoutFormat(p: CaPlayerFormats, format: CaFormat, side: Side): CaPlay
  * (later value - estimate) on -thinness x max(0, estimate - median estimate), thinness = 1 - balls / thinBalls. Ranks within thick or
  * within thin records are untouched; it lowers a thin record's top relative to a thick one's.
  */
-function fitThin(
+export function fitThin(
   gender: Gender, format: "ListA" | "FC", side: Side, dataVar: number,
   folds: { y: number; players: Map<number, CaPlayerFormats>; translations: ReturnType<typeof fitTranslations> }[],
 ): { kappa: number; m0: number; n: number } {
