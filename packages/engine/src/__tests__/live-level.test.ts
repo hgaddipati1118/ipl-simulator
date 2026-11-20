@@ -11,6 +11,7 @@ import { Team, IPL_TEAMS } from "../team.js";
 import { createPlayerFromData } from "../create-player.js";
 import { setRuleOverrides } from "../delivery-rules.js";
 import { getRealPlayers } from "../../../ratings/src/real-players.js";
+import { matchXiOptions } from "../xi-selection.js";
 
 vi.setConfig({ testTimeout: 240000 });
 
@@ -87,7 +88,8 @@ describe("live T20 level", () => {
       const [h, a] = pairing(iplTeams(), i);
       const s = createMatchState(h, a, RULES, null, 2100 + i);
       const bowling = s.bowlingTeamId === h.id ? h : a;
-      const attack = bowling.getBowlingOrder(bowling.getPlayingXI(RULES.maxOverseasInXI)).map(p => p.id);
+      // the XI the side drew for this match (xi-selection.ts: seeded by the match and the side)
+      const attack = bowling.getBowlingOrder(bowling.getPlayingXI(RULES.maxOverseasInXI, matchXiOptions(RULES, 2100 + i, bowling === h ? 0 : 1))).map(p => p.id);
       const opener = s._internal.bowlingOrderIds[s.currentBowlerIdx];
       expect(attack).toContain(opener);
       if (["right-arm-fast", "right-arm-fast-medium", "right-arm-medium-fast", "right-arm-medium", "left-arm-fast", "left-arm-fast-medium", "left-arm-medium-fast", "left-arm-medium"].includes(s._internal.playerDataMap[opener].bowlingStyle)) paceOpeners++;
