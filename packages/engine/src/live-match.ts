@@ -910,12 +910,12 @@ export function createMatchState(
   // Pick first bowler
   const openFmt = captainModelFor(odi, isWomenT20I(rules)) ? choiceFormatFor(rules.matchFormat ?? "t20", fmt.overs, odi ? 50 : 20) : null;
   const openIds = bowlingOrder.map(p => p.id);
-  const openAttack = openFmt === "t20" && userTeamId !== bowlingFirst.id && !userOrderSet(bowlingFirst) ? attackTableFor(genderOf(rules), rules.scoringContext === "t20i") : null;
+  const openAttack = openFmt === "t20" && userTeamId !== bowlingFirst.id && !userOrderSet(bowlingFirst) ? attackTableFor(genderOf(rules), rules.scoringContext === "t20i", rules.league) : null;
   const firstBowlerIdx = openingBowlerIdx(openIds, playerDataMap, fmt.maxOversPerBowler, userTeamId === bowlingFirst.id, rng,
     odi ? { scheduledOvers: ODI_FORMAT.overs, unavailable: [] } : undefined, bowlingFirst.getBowlingPlan() ?? undefined,
     openFmt ? { fmt: openFmt, gender: genderOf(rules), history: [], xiIds: (bowlingFirst === homeTeam ? homeXI : awayXI).map(p => p.id), unavailable: [], scheduledOvers: fmt.overs, attackTable: openAttack, inn: 1, log: [] } : undefined);
-  // the attack table may open with a bowler outside the side's order (bowling-choice.ts section 8): he joins it
-  if (firstBowlerIdx >= bowlingOrder.length) bowlingOrder.push(firstBowlXI.find(p => p.id === openIds[firstBowlerIdx])!);
+  // the attack table chooses from the whole eleven (bowling-choice.ts section 8): the players it added to the order join it, in its order
+  for (const id of openIds.slice(bowlingOrder.length)) bowlingOrder.push(firstBowlXI.find(p => p.id === id)!);
   const firstBowler = bowlingOrder[firstBowlerIdx];
 
   const firstBowlerStats: LiveBowlerStats = {
@@ -3931,7 +3931,7 @@ function choiceInput(state: MatchState, ni: MatchStateInternal, bowlingTeamId = 
   const fmt = captainModelFor(ni.rules.matchFormat === "odi", isWomenT20I(ni.rules)) ? choiceFormatFor(ni.rules.matchFormat ?? "t20", state.maxOvers, ni.rules.matchFormat === "odi" ? 50 : 20) : null;
   if (!fmt) return undefined;
   const xiIds = (bowlingTeamId === state.homeTeam.id ? ni.homeXIIds : ni.awayXIIds) ?? ni.bowlingOrderIds;
-  const attackTable = fmt === "t20" && bowlingTeamId !== ni.userTeamId && !ni.ownBowlingOrder?.includes(bowlingTeamId) ? attackTableFor(genderOf(ni.rules), ni.rules.scoringContext === "t20i") : null;
+  const attackTable = fmt === "t20" && bowlingTeamId !== ni.userTeamId && !ni.ownBowlingOrder?.includes(bowlingTeamId) ? attackTableFor(genderOf(ni.rules), ni.rules.scoringContext === "t20i", ni.rules.league) : null;
   return { fmt, gender: genderOf(ni.rules), history: ni.overBowlers ?? [], xiIds, unavailable: ni.unavailableBowlers ?? [], scheduledOvers: state.maxOvers,
     ...(attackTable ? { attackTable, inn: state.innings === 2 ? 2 : 1, log: ni.currentInningsRaw?.ballLog ?? [] } : {}) };
 }

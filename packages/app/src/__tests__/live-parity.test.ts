@@ -1,8 +1,7 @@
 import { expect, it } from "vitest";
 import {
-  EXTRA_LEAGUES, LAST_PAIR_SWITCH, RULE_PRESETS, simulateMatch, createMatchState, simulateRemaining, setAggression,
-  type BallEvent, type RuleSet, type Team,
-} from "@ipl-sim/engine";
+  ATTACK_MODEL, EXTRA_LEAGUES, LAST_PAIR_SWITCH, RULE_PRESETS, simulateMatch, createMatchState, simulateRemaining, setAggression,
+  type BallEvent, type RuleSet, type Team } from "@ipl-sim/engine";
 import { createGameState } from "../game-state";
 
 /**
@@ -15,6 +14,8 @@ import { createGameState } from "../game-state";
  * PARITY_ONLY=ipl,wpl limits the leagues. No rain in either engine (both take it only when asked: the rain option).
  */
 const N = Number(process.env.PARITY_MATCHES ?? 300);
+// PARITY_ATTACK_OFF=1: both engines with the former attack (docs/TACTICS.md section 8)
+if (process.env.PARITY_ATTACK_OFF) ATTACK_MODEL.league = false;
 
 interface Acc { inns: number; runs: number; wkts: number; fours: number; sixes: number; extras: number; allOut: number; matches: number; bfWins: number; decided: number; ph: number[][] }
 const acc = (): Acc => ({ inns: 0, runs: 0, wkts: 0, fours: 0, sixes: 0, extras: 0, allOut: 0, matches: 0, bfWins: 0, decided: 0, ph: [[0, 0], [0, 0], [0, 0]] });

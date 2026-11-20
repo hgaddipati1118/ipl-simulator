@@ -104,7 +104,7 @@ describe("the bowling attack (men's T20 leagues)", () => {
 
   it("the live engine's CPU sides choose from the eleven too (caps and no back-to-back overs hold)", () => {
     let outside = 0;
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 30; i++) {
       const home = teams[i % teams.length], away = teams[(i + 1) % teams.length];
       const done = simulateRemaining(createMatchState(home, away, RULES, null, 700 + i, { rain: false })).state;
       const d = buildDetailedResultFromState(done);

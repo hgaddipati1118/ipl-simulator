@@ -21,7 +21,7 @@ Left alone, a T20I side bowls as real captains do (the ODI keeps the former rule
 
 ## 1. Bowling plan
 
-**Status.** The captain model below is the default for every T20 innings (T20I and the leagues). The **ODI does not use it by default**: it predicted the 2025+ ODIs worse than the former rule (section 2, "Regression on the real fixtures"), so the ODI keeps
+**Status.** The captain model below is the default for every T20 innings (T20I and the leagues; in the men's leagues but the IPL it chooses from the whole eleven with its own table, section 8). The **ODI does not use it by default**: it predicted the 2025+ ODIs worse than the former rule (section 2, "Regression on the real fixtures"), so the ODI keeps
 the former rule (one of the best three on rating, uniformly; `captainModelFor`) with the user's plan narrowing it (fixed overs, the ODI phase lists), and the ODI figures in the tables of this section describe the model as fitted, not the ODI default. The model's plan strip in the editor
 stays as a starting point for a user who wants to bowl like real captains.
 
@@ -576,9 +576,76 @@ Section 6 found the game's league XIs batting less deep than real ones: `Team.au
 | engine before | 6.63 | 93% | 50% | 0.02 | 0% |
 | **engine now** | 5.74 | 55% | 16% | 1.37 | 29% |
 
-No side is ever short of overs: an XI with four front-line bowlers bowls its part-timers (`autoBowlingOrder`), as about a quarter of real XIs do. What the change leaves: real captains use a sixth bowler for an over or two in 85% of innings, the engine now in 55% (before, its XIs carried two extra bowlers and used seven in half its innings). Who joins the attack is `autoBowlingOrder`'s rule (bowlers and all-rounders, part-timers only when short), not a fitted choice; the captain model of section 1 chooses within the attack. Fitting the attack's size is the next step for the bowling side.
+No side is ever short of overs: an XI with four front-line bowlers bowls its part-timers (`autoBowlingOrder`), as about a quarter of real XIs do. What the change leaves: real captains use a sixth bowler for an over or two in 85% of innings, the engine now in 55% (before, its XIs carried two extra bowlers and used seven in half its innings). Who joins the attack was `autoBowlingOrder`'s rule (bowlers and all-rounders, part-timers only when short), not a fitted choice; the captain model of section 1 chose within the attack. Section 8 fits it (the men's leagues but the IPL: 6.00 bowlers, 80% six or more, 19% seven or more, 2.51 part-timer overs).
 
 Saves: nothing new is stored (the XI is chosen at match time); old saves load and their CPU sides pick the new way. Tests: `packages/engine/src/__tests__/xi-selection.test.ts`.
+
+## 8. The bowling attack: who bowls, and when a sixth or seventh bowler comes on (shipped for the men's leagues but the IPL)
+
+Section 7 left the attack's size to a hand rule: the captain model of section 1 chose each over among `Team.autoBowlingOrder` (bowlers and all-rounders, part-timers only when short of five), because it had been fitted over the bowlers who did bowl in each real innings (the attack known in advance). On the game's squads that bowled 5.74 bowlers an innings against a real 6.04, a sixth in 55% of innings (real 85%) and 1.37 overs an innings by part-timers (bowlers rated under 50; real 2.23).
+
+**The fit** (`packages/ratings/src/analysis/bowling-attack.py`, generated `packages/engine/src/bowling-attack-data.ts`, report `docs/data/bowling_attack.json`; data `docs/data/bowling_overs.json` from `packages/ratings/src/pipeline/generate-bowling-overs.ts`). The same conditional logit as section 1, one over at a time, but its choice set is **every player of the eleven** who may bowl the over (keepers apart, as the rank is; the cap and the no-two-in-a-row rule), so the model also decides who joins the attack. On top of section 1's features (rank, type by phase and over, overs used, the gap since his last over, the slack of the front-line overs, the death pace reserve) it reads: the lower ranks (6th, 7th, 8th+) and, for a bowler outside the best five or a batter who bowls, his bowling rating (bins at 30 / 40 / 50 / 60), the wickets the attack has taken, the run rate so far and whether it is the chase; for a bowler not yet on, how many bowlers have bowled (he would be the 5th or earlier / 6th / 7th / 8th, by phase); for one who has, the runs off his last over (0-6 / 7-10 / 11-14 / 15+), his runs an over so far and his wickets. Data: every over of the nine men's leagues since 2021 (Cricsheet, the players keyed and rated as in section 7) and the men's T20Is of `actual_xi.json` (rated as the engine plays them), one table for the leagues and one for the T20I, ridge chosen by fitting to 2023 and scoring 2024, **fitted to the end of 2024, judged on 2025+**.
+
+*Played forward, the per-over fit uses too many bowlers.* It is calibrated on the real histories (its predicted sixth-bowler entries on the fit half 1,649 against 1,650 real), but played forward on the same elevens its choices compound: a real captain plans his twenty overs, the model chooses one at a time, and brought on a sixth bowler in 93% and a seventh in 34% of the fit half's innings (real 81% and 18%). So three offsets (the sixth bowler's entry, the seventh's and later, a bowler rated under 50) were fitted by moment matching on the fit half (each real eleven played forward twice, the overs' runs and wickets drawn from the real overs of that index, so the forward play needs no ball model), to the fit half's real share of innings with six and seven bowlers and its part-timer overs. Then judged on 2025+:
+
+| | held out: choices | log likelihood per choice (2025+) | bowlers used / 6+ / 7+ / part-timer overs, the 2025+ elevens played forward |
+|---|---|---|---|
+| leagues, real | 22,885 | | 6.05 / 86% / 18% / 2.37 |
+| fitted, calibrated (shipped) | | **-1.436** | **6.05 / 84% / 20% / 2.34** |
+| fitted, before the calibration | | -1.423 | 6.32 / 94% / 34% / 2.75 |
+| section 1's features alone, refitted over the eleven | | -1.492 | |
+| section 1's model as shipped, over the eleven | | -1.810 | |
+| uniform | | -2.135 | |
+| men's T20I, real | 5,996 | | 5.96 / 81% / 15% / 0.50 |
+| fitted, calibrated | | **-1.344** | 5.94 / 79% / 14% / 0.70 |
+| section 1's features alone, refitted over the eleven / as shipped / uniform | | -1.397 / -1.702 / -2.086 | |
+
+(The calibration costs 0.013 a choice of likelihood and is what makes the shape right; the attack terms gain 0.06 a choice over section 1's features refitted on the same choice sets, 0.37 over section 1's model as it was.)
+
+**In the engine** (`attackTableFor`, `attackFeatures`, `attackTally` in `bowling-choice.ts`; `simulateInnings` in match.ts and `pickNextBowler` in live-match.ts). A men's full-length T20 innings of a CPU side, or of a user side that has not set its own bowling order, chooses each over from the eleven by the table: the rest of the eleven join the side's order as candidates (the impact-player decision still reads the side's own order). The user's controls keep working as before: a bowling order the user set is the attack (the table chooses within it, as section 1's model did), a bowling plan narrows the choice first (fixed overs, the phase lists), the caps and the consecutive-over rule always hold. The live engine plays it for its CPU sides (the user picks his own bowlers there). The Hundred, a rain-cut innings, the women, the ODI and the Test are untouched.
+
+*The game's squads* (`LXI_SIM=1`, 1,000 matches a league, innings of 19+ overs, part-timer = bowling rating under 50; real = the leagues' innings since 2024):
+
+| | bowlers used | 6+ bowlers | 7+ bowlers | part-timer overs an innings |
+|---|---|---|---|---|
+| nine leagues: real | 6.04 | 85% | 18% | 2.23 |
+| before | 5.77 | 57% | 17% | 1.47 |
+| **now** (the IPL as before) | **6.00** | **80%** | **19%** | **2.51** |
+| eight leagues (no IPL): real | 6.06 | 86% | 19% | 2.48 |
+| before | 5.72 | 54% | 16% | 1.60 |
+| **now** | **5.98** | **80%** | **18%** | **2.78** |
+| IPL: real (since 2024) | 5.99 | 83% | 15% | 1.42 |
+| IPL as before (kept) | 6.14 | 82% | 26% | 0.52 |
+| IPL with the table (not shipped) | 6.35 | 92% | 39% | 2.13 |
+
+Per league (now): BBL 5.99 / 81% / 18% / 3.18 (real 6.08 / 90% / 17% / 3.06), PSL 6.01 / 81% / 19% / 2.34 (6.01 / 84% / 17% / 1.88), SA20 5.92 / 77% / 15% / 2.42 (5.94 / 79% / 14% / 2.13), CPL 6.00 / 79% / 19% / 4.00 (6.04 / 87% / 16% / 3.68), ILT20 6.00 / 82% / 18% / 1.86 (6.15 / 87% / 25% / 1.45), MLC 6.00 / 81% / 19% / 2.91 (6.05 / 83% / 21% / 3.21), BPL 5.96 / 79% / 16% / 2.85 (6.06 / 86% / 18% / 2.40), LPL 6.00 / 80% / 19% / 2.71 (6.29 / 93% / 32% / 1.88). Part-timers bowl 0.3 overs an innings more than real on these squads (the calibration matched them on the real elevens).
+
+**Why not the IPL.** The IPL's real sides bowl with twelve to choose from: the impact player comes on at the break, so a side's bowling eleven has a sixth front-line bowler (rated 61 on average, against the engine's 53; its seventh 49 against 39). The engine's IPL sides bring their impact player on mid-innings at best (`evaluateBowlingImpact`: over 13+, or earlier when the run rate is high; 21% of bowling innings) and bowl with the eleven they picked, so with the table they used seven bowlers in 39% of innings against a real 15% (12% bowling first, 23% second), the IPL's extras went 9.3 to 9.6 an innings (real 8.9) and its wickets 5.95 to 5.82 (real 6.05; its runs 176 to 180, real 184). That is the engine's impact-player timing, not the attack, so the IPL keeps the former attack (`ATTACK_MODEL.except`) until the impact player comes on as real sides use him.
+
+**Why not the T20I.** Its own table fixes the T20I's shape (`tactics-allocation.test.ts`, `BENCH_ATTACK=t20i`, 4 replays: overs by the sixth and seventh most used bowler 1.10 / 0.14 against a real 1.13 / 0.15, before 1.28 / 0.34) but does not improve the actual-XI match benchmark (`BENCH_ACTUAL=1 BENCH_MODES=actual BENCH_REPLAYS=256 BENCH_ATTACK=t20i`, per-match log loss, paired, minus is better): holdout 2025+ (168 matches) 0.576 -> 0.578, **+0.002 +- 0.006**; fit to 2024 (418) 0.635 -> 0.638, **+0.003 +- 0.004**. Both within noise but neither better, and the mechanism is the one of section 2: the best-rated bowler bowls less (3.31 overs against 3.41 before and a real 3.60), which narrows the sides. So the T20I is off (`ATTACK_MODEL.t20i`; its table is in the file). The men's T20I benchmark plays exactly as before.
+
+*League benchmarks* (`CALIBRATE_LEAGUES=1 CAL_SEASONS=64`, both innings; real 2024-26; first-innings all out against the real 2021+ share of section 6). More part-timers mean more runs and fewer wickets (+2 runs, -0.08 wickets an innings on the former levels), so the eight leagues' `LEAGUE_LEVELS` were refitted to the same targets (a common correction from the response pooled over the leagues, then one Newton step per league at 64 seasons; wicket factors up 0.025-0.055, dot factors -0.024 to +0.037; the IPL has no levels):
+
+| league | runs / innings: real, before, after | wickets / innings: real, before, after | first-innings all out: real, before, after |
+|---|---|---|---|
+| IPL (unchanged) | 183.7, 176.3, 176.4 | 6.05, 5.95, 6.00 | 7.7%, 8.4%, 9.1% |
+| BBL | 158.3, 159.9, **158.9** | 6.47, 6.39, **6.47** | 11.3%, 13.7%, 13.9% |
+| PSL | 169.2, 169.7, **169.1** | 6.47, 6.43, 6.43 | 11.6%, 14.9%, 14.7% |
+| SA20 | 153.4, 152.7, **153.1** | 6.21, 6.13, **6.27** | 15.3%, 18.4%, 19.4% |
+| CPL | 158.0, 159.4, **158.1** | 6.27, 6.25, 6.23 | 12.1%, 19.8%, **18.7%** |
+| ILT20 | 154.9, 155.2, **154.8** | 6.18, 6.14, **6.21** | 10.6%, 11.2%, 10.8% |
+| MLC | 164.9, 166.4, **165.9** | 6.38, 6.33, **6.45** | 18.4%, 18.0%, 20.5% |
+| BPL | 152.4, 153.4, **152.4** | 6.40, 6.28, **6.43** | 14.9%, 11.5%, 11.7% |
+| LPL | 175.7, 177.5, **174.7** | 6.64, 6.48, **6.58** | 13.5%, 16.3%, 16.9% |
+| mean absolute error, nine | 1.80 -> **1.17** | 0.077 -> **0.042** | 2.71 -> 2.97 points |
+
+(Two 64-season runs of the same engine differ by about 1 run and 1 point of all-out in a league, 0.2-0.3 points in the all-out error: the IPL, unchanged, read 8.4% and 9.1%.) Runs and wickets an innings come closer to real; the all-out error is level within that noise (a second 64-season run of the shipped engine read 2.78), so **section 6's open problem (the leagues' all-out error, mostly CPL, SA20 and MLC) is not fixed by the attack**. Extras an innings on the game's squads are unchanged (8.54 -> 8.54, all leagues; the IPL, unchanged, 9.3 against a real 8.9): a part-timer bowls 0.07 more wides and no-balls an over than a front-line bowler in the engine, as in the real record (0.34 against 0.27 an over, bowlers rated under 50 against 70+, the leagues since 2024), and the level refit took the small rise back.
+
+*Match prediction.* There is no actual-XI benchmark for the leagues (career squads are not the real ones), so the out-of-sample case for the leagues is the held-out choice likelihood and the 2025+ shape above, plus the T20I's own test of the same mechanism, which costs nothing measurable (+0.002 +- 0.006, +0.003 +- 0.004) and is not shipped there. The T20I, the ODI and the Test play exactly as before.
+
+**Live v instant.** The two engines draw the same attack: PSL, 1,500 matches each, innings of 19+ overs, instant / live CPU: bowlers used 6.00 / 6.01, seven or more 19% / 18%, part-timer overs 2.88 / 2.88, runs an over 9.00 / 9.04 (with the former attack 5.72 / 5.72 bowlers and 8.89 / 8.96 runs an over, 400 matches). The live-v-instant table (`LIVE_PARITY=1 PARITY_MATCHES=600 PARITY_ONLY=bbl,psl`, runs / wickets an innings, instant / live CPU): BBL 161.8 / 162.1 and 6.76 / 6.73, PSL 168.9 / 173.3 and 6.48 / 6.55 (`PARITY_ATTACK_OFF=1`: BBL 159.2 / 159.5, PSL 169.2 / 169.7; the PSL gap of 600 matches is noise: 0.04 an over at 1,500).
+
+Switches: `ATTACK_MODEL` (`league`, `t20i`, `except`); `ATTACK_OFF=1` in `calibrate-leagues.test.ts`, `LXI_ATTACK_OFF=1` in the `LXI_SIM` collector, `BENCH_ATTACK=off|t20i` in `benchmark-countries.test.ts` (and `t20i` in `tactics-allocation.test.ts`). Tests: `packages/app/src/__tests__/bowling-attack.test.ts`. Saves: nothing new is stored.
 
 ## Refitting
 
@@ -586,6 +653,7 @@ Saves: nothing new is stored (the XI is chosen at match time); old saves load an
   `python3 -I packages/ratings/src/analysis/league-xi.py fit xi.json` (needs numpy and scipy) and copy the weights into `LEAGUE_XI_VALUE` (xi-selection.ts). `LXI_SIM=sim.json` (with `LXI_OFF=1` for the former selection) collects the bowling and depth table of the XIs in play.
   After a change, refit the innings clock (`t20-wicket-timing.py fit ... --wicket-only --write`, without its `t20i-male` table) and the league levels (`LEVELS_FILE=levels.json` in `calibrate-leagues.test.ts` / `last-pair-collect.test.ts` plays other levels without a rebuild).
 
+- Bowling attack (section 8): `cd packages/ratings && npx tsx src/pipeline/generate-bowling-overs.ts` (after `generate-league-xi.ts` / `generate-actual-xi.ts`), `LXI_TRAIN=league.json npx vitest run packages/app/src/__tests__/league-xi.test.ts -t "training rows"`, `BENCH_TACTICS=1 BENCH_ONLY=t20i-men BENCH_REPLAYS=0 BENCH_EXPORT=t20i.json npx vitest run packages/app/src/__tests__/tactics-allocation.test.ts`, then `python3 -I packages/ratings/src/analysis/bowling-attack.py league.json t20i.json --write` (needs numpy and scipy; about two minutes, the forward calibration included). `LXI_SIM=sim.json` (`LXI_ATTACK_OFF=1` for the former attack) collects the allocation table; after a refit the league levels move (`calibrate-leagues.test.ts`, `LEVELS_FILE`).
 - Bowling choice: `BENCH_TACTICS=1 BENCH_EXPORT=train.json npx vitest run packages/app/src/__tests__/tactics-allocation.test.ts`, then `python3 packages/ratings/src/analysis/bowling-choice.py train.json` (needs numpy and scipy).
   `BENCH_TACTICS=1 [BENCH_REPLAYS=2] [BENCH_ONLY=...]` prints the allocation tables above (real against the sim).
 - Bowler type: `python3 -I packages/ratings/src/analysis/t20-bowler-type.py --types 2 --write` (about 15 minutes; `--holdout` for the out-of-sample score, `--types 5|7` for finer types).

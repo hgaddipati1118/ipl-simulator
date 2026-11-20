@@ -256,14 +256,17 @@ export function choiceFormatFor(formatId: string, scheduledOvers: number, fullOv
 
 /**
  * Where the attack table plays (a men's full-length T20 innings of a CPU side, or of a user side that has not set its own bowling order):
- * `league` every men's T20 league, `t20i` the men's T20I. Benchmarks switch it.
+ * `league` the men's T20 leagues but those in `except`, `t20i` the men's T20I. Benchmarks switch it. Not the men's T20I (its actual-XI
+ * benchmark was no better with it: docs/TACTICS.md section 8) and not the IPL, whose impact player joins the attack mid-innings at best where
+ * real sides bring him on at the break: on the engine's thinner IPL elevens the table used seven bowlers in 39% of innings against a real 15%.
  */
-export const ATTACK_MODEL = { league: true, t20i: false };
+export const ATTACK_MODEL = { league: true, t20i: false, except: ["ipl"] as string[] };
 
 /** The attack table of a men's T20 innings (null: the section-1 model over the side's bowling order, as before) */
-export function attackTableFor(gender: Gender, t20i: boolean): string | null {
+export function attackTableFor(gender: Gender, t20i: boolean, league?: string): string | null {
   if (gender !== "male") return null;
   if (t20i) return ATTACK_MODEL.t20i ? "t20-male-t20i" : null;
+  if (league && ATTACK_MODEL.except.includes(league)) return null;
   return ATTACK_MODEL.league ? "t20-male-league" : null;
 }
 

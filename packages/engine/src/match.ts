@@ -248,6 +248,8 @@ export interface VenueContext {
   conditions?: MatchConditions;
   /** The competition's key for the first innings' wickets-in-hand table (wickets-in-hand.ts) */
   wicketsInHandKey?: string;
+  /** The rules' league (the attack table of bowling-choice.ts is switched per league) */
+  league?: string;
 }
 
 /* ───── Detailed scorecard types (from WT2) ───── */
@@ -957,6 +959,7 @@ function getVenueContext(
       gender: genderOf(rules),
       ...(context ? { context } : {}),
       wicketsInHandKey,
+      league: rules.league,
     };
   }
 
@@ -972,6 +975,7 @@ function getVenueContext(
     gender: genderOf(rules),
     ...(context ? { context } : {}),
     wicketsInHandKey,
+    league: rules.league,
   };
 }
 
@@ -1159,7 +1163,7 @@ function simulateInnings(
   // The attack table (bowling-choice.ts, docs/TACTICS.md section 8): a men's T20 side whose user has not set its own bowling order chooses
   // each over from the whole eleven, so the fitted model also decides who joins the attack and when a sixth or seventh bowler comes on
   const userAttack = bowlingTeam.isUserControlled && (bowlingTeam.userBowlingOrder?.length ?? 0) > 0;
-  const attackTable = so || own || userAttack || fmt.id !== "t20" ? null : attackTableFor(gender, !!venue.wicketsInHandKey?.startsWith("t20i"));
+  const attackTable = so || own || userAttack || fmt.id !== "t20" ? null : attackTableFor(gender, !!venue.wicketsInHandKey?.startsWith("t20i"), venue.league);
   /** The side's own bowling order (the impact-player decision reads it, not the eleven the attack table chooses from) */
   const orderIds = new Set(bowlers.map(b => b.id));
 
