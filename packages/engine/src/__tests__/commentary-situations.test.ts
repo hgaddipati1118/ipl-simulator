@@ -400,8 +400,6 @@ describe("live matches with forced situations", () => {
       const { balls } = simulateRemaining(createMatchState(makeTeam(0, `n${seed}h`), makeTeam(1, `n${seed}a`), RULE_PRESETS.modern, null, seed));
       for (const b of balls) {
         if (b.wicketType !== "run_out" || !b.playerOutName || b.playerOutName === b.batterName) continue;
-        // DRS review texts (live-match.ts, outside this module) are written without regard to who was out
-        if (/DRS|review/i.test(b.commentary)) continue;
         checked++;
         expect(b.commentary, "names the batter who is out").toContain(S(b.playerOutName));
         expect(b.commentary).not.toMatch(/\{|undefined/);

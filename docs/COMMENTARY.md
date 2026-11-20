@@ -261,8 +261,11 @@ Tests: `commentary-situations.test.ts` (every dismissal kind and extras situatio
 deterministic, no repeated corpus key, with and without the model; whole matches with forced non-striker run outs and forced kinds) and
 the run-out tagging tests in `commentary-model.test.ts` and `commentary_build.test.py`.
 
-Known gap: the DRS review lines in `live-match.ts` (run out "Batter was short / IN") are written without regard to who was out; they are
-outside this module.
+DRS review lines (`live-match.ts`) follow the same rule. A reviewed run out names the batter who is out (the partner of a
+non-striker run out, not the striker): "...run out given against X! DRS review... OVERTURNED! X was IN." / "X was short."; the pending
+review's `drsContext.batterName` is that batter; lbw, caught-behind, wide and no-ball reviews are always about the striker and name him.
+Tests: `live-match-drs-runout.test.ts` (CPU and user reviews of forced non-striker run outs), and the forced run-out test in
+`commentary-situations.test.ts` no longer skips review lines.
 
 ## 9. Instant-simulated matches (lazy model commentary)
 
