@@ -21,11 +21,12 @@
 
 import type { BowlingPlan } from "./bowling-choice.js";
 import { type ConditionsSetting, type PitchPreset, type WeatherPreset } from "./conditions.js";
-import { Player, type PlayerRatings } from "./player.js";
+import { Player, calculateBattingOverall, type PlayerRatings } from "./player.js";
 import type { Team } from "./team.js";
 import type { RNG } from "./rng.js";
 import { randomSeed } from "./rng.js";
 import { TEST_MODEL as M } from "./test-model-data.js";
+import { applyLastPairTest } from "./last-pair.js";
 import { TEST_PROFILE_DATA } from "./test-profile-data.js";
 import {
   CONV as FIELDING_CONV, TEAM_FIELDING_PIVOT, NEUTRAL_FIELDING, buildFieldingUnit, fieldingRating, keepingRating,
@@ -1022,6 +1023,11 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
     else if (k === IW && inn.condW) v *= inn.condW;
     if (k === IW) v *= fat.wkts * wearMul; else v *= fat.runs;
     p[k] = v;
+  }
+  // the last pair (nine down): the senior partner farms the strike, the junior one blocks or slogs and falls (last-pair.ts)
+  if (inn.wickets === 9) {
+    const partner = st.players[inn.nonStrikerId];
+    if (partner) applyLastPairTest(p, TEST_OUTCOMES, st.gender, (calculateBattingOverall(bat.ratings) + bat.ratings.timing) / 200, (calculateBattingOverall(partner.ratings) + partner.ratings.timing) / 200, inn.overBalls);
   }
   if (TEST_MATCH_HOOKS.traceWicket) {
     const k = TEST_MATCH_HOOKS.traceClass ?? IW;

@@ -1,5 +1,5 @@
 import { it } from "vitest";
-import { EXTRA_LEAGUES, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
+import { EXTRA_LEAGUES, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
 import { createGameState, initSeason, playNextMatch, isSeasonComplete } from "../game-state";
 
 /**
@@ -19,6 +19,8 @@ const TARGET: Record<string, { runs: number; wkts: number; balls: number }> = {
   bpl: { runs: 152.4, wkts: 6.4, balls: 113.6 }, lpl: { runs: 175.7, wkts: 6.64, balls: 114.5 }, wbbl: { runs: 141.0, wkts: 6.37, balls: 108.7 },
 };
 const SEASONS = Number(process.env.CAL_SEASONS ?? 6);
+// CAL_LP_OFF=1: without the last-pair term (docs/TACTICS.md section 5): the engine as it was
+if (process.env.CAL_LP_OFF) LAST_PAIR_SWITCH.off.t20 = true;
 it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {
   const leagues = process.env.CAL_ONLY ? EXTRA_LEAGUES.filter(l => process.env.CAL_ONLY!.split(",").includes(l.id)) : EXTRA_LEAGUES;
   const list: Array<{ id: string; rules: RuleSet }> = [{ id: "ipl", rules: RULE_PRESETS.modern2026 }, { id: "wpl", rules: RULE_PRESETS.wpl }, ...leagues];

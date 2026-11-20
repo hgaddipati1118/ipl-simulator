@@ -61,6 +61,7 @@ import { applyScoringContext, scoringContextFor, type T20Context } from "./scori
 import { applyMatchConditions, drawMatchConditions, type MatchConditions } from "./match-conditions.js";
 import { applyWicketsInHand, wicketsInHandKey as wicketsInHandKeyFor } from "./wickets-in-hand.js";
 import { applyBatterResponse } from "./batter-response.js";
+import { applyLastPair } from "./last-pair.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
 import { applyT20BowlerType } from "./t20-bowler-type.js";
 import { applyConditionsToProfile, type ConditionsSetting } from "./conditions.js";
@@ -457,6 +458,9 @@ export interface BallRules {
   batterBalls?: number;
   /** Formats with their own ball model (the ODI): the overs the innings is scheduled for */
   scheduledOvers?: number;
+  /** The non-striker's batting rating ((battingOvr + timing) / 200) and the legal balls already bowled in the over: the last pair's term with nine down (last-pair.ts) */
+  partnerRating?: number;
+  ballInOver?: number;
 }
 
 /** A player as the ball model reads him: a Player, or the live engine's serialized player */
@@ -502,6 +506,8 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
       over, wicketsDown, batterBalls: rules.batterBalls ?? 0, gender: rules.gender, scheduledOvers: rules.scheduledOvers,
       chase: isSecondInnings ? { runsNeeded: target - currentScore, ballsLeft: ballsRemaining } : undefined,
     });
+    // the last pair (nine down): the senior partner farms the strike, the junior one blocks or slogs and falls (last-pair.ts)
+    if (wicketsDown === 9 && rules.partnerRating !== undefined && !rules.superOver) applyLastPair(probs, "odi", rules.gender, (batter.battingOvr + batter.ratings.timing) / 200, rules.partnerRating, rules.ballInOver ?? 0);
   } else {
     probs = baseOutcomeProbabilities(batter, bowler);
     // Women's cricket has its own wide / no-ball / bye rates
@@ -525,6 +531,8 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
     if (venue.conditions) applyMatchConditions(probs, venue.conditions);
     // A first innings by wickets down and overs left (a chase has its own context below; a super over neither)
     if (venue.wicketsInHandKey && !isSecondInnings && !rules.superOver) applyWicketsInHand(probs, rules.gender, venue.wicketsInHandKey, over, wicketsDown, rules.batterBalls ?? 0);
+    // the last pair (nine down; not The Hundred, whose ends change every ten balls)
+    if (wicketsDown === 9 && rules.partnerRating !== undefined && !rules.superOver && rules.fmt.id === "t20") applyLastPair(probs, venue.wicketsInHandKey?.startsWith("t20i") ? "t20i" : "t20", rules.gender, (batter.battingOvr + batter.ratings.timing) / 200, rules.partnerRating, rules.ballInOver ?? 0);
   }
 
   // Stadium bowling adjustment — dampened to keep IPL 2025 scoring era feel.
@@ -1372,6 +1380,7 @@ function simulateInnings(
         {
           freeHit, fmt, gender, bench, superOver: !!so, drs, overRatePenalty: overRateFrom >= 0 && over >= overRateFrom,
           batterBalls: innings.batterStats.get(striker.id)!.balls,
+          partnerRating: (nonStriker.battingOvr + nonStriker.ratings.timing) / 200, ballInOver: legalBalls,
           ...(own ? { scheduledOvers: maxOvers } : {}),
         },
         nonStriker,

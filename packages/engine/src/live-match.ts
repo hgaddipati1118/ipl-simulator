@@ -569,6 +569,8 @@ interface LiveRulesCtx {
   gender: Gender;
   bench: readonly FielderLike[];
   nonStrikerName?: string;
+  /** The non-striker's batting rating ((battingOvr + timing) / 200): the last pair's term with nine down (last-pair.ts); absent in The Hundred */
+  partnerRating?: number;
   /** An ODI ball: the situation for the fitted ODI model (odi-model.ts), which replaces the T20 tables */
   odi?: OdiBallContext;
 }
@@ -656,6 +658,7 @@ function runOneBall(
     rules: {
       freeHit: rulesCtx.freeHit, fmt, gender: rulesCtx.gender, superOver: rulesCtx.superOver, overRatePenalty: rulesCtx.overRatePenalty,
       batterBalls: odi ? odi.batterBalls : batterBalls,
+      ...(rulesCtx.partnerRating !== undefined ? { partnerRating: rulesCtx.partnerRating, ballInOver: legalBallInOver } : {}),
       ...(odi ? { scheduledOvers: odi.scheduledOvers } : {}),
     },
   });
@@ -1200,6 +1203,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       freeHit: freeHitNow, gender: rulesGender, bench: benchPool, nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name,
       overRatePenalty: overRateOn, context: scoringContextFor(int.rules, liveMatchFormat(int.rules)), conditions: int.conditions,
       wicketsInHandKey: wicketsInHandKey(int.rules, rulesGender),
+      ...(int.rules.matchFormat !== "hundred" && pm[int.battingOrderIds[state.nonStrikerIdx]] ? { partnerRating: (pm[int.battingOrderIds[state.nonStrikerIdx]].battingOvr + pm[int.battingOrderIds[state.nonStrikerIdx]].ratings.timing) / 200 } : {}),
       ...(odi ? {
         odi: {
           over: state.overs, wicketsDown: state.wickets, batterBalls: batterBallsPre, gender: rulesGender, scheduledOvers: maxOvers,

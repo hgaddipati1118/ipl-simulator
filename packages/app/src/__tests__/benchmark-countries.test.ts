@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
-import { BATTER_RESPONSE, CAPTAIN_MODEL, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
+import { BATTER_RESPONSE, CAPTAIN_MODEL, LAST_PAIR_SWITCH, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
 import { XI_SHARPEN } from "../realistic-xi";
 import { availabilitySource, createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender, type SeriesMatchRecord } from "../international";
 import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
@@ -100,6 +100,9 @@ async function setup() {
   // BENCH_BR_FILE=table.json: another batter response (the json of t20-batter-response.py, BR_DUMP) in place of the shipped one
   if (process.env.BENCH_BR_FILE) { const t = JSON.parse(readFileSync(process.env.BENCH_BR_FILE, "utf-8")); for (const g of ["male", "female"] as const) for (const k of Object.keys(t[g])) BATTER_RESPONSE[g][k] = t[g][k]; }
   if (process.env.BENCH_NO_RESPONSE) for (const g of ["male", "female"] as const) for (const k of Object.keys(BATTER_RESPONSE[g])) BATTER_RESPONSE[g][k] = BATTER_RESPONSE[g][k].map(() => 0);
+  // BENCH_LP_OFF=t20,odi,test: no last-pair term (docs/TACTICS.md section 5) in those formats; BENCH_LP_SCALE=t20:0.5,odi:1 scales it
+  for (const f of (process.env.BENCH_LP_OFF ?? "").split(",").filter(Boolean)) LAST_PAIR_SWITCH.off[f as "t20" | "odi" | "test"] = true;
+  for (const kv of (process.env.BENCH_LP_SCALE ?? "").split(",").filter(Boolean)) { const [f, v] = kv.split(":"); LAST_PAIR_SWITCH.scale[f as "t20" | "odi" | "test"] = Number(v); }
   if (process.env.BENCH_GAMMA) for (const k of ["t20i-men", "t20i-women", "odi-men", "odi-women", "test-men"]) XI_SHARPEN[k] = Number(process.env.BENCH_GAMMA);
   // BENCH_HOLDOUT=1: selection rates from 2024 matches only, scored against the real fixtures of 2025+ (docs/data/country_validation_2025.json)
   const REAL = JSON.parse(readFileSync(join(REPO, "docs", "data", process.env.BENCH_HOLDOUT === "fit" ? "country_validation_to2024.json" : process.env.BENCH_HOLDOUT ? "country_validation_2025.json" : "country_validation.json"), "utf-8")) as Record<string, RealSet>;
@@ -479,8 +482,8 @@ it.skipIf(!process.env.BENCH_POSITIONS)("batting position against real", async (
   for (const key of Object.keys(ACT)) {
     if (only && !only.includes(key)) continue;
     const players = await ext(key.split("-")[1] as SeriesGender);
-    // BENCH_FROM=2024-01-01: only the matches from that date (the out-of-sample half of a refit)
-    const ms = ACT[key].filter(m => m.date >= (process.env.BENCH_FROM ?? "0"));
+    // BENCH_FROM=2024-01-01 / BENCH_TO=2023-12-31: only the matches from / to that date (the out-of-sample half of a refit, and the half it was fitted on)
+    const ms = ACT[key].filter(m => m.date >= (process.env.BENCH_FROM ?? "0") && m.date <= (process.env.BENCH_TO ?? "9"));
     const real = Array.from({ length: 11 }, () => ({ r: 0, b: 0, n: 0 }));
     for (const m of ms) for (const side of ["a", "b"] as const) m.bat[side].forEach(([r, b], i) => { if (i < 11) { real[i].r += r; real[i].b += b; real[i].n++; } });
     const out: string[] = [`${key}: position | real runs / balls (n) | sim runs / balls (real order) | sim runs / balls (engine order)`];

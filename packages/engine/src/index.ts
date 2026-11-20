@@ -331,6 +331,8 @@ export type { MatchConditions } from "./match-conditions.js";
 export { MATCH_CONDITIONS } from "./match-conditions-data.js";
 export type { ConditionsShape } from "./match-conditions-data.js";
 export { applyBatterResponse, batterResponseLog } from "./batter-response.js";
+export { applyLastPair, applyLastPairTest, batRating, lastPairBucket, lastPairGap, lastPairLogs, lastPairSenior, LAST_PAIR_SWITCH } from "./last-pair.js";
+export { LAST_PAIR, LAST_PAIR_CLASSES, LAST_PAIR_H1, LAST_PAIR_H2, LAST_PAIR_STRENGTH } from "./last-pair-data.js";
 export { BATTER_RESPONSE, BATTER_RESPONSE_KNOTS } from "./batter-response-data.js";
 export { ODI_BATTER_RESPONSE, ODI_BATTER_RESPONSE_KNOTS } from "./odi-batter-response-data.js";
 export { applyWicketsInHand, setLevel, wicketsInHandBand, wicketsInHandKey } from "./wickets-in-hand.js";
