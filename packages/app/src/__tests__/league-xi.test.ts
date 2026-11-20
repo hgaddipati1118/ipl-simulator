@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
-import { createPlayerFromData, fieldingValueBonus, selectLeagueXI, EXTRA_LEAGUES, isOverseasIn, RULE_PRESETS, Team, type Player, type RuleSet } from "@ipl-sim/engine";
+import { createPlayerFromData, fieldingValueBonus, selectLeagueXI, simulateMatch, EXTRA_LEAGUES, LEAGUE_XI_SWITCH, isOverseasIn, RULE_PRESETS, Team, type BallEvent, type Player, type RuleSet } from "@ipl-sim/engine";
 import { getPoolPlayers, getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { toRealPlayerData } from "@ipl-sim/ratings/dist/extended-pool.js";
 import { createGameState } from "../game-state";
@@ -100,3 +100,43 @@ it.skipIf(!process.env.LXI_OUT)("league XIs: real against the CPU's selection", 
   writeFileSync(OUT, JSON.stringify({ real: out, game }));
   console.log(`wrote ${OUT}`);
 }, 1_800_000);
+
+/**
+ * LXI_SIM=/path/sim.json [LXI_MATCHES=1000] [LXI_OFF=1]: the CPU's XIs in play, for the bowling side of section 7: per innings the bowlers
+ * used, the overs bowled by men rated under 50 / 60 with the ball, and the bowling side's batting ratings (the depth table of the XIs
+ * that played); the game's squads as the app loads them (prepareLeaguePool), random pairings, no injuries.
+ */
+it.skipIf(!process.env.LXI_SIM)("league XIs: the CPU's XIs in play", async () => {
+  if (process.env.LXI_OFF) LEAGUE_XI_SWITCH.off = true;
+  const N = Number(process.env.LXI_MATCHES ?? 1000);
+  const loader = createPoolLoader(async f => new Uint8Array(readFileSync(join(PUBLIC, "pool", f))));
+  const out: Record<string, { used: number[]; ov50: number[]; ov60: number[]; depth: number[][]; nb60: number[] }> = {};
+  for (const [lg, r0] of [["ipl", RULE_PRESETS.modern2026], ...EXTRA_LEAGUES.filter(l => l.gender === "men" && l.rules.matchFormat !== "hundred").map(l => [l.id, l.rules])] as [string, RuleSet][]) {
+    await prepareLeaguePool(lg, loader);
+    const rules = { ...r0, injuriesEnabled: false } as RuleSet;
+    const teams = createGameState(rules).teams;
+    const o = (out[lg] = { used: [], ov50: [], ov60: [], depth: [], nb60: [] });
+    for (let i = 0; i < N; i++) {
+      const home = teams[i % teams.length];
+      let away = teams[(i * 7 + 3) % teams.length];
+      if (away === home) away = teams[(i * 7 + 4) % teams.length];
+      const r = simulateMatch(home, away, rules, 9000 + i, { countTowardStandings: false });
+      const byId = new Map<string, Player>([...home.roster, ...away.roster].map(p => [p.id, p]));
+      for (const inn of r.innings) {
+        const overs = new Map<number, string>();
+        for (const e of inn.ballLog as BallEvent[]) if (!overs.has(e.over)) overs.set(e.over, e.bowler);
+        const bowlers = [...overs.values()];
+        o.used.push(new Set(bowlers).size);
+        o.ov50.push(bowlers.filter(b => (byId.get(b)?.bowlingOvr ?? 0) < 50).length);
+        o.ov60.push(bowlers.filter(b => (byId.get(b)?.bowlingOvr ?? 0) < 60).length);
+      }
+      for (const inn of r.innings) {
+        const ps = [...inn.batterStats.keys()].map(id => byId.get(id)).filter((p): p is Player => !!p);
+        o.depth.push(ps.map(p => (p.battingOvr + p.ratings.timing) / 200).sort((a, b) => b - a).slice(0, 11));
+        o.nb60.push(ps.filter(p => p.bowlingOvr >= 60).length);
+      }
+    }
+    console.log(`${lg}: ${N} matches`);
+  }
+  writeFileSync(process.env.LXI_SIM!, JSON.stringify(out));
+}, 7_200_000);

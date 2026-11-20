@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { it } from "vitest";
-import { EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
+import { EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LEAGUE_LEVELS, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
 import { createGameState, initSeason, playNextMatch, isSeasonComplete } from "../game-state";
 
 /**
@@ -27,13 +27,15 @@ for (const kv of (process.env.LP_WICKET ?? "").split(",").filter(Boolean)) { con
 // WT_OFF=1: without the innings clock (docs/TACTICS.md section 6); WT_FILE=table.json: its tables from a t20-wicket-timing.py fit
 // LXI_OFF=1: every side with the former best-XI selection, not the fitted league selection (docs/TACTICS.md section 7)
 if (process.env.LXI_OFF) LEAGUE_XI_SWITCH.off = true;
+// LEVELS_FILE=levels.json: LEAGUE_LEVELS entries replaced ({ "bbl": { "run": 1, "wicket": 0.9, "dot": 1.1 }, ... }), to refit them without a rebuild
+if (process.env.LEVELS_FILE) Object.assign(LEAGUE_LEVELS, JSON.parse(readFileSync(process.env.LEVELS_FILE, "utf-8")));
 if (process.env.WT_OFF) INNINGS_CLOCK_SWITCH.off = true;
 if (process.env.WT_FILE) { const t = JSON.parse(readFileSync(process.env.WT_FILE, "utf-8")).tables; for (const k of Object.keys(INNINGS_CLOCK)) delete INNINGS_CLOCK[k]; Object.assign(INNINGS_CLOCK, t); }
 it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {
   const leagues = process.env.CAL_ONLY ? EXTRA_LEAGUES.filter(l => process.env.CAL_ONLY!.split(",").includes(l.id)) : EXTRA_LEAGUES;
   const list: Array<{ id: string; rules: RuleSet }> = [{ id: "ipl", rules: RULE_PRESETS.modern2026 }, { id: "wpl", rules: RULE_PRESETS.wpl }, ...leagues];
   for (const { id, rules } of list) {
-    let runs = 0, wkts = 0, balls = 0, inns = 0, first = 0, second = 0, wins2 = 0, n = 0;
+    let runs = 0, wkts = 0, balls = 0, inns = 0, first = 0, second = 0, wins2 = 0, n = 0, allOut1 = 0, wk1 = 0;
     for (let s = 0; s < SEASONS; s++) {
       let st = initSeason({ ...createGameState({ ...rules, injuriesEnabled: false } as RuleSet), phase: "season" });
       let guard = 0;
@@ -42,11 +44,11 @@ it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {
         if (r.result.margin === "Super Over") continue;
         const [a, b] = r.result.innings;
         for (const i of [a, b]) { runs += i.runs; wkts += i.wickets; balls += i.totalBalls; inns++; }
-        first += a.runs; second += b.runs; n++;
+        first += a.runs; second += b.runs; n++; wk1 += a.wickets; if (a.wickets >= 10) allOut1++;
         if (r.result.winnerId === b.teamId) wins2++;
       }
     }
     const t = TARGET[id];
-    console.log(`${id.padEnd(10)} runs/inn ${(runs / inns).toFixed(1)} (real ${t.runs})  wkts/inn ${(wkts / inns).toFixed(2)} (${t.wkts})  balls/inn ${(balls / inns).toFixed(1)} (${t.balls})  1st ${(first / n).toFixed(1)} 2nd ${(second / n).toFixed(1)} chase-win ${(100 * wins2 / n).toFixed(0)}%  mult ${rules.scoringMultiplier}`);
+    console.log(`${id.padEnd(10)} runs/inn ${(runs / inns).toFixed(1)} (real ${t.runs})  wkts/inn ${(wkts / inns).toFixed(2)} (${t.wkts})  balls/inn ${(balls / inns).toFixed(1)} (${t.balls})  1st ${(first / n).toFixed(1)} 2nd ${(second / n).toFixed(1)} chase-win ${(100 * wins2 / n).toFixed(0)}%  1st all out ${(100 * allOut1 / n).toFixed(1)}% 1st wkts ${(wk1 / n).toFixed(2)}  mult ${rules.scoringMultiplier}`);
   }
 }, 900_000);
