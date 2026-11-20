@@ -1164,8 +1164,10 @@ function simulateInnings(
   // each over from the whole eleven, so the fitted model also decides who joins the attack and when a sixth or seventh bowler comes on
   const userAttack = bowlingTeam.isUserControlled && (bowlingTeam.userBowlingOrder?.length ?? 0) > 0;
   const attackTable = so || own || userAttack || fmt.id !== "t20" ? null : attackTableFor(gender, !!venue.wicketsInHandKey?.startsWith("t20i"), venue.league);
-  /** The side's own bowling order (the impact-player decision reads it, not the eleven the attack table chooses from) */
-  const orderIds = new Set(bowlers.map(b => b.id));
+  /** Players the attack table added to `bowlers` (the impact-player decision reads the side's own order, as before, without them) */
+  const attackOnly = new Set<string>();
+  /** A bowler joins the attack the way the former code did (a fallback, an injury): he is in the side's order from then on */
+  const join = (b: Player) => { attackOnly.delete(b.id); if (!bowlers.includes(b)) { bowlers.push(b); bowlerOvers.set(b.id, bowlerOvers.get(b.id) ?? 0); } };
 
   // Impact player tracking (each side gets one sub per innings)
   let battingImpactUsed = false;
@@ -1239,14 +1241,12 @@ function simulateInnings(
       // Bowling team impact sub
       if (!bowlingImpactUsed && availBowlingSubs.length > 0) {
         const decision = evaluateBowlingImpact(
-          over, innings, bowlers.filter(b => orderIds.has(b.id)), availBowlingSubs, [...bowlingXI],
+          over, innings, bowlers.filter(b => !attackOnly.has(b.id)), availBowlingSubs, [...bowlingXI],
         );
         if (decision) {
           const outIdx = bowlers.indexOf(decision.subOut);
           if (outIdx >= 0) {
             bowlers[outIdx] = decision.subIn;
-            orderIds.delete(decision.subOut.id);
-            orderIds.add(decision.subIn.id);
             bowlerOvers.set(decision.subIn.id, 0);
             const fi = fieldXI.indexOf(decision.subOut);
             if (fi >= 0) { fieldXI[fi] = decision.subIn; fieldingUnit = buildFieldingUnit(fieldXI); }
@@ -1266,7 +1266,7 @@ function simulateInnings(
       : null;
 
     const attackOver = attackTable && choiceFormatFor(fmt.id, maxOvers, fmt.overs) ? attackTable : null;
-    if (attackOver) for (const p of fieldXI) if (inAttackPool(p) && !bowlers.includes(p)) { bowlers.push(p); bowlerOvers.set(p.id, bowlerOvers.get(p.id) ?? 0); }
+    if (attackOver) for (const p of fieldXI) if (inAttackPool(p) && !bowlers.includes(p)) { bowlers.push(p); bowlerOvers.set(p.id, bowlerOvers.get(p.id) ?? 0); attackOnly.add(p.id); }
     const ableBowlers = bowlers.filter(b => !unavailable.has(b.id));
     let eligibleBowlers = ableBowlers.filter(b =>
       (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler &&
@@ -1279,7 +1279,7 @@ function simulateInnings(
       const others = fieldXI.filter(b => b.id !== lastBowlerId && !unavailable.has(b.id) && (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler);
       const fielders = others.filter(b => !b.isWicketKeeper);
       eligibleBowlers = fielders.length > 0 ? fielders : others;
-      for (const b of eligibleBowlers) if (!bowlers.includes(b)) { bowlers.push(b); bowlerOvers.set(b.id, bowlerOvers.get(b.id) ?? 0); }
+      for (const b of eligibleBowlers) join(b);
     }
     if (eligibleBowlers.length === 0) {
       eligibleBowlers = ableBowlers.filter(b =>
@@ -1291,7 +1291,7 @@ function simulateInnings(
     if (eligibleBowlers.length === 0 && unavailable.size > 0) {
       eligibleBowlers = fieldXI.filter(b => !unavailable.has(b.id) && (bowlerOvers.get(b.id) ?? 0) < maxOversPerBowler)
         .sort((a, b) => b.effectiveBowlingOvr - a.effectiveBowlingOvr);
-      for (const b of eligibleBowlers) if (!bowlers.includes(b)) { bowlers.push(b); bowlerOvers.set(b.id, bowlerOvers.get(b.id) ?? 0); }
+      for (const b of eligibleBowlers) join(b);
     }
 
     if (eligibleBowlers.length === 0) {
@@ -1346,7 +1346,8 @@ function simulateInnings(
           && (b.id !== lastBowlerId || streakBefore + 1 <= fmt.maxConsecutiveOvers))
         .sort((a, b) => b.effectiveBowlingOvr - a.effectiveBowlingOvr)[0];
       if (!repl) return false;
-      if (!bowlers.includes(repl)) { bowlers.push(repl); bowlerOvers.set(repl.id, 0); }
+      if (attackOnly.has(repl.id)) attackOnly.delete(repl.id);
+      else if (!bowlers.includes(repl)) { bowlers.push(repl); bowlerOvers.set(repl.id, 0); }
       unavailable.add(bowler.id);
       bowlerOvers.set(bowler.id, (bowlerOvers.get(bowler.id) ?? 0) + 1);
       consecutiveOvers = repl.id === lastBowlerId ? streakBefore + 1 : 1;
