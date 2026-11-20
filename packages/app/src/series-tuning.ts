@@ -1,5 +1,5 @@
 /**
- * Series matches in the limited-overs formats: the two sides' ratings are moved, before the match, by (1) a stretch of the
+ * Series matches (T20I, ODI and Test): the two sides' ratings are moved, before the match, by (1) a stretch of the
  * gap between their strengths and (2) a home advantage, both fitted per format and gender on the real fixtures' results per
  * country (docs/FORMATS.md, "Per-country validation"). Strength is the mean overall of a side's best eleven. Both are rating
  * shifts of the six batting and bowling attributes, so the instant and the live engine play the same teams.

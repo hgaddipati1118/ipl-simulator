@@ -21,7 +21,7 @@ from its own model fitted on Cricsheet ODIs, in both engines (`odi-model.ts`; ge
 In the app, `/international` plays international series (ODI, T20I; men and women; `packages/app/src/international.ts`, a pluggable
 `SERIES_FORMATS` list a Test entry joins) and Draft Match has a T20 / ODI option (docs/FORMATS.md, "In the app").
 A watched T20I series uses realistic line-ups by default (XI sampled by real 2024+ selection rates, `realistic-xi.ts`; checkbox on the setup page; ODI / Test did not improve out of sample).
-A user can set either side's XI and batting order in any series (`IntlSeries.lineups`, the path the benchmark's actual-XI play takes: docs/COUNTRY-VALIDATION.md "Actual XI"); the series tuning is fitted on the XIs that really played.
+A user can set either side's XI and batting order in any series (`IntlSeries.lineups`, the path the benchmark's actual-XI play takes: docs/COUNTRY-VALIDATION.md "Actual XI"); the series tuning (strength stretch, home advantage; a Test has an entry too, with a negative home term) is fitted on the XIs that really played, fit half to 2024, judged on 2025+ per match with paired standard errors (`__tests__/benchmark-series-fit.test.ts`, COUNTRY-VALIDATION.md "Test and ODI series tuning").
 Test cricket has its own engine (`test-match.ts`: rules, ball model and captains' policies fitted on Cricsheet Tests, generated
 `test-model-data.ts` from `packages/ratings/src/analysis/test-match-model.py`; live driver `test-live.ts`; validation
 `__tests__/benchmark-test.ts`; docs/FORMATS.md, "Test"). In the app a Test is a format of the International series

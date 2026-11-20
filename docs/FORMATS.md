@@ -968,8 +968,11 @@ were checked for it (docs/FORMAT-RATINGS-REPORT.md, "Bias round", section 2) and
 better in the next two seasons, home grounds and Ranji / Sheffield Shield cricket do not inflate their records (India's Test
 grounds take runs away), and an opposition adjustment for Tests could only raise them. Against the 133 real Tests since 2023 with
 the elevens that played, the sim wins India 66% (real 53%) and Australia 73% (real 69%): the best-eleven comparison is 2026 squads
-against history. What is left is the engine: home sides win 57.5% against a real 51.4% (India at home 82% against 59%), and the
-Test has no spread / home entry in the series tuning (`series-tuning-data.ts`). Five-fors stayed at
+against history. What was left was the engine's home edge: home sides won 62.8% of decided Tests against a real 57.3% (the "57.5% against 51.4%" mixed
+decided with all matches; India at home 82% against 59%). A Test entry in the series tuning (`test.men = { spread: 1, home: -1.5 }`, fitted on
+the 2023-24 Tests with the XIs that played and judged on 2025+; docs/COUNTRY-VALIDATION.md, "Test and ODI series tuning") brings the home
+share to 57.4% with the draw rate unchanged. Still off after it: South Africa (0.54 against 0.78, home and away), New Zealand (0.51
+against 0.65), India and England (0.66 and 0.62 against 0.53), the sides as rated, which no stretch or ground term fixes. Five-fors stayed at
 1.07 here: the bowler's wicket term already reaches its true spread, and the gap was in how the sim shared the overs (its
 leading bowler bowled 27% of them, real 30%); fixed in section 6.11.
 
@@ -1223,7 +1226,7 @@ Not done: no multiplayer series; the series does not feed career stats.
 
 `packages/app/src/__tests__/benchmark-countries.test.ts` replays the real fixtures between the full members and prints each
 country's win rate (overall, home, away), first innings, runs per wicket and head-to-heads against the real ones, with
-tolerances; docs/COUNTRY-VALIDATION.md has the method, the fit and the before / after tables. T20I and ODI series matches now carry a
+tolerances; docs/COUNTRY-VALIDATION.md has the method, the fit and the before / after tables. T20I, ODI and (men's) Test series matches now carry a
 fitted strength stretch and home advantage (`series-tuning.ts`, both engines); figures outside tolerance in men's / women's T20I
 went from 33 / 37 to 20 / 29, and in round 2 (per-country home advantage, an ODI opposition-strength rating adjustment) to 17 / 22; men's / women's ODI 15 / 22 to 13 / 21, Test 7. Players' pitch sensitivity was tested and not shipped (docs/VENUE-SENSITIVITY.md).
 

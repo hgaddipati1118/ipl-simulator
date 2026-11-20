@@ -186,13 +186,120 @@ and the men's T20I tuning is refitted (spread 3, home 2; women's unchanged). Fin
 Men's number 10 now scores the real runs (4.3 against 4.2, was 5.3) and number 11 3.2 against 2.3 (was 3.9); balls faced and the women's tails are not materially closer (the survival of the last pair is a state, not a rating). The women's T20I tuning is now spread 1.5 / home 2 (was 3.5 / 4), the men's unchanged at 3 / 2; the ODI and Test engines are untouched (their number 11, TACTICS.md section 5, is the same last-pair excess).
 The women's T20I holdout: the captain model and the bowler-type table stay (switching either off is not better on the fit half; captain off loses 0.032 +- 0.014 on the holdout).
 
+## Test and ODI series tuning (the Test gets one; the ODI is refitted)
+
+`BENCH_SERIES=1 BENCH_KEY=test-men|odi-men|odi-women BENCH_HALF=fit|hold|all BENCH_REPLAYS=256 BENCH_OUT=out.json [BENCH_TUNE='{"test":{"men":{"spread":1,"home":-1.5}}}'] npx vitest run packages/app/src/__tests__/benchmark-series-fit.test.ts`
+(`benchmark-series-fit.test.ts`) plays every real match with the XIs that played (as "Actual XI" above), writes the per-match record
+(wins of the real winner, decided replays, draws) and prints the log loss, the draw rate and the home share of decided matches.
+`BENCH_COMPARE=a.json,b.json` gives the paired per-match difference and its standard error. Fits use the fit half (to 2024) only; the
+2025+ holdout is read to judge, not to choose. A match's loss is -log((wins + 1) / (decided replays + 2)) of the real winner.
+
+**The Test's home advantage was not 57.5% against 51.4%.** That pair mixed bases: the real 51.4% is home wins of all Tests *including draws*
+(146 Tests since 2023: 51.4 / 39.8 / 8.9% home / away / draw); the sim's 57.5% was of *decided* Tests. On decided Tests the real hosted share of
+the 133 benchmark matches is **57.3%** (fit half 59.5%, holdout 54.4%; SE about 4 points), and the sim with the real XIs gave **62.8%**
+(64.9% / 60.1%). So the sim's home edge is about 5 points too big, in both halves, and its draw rate is right (9.0% against 8.9%).
+The toss is not it (a fair coin, then the host country's fitted bat-first share) and neither are draws. The Test ball model carries a
+fitted home / away factor on every ball (the home batting side: wickets x0.954, sixes x1.049, singles x1.032; away x1.045 / 0.956 / 0.970,
+`test-model-data.ts`), a per-host pace / spin table, and the players' own ratings, whose records are themselves mostly home matches (a plausible
+second count of the same edge, not separated here); a ball-level factor compounded over 1,800 balls gives a bigger match-level
+edge than the results show (India at home 82% against 59% real). The ball model is a clean fit and was left alone; the match-level
+correction belongs in the series tuning, which is what it is for.
+
+**Fit** (fit half, 75 Tests, 96 then 192 replays; paired against no tuning; plus is worse):
+
+| stretch \ home | -4 | -3 | -2 | -1 | 0 | +2 |
+|---|---|---|---|---|---|---|
+| 0.75 | +0.009 | -0.001 | -0.026 | -0.012 | -0.028 | +0.051 |
+| 1 | +0.024 | -0.008 | **-0.033** | -0.028 | 0 | +0.014 |
+| 1.25 | +0.004 | -0.001 | -0.002 | -0.001 | -0.016 | +0.009 |
+
+(standard errors 0.02-0.05 per cell; home share of decided Tests in the sim 44-51% at -4, 57% at -2, 61% at -1, 65% at 0, 72% at +2). A stretch
+is not worth having (0.75 and 1 are equal within the noise, 1.25 and 0.5 are worse, so the sides stay as rated), and the home term's best region is -2 to -1, where the sim's home share matches the real 59.5%.
+Shipped: **`test.men = { spread: 1, home: -1.5 }`** (the home side's six attributes 0.75 points down, the away side's 0.75 up). Women's Tests
+(17 real) have no entry.
+
+**Per-country home terms were tested and not shipped.** Each host country's loss over a grid of home terms (192 replays, prior sd 1.5 / 2 / 3
+rating points around the uniform best): at 5-13 hosted matches a country's curve is flat to within replay noise, and the three it moves
+(South Africa to -1, Bangladesh -3, England -1) are not better than the uniform term out of sample (paired on the holdout, 256 replays:
+-0.006 +- 0.010 against the uniform -2, and each country's change is a log-likelihood of 0.3-1.0). South Africa is the real signal, and it
+is not a home effect: they win 75% / 82% against a sim 61% / 51% in both halves **away as well as at home** (away 0.73 real against 0.51
+sim), so it is a strength shortfall of the side, not a ground term.
+
+**Result** (actual XIs, 512 replays of every match; log loss per real match, 0.693 a coin flip; SE of the mean over matches in
+brackets; "paired" is the difference of the same matches and its standard error, minus is better):
+
+| | before (no tuning) | after (home -1.5) | paired |
+|---|---|---|---|
+| fit half (75) | 0.605 (0.080) | 0.592 (0.078) | -0.013 +- 0.017 |
+| **holdout 2025+ (58)** | **0.615 (0.088)** | **0.609 (0.081)** | **-0.006 +- 0.020** |
+| all 133 | 0.609 (0.059) | 0.599 (0.056) | -0.010 +- 0.013 |
+| home share of decided Tests, sim (real 57.3%) | 62.8% | 57.4% | |
+| draw rate, sim (real 8.9%) | 9.0% | 9.1% | |
+
+The log loss moves less than its error because it is mostly a statement about who wins, and the home term moves a few points of win
+probability on a third of the matches; what moves is the bias: home share of decided Tests 62.8% -> 57.4% (real 57.3%; holdout 60.1 ->
+54.6 against 54.4, fit half 64.9 -> 59.5 against 59.5). Win rate by country with the XIs that played (133 Tests; real / before / after;
+home and away):
+
+| country | win | home | away |
+|---|---|---|---|
+| Australia | 0.69 / 0.72 / 0.73 | 0.75 / 0.82 / 0.78 | 0.65 / 0.62 / 0.68 |
+| Bangladesh | 0.46 / 0.44 / 0.43 | 0.50 / 0.57 / 0.51 | 0.40 / 0.26 / 0.32 |
+| England | 0.53 / 0.62 / 0.62 | 0.68 / 0.77 / 0.72 | 0.33 / 0.44 / 0.51 |
+| India | 0.53 / 0.66 / 0.66 | 0.59 / 0.82 / 0.78 | 0.50 / 0.47 / 0.53 |
+| New Zealand | 0.65 / 0.52 / 0.51 | 0.62 / 0.59 / 0.52 | 0.69 / 0.45 / 0.50 |
+| Pakistan | 0.30 / 0.26 / 0.27 | 0.44 / 0.37 / 0.32 | 0.21 / 0.18 / 0.23 |
+| South Africa | 0.78 / 0.55 / 0.54 | 0.82 / 0.63 / 0.56 | 0.73 / 0.51 / 0.56 |
+| Sri Lanka | 0.40 / 0.42 / 0.42 | 0.50 / 0.57 / 0.51 | 0.30 / 0.27 / 0.34 |
+| West Indies | 0.28 / 0.31 / 0.31 | 0.30 / 0.43 / 0.37 | 0.27 / 0.23 / 0.27 |
+| Zimbabwe | 0.18 / 0.15 / 0.13 | 0.14 / 0.18 / 0.12 | 0.25 / 0.10 / 0.15 |
+| Ireland | 0.22 / 0.29 / 0.30 | 0.50 / 0.59 / 0.50 | 0.14 / 0.20 / 0.24 |
+
+Home rates move toward the real ones in 8 of 11 countries (the exceptions, New Zealand, Pakistan and South Africa, are the sides the ratings
+place wrongly, India's 0.78 against 0.59 is still far off); the sides' overall order does not move because the tuning has no stretch: India and England are still 9-13 points too high, South Africa
+24 and New Zealand 14 too low. With the best eleven of each squad (the country benchmark, 64 replays): 10 figures OFF -> 9, India at home
+0.83 -> 0.77 (no longer OFF), log loss 0.5965 -> 0.5943, South Africa still 0.58 against 0.78 (OFF).
+
+**ODI refit** (the ODI engine, ratings of 3748662, the former bowler rule; actual XIs, fit half only). A grid of stretch (0.75, 1, 1.5, 2) x
+home (0, 2, 4, 6) at **64 replays of every real match** (the shipped fit used 6-8 and took the smallest stretch within 0.01 of the best loss,
+which on a flat grid is arbitrary), the surface smoothed by a quadratic as a check on grid noise, then each host's own home term from its
+hosted matches' loss against a prior (sd 3 rating points around the uniform best):
+
+| set | grid minimum (loss) | smoothed surface minimum | per-country terms with the prior | shipped |
+|---|---|---|---|---|
+| men's ODI (336 fit matches) | stretch 1, home 4 (0.596; the shipped stretch 1, home 2 is 0.609) | 1.4, 4.25 (0.598) | New Zealand 6, India 6, Sri Lanka 6, Pakistan 6, Australia 2, Bangladesh 2, Zimbabwe 0 | stretch 1, home 4 and those |
+| women's ODI (219) | stretch 1.5, home 2 (0.509) | 1.6, 1.75 | Australia 6, West Indies 4, Bangladesh 4, India 0, Sri Lanka 0, Pakistan 0 | stretch 1.5, home 2 and those |
+
+The stretches (1, 1.5) are the ones that were shipped; men's home 2 -> 4; the per-country terms changed (the old ones were fitted at 6-8 replays on the
+old ratings). Log loss per real match, paired against the tuning that was shipped (256 replays on the holdout, 128 on the fit half; minus is better):
+
+| set | holdout 2025+: shipped -> refit | paired | fit half: shipped -> refit | paired |
+|---|---|---|---|---|
+| men's ODI (109 / 336) | 0.660 (0.041) -> 0.645 (0.048) | -0.015 +- 0.014 | 0.587 -> 0.584 | -0.003 +- 0.009 |
+| women's ODI (103 / 219) | 0.447 (0.064) -> 0.437 (0.063) | -0.010 +- 0.018 | 0.505 -> 0.502 | -0.003 +- 0.012 |
+
+Neither is a significant change, which is the point: the refit confirms the stretches and the shipped home terms were not far off, moves them
+the way the evidence says and leaves the held-out loss where it was or a little better. The sim's home share of decided ODIs matches the real
+(men's 64.7% against 63.5% on the holdout, women's 63.1% against 65.1%). Uniform home terms alone (no per-country terms) were as good on the
+men's holdout (-0.005 +- 0.014) and worse on the women's fit half (+0.022 +- 0.014); the prior-shrunk per-country terms did not lose on either.
+A tighter prior (sd 2, two to three countries moved) was no better (men's holdout +0.002 +- 0.015, fit half +0.005 +- 0.009; women's fit half +0.006 +- 0.011), so the sd-3 terms ship.
+
+**Conditions (pitch, light, weather).** The series tuning moves the two sides' ratings (a rating shift); a pitch, light or weather setting acts
+on the ground's profile (ODI: `applyConditionsToProfile` replaces the ground's run / six / wicket factors and bowler edges) or on the Test's
+match-level run / wicket spread, and never on the sides' ratings. The home term was fitted with the real ground in place, so it is what is
+left over after the ground's own effect; a preset replaces the ground's effect and the home term stays as it was, so nothing is counted twice.
+`series-tuning.test.ts` checks that the sides' shifts are identical with and without a pitch / light / weather setting, in a Test and an ODI.
+
 ## Left over
 
-- Men's Test with the elevens that played (133 Tests since 2023, 512 replays): India 66% against a real 53%, England 63% against 52%,
-  South Africa 55% against 78%, New Zealand 51% against 65%, Australia 73% against 69%. The ratings were checked for it and are not the
-  cause (docs/FORMAT-RATINGS-REPORT.md, "Bias round", section 2); the Test has no entry in the series tuning (spread, home advantage), and
-  its home sides win 57.5% against a real 51.4%. The ratings change of that round moved the Test log loss per real match -0.005 +- 0.008 on
-  the 2025+ holdout and the ODI's -0.011 +- 0.007 (paired, 512 / 256 replays).
+- Men's Test with the elevens that played (133 Tests since 2023): before the Test tuning (above) India won 66% against a real 53%, England
+  62% against 53%, South Africa 55% against 78%, New Zealand 52% against 65%, Australia 72% against 69%, and home sides 62.8% of decided
+  Tests against 57.3% real (the "57.5% against 51.4%" of the bias round compared decided with all matches). The tuning brings the home share
+  to 57.4% and the away rates closer; the sides' order is as the ratings give it, and **South Africa (0.54 against 0.78 at home and away) and
+  New Zealand (0.51 against 0.65) are underrated as sides, India and England overrated**. Not a ground term (South Africa is short away as
+  much as at home), not the spread (no stretch helps), not the ratings' bias round (checked there); a per-country strength offset fitted on
+  75 matches would be the next thing to try and is not shipped (it would be fitting 11 numbers to 133 Tests, and a side-level offset follows
+  every XI a user sets, whoever he picks). Open.
 - Sri Lanka, West Indies and Zimbabwe men's T20I still win 0.40-0.49 against 0.29-0.41: their squads rate higher than they played
   over 2019-26 (an order-of-sides error, not a spread one).
 - Women's Zimbabwe and Bangladesh (real 0.00 and 0.18) are still too strong at 0.19 / 0.37, and score 20-25 runs more per
