@@ -541,6 +541,78 @@ Mean absolute error against the real innings: runs 3.62 -> 3.30, wickets 0.128 -
 
 **Live v instant** (`LIVE_PARITY=1`, the last-pair block of `live-parity.test.ts`): the IPL, 1,500 matches each way, innings that reached nine down: instant 622 stands of 7.23 balls and 8.21 runs, the tenth wicket 66.2%, the weaker partner 47.4% of the balls; live CPU 596 stands of 6.64 balls and 6.83 runs, 66.8%, 52.1%. Without the term (`PARITY_LP_OFF=1`): instant 6.65 / 7.83 / 69.6% / 52.2%, live 6.31 / 6.99 / 68.6% / 57.3%. The live engine's CPU sides give the weaker batters about 5 points more of the strike than the instant engine's with or without the term (its cause was not chased: it is there before this change), and the term moves both by the same amount (-4.8 and -5.2 points): the two engines read it alike. The rest of the live-v-instant table (`LIVE_PARITY=1 PARITY_MATCHES=300`, five leagues) is as before.
 
+## 6. When wickets fall: the innings clock (fitted, not shipped)
+
+Section 5 left this open: a men's T20 league first innings in the engine reaches nine down too early, so its last pair has too long to bat, and the engine reaches 8, 9 and 10 down more often than real. The diagnosis and a fitted term follow (`packages/ratings/src/analysis/t20-wicket-timing.py`; engine `innings-clock.ts`, data `innings-clock-data.ts`, empty as shipped; candidate tables `docs/data/t20_innings_clock.json`). **The term is not shipped**: it fixes when wickets fall and is much better ball by ball out of sample, but it moves the leagues' all-out shares away from real (for a reason that is not the ball model: below) and does not improve the actual-XI match benchmark.
+
+*What real does and what the engine did* (Cricsheet, first innings of full matches of the nine men's leagues since 2021 against 3,000 engine matches a league on the game's squads, `last-pair-collect.test.ts` with `LP_LEAGUES=1 LP_MIN_WK=0`; per ball, wides out):
+
+| over | 1 | 2-6 | 7-10 | 11-15 | 16 | 17 | 18 | 19 | 20 |
+|---|---|---|---|---|---|---|---|---|---|
+| real wicket rate | 3.3% | 4.3-4.8% | 3.7-4.5% | 4.4-5.3% | 6.0% | 6.9% | 7.6% | 9.5% | 14.1% |
+| engine | 4.3% | 4.7-5.1% | 4.9-5.1% | 5.3-5.5% | 7.4% | 7.3% | 7.2% | 7.6% | 7.6% |
+| real runs off the bat a ball | 0.95 | 1.17-1.37 | 1.15-1.22 | 1.27-1.40 | 1.48 | 1.50 | 1.61 | 1.72 | 1.83 |
+| engine | 1.41 | 1.58-1.70 | 1.11-1.15 | 1.11-1.18 | 1.49 | 1.45 | 1.39 | 1.50 | 1.47 |
+
+The engine's T20 innings has no clock beyond its three phases: `PHASE_MULTIPLIERS` (match.ts) steps at over 7 and over 16 and is flat in between, and the wickets-in-hand table (RULES-MATCH.md 12.9) is normalised within its over bands, so nothing makes the last two overs different from the 16th. Real sides swing at nearly everything in the 19th and 20th overs (a wicket every 7 to 10 balls) and are safer than the engine's through the middle overs; the engine spreads the same number of wickets evenly. The striker's rating does not explain it: the real rise from the first band to the last is about 2.5 times for the best batters (rating 0.75+: 4.1% to 10.5%) and for the tail (under 0.35: 6.5% to 15.6%) alike, where the engine's is 1.4 and 1.1 times. Outside the IPL (which has its own scoring context) the engine's powerplay is also far too fast (1.68 runs a ball against 1.42 in 2024+) and its middle overs too slow (1.11 against 1.25), its sixes in the wrong phase.
+
+**The second cause: the game's league XIs bat less deep than real ones.** In first innings that reached nine down, the batters ranked by rating (best to worst) in the real XIs and in the engine's (`Team.autoSelectPlayingXI` on the game's squads):
+
+| rank | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| real | 0.86 | 0.84 | 0.81 | 0.78 | 0.75 | 0.71 | 0.67 | 0.58 | 0.46 | 0.32 |
+| engine | 0.86 | 0.84 | 0.82 | 0.78 | 0.74 | 0.67 | 0.55 | 0.46 | 0.37 | 0.30 |
+
+The engine's sixth to ninth batters are 0.04-0.12 weaker (the XI is built bowling core first). Its strikers with eight and nine down are rated 0.38 and 0.32 against a real 0.49-0.52 and 0.44-0.47. The league all-out shares therefore depend on the squads as much as on the ball model, which is why the T20I (the real XIs, `LP_COLLECT`) is the cleaner test below.
+
+*What was modelled.* A log multiplier per over (1-20) and outcome class (dot, 1, 2, 3, 4, 6, wicket; a 3 takes the 2's term; wides, no-balls and byes are the reference), per competition, in a men's T20 first innings (`applyInningsClock` in `ballProbabilities`, after the wickets-in-hand table, so the live engine plays it too; not The Hundred, a chase or a super over). Fitted by multinomial regression of the real balls on the engine's own shares in each cell (competition x over x wickets down 0-1 / 2-3 / 4-5 / 6-7 / 8-9 x the striker's rating bin x his balls faced 0-2 / 3-9 / 10-19 / 20+), so the situation and the batter are held fixed and the term is the clock alone: a pooled league term plus a shrunk offset per competition (the IPL and the T20I have their own contexts, so their engine baselines differ), a ridge on both and a penalty on second differences across overs inside each engine phase (none across the phase boundaries, where the engine steps). Then made neutral in shares: each class keeps its share over the engine's own first-innings balls, so a league's level of runs and wickets stays where `LEAGUE_LEVELS` put it and only *when* they come moves. **Fit to the end of 2023 (from 2019), judged on 2024+.** The ridge and smoothing strengths were chosen on 2023 with the fit to 2022 (the loss is flat over a 100-fold range). A wicket-only version (the wicket row alone, the run classes left to the engine) was fitted the same way.
+
+The fitted wicket multipliers (per league, after neutralising): over 1 0.74-0.97, overs 7-15 0.9-1.17, overs 16-18 0.82-1.03, over 20 1.0-1.34 (the T20I 0.71 in over 1, 1.1-1.23 in the middle overs, 0.84-0.93 in 16-18), with the dots of the last three overs cut to 0.7 / 0.55 / 0.3 (so every other class of the 20th over rises); sixes 0.4-0.7 in the powerplay and 1.3-1.5 in the middle overs outside the IPL. The wicket-only version: 0.8-0.9 in the first six overs, 0.7-1.1 in the middle, 0.8 / 0.9 / 1.1 in overs 16-18 and 1.3-1.6 / 1.8-2.4 in the last two.
+
+*Out of sample, per ball* (first-innings balls of rated strikers, log loss against the engine as it was, minus is better, +- its standard error over the balls):
+
+| set | fit-half balls | held-out balls (2024+) | full term | wicket row only |
+|---|---|---|---|---|
+| men's leagues pooled | 140,174 | 116,078 | **-0.0250 +- 0.0007** | **-0.0015 +- 0.0002** |
+| IPL | 36,724 | 26,074 | -0.0036 +- 0.0009 | -0.0016 +- 0.0004 |
+| BBL / PSL / CPL / BPL | 17-33k each | 12-15k each | -0.029 to -0.038 (+- 0.002) | -0.0013 to -0.0020 |
+| men's T20I | 39,579 | 31,519 | -0.0037 +- 0.0007 | -0.0016 +- 0.0003 |
+
+*The innings shape* (first innings; real since 2021; engine 3,000 matches a league on the game's squads, the T20I the real XIs' matches replayed 8 times; all out / the ninth wicket's mean over, 0-based with the ball, 18.5 = halfway through the 19th / the share of ninth wickets in the last two overs / runs):
+
+| set | real | engine | full term | wicket row only |
+|---|---|---|---|---|
+| IPL | 7.7% / 18.40 / 74% / 182.4 | 9.5% / 17.69 / 59% / 180.4 | 11.5% / 18.44 / 78% / 184.9 | 10.0% / 18.42 / 78% / 184.8 |
+| BBL | 11.3% / 18.64 / 83% / 165.7 | 13.8% / 17.12 / 49% / 167.6 | 16.6% / 18.23 / 72% / 174.9 | 14.8% / 18.23 / 71% / 174.0 |
+| PSL | 11.6% / 18.50 / 73% / 180.2 | 16.9% / 17.11 / 49% / 177.3 | 18.9% / 18.09 / 69% / 185.0 | 17.3% / 18.05 / 69% / 183.5 |
+| SA20 | 15.3% / 17.71 / 71% / 166.5 | 17.1% / 16.76 / 40% / 160.2 | 18.0% / 17.70 / 61% / 163.4 | 17.3% / 17.70 / 58% / 162.4 |
+| CPL | 12.1% / 17.98 / 68% / 166.1 | 15.1% / 16.79 / 42% / 172.2 | 17.7% / 17.82 / 60% / 175.2 | 16.9% / 17.71 / 61% / 174.7 |
+| ILT20 | 10.6% / 18.31 / 70% / 162.4 | 11.1% / 17.53 / 56% / 162.5 | 12.9% / 18.23 / 73% / 166.9 | 11.6% / 18.13 / 69% / 166.4 |
+| MLC | 18.4% / 18.35 / 72% / 173.1 | 18.7% / 16.60 / 38% / 176.0 | 20.4% / 17.84 / 63% / 179.7 | 19.5% / 17.77 / 63% / 178.6 |
+| BPL | 14.9% / 18.16 / 75% / 159.2 | 11.9% / 17.46 / 52% / 157.5 | 15.0% / 17.87 / 67% / 161.1 | 12.6% / 18.05 / 69% / 159.1 |
+| LPL | 13.5% / 18.39 / 77% / 167.3 | 17.2% / 17.03 / 45% / 178.5 | 19.3% / 17.92 / 66% / 183.8 | 16.0% / 17.97 / 67% / 183.8 |
+| all-out error, nine leagues | | 2.42 points | 3.88 points | 2.79 points |
+| **T20I men (real XIs)** | 12.7% / 18.42 / 78% / 169.7 | 8.6% / 17.83 / 63% / 166.3 | **10.7% / 18.31 / 75% / 167.6** | 10.3% / 18.28 / 75% / 168.1 |
+
+When the ninth wicket falls comes to real in every set (the engine's was 0.7-1.8 overs early). With the real XIs the all-out share moves toward real too (8.6% to 10.7% against 12.7%), and wickets per innings (6.03 to 6.15 against 6.72). In the leagues the all-out shares move *away* by 1-3 points with the full term (0.4-1 with the wicket row): with the hazard now where real puts it, the game's thinner tails (above) fall at a real tail's rate in the last overs with less batting behind them. The leagues' all-out shares had been near real partly because the engine's wickets came early and spread out. A stronger last-pair wicket offset brings them back (`LP_WICKET`: -0.5 more gives a 1.89-point error), but only by making the engine's nine-down pair survive the last two overs at 9.5% a ball against a real 13.1% while being 0.12 weaker: a compensation for the squads, not a fit, so it was not taken.
+
+*League benchmarks* (`calibrate-leagues.test.ts`, 32 seasons, both innings; full term with that last-pair offset, runs / wickets per innings, real in brackets): IPL 172.4 -> 175.2 (183.7), LPL 166.0 -> 170.4 (175.7), BBL 156.9 -> 161.7 (158.3), PSL 167.3 -> 172.8 (169.2), MLC 163.8 -> 169.3 (164.9), BPL 150.5 -> 155.4 (152.4), CPL 155.6 -> 159.4 (158.0), ILT20 154.0 -> 157.5 (154.9), SA20 150.1 -> 150.5 (153.4); runs error over the nine 3.77 -> 3.90, wickets 6.00 -> 6.10 on average (closer in seven). Fewer early wickets means better batters bat longer: every league gains 4-5 runs an innings, which helps the IPL and LPL and overshoots the rest (a level refit would follow a shipped term).
+
+*Win prediction on the real fixtures* (`BENCH_ACTUAL=1 BENCH_MODES=actual BENCH_ONLY=t20i-men`; men's T20I, log loss per real match +- its standard error, paired difference, minus is better; before = `WT_OFF=1`):
+
+| version | half (matches) | before | with the term | paired difference |
+|---|---|---|---|---|
+| full term, 256 replays | holdout 2025+ (168) | 0.574 +- 0.034 | 0.576 +- 0.033 | +0.002 +- 0.006 |
+| | fit to 2024 (418) | 0.633 +- 0.020 | 0.635 +- 0.020 | +0.003 +- 0.004 |
+| wicket row only, 256 replays | holdout 2025+ (168) | 0.574 +- 0.034 | 0.577 +- 0.033 | +0.003 +- 0.006 |
+| | fit to 2024 (418) | 0.633 +- 0.020 | 0.633 +- 0.021 | +0.001 +- 0.004 |
+| full term, 96 replays | holdout 2025+ (168) | 0.583 +- 0.035 | 0.599 +- 0.035 | +0.016 +- 0.009 |
+| | fit to 2024 (418) | 0.638 +- 0.021 | 0.637 +- 0.020 | -0.001 +- 0.006 |
+
+(At 96 replays the full term's holdout read 1.7 standard errors worse; at 256 it is within noise on both halves, as is the wicket row. Neither improves either half. The bat-first side's win share in the replays moved from 51.2% to 51.9%: the chase is untouched.)
+
+**Not shipped.** Neither version improves the actual-XI match benchmark, and both move the leagues' all-out shares away from real, so by the rules of this file neither ships; `INNINGS_CLOCK` is empty and the engine is unchanged. What would let it ship: league XIs as deep as real ones (the selection, or the squads), after which the term (`WT_FILE (a file with one of the candidates of docs/data/t20_innings_clock.json as its "tables")` in `last-pair-collect.test.ts`, `benchmark-countries.test.ts`, `calibrate-leagues.test.ts`) can be scored again and the league levels refit on top. Second innings were not fitted: the chase has the same flat phases (the engine's middle overs too dangerous, its powerplay too fast outside the IPL) but a required-rate state that the cells would have to carry.
+
 ## Refitting
 
 - Bowling choice: `BENCH_TACTICS=1 BENCH_EXPORT=train.json npx vitest run packages/app/src/__tests__/tactics-allocation.test.ts`, then `python3 packages/ratings/src/analysis/bowling-choice.py train.json` (needs numpy and scipy).

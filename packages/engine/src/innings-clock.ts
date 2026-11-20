@@ -8,6 +8,8 @@
  * down, the striker's rating and balls faced) held fixed, and made neutral in shares over the engine's own innings so each class's
  * rate over an innings stays where the league levels put it (innings-clock-data.ts, from packages/ratings/src/analysis/t20-wicket-timing.py;
  * docs/TACTICS.md section 6). Men's T20 first innings only (not The Hundred, a chase or a super over), both engines (ballProbabilities).
+ * NOT SHIPPED: the tables are empty (the term moved the leagues' all-out shares away from real and did not improve the actual-XI
+ * benchmark; the candidates are in docs/data/t20_innings_clock.json, loaded with WT_FILE by the collectors and benchmarks).
  */
 import type { BallOutcome } from "./match.js";
 import { INNINGS_CLOCK } from "./innings-clock-data.js";
@@ -20,7 +22,7 @@ export const INNINGS_CLOCK_SWITCH: { off: boolean } = { off: false };
 /** The competition's table: a league of its own, the men's T20I, or the men's default (none for the women, The Hundred) */
 export function inningsClockTable(key: string): number[][] | undefined {
   if (INNINGS_CLOCK_SWITCH.off) return undefined;
-  return INNINGS_CLOCK[key] ?? (key === "default-male" ? INNINGS_CLOCK["default-male"] : undefined);
+  return INNINGS_CLOCK[key];
 }
 
 /** Multiply the over's term into a first-innings ball (no-op where the competition has none) */
