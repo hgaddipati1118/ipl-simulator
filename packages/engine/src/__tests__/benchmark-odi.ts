@@ -9,6 +9,8 @@
  *                        involvement-weighted rating composites (-> ODI_REF) and the rating spread vs the real one (-> slopes)
  *   FORMAT_RATINGS=none ...  everyone on his T20 ratings (the engine's fallback when a player has no ODI set);
  *                        FORMAT_RATINGS=/path/format-ratings.json another ratings file (default: the app's)
+ *   ODI_CELLS=out.json ...  also write the simulated deliveries counted by phase (overs 1-10, 11-40, 41-50) x the striker's batting rating bin
+ *                        ((battingOvr + timing) / 200 on his ODI set, 0.05 wide from 0.20) x outcome class, for t20-batter-response.py (ODI)
  *   ODI_TUNE='{"cal":{"male":[[...]]},"slopes":{"wicket":{"balance":-1.2}},"ref":{"male":{...}},"scale":{"female":1.4},"tail":0.5}' ...
  *                        try parameters before writing them into odi-model.ts (merged over the shipped ones)
  *
@@ -17,7 +19,7 @@
  * ratings the way the app does (attachFormatRatings with packages/app/public/data/format-ratings.json); the squad is its 20
  * most involved, the XI the engine's own pick. Every match is seeded.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ALL_PLAYERS } from "../../../ratings/src/all-players.js";
 import { WPL_PLAYERS } from "../../../ratings/src/wpl-players.js";
@@ -36,6 +38,8 @@ const REPLAYS = Number(process.argv[2] ?? 2);
 const WHICH = process.argv[3] ?? "both";
 const LIVE = process.env.ENGINE === "live";
 const CALIBRATE = !!process.env.CALIBRATE;
+const CELLS_OUT = process.env.ODI_CELLS;
+const CELLS: Record<string, { cells: number[][][]; matches: number }> = {};
 const V = JSON.parse(readFileSync(fileURLToPath(new URL("../../../../docs/data/odi_validation.json", import.meta.url)), "utf8"));
 const FR_PATH = process.env.FORMAT_RATINGS ?? fileURLToPath(new URL("../../../app/public/data/format-ratings.json", import.meta.url));
 const FR: FormatRatingsFile | null = FR_PATH !== "none" && existsSync(FR_PATH) ? JSON.parse(readFileSync(FR_PATH, "utf8")) : null;
@@ -155,8 +159,20 @@ function run(gender: G) {
         winner = res.winnerId;
         batFirst = res.innings[0].teamId;
         for (const inn of res.innings) {
+          const batTeam = inn.teamId === home.id ? home : away;
+          const byId = CELLS_OUT ? new Map(batTeam.roster.map(p => [p.id, p])) : null;
           for (const e of inn.ballLog) {
             if (e.deadBall) continue;
+            if (byId) {
+              const bp = byId.get(e.batter);
+              if (bp) {
+                const v = bp.forFormat("odi");
+                const bin = Math.min(15, Math.max(0, Math.floor(((v.battingOvr + v.ratings.timing) / 200 - 0.2) / 0.05 + 1e-9)));
+                const c = E.ODI_OUTCOMES.indexOf((e.isWicket && e.outcome !== "wide" && e.outcome !== "noball" ? "wicket" : e.outcome) as never);
+                const cells = (CELLS[gender] ??= { cells: [0, 1, 2].map(() => Array.from({ length: 16 }, () => new Array(10).fill(0))), matches: 0 });
+                cells.cells[e.over < 10 ? 0 : e.over < 40 ? 1 : 2][bin][c]++;
+              }
+            }
             deliveries++;
             const c = cls(e.isWicket && e.outcome !== "wide" && e.outcome !== "noball" ? "wicket" : e.outcome);
             classCount[c]++;
@@ -303,3 +319,6 @@ function run(gender: G) {
 }
 
 for (const g of (WHICH === "both" ? ["male", "female"] : [WHICH === "women" ? "female" : "male"]) as G[]) run(g);
+if (CELLS_OUT) {
+  writeFileSync(CELLS_OUT, JSON.stringify({ bin0: 0.2, binw: 0.05, nbin: 16, phases: ["powerplay", "middle", "death"], classes: [...E.ODI_OUTCOMES], groups: { "odi-men": CELLS.male, "odi-women": CELLS.female } }));
+}

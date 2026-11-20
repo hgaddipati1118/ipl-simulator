@@ -24,6 +24,6 @@ export const MATCH_CONDITIONS: Record<"male" | "female", Record<string, Conditio
     "t20i": { lo: 0.24, hi: 0.24, center: 0.0006 },
   },
   female: {
-    "t20i": { lo: 0.23, hi: 0.46, center: -0.1693 },
+    "t20i": { lo: 0.07, hi: 0.035, center: 0.0211 },
   },
 };

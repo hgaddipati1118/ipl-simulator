@@ -8,7 +8,7 @@
 import { Player } from "./player.js";
 import { Team, type BowlingPlan } from "./team.js";
 import { applyConditionsToProfile, type ConditionsSetting } from "./conditions.js";
-import { bowlerKind, captainModelFor, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
+import { bowlerKind, captainModelFor, isWomenT20I, choiceFormatFor, chooseByModel, lastOverOf, narrowByPlan, phaseUsedOf, rankByBowling, slackBin, type ChoiceFormat } from "./bowling-choice.js";
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
@@ -901,7 +901,7 @@ export function createMatchState(
   for (const b of bowlingOrder) bowlerOvers[b.id] = 0;
 
   // Pick first bowler
-  const openFmt = captainModelFor(odi) ? choiceFormatFor(rules.matchFormat ?? "t20", fmt.overs, odi ? 50 : 20) : null;
+  const openFmt = captainModelFor(odi, isWomenT20I(rules)) ? choiceFormatFor(rules.matchFormat ?? "t20", fmt.overs, odi ? 50 : 20) : null;
   const firstBowlerIdx = openingBowlerIdx(bowlingOrder.map(p => p.id), playerDataMap, fmt.maxOversPerBowler, userTeamId === bowlingFirst.id, rng,
     odi ? { scheduledOvers: ODI_FORMAT.overs, unavailable: [] } : undefined, bowlingFirst.getBowlingPlan() ?? undefined,
     openFmt ? { fmt: openFmt, gender: genderOf(rules), history: [], xiIds: (bowlingFirst === homeTeam ? homeXI : awayXI).map(p => p.id), unavailable: [], scheduledOvers: fmt.overs } : undefined);
@@ -3896,7 +3896,7 @@ interface ChoiceInput { fmt: ChoiceFormat; gender: "male" | "female"; history: r
 
 /** The choice model's input for the innings in play, or undefined if it does not run here */
 function choiceInput(state: MatchState, ni: MatchStateInternal, bowlingTeamId = state.bowlingTeamId): ChoiceInput | undefined {
-  const fmt = captainModelFor(ni.rules.matchFormat === "odi") ? choiceFormatFor(ni.rules.matchFormat ?? "t20", state.maxOvers, ni.rules.matchFormat === "odi" ? 50 : 20) : null;
+  const fmt = captainModelFor(ni.rules.matchFormat === "odi", isWomenT20I(ni.rules)) ? choiceFormatFor(ni.rules.matchFormat ?? "t20", state.maxOvers, ni.rules.matchFormat === "odi" ? 50 : 20) : null;
   if (!fmt) return undefined;
   const xiIds = (bowlingTeamId === state.homeTeam.id ? ni.homeXIIds : ni.awayXIIds) ?? ni.bowlingOrderIds;
   return { fmt, gender: genderOf(ni.rules), history: ni.overBowlers ?? [], xiIds, unavailable: ni.unavailableBowlers ?? [], scheduledOvers: state.maxOvers };

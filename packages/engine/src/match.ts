@@ -60,6 +60,7 @@ import { T20_FORMAT, hasOwnBallModel, matchFormatFor, phaseOver, type MatchForma
 import { applyScoringContext, scoringContextFor, type T20Context } from "./scoring-context.js";
 import { applyMatchConditions, drawMatchConditions, type MatchConditions } from "./match-conditions.js";
 import { applyWicketsInHand, wicketsInHandKey as wicketsInHandKeyFor } from "./wickets-in-hand.js";
+import { applyBatterResponse } from "./batter-response.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
 import { applyT20BowlerType } from "./t20-bowler-type.js";
 import { applyConditionsToProfile, type ConditionsSetting } from "./conditions.js";
@@ -505,6 +506,8 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
     probs = baseOutcomeProbabilities(batter, bowler);
     // Women's cricket has its own wide / no-ball / bye rates
     applyGenderExtras(probs, rules.gender);
+    // the refitted response to the striker's rating (a flat line in the base matrix was too shallow at the bottom of the order)
+    applyBatterResponse(probs, rules.gender, (batter.battingOvr + batter.ratings.timing) / 200);
   }
   const nbf = ruleOverrides().noBallRateFactor;
   if (nbf !== undefined) probs.noball *= nbf;
@@ -1281,7 +1284,7 @@ function simulateInnings(
     }
     // The captain's choice (bowling-choice.ts): the user's plan narrows it, the fitted model draws from what is left. A full-length
     // T20 or ODI innings only; The Hundred and a rain-cut innings keep the former rule (one of the best three on rating)
-    const choiceFmt: ChoiceFormat | null = so || !captainModelFor(own) ? null : choiceFormatFor(fmt.id, maxOvers, fmt.overs);
+    const choiceFmt: ChoiceFormat | null = so || !captainModelFor(own, venue.wicketsInHandKey === "t20i-female") ? null : choiceFormatFor(fmt.id, maxOvers, fmt.overs);
     let bowler: Player;
     if (so) bowler = pool[0];
     else if (choiceFmt) {

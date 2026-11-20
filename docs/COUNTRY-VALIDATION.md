@@ -47,7 +47,7 @@ best, the smallest stretch then home advantage:
 | women's ODI | 3 | 0 | 0.526 -> 0.514 |
 
 The T20I's own match conditions (FORMATS.md, "T20I level") were refitted on top, since the stretch widens the totals: men
-0.24 / 0.24, women 0.23 / 0.46. T20I level against the real fixtures (3 replays): men 164.0 (sd 35.4), 200+ 15.2% (real 169.5, 37.3,
+0.24 / 0.24, women 0.23 / 0.46 (women 0.07 / 0.035 since the batter response, TACTICS.md section 5). T20I level against the real fixtures (3 replays): men 164.0 (sd 35.4), 200+ 15.2% (real 169.5, 37.3,
 19.2%); women 140.6 (31.2), 3.1% (real 142.2, 34.6, 5.1%).
 
 Men's ODI gained nothing from either parameter: the ODI model's own team spread and the venue tables already put its sides where the
@@ -175,7 +175,16 @@ and the men's T20I tuning is refitted (spread 3, home 2; women's unchanged). Fin
 | women's ODI | 0.435 -> 0.435 | 0 (identical) | 0.501 -> 0.501 |
 
 (The 24-replay figures of the Result table above are single draws; the same engine reads 0.596 / 0.462 / 0.673 / 0.435 at 96 replays. Differences of a few hundredths between replay counts are noise; the paired standard errors are the yardstick.)
-Tail batters: numbers 10 and 11 still score 1-2 runs more than real tails (TACTICS.md, section 5: a rating-based tail term was tried, did not fix survival and would need the league levels refitted; not shipped).
+**Tail batters and the batter response** (TACTICS.md section 5). The T20 ball model's response to a batter's rating was refitted from Cricsheet ball by ball (a piecewise-linear correction per gender, no positional term, neutral in shares, run rows at x1.25 men / x1.5 women, no wicket row) with the women's T20I context, conditions and tuning refit for it. Paired per match against the engine before it, 96 replays of every real match with the XIs that played (minus is better):
+
+| set | holdout (2025+) before -> now | paired difference (holdout) | fit half before -> now |
+|---|---|---|---|
+| men's T20I | 0.590 -> 0.586 | -0.004 +- 0.014 | 0.632 -> 0.632 (+0.000 +- 0.007) |
+| women's T20I | 0.476 -> 0.451 | -0.024 +- 0.019 | 0.521 -> 0.523 (+0.002 +- 0.013) |
+| ODI, Test | not touched | | |
+
+Men's number 10 now scores the real runs (4.3 against 4.2, was 5.3) and number 11 3.2 against 2.3 (was 3.9); balls faced and the women's tails are not materially closer (the survival of the last pair is a state, not a rating). The women's T20I tuning is now spread 1.5 / home 2 (was 3.5 / 4), the men's unchanged at 3 / 2; the ODI and Test engines are untouched (their number 11, TACTICS.md section 5, is the same last-pair excess).
+The women's T20I holdout: the captain model and the bowler-type table stay (switching either off is not better on the fit half; captain off loses 0.032 +- 0.014 on the holdout).
 
 ## Left over
 

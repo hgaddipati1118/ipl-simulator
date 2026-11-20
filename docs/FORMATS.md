@@ -1313,7 +1313,7 @@ drawn matches, first innings, deviation at the 10 / 25 / 50 / 75 / 90th percenti
 
 Refit: `CAL_T20I=1 CALIBRATE_WRITE=1 npx vitest run packages/app/src/__tests__/calibrate-spread.test.ts -t "T20I"` (about 8 minutes;
 the leagues' entries are kept). The women's spread is still 3 runs short (their grid cannot go wider without under-120 overshooting). With the series tuning of
-docs/COUNTRY-VALIDATION.md (the gap between the sides stretched) the shapes were refitted: men 0.24 / 0.24, women 0.23 / 0.46, giving
+docs/COUNTRY-VALIDATION.md (the gap between the sides stretched) the shapes were refitted: men 0.24 / 0.24, women 0.23 / 0.46 (women 0.07 / 0.035 since the batter response, TACTICS.md section 5), giving
 men 164.0 (sd 35.4, 200+ 15.2%) and women 140.6 (31.2, 3.1%) against the real 169.5 (37.3, 19.2%) and 142.2 (34.6, 5.1%).
 
 **The women's leagues** (WPL, WBBL, the women's Hundred) were off the same way and now have contexts of their own, fitted

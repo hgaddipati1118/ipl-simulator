@@ -26,6 +26,7 @@ import { createPoolLoader } from "../extended-pool";
  * CAL_EVAL_MATCHES matches, default 2,500) is the one whose
  * all-out share, under-120 and 200+ shares (at the engine's mean) are nearest the real league's, a spread above the real one
  * counted as a miss too. CAL_WOMEN=1 adds the women's leagues and T20Is; CAL_ONLY=ipl,bbl limits the competitions;
+ * CAL_TARGETS=file.json holds each competition's mean at the given value instead of the mean without the table (CAL_RECENTRE).
  * CALIBRATE_WRITE=1 writes the factors (default-male / default-female: the median league's power, the geometric mean of the
  * leagues' factors). CAL_RECENTRE=1 only corrects each competition's mean on 5,000 matches with and without the table.
  *   CALIBRATE_COLLAPSES=1 CALIBRATE_WRITE=1 npx vitest run packages/app/src/__tests__/calibrate-collapses.test.ts --reporter=verbose
@@ -33,7 +34,7 @@ import { createPoolLoader } from "../extended-pool";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..", "..", "..");
 const PUBLIC = join(HERE, "..", "..", "public");
-const OUT = join(REPO, "packages", "engine", "src", "wickets-in-hand-norm-data.ts");
+const OUT = process.env.CAL_OUT ?? join(REPO, "packages", "engine", "src", "wickets-in-hand-norm-data.ts");
 const N = Number(process.env.CAL_MATCHES ?? 800);
 /** Matches for the evaluation of a power (the shares below 120 and the all-outs need a few thousand) */
 const NE = Number(process.env.CAL_EVAL_MATCHES ?? 2500);
@@ -143,7 +144,9 @@ it.skipIf(!process.env.CALIBRATE_COLLAPSES)("collapses: the wickets-in-hand tabl
       ...EXTRA_LEAGUES.filter(l => l.gender === "women").map(l => leagueComp(l.id, l.rules, "female", l.rules.matchFormat === "hundred")),
       await t20iComp("female"),
     ] : []),
-  ].filter(c => !process.env.CAL_ONLY || process.env.CAL_ONLY.split(",").includes(c.key));
+  ].filter(c => (!process.env.CAL_ONLY || process.env.CAL_ONLY.split(",").includes(c.key)) && !process.env.CAL_JSON_IN);
+  // CAL_JSON_IN=a.json,b.json: no simulation, the competitions several parallel runs fitted (each wrote CAL_JSON_OUT) merge, the defaults refit and the file is written
+  if (process.env.CAL_JSON_IN) for (const file of process.env.CAL_JSON_IN.split(",")) Object.assign(WICKETS_IN_HAND_NORM, JSON.parse(readFileSync(file, "utf-8")));
   const realKey = (c: Comp) => (c.key.startsWith("t20i") ? (c.gender === "male" ? "t20i-m" : "t20i-w") : c.key);
 
   // fitted with the match conditions off (calibrate-spread.test.ts refits them on top of the table)
@@ -177,12 +180,20 @@ it.skipIf(!process.env.CALIBRATE_COLLAPSES)("collapses: the wickets-in-hand tabl
     for (const c of comps) {
       const fitted = WICKETS_IN_HAND_NORM[c.key];
       if (!fitted || fitted.scale === 0) continue;
-      WICKETS_IN_HAND_NORM[c.key] = NONE(c);
-      const m0 = stats(c.matches(70000, NC), c.hundred).mean;
-      WICKETS_IN_HAND_NORM[c.key] = fitted;
+      // CAL_TARGETS=file.json ({ key: mean first innings }): the mean the competition is held at (the engine before a change that moved its
+      // level), in place of the mean without the table
+      const target = process.env.CAL_TARGETS ? (JSON.parse(readFileSync(process.env.CAL_TARGETS, "utf-8")) as Record<string, number>)[c.key] : undefined;
+      let m0 = target;
+      if (m0 === undefined) {
+        WICKETS_IN_HAND_NORM[c.key] = NONE(c);
+        m0 = stats(c.matches(70000, NC), c.hundred).mean;
+        WICKETS_IN_HAND_NORM[c.key] = fitted;
+      }
       const m1 = stats(c.matches(70000, NC), c.hundred).mean;
-      for (const row of fitted.norm) for (const r of RUNS) row[r] *= m0 / m1;
-      console.log(`${c.key}: mean without ${f(m0)}, with ${f(m1)} -> run classes x ${(m0 / m1).toFixed(4)}`);
+      // the run classes' share of the weights is about half, so a factor moves the mean by about half of itself: CAL_GAIN=2 (default 1) takes the ratio to that power
+      const gain = Number(process.env.CAL_GAIN ?? 1);
+      for (const row of fitted.norm) for (const r of RUNS) row[r] *= (m0 / m1) ** gain;
+      console.log(`${c.key}: mean ${target === undefined ? "without" : "target"} ${f(m0)}, with ${f(m1)} -> run classes x ${((m0 / m1) ** gain).toFixed(4)}`);
     }
   }
   for (const c of process.env.CAL_RECENTRE ? [] : comps) {
@@ -203,7 +214,8 @@ it.skipIf(!process.env.CALIBRATE_COLLAPSES)("collapses: the wickets-in-hand tabl
       const fit = fitNorm(c, before, scale);
       const l = loss(fit.after);
       lines.push(line(`${c.key} power ${scale}${real ? ` (loss ${f(l)})` : ""}`, fit.after));
-      if (l < best.loss) best = { ...fit, loss: l };
+      // CAL_FORCE=1: the scale given is kept whatever the loss (the competitions' fitted powers stay, only their factors refit)
+      if (l < best.loss || process.env.CAL_FORCE) best = { ...fit, loss: l };
     }
     WICKETS_IN_HAND_NORM[c.key] = { scale: best.scale, gender: c.gender, norm: best.norm };
     if (real) {
@@ -215,9 +227,11 @@ it.skipIf(!process.env.CALIBRATE_COLLAPSES)("collapses: the wickets-in-hand tabl
     console.log(`${c.key}: power ${best.scale}`);
   }
 
+  if (process.env.CAL_JSON_OUT) writeFileSync(process.env.CAL_JSON_OUT, JSON.stringify(Object.fromEntries(comps.map(c => [c.key, WICKETS_IN_HAND_NORM[c.key]]))));
+
   // other competitions of a gender: the median league's power, the delivery-weighted geometric mean of the leagues' factors
   for (const g of process.env.CAL_RECENTRE ? [] : (["male", "female"] as const)) {
-    const keys = comps.filter(c => c.gender === g && !c.key.startsWith("t20i") && WICKETS_IN_HAND_NORM[c.key]?.scale > 0).map(c => c.key);
+    const keys = Object.keys(WICKETS_IN_HAND_NORM).filter(k => WICKETS_IN_HAND_NORM[k].gender === g && !k.startsWith("t20i") && !k.startsWith("default") && WICKETS_IN_HAND_NORM[k].scale > 0);
     if (!keys.length) continue;
     const scales = keys.map(k => WICKETS_IN_HAND_NORM[k].scale).sort((a, b) => a - b);
     const norm = Array.from({ length: BANDS }, (_, b) => CLASSES.map((_, j) => Math.exp(keys.reduce((s, key) => s + Math.log(WICKETS_IN_HAND_NORM[key].norm[b][j]), 0) / keys.length)));

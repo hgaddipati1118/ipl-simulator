@@ -17,6 +17,8 @@
 import { BOWLING_CHOICE } from "./bowling-choice-data.js";
 import { isFastBowler, isPaceBowler, isSpinBowler, type BowlingStyle } from "./matchups.js";
 import type { RNG } from "./rng.js";
+import type { RuleSet } from "./rules.js";
+import { genderOf } from "./delivery-rules.js";
 
 type Gender = "male" | "female";
 
@@ -152,9 +154,18 @@ export function narrowByPlan<T extends { id: string }>(cands: readonly T[], plan
  * got worse with it (0.673 -> 0.724 men's, 0.435 -> 0.450 women's, where the former rule scored the same as before; docs/TACTICS.md,
  * "Regression on the real fixtures"). A plan still narrows the ODI's choice; the model's plan strip stays in the editor as a starting point.
  */
-export function captainModelFor(odi: boolean): boolean {
-  return !odi;
+export function captainModelFor(odi: boolean, womenT20I = false): boolean {
+  if (odi) return false;
+  return !(womenT20I && !CAPTAIN_MODEL.womenT20I);
 }
+
+/** A women's T20I (the rules that choose its scoring context and level) */
+export function isWomenT20I(rules: Pick<RuleSet, "league" | "gender" | "scoringContext"> | undefined): boolean {
+  return !!rules && rules.scoringContext === "t20i" && genderOf(rules) === "female";
+}
+
+/** Where the captain's model plays (benchmarks switch it: docs/TACTICS.md section 2, women's T20I) */
+export const CAPTAIN_MODEL = { womenT20I: true };
 
 /** Does the plan name anyone (so that a plan-less CPU side can be told from a user's)? */
 export function planIsSet(plan: BowlingPlan | undefined): boolean {

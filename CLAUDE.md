@@ -38,6 +38,7 @@ Tactics (docs/TACTICS.md): who bowls which over in a T20 is a captain's choice m
 a user sets a side's bowling plan (phases, fixed overs; in a Test who opens and when spin comes on, `BowlingPlanEditor.tsx`, `SeriesLineup.bowling`), the T20 bowler type x phase effects
 are fitted (`t20-bowler-type.ts`, out-of-sample tested against the hand-set ones they replaced), and a series takes pitch / light / weather (`conditions.ts`, `IntlSeries.conditions`, `ConditionsBar`),
 each acting through a fitted ground term. Ball-age terms were tested out of sample and not shipped.
+The T20 ball model's response to a batter's rating is a fitted piecewise-linear correction per gender (`batter-response.ts`, from Cricsheet ball by ball on the game's own ratings; no positional term, neutral in shares; docs/TACTICS.md section 5, RULES-MATCH.md 12.12): it brings a men's number 10 to the real runs, not the survival of number 11 (a state, not a rating); the ODI and Test do not use it.
 
 Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ball text (scraper, templates, engine API: `docs/COMMENTARY.md`;
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).

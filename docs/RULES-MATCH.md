@@ -778,6 +778,19 @@ First innings, 3,500 matches, the game's squads: all out; wickets; under 120; 20
 
 The other leagues are untouched (the men's / women's T20 and Hundred fingerprints, which do not play the SA20, are unchanged).
 
+### 12.12 The batter's rating: a fitted response at the bottom of the order
+
+The T20 base matrix answers the striker's rating `(battingOvr + timing) / 200` with straight lines (the `balance` terms of 12.1). Real tails
+score less than the sim's, and the sim's women hit far too many fours and sixes at middling ratings. A piecewise-linear correction per gender and
+outcome class (`batter-response.ts`, `batter-response-data.ts`, knots 0.25 / 0.40 / 0.55 / 0.70 / 0.85; `p' = p x exp(s(rating))`) is applied in
+`ballProbabilities` right after the base matrix and the women's extras, in both engines, T20 and The Hundred; the ODI and the Test do not use it.
+It was fitted on Cricsheet ball by ball with the game's own ratings (to 2023, judged on 2024+) and made neutral in shares over the simulated balls
+(each class's share of deliveries is unchanged, so the leagues' levels, wickets and all-outs, and the tables of 12.7 to 12.11, stand), with the
+run rows at a power (men x1.25, women x1.5) and no wicket row; fit, out-of-sample check, what the sim does by batting position and why the wicket
+row and the ODI / Test are left out: docs/TACTICS.md section 5. The women's T20I context and conditions, the women's league contexts, the first-innings
+factors of five men's leagues and the series tuning of both T20I sets were refit for it (TACTICS.md section 5); the men's contexts, tables and
+conditions are as they were. The fingerprint of the men's and women's T20 lines moves (every line plays the response).
+
 ---
 
 ## 13. Rain and DLS, DRS, fielding errors and the rarer plays

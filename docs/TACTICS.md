@@ -245,16 +245,83 @@ the wicket dimension, with the fitted correlation for the other. A turning pitch
 
 ## 5. Tail batters
 
-By batting position the sim matches the real runs and balls from 1 to 8 (men's T20I, `BENCH_POSITIONS=1`: 7: 12.6 / 9.5 against 12.6 / 9.6) and the number 9 (6.6 / 5.9 against 6.3 / 5.7); numbers 10 and 11 still score more than real tails (5.3 / 5.0 against 4.2 / 4.3,
-and 3.9 / 3.7 against 2.3 / 2.9; women's 4.0 / 4.5 against 2.8 / 4.1 and 3.5 / 3.6 against 1.8 / 3.2). Two things are off at the tail: a tail-ender hits too hard (1.05 runs a ball against 0.79 at number 11) and survives too long (3.7 balls against 2.9).
+Real tails score and survive less than the sim's. Men's T20I numbers 10 and 11 made 4.2 / 4.3 and 2.3 / 2.9 runs / balls in the real matches against the sim's 5.3 / 5.0 and 3.9 / 3.7 before this section; women's 2.8 / 4.1 and 1.8 / 3.2 against 4.0 / 4.5 and 3.5 / 3.6. Two things were suspected: the T20 ball model's response to a batter's rating is too shallow at the bottom (rating by position 0.80 0.80 0.81 0.80 0.79 0.77 0.73 0.60 0.44 0.34 0.31: the tail is rated as the tail), and a tail-ender survives too long. A crude fix tried first (count the shortfall below 0.45 at double weight, `ODI_TAIL_WEIGHT` the other way round) helped number 10, not number 11, left survival alone and cost 1.8 runs an innings.
 
-*Why.* The T20 ball model answers a batter's rating with a shallow slope: a typical top-order batter (rating 0.80 on `(batting + timing) / 200`) and a number 11 (0.31) differ by 17% in runs a ball (1.36 against 1.13) and about 25% in wicket rate, where the real gap in runs a ball is about 40% (1.4 against 0.8).
-The batting-position tables above (mean rating by position 0.80 0.80 0.81 0.80 0.79 0.77 0.73 0.60 0.44 0.34 0.31) show the tail is rated as the tail; it is the response that is flat.
+**The refit** (`packages/ratings/src/analysis/t20-batter-response.py`, `packages/app/src/__tests__/tail-response.test.ts`, `batter-response.ts`, `docs/data/t20_batter_response.json`). The correction is a multiplier on each outcome class of the T20 ball model, piecewise linear in the striker's batting rating `(battingOvr + timing) / 200` (knots 0.25, 0.40, 0.55, 0.70, 0.85), per gender: `p'(class) = p(class) x exp(s_class(rating))`. It acts on the rating wherever the batter bats: **there is no positional term**, so a star at number 11 bats like a star and a tail-ender who opens like a tail-ender.
+- *Data.* Real: every ball since 2016 of the men's T20 leagues (IPL, BBL, PSL, SA20, CPL, ILT20, MLC, BPL, LPL, The Hundred) and since 2019 of T20Is between full members, and the women's WPL, WBBL, The Hundred and T20Is, whose striker the game rates (Cricsheet id to the game's player, on the game's own ratings and, in a T20I, the opposition adjust a national side's batters carry): 457,000 men's and 127,000 women's balls to the end of 2023, 306,000 and 93,000 from 2024. Counted by competition x phase (overs 1-6, 7-15, 16-20) x rating bin (0.05 wide) x outcome class. Simulated: the same counts from the engine as it was (the game's squads in every league, the series' sides in the T20Is, 2,000 matches a league, 2 replays of the T20I fixtures).
+- *Fit.* Within a competition and phase, a rating bin's share of each class relative to the phase's overall share, real over simulated, is the response the engine is missing at that rating. It is regressed on the piecewise-linear function (weights = inverse Poisson variances, a second-difference penalty on the knots, the wide / no-ball / bye shares as the reference, pooled over competitions and phases within a gender), on balls to 2023 only. A 3 takes the 2's response. Fitted to 2023, the response left in the 2024+ cells falls 2.1% (men) and 18% (women) in squared error: the women's sim hit far too many fours and sixes at middling ratings (at the applied strength the multiplier on fours is 0.26 at rating 0.25, 0.51 at 0.55 and 1.25 at 0.85; men's 0.72, 0.85 and 1.08).
+- *Neutral.* Each class gets a constant so that over the simulated balls its share of all deliveries is what it was: the response moves runs and wickets from batter to batter, it does not move a league's level, its wickets or its all-outs (the tables the engine already carries were fitted without it).
 
-*Tried* (`BENCH_POSITIONS=1`, men's T20I, 6 replays; not shipped): count a batter's shortfall below 0.45 at W times its weight in the ball model's batter-versus-bowler balance (the ODI model does this the other way, `ODI_TAIL_WEIGHT` = 0.5). No positional term: it acts on the batter's rating
-wherever he bats. W = 2 takes number 10 from 5.3 to 4.7 runs and number 11 from 3.9 to 3.7; W = 3 from 5.3 to 4.5 (real 4.2) and 3.9 to 3.4 (real 2.3), balls faced unchanged at about 3.7 (the survival is not fixed: the wicket rate has a ceiling in the ball model). It costs about 1.8 runs an innings
-(the tail's, nothing else moves), which is real T20I scoring the T20I context already sits 3.6 runs under (165.9 against 169.5), and in a league the same shortfall applies to every low-rated batter: the league levels and the T20I context would have to be fitted again for it, and the
-holdout and the league benchmarks checked on the refit. Not a clean fix, so not shipped. Left over.
+| log multiplier at rating | 0.25 | 0.40 | 0.55 | 0.70 | 0.85 |
+|---|---|---|---|---|---|
+| men, fours | -0.32 | -0.25 | -0.16 | -0.05 | +0.07 |
+| men, sixes | -0.27 | -0.15 | -0.06 | +0.00 | +0.03 |
+| men, dots | +0.16 | +0.09 | +0.02 | -0.01 | -0.02 |
+| women, fours | -1.34 | -1.01 | -0.66 | -0.26 | +0.22 |
+| women, sixes | -0.99 | -0.72 | -0.46 | -0.15 | +0.18 |
+| women, dots | -0.17 | -0.11 | -0.07 | -0.02 | +0.03 |
+
+**Two things the fit does not give, and what was chosen instead.**
+1. *The wicket row is not applied.* Fitted on its own it moves wickets from the top of the order to the tail (+0.24 at 0.25, -0.09 at 0.85 for men), and it is what moves a tail's survival most (men's number 11 from 3.9 / 3.7 to 3.0 / 3.5 runs / balls with the wicket row at half strength, number 10 to 4.1 / 4.5). But the real tail dies at a rate that, played with the real top and middle order, bowls the sim out too often: a men's T20I first innings is all out 15-16% of the time against a real 11.5% (12.7% before), the league all-out shares rise by 2-5 points, and refitting the wickets-in-hand tables on top (`calibrate-collapses.test.ts`) cannot take them back. The real hazards by wickets down match the sim's with the row on (0.076 / 0.093 / 0.099 / 0.112 a ball at 6 to 9 down); the sim reaches 8, 9 and 10 down more often (0.36 / 0.25 / 0.15 against 0.33 / 0.20 / 0.11 of innings), which is a matter of when wickets fall, not of the tail's rating. So the tail's survival (balls) is left where it was and a row-less correction is applied: the all-out shares, wickets per innings and totals stay at their former level.
+2. *The strength is a power.* At the fitted strength the cells agree but positions barely move (the real tails bat at the very end of innings, at nine down, where the phase cells do not look); the run rows are applied at a power fitted on the position table of the 2023-and-earlier / 2024+ halves and the sd of totals: **men x1.25, women x1.5**. Higher moves number 9 down with it (men x2: number 9 5.5 runs against a real 6.8) and widens the totals (sd 38-40 against 37.3 real); women's x2 widens the sd to 37.5 against 33.5 and no conditions term can narrow it.
+
+**By batting position** (`BENCH_POSITIONS=1`, the matches the real XIs played, real batting order, runs / balls; 2024+ matches in brackets, the out-of-sample half):
+
+| position | men real | men before | men after | women real | women before | women after |
+|---|---|---|---|---|---|---|
+| 8 | 8.7 / 7.0 (8.7 / 7.1) | 8.8 / 7.2 (8.9 / 7.1) | 8.5 / 7.2 (8.6 / 7.2) | 6.8 / 6.7 (7.3 / 6.8) | 7.0 / 6.9 (7.1 / 6.9) | 7.5 / 7.4 (7.6 / 7.6) |
+| 9 | 6.3 / 5.7 (6.8 / 6.1) | 6.6 / 5.9 (6.7 / 6.0) | 5.9 / 5.8 (5.7 / 5.6) | 4.8 / 5.6 (4.6 / 5.2) | 5.5 / 5.7 (5.5 / 5.6) | 5.4 / 5.9 (5.4 / 5.9) |
+| 10 | 4.2 / 4.3 (4.6 / 4.7) | 5.3 / 5.0 (5.0 / 4.9) | 4.3 / 4.9 (4.2 / 4.8) | 2.8 / 4.1 (2.8 / 4.2) | 4.2 / 4.4 (4.1 / 4.3) | 4.0 / 4.6 (3.8 / 4.6) |
+| 11 | 2.3 / 2.9 (2.2 / 2.8) | 3.9 / 3.7 (3.9 / 3.7) | 3.2 / 3.7 (3.6 / 3.9) | 1.8 / 3.2 (2.1 / 3.6) | 3.1 / 3.4 (3.3 / 3.4) | 2.9 / 3.5 (2.8 / 3.5) |
+
+(10 replays of every match; the real sample at number 11 is 286 men's and 141 women's innings, 145 and 67 from 2024, so a figure at number 11 carries a standard error near 0.3 runs; the sim's own noise is about 0.1.) Number 10 comes to the real runs for men (4.3 against 4.2; the out-of-sample half 4.2 against 4.6; it was 5.3 and 5.0) and number 11 loses 0.7 runs (3.9 to 3.2 against a real 2.3); the balls faced do not move (men's number 11 3.7 against a real 2.9) and **women's tails are not materially closer** (number 10 4.0 / 4.6 against a real 2.8 / 4.1, was 4.2 / 4.4). Number 9 is where the response costs: men's 6.6 / 5.9 to 5.9 / 5.8 (real 6.3 / 5.7; 6.7 to 5.7 against 6.8 in the half after 2023). What is left of the tail is the survival of number 11 and the women's runs at 10 and 11: neither is something the rating of the batter can fix (below).
+
+**What it moved and what was refit.** Neutral in shares, so the men's tables, contexts and conditions stay as they were. The women's T20I context was refit (it is the one set whose batters sit low on the rating scale: the response shifted its level 3 runs; `CALIBRATE_T20I=1 CAL_GENDER=women CAL_ITER=8 CAL_REPLAYS=4`), its conditions term refit (`calibrate-spread.test.ts`, `CAL_T20I=1`: `lo` 0.23 / `hi` 0.46 became 0.07 / 0.035; the response supplies the spread the term had), the women's league contexts refit (`CALIBRATE_LEAGUES=1`, 8 rounds of 1,500 matches), the men's league levels held at their former means by a recentre of the first-innings factors of the wickets-in-hand table (`CAL_RECENTRE=1 CAL_TARGETS=...`, `CAL_GAIN=2`; BBL, PSL, BPL, LPL, ILT20) and the series tuning refit on the fit half (men's T20I unchanged at spread 3 / home 2, women's T20I spread 3.5 / home 4 to 1.5 / 2: the response separates sides more).
+
+**What it did to the numbers that were already right.** First innings, 2,000-5,000 instant matches (the league contexts report; real in brackets), before -> after: men's T20I 167.2 -> 167.8 (169.5), sd 35.6 -> 37.3 (37.3), all out 12.7% -> 13.4% (11.5%); women's T20I 141.9 -> 142.0 (142.2), all out 12.8% -> 8.4% (9.2%), sd 32.9 -> 28.7 (34.6: the new series tuning, below, and the lower stretch it fits, narrows the sides; before the tuning the totals' sd was 35); the WPL 161.0 -> 161.4 (162.0), WBBL 154.8 -> 152.9 (155.0), Hundred women 126.7 -> 127.4 (126.2); the IPL 178.7 -> 180.6 (192.8, whose shape is fitted at the engine's own level); the other men's leagues within 2 runs of before (BBL 168.1 -> 167.4, PSL 180.1 -> 177.8, BPL 157.6 -> 157.6, LPL 179.3 -> 179.4, ILT20 163.4 -> 161.8, SA20 160.9 -> 159.2, CPL 172.1 -> 173.7, MLC 175.3 -> 176.3, Hundred men 146.7 -> 146.4). First-innings all-out shares move by up to 2.5 points either way (BPL 12.9% -> 10.4%, real 16.0%; WBBL 15.9% -> 17.5%, real 15.6%).
+
+*League benchmarks* (`calibrate-leagues.test.ts`, 32 simulated seasons, runs / wickets per innings in both innings, real in brackets):
+
+| league | runs / innings before -> after (real) | wickets / innings before -> after (real) |
+|---|---|---|
+| IPL | 170.4 -> 172.3 (183.7) | 5.99 -> 5.89 (6.05) |
+| WPL | 153.3 -> 152.0 (157.8) | 6.33 -> 6.15 (6.20) |
+| BBL | 158.0 -> 156.6 (158.3) | 6.30 -> 6.29 (6.47) |
+| WBBL | 143.0 -> 139.6 (141.0) | 6.14 -> 6.13 (6.37) |
+| PSL | 168.0 -> 168.3 (169.2) | 6.47 -> 6.45 (6.47) |
+| SA20 | 150.3 -> 149.3 (153.4) | 5.81 -> 5.90 (6.21) |
+| Hundred (m) | 135.8 -> 135.2 (137.3) | 5.85 -> 5.82 (5.88) |
+| Hundred (w) | 121.8 -> 120.4 (120.5) | 5.85 -> 5.74 (5.97) |
+| CPL | 158.0 -> 157.4 (158.0) | 6.16 -> 6.06 (6.27) |
+| ILT20 | 156.4 -> 155.2 (154.9) | 6.12 -> 6.12 (6.18) |
+| MLC | 166.6 -> 166.4 (164.9) | 6.23 -> 6.09 (6.38) |
+| BPL | 153.3 -> 152.8 (152.4) | 6.45 -> 6.42 (6.40) |
+| LPL | 170.1 -> 167.8 (175.7) | 6.34 -> 6.30 (6.64) |
+
+Mean absolute error against the real innings: runs 2.84 -> 2.94, wickets 0.139 -> 0.167: level, the wickets a little lower (0.05 an innings on average) in a response that is neutral in shares (the sampler's clamps and the first-innings tables read the shifted weights). The seasons draw their own squads, so a league's mean moves by about 2 between two runs of the same engine (RULES-MATCH.md 12.9).
+
+*Win prediction on the real fixtures* (`BENCH_ACTUAL=1 BENCH_REPLAYS=96 BENCH_DUMP=...`; the XIs that played, log loss per real match +- its standard error, difference paired per match, minus is better; the old engine read at 96 replays too):
+
+| set | half (matches) | before | after | paired difference |
+|---|---|---|---|---|
+| men's T20I | holdout 2025+ (168) | 0.590 +- 0.027 | 0.586 +- 0.036 | **-0.004 +- 0.014** |
+| | fit to 2024 (418) | 0.632 +- 0.017 | 0.632 +- 0.020 | +0.000 +- 0.007 |
+| women's T20I | holdout (120) | 0.476 +- 0.043 | 0.451 +- 0.042 | **-0.024 +- 0.019** |
+| | fit (315) | 0.521 +- 0.028 | 0.523 +- 0.032 | +0.002 +- 0.013 |
+
+(The men's T20I series tuning is unchanged. The women's T20I tuning grid at the new engine: spread 1.5 / home 2 against 3.5 / 4, nll on the fit half 0.539 against 0.602; spread 2.5 would leave the holdout where it is, the fit half 0.021 worse.)
+
+**Women's T20I holdout (section 2).** The women's holdout log loss had gone 0.462 -> 0.476 with the captain model and the bowler-type table (+0.014 +- 0.014). On the engine above it reads 0.451 (the paired difference to the old engine -0.024 +- 0.019), all of it from the batter response and the refit that goes with it, so the two things that were suspected were tested on the new engine, each against the shipped setting (48 replays, paired):
+
+| women's T20I, switched off | holdout | fit half |
+|---|---|---|
+| captain model off (`CAPTAIN_MODEL.womenT20I = false`: the former rule, in both engines) | +0.032 +- 0.014 (worse) | +0.003 +- 0.010 |
+| women's bowler-type table off (neutral) | -0.006 +- 0.012 | +0.001 +- 0.010 |
+
+Neither is better on the fit half and the captain model's removal loses on the holdout, so **the captain model and the table stay for the women's T20I** (`captainModelFor(odi, womenT20I)` and `CAPTAIN_MODEL.womenT20I` are the switch if a later holdout argues otherwise; `BENCH_CAPTAIN_WOMEN=off`, `BENCH_WTYPE=neutral` reproduce the table). A women-specific refit of either was not run: the table has no measurable effect on the women's win prediction either way, and the captain model already has its own women's coefficients (`BOWLING_CHOICE`, per gender).
+
+
+**ODI and Test.** Both have their own ball models (`odi-model.ts`, `test-match.ts`) and both show the same symptom at one place only: number 11 (ODI 4.8 / 7.2 against 2.9 / 4.9; Test 6.4 / 12.1 against 4.6 / 10.6; men's) while number 10 is right (ODI 6.8 / 9.9 against 6.6 / 9.1; Test 8.9 / 16.7 against 9.7 / 18.8). A batter's rating cannot do that: tens and elevens sit at the same rating (ODI 0.32 and 0.29, T20I 0.34 and 0.31). The same cell fit on the ODI (men and women, 2019+, the ODI sets) shows the opposite at the very bottom for men (the real tail hits more sixes and takes fewer singles than the model) and a large shortfall in women's scoring, which the position tables do not share, and an ODI wicket row moves the already too frequent all-outs further (51% against 41% in the benchmark). Nothing is applied to the ODI or the Test (the ODI table in `odi-batter-response-data.ts` is zero, wired so a future fit can use it). What is left is number 11 alone, a state (the last pair, nine down) rather than a rating, in all three formats.
 
 ## Refitting
 
@@ -262,4 +329,7 @@ holdout and the league benchmarks checked on the refit. Not a clean fix, so not 
   `BENCH_TACTICS=1 [BENCH_REPLAYS=2] [BENCH_ONLY=...]` prints the allocation tables above (real against the sim).
 - Bowler type: `python3 -I packages/ratings/src/analysis/t20-bowler-type.py --types 2 --write` (about 15 minutes; `--holdout` for the out-of-sample score, `--types 5|7` for finer types).
 - Ball age: `python3 -I packages/ratings/src/analysis/ball-age.py test|odi|odi-age|t20`.
+- Batter response (section 5): `python3 -I packages/ratings/src/analysis/t20-batter-response.py real real.json` (the real counts; needs numpy and the `duckdb` CLI); the simulated counts **from the engine with a zero table** (`BENCH_NO_RESPONSE=1` does not apply to this collector: zero `batter-response-data.ts` first) with
+  `TAIL_COLLECT=1 TAIL_OUT=sim.json npx vitest run packages/app/src/__tests__/tail-response.test.ts` (split with `TAIL_ONLY=` and pass several files to `fit`); then `python3 -I packages/ratings/src/analysis/t20-batter-response.py fit real.json sim.json[,more.json] --write`
+  (it adds its step to `docs/data/t20_batter_response.json` if that exists: delete it to fit from nothing). The powers are `RESPONSE_POWER` / `WICKET_POWER` in the script; `BENCH_BR_FILE=table.json` (the json `BR_DUMP=` writes) plays another table in the benchmarks without a rebuild.
 - After any of these the ODI calibration (`benchmark-odi.ts CALIBRATE=1`, with `ODI_TUNE` to try values; it is fitted on the ODI's former allocation) and the series tuning (`BENCH_FIT=1 BENCH_FIT_ON=actual BENCH_HOLDOUT=fit`) move: refit them, with 32+ replays and the whole grid in view (the minimum of a flat grid, not the smallest value within 0.01 of it), then judge the change **per match on the holdout with a paired standard error** (`BENCH_DUMP=<prefix>` writes the per-match replay counts; `BENCH_CAL_FILE` / `BENCH_TUNING_FILE` replace the ODI calibration / the series tuning from a json file to compare settings without a rebuild).

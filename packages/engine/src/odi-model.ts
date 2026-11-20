@@ -21,6 +21,8 @@
 import type { BallOutcome } from "./match.js";
 import { isSpinBowler, type BowlingStyle } from "./matchups.js";
 import { ODI_MODEL_DATA } from "./odi-model-data.js";
+import { applyBatterResponse } from "./batter-response.js";
+import { ODI_BATTER_RESPONSE, ODI_BATTER_RESPONSE_KNOTS } from "./odi-batter-response-data.js";
 
 /** Outcome order of every vector in the ODI tables */
 export const ODI_OUTCOMES = ["dot", "1", "2", "3", "4", "6", "wicket", "wide", "noball", "legbye"] as const satisfies readonly BallOutcome[];
@@ -215,6 +217,8 @@ export function odiBallProbabilities(batter: OdiPlayerLike, bowler: OdiPlayerLik
   const cal = ODI_CAL[ctx.gender][o < 10 ? 0 : o < 40 ? 1 : 2];
   const p = {} as Record<BallOutcome, number>;
   ODI_OUTCOMES.forEach((k, i) => { p[k] = c[i] * m[i] * cal[i]; });
+  // the refitted response to the striker's rating at the bottom of the order (batter-response.ts; docs/TACTICS.md section 5)
+  applyBatterResponse(p, ctx.gender, (batter.battingOvr + batter.ratings.timing) / 200, ODI_BATTER_RESPONSE, ODI_BATTER_RESPONSE_KNOTS);
   return p;
 }
 

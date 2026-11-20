@@ -11,7 +11,7 @@ export interface SeriesTuning { spread: number; home: number; /** the home side'
 export const SERIES_TUNING: Record<string, Partial<Record<"men" | "women", SeriesTuning>>> = {
   t20i: {
     men: { spread: 3, home: 2, homeBy: { "Australia": 4, "India": 4, "New Zealand": 4, "Pakistan": 0, "Zimbabwe": 0 } },
-    women: { spread: 3.5, home: 4, homeBy: { "Australia": 6, "England": 6, "India": 0, "New Zealand": 8, "West Indies": 2, "Sri Lanka": 8, "Zimbabwe": 2 } },
+    women: { spread: 1.5, home: 2, homeBy: { "Australia": 6, "England": 6, "India": 0, "New Zealand": 8, "West Indies": 2, "Sri Lanka": 8, "Zimbabwe": 2 } },
   },
   odi: {
     men: { spread: 1, home: 2, homeBy: { "Australia": 4, "Pakistan": 4, "Sri Lanka": 8, "West Indies": 4, "Ireland": 0, "New Zealand": 4, "Zimbabwe": 0 } },
