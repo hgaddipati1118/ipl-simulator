@@ -3,7 +3,7 @@
  *
  * The T20 ball model's correction to its response to the striker's batting rating ((battingOvr + timing) / 200): per gender and
  * outcome class, a log multiplier at each knot, linear between them (batter-response.ts; docs/TACTICS.md section 5).
- * Fitted rows x a power (wicket x 0.0, the others x 1.25 men / x 1.5 women), then made neutral in shares over the simulated balls (docs/TACTICS.md section 5).
+ * Fitted rows x a power (wicket x 0.0, the others x 1.25 men / x 1.5 women), then made neutral in shares over the simulated balls, the wicket row +0.012 on top (docs/TACTICS.md section 5).
  */
 export const BATTER_RESPONSE_KNOTS: readonly number[] = [0.25, 0.4, 0.55, 0.7, 0.85];
 export const BATTER_RESPONSE: Record<"male" | "female", Record<string, readonly number[]>> = {
@@ -14,7 +14,7 @@ export const BATTER_RESPONSE: Record<"male" | "female", Record<string, readonly 
     "3": [-0.2686, -0.1799, -0.0969, -0.0165, 0.0577],
     "4": [-0.3240, -0.2465, -0.1621, -0.0526, 0.0726],
     "6": [-0.2692, -0.1523, -0.0553, 0.0039, 0.0284],
-    wicket: [-0.0021, -0.0021, -0.0021, -0.0021, -0.0021],
+    wicket: [0.0099, 0.0099, 0.0099, 0.0099, 0.0099],
   },
   female: {
     dot: [-0.1663, -0.1135, -0.0659, -0.0191, 0.0337],
@@ -23,6 +23,6 @@ export const BATTER_RESPONSE: Record<"male" | "female", Record<string, readonly 
     "3": [-0.3270, -0.2541, -0.1733, -0.0596, 0.0768],
     "4": [-1.3371, -1.0083, -0.6647, -0.2559, 0.2202],
     "6": [-0.9872, -0.7235, -0.4569, -0.1504, 0.1842],
-    wicket: [-0.0249, -0.0249, -0.0249, -0.0249, -0.0249],
+    wicket: [-0.0129, -0.0129, -0.0129, -0.0129, -0.0129],
   },
 };

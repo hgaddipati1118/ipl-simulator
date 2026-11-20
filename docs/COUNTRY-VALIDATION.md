@@ -179,8 +179,8 @@ and the men's T20I tuning is refitted (spread 3, home 2; women's unchanged). Fin
 
 | set | holdout (2025+) before -> now | paired difference (holdout) | fit half before -> now |
 |---|---|---|---|
-| men's T20I | 0.590 -> 0.586 | -0.004 +- 0.014 | 0.632 -> 0.632 (+0.000 +- 0.007) |
-| women's T20I | 0.476 -> 0.451 | -0.024 +- 0.019 | 0.521 -> 0.523 (+0.002 +- 0.013) |
+| men's T20I | 0.590 -> 0.580 | -0.010 +- 0.013 | 0.632 -> 0.636 (+0.004 +- 0.007) |
+| women's T20I | 0.476 -> 0.449 | -0.027 +- 0.018 | 0.521 -> 0.523 (+0.003 +- 0.013) |
 | ODI, Test | not touched | | |
 
 Men's number 10 now scores the real runs (4.3 against 4.2, was 5.3) and number 11 3.2 against 2.3 (was 3.9); balls faced and the women's tails are not materially closer (the survival of the last pair is a state, not a rating). The women's T20I tuning is now spread 1.5 / home 2 (was 3.5 / 4), the men's unchanged at 3 / 2; the ODI and Test engines are untouched (their number 11, TACTICS.md section 5, is the same last-pair excess).

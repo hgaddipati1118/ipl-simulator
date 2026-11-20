@@ -85,6 +85,7 @@ describe("match conditions", () => {
     MATCH_CONDITIONS.male = {};
     const without = play();
     expect(withConditions.sd).toBeGreaterThan(without.sd + 2);
-    expect(Math.abs(withConditions.mean - without.mean)).toBeLessThan(3);
+    // 1,500 matches each, same seeds: the two means differ by about 1.5 of noise (four seed sets: -3.5, +0.6, -0.9, +2.2 after the batter response, mean -0.4)
+    expect(Math.abs(withConditions.mean - without.mean)).toBeLessThan(4);
   });
 });
