@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
-import { EXTRA_LEAGUES, LAST_PAIR_SWITCH, simulateMatch, odiRules, RULE_PRESETS, type BallEvent, type Player, type RuleSet } from "@ipl-sim/engine";
+import { EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LAST_PAIR_SWITCH, simulateMatch, odiRules, RULE_PRESETS, type BallEvent, type Player, type RuleSet } from "@ipl-sim/engine";
 import { createGameState } from "../game-state";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
@@ -25,6 +25,9 @@ for (const f of (process.env.LP_OFF ?? "").split(",").filter(Boolean)) LAST_PAIR
 for (const kv of (process.env.LP_WICKET ?? "").split(",").filter(Boolean)) { const [f, v] = kv.split(":"); LAST_PAIR_SWITCH.wicket[f as "t20" | "odi" | "test"] = Number(v); }
 /** LP_SCALE=t20:2,odi:1.5: scale the whole term in those formats */
 for (const kv of (process.env.LP_SCALE ?? "").split(",").filter(Boolean)) { const [f, v] = kv.split(":"); LAST_PAIR_SWITCH.scale[f as "t20" | "odi" | "test"] = Number(v); }
+/** WT_OFF=1: no innings clock (docs/TACTICS.md section 6); WT_FILE=table.json: its tables replaced by those of a t20-wicket-timing.py fit */
+if (process.env.WT_OFF) INNINGS_CLOCK_SWITCH.off = true;
+if (process.env.WT_FILE) { const t = JSON.parse(readFileSync(process.env.WT_FILE, "utf-8")).tables; for (const k of Object.keys(INNINGS_CLOCK)) delete INNINGS_CLOCK[k]; Object.assign(INNINGS_CLOCK, t); }
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..", "..", "..");
 const PUBLIC = join(HERE, "..", "..", "public");

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
-import { BATTER_RESPONSE, CAPTAIN_MODEL, LAST_PAIR_SWITCH, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
+import { BATTER_RESPONSE, CAPTAIN_MODEL, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LAST_PAIR_SWITCH, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
 import { XI_SHARPEN } from "../realistic-xi";
 import { availabilitySource, createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender, type SeriesMatchRecord } from "../international";
 import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
@@ -27,6 +27,9 @@ import { createPoolLoader } from "../extended-pool";
  * sampled per match from the side's pool by real selection rates, realistic-xi.ts); BENCH_AVAIL_2024=1 uses the rates of 2024 matches
  * only, BENCH_HOLDOUT=1 scores against the real fixtures of 2025+ (BENCH_HOLDOUT=fit: those up to 2024, where the sharpening is fitted).
  */
+/** WT_OFF=1: no innings clock (docs/TACTICS.md section 6); WT_FILE=table.json: its tables replaced by those of a t20-wicket-timing.py fit */
+if (process.env.WT_OFF) INNINGS_CLOCK_SWITCH.off = true;
+if (process.env.WT_FILE) { const t = JSON.parse(readFileSync(process.env.WT_FILE, "utf-8")).tables; for (const k of Object.keys(INNINGS_CLOCK)) delete INNINGS_CLOCK[k]; Object.assign(INNINGS_CLOCK, t); }
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..", "..", "..");
 const PUBLIC = join(HERE, "..", "..", "public");

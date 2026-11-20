@@ -336,5 +336,7 @@ export { LAST_PAIR, LAST_PAIR_CLASSES, LAST_PAIR_H1, LAST_PAIR_H2, LAST_PAIR_STR
 export { BATTER_RESPONSE, BATTER_RESPONSE_KNOTS } from "./batter-response-data.js";
 export { ODI_BATTER_RESPONSE, ODI_BATTER_RESPONSE_KNOTS } from "./odi-batter-response-data.js";
 export { applyWicketsInHand, setLevel, wicketsInHandBand, wicketsInHandKey } from "./wickets-in-hand.js";
+export { applyInningsClock, inningsClockTable, INNINGS_CLOCK_SWITCH } from "./innings-clock.js";
+export { INNINGS_CLOCK } from "./innings-clock-data.js";
 export { WICKETS_IN_HAND, WICKETS_IN_HAND_BANDS, WICKETS_IN_HAND_SET, WICKETS_IN_HAND_SET_EDGES } from "./wickets-in-hand-data.js";
 export { WICKETS_IN_HAND_NORM } from "./wickets-in-hand-norm-data.js";

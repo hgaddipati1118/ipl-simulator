@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { it } from "vitest";
-import { EXTRA_LEAGUES, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
+import { EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
 import { createGameState, initSeason, playNextMatch, isSeasonComplete } from "../game-state";
 
 /**
@@ -21,6 +22,9 @@ const TARGET: Record<string, { runs: number; wkts: number; balls: number }> = {
 const SEASONS = Number(process.env.CAL_SEASONS ?? 6);
 // CAL_LP_OFF=1: without the last-pair term (docs/TACTICS.md section 5): the engine as it was
 if (process.env.CAL_LP_OFF) LAST_PAIR_SWITCH.off.t20 = true;
+// WT_OFF=1: without the innings clock (docs/TACTICS.md section 6); WT_FILE=table.json: its tables from a t20-wicket-timing.py fit
+if (process.env.WT_OFF) INNINGS_CLOCK_SWITCH.off = true;
+if (process.env.WT_FILE) { const t = JSON.parse(readFileSync(process.env.WT_FILE, "utf-8")).tables; for (const k of Object.keys(INNINGS_CLOCK)) delete INNINGS_CLOCK[k]; Object.assign(INNINGS_CLOCK, t); }
 it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {
   const leagues = process.env.CAL_ONLY ? EXTRA_LEAGUES.filter(l => process.env.CAL_ONLY!.split(",").includes(l.id)) : EXTRA_LEAGUES;
   const list: Array<{ id: string; rules: RuleSet }> = [{ id: "ipl", rules: RULE_PRESETS.modern2026 }, { id: "wpl", rules: RULE_PRESETS.wpl }, ...leagues];

@@ -60,6 +60,7 @@ import { T20_FORMAT, hasOwnBallModel, matchFormatFor, phaseOver, type MatchForma
 import { applyScoringContext, scoringContextFor, type T20Context } from "./scoring-context.js";
 import { applyMatchConditions, drawMatchConditions, type MatchConditions } from "./match-conditions.js";
 import { applyWicketsInHand, wicketsInHandKey as wicketsInHandKeyFor } from "./wickets-in-hand.js";
+import { applyInningsClock } from "./innings-clock.js";
 import { applyBatterResponse } from "./batter-response.js";
 import { applyLastPair } from "./last-pair.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
@@ -531,6 +532,8 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
     if (venue.conditions) applyMatchConditions(probs, venue.conditions);
     // A first innings by wickets down and overs left (a chase has its own context below; a super over neither)
     if (venue.wicketsInHandKey && !isSecondInnings && !rules.superOver) applyWicketsInHand(probs, rules.gender, venue.wicketsInHandKey, over, wicketsDown, rules.batterBalls ?? 0);
+    // ... and by the over: the innings clock (men's T20 first innings; docs/TACTICS.md section 6)
+    if (venue.wicketsInHandKey && !isSecondInnings && !rules.superOver && rules.fmt.id === "t20") applyInningsClock(probs, venue.wicketsInHandKey, over);
     // the last pair (nine down; not The Hundred, whose ends change every ten balls)
     if (wicketsDown === 9 && rules.partnerRating !== undefined && !rules.superOver && rules.fmt.id === "t20") applyLastPair(probs, venue.wicketsInHandKey?.startsWith("t20i") ? "t20i" : "t20", rules.gender, (batter.battingOvr + batter.ratings.timing) / 200, rules.partnerRating, rules.ballInOver ?? 0);
   }
