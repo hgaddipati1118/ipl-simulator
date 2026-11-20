@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Team, Player, type BowlingPlan, type RuleSet, xiSelectionValue, fieldingRating, keepingRating } from "@ipl-sim/engine";
+import { Team, Player, type BowlingPlan, type RuleSet, xiSelectionValue, fieldingRating, keepingRating, leagueXiApplies } from "@ipl-sim/engine";
 import { bowlingStyleLabel, battingHandLabel } from "../ui-utils";
 import {
   buildLineupReport,
@@ -29,7 +29,7 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
       const valid = team.userPlayingXI.filter(id => available.some(p => p.id === id));
       if (valid.length === 11) return new Set(valid);
     }
-    const autoXI = team.autoSelectPlayingXI(rules.maxOverseasInXI);
+    const autoXI = team.autoSelectPlayingXI(rules.maxOverseasInXI, { league: leagueXiApplies(rules) });
     return new Set(autoXI.map(p => p.id));
   });
 
@@ -37,7 +37,7 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
     if (team.userBattingOrder && team.userBattingOrder.length > 0) {
       return team.userBattingOrder.filter(id => selectedIds.has(id));
     }
-    const xi = team.autoSelectPlayingXI(rules.maxOverseasInXI);
+    const xi = team.autoSelectPlayingXI(rules.maxOverseasInXI, { league: leagueXiApplies(rules) });
     return team.autoBattingOrder(xi).map(p => p.id);
   });
 
@@ -45,7 +45,7 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
     if (team.userBowlingOrder && team.userBowlingOrder.length > 0) {
       return team.userBowlingOrder.filter(id => selectedIds.has(id));
     }
-    const xi = team.autoSelectPlayingXI(rules.maxOverseasInXI);
+    const xi = team.autoSelectPlayingXI(rules.maxOverseasInXI, { league: leagueXiApplies(rules) });
     return team.autoBowlingOrder(xi).map(p => p.id);
   });
 
@@ -164,7 +164,7 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
 
   // Auto-select best XI
   const handleAutoSelect = useCallback(() => {
-    const autoXI = team.autoSelectPlayingXI(rules.maxOverseasInXI);
+    const autoXI = team.autoSelectPlayingXI(rules.maxOverseasInXI, { league: leagueXiApplies(rules) });
     const ids = new Set(autoXI.map(p => p.id));
     setSelectedIds(ids);
     setBattingOrder(team.autoBattingOrder(autoXI).map(p => p.id));
@@ -235,7 +235,7 @@ export function LineupPage({ team, rules, onConfirm }: Props) {
           <button
             onClick={() => {
               // Auto-select best XI and immediately confirm
-              const autoXI = team.autoSelectPlayingXI(rules.maxOverseasInXI);
+              const autoXI = team.autoSelectPlayingXI(rules.maxOverseasInXI, { league: leagueXiApplies(rules) });
               const autoIds = autoXI.map(p => p.id);
               const autoBat = team.autoBattingOrder(autoXI).map(p => p.id);
               const autoBowl = team.autoBowlingOrder(autoXI).map(p => p.id);

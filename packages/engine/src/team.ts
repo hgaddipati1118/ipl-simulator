@@ -6,6 +6,7 @@
 import type { BowlingPlan } from "./bowling-choice.js";
 import { Player, type TrainingIntensity } from "./player.js";
 import { fieldingValueBonus, keepingRating, pickKeeper } from "./fielding.js";
+import { selectLeagueXI, type XiOptions } from "./xi-selection.js";
 import {
   getVenueProfileForTeam,
   deriveStadiumBowlingRating,
@@ -229,8 +230,11 @@ export class Team {
     return player;
   }
 
-  /** Get best playing XI (max overseas players configurable, default 4). Respects user selections if set. */
-  getPlayingXI(maxOverseas = 4): Player[] {
+  /**
+   * Get best playing XI (max overseas players configurable, default 4). Respects user selections if set. `opts.league`: the fitted
+   * league selection (xi-selection.ts), drawn per match with `opts.seed` for a CPU side (the user's own auto-pick is never drawn).
+   */
+  getPlayingXI(maxOverseas = 4, opts: XiOptions = {}): Player[] {
     // If user-controlled and has a manual XI set, validate and use it
     if (this.isUserControlled && this.userPlayingXI && this.userPlayingXI.length === 11) {
       const userXI = this.userPlayingXI
@@ -246,7 +250,7 @@ export class Team {
       // Invalid user XI — fall through to auto selection
     }
 
-    return this.autoSelectPlayingXI(maxOverseas);
+    return this.autoSelectPlayingXI(maxOverseas, this.isUserControlled ? { league: opts.league } : opts);
   }
 
   /**
@@ -254,8 +258,9 @@ export class Team {
    * (overall + fielding worth); the keeper is the designated keeper with the best keeperSelectionValue (overall +
    * fielding + keeping worth), so a specialist gloveman beats a slightly better batter who keeps badly.
    */
-  autoSelectPlayingXI(maxOverseas = 4): Player[] {
+  autoSelectPlayingXI(maxOverseas = 4, opts: XiOptions = {}): Player[] {
     const available = this.roster.filter(p => !p.injured);
+    if (opts.league) return this.withStandInKeeper(selectLeagueXI(available, maxOverseas, opts.seed), available, maxOverseas);
     const sorted = [...available].sort(compareSelectionScore);
     const wicketKeepers = sorted.filter(p => p.isWicketKeeper).sort(compareKeeperValue);
     const preferredWicketKeeper = wicketKeepers[0];
@@ -335,9 +340,15 @@ export class Team {
       }
     }
 
-    // No designated keeper in the squad at all (or none fit): the XI still needs someone who can keep. Bring in the
-    // squad's best keeping rating if he is clearly better than anyone already in the XI; the match engine
-    // (fielding.ts pickKeeper) then has him keep.
+    return this.withStandInKeeper(xi, available, maxOverseas);
+  }
+
+  /**
+   * No designated keeper in the squad at all (or none fit): the XI still needs someone who can keep. Bring in the
+   * squad's best keeping rating if he is clearly better than anyone already in the XI; the match engine
+   * (fielding.ts pickKeeper) then has him keep.
+   */
+  private withStandInKeeper(xi: Player[], available: Player[], maxOverseas: number): Player[] {
     if (!xi.some(p => p.isWicketKeeper) && xi.length === 11) {
       const inXI = pickKeeper(xi);
       const standIn = available

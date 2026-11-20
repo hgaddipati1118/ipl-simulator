@@ -12,6 +12,7 @@
  * Supports IPL rule sets including the Impact Player substitution rule.
  */
 
+import { matchXiOptions } from "./xi-selection.js";
 import { Player } from "./player.js";
 import { Team } from "./team.js";
 import { clamp, weightedRandom } from "./math.js";
@@ -2035,15 +2036,16 @@ export function simulateMatch(
   seed?: number,
   options?: MatchOptions,
 ): MatchResult {
-  const rng = createRNG(seed ?? randomSeed());
+  const matchSeed = seed ?? randomSeed();
+  const rng = createRNG(matchSeed);
   const matchId = `match_${++matchCounter}`;
 
   const fmt = matchFormatFor(rules);
   const own = hasOwnBallModel(fmt); // the ODI
   // The XIs as they play this format: ODI ratings where a player has them (Player.forFormat); injuries and stats go to
-  // the players themselves (realXI)
-  const realHomeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
-  const realAwayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI);
+  // the players themselves (realXI). A CPU side in a men's T20 league draws its XI for the match (xi-selection.ts).
+  const realHomeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI, matchXiOptions(rules, matchSeed, 0));
+  const realAwayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI, matchXiOptions(rules, matchSeed, 1));
   const homeXI = own ? realHomeXI.map(p => p.forFormat("odi")) : realHomeXI;
   const awayXI = own ? realAwayXI.map(p => p.forFormat("odi")) : realAwayXI;
 

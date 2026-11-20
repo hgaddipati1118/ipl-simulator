@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Team, type RuleSet, DEFAULT_RULES } from "@ipl-sim/engine";
+import { Team, type RuleSet, DEFAULT_RULES, leagueXiApplies } from "@ipl-sim/engine";
 import { ovrBgClass, roleLabel, bowlingStyleLabel, battingPositionLabel, battingPositionColor } from "../ui-utils";
 import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
@@ -55,7 +55,7 @@ export function TeamView({ teams, rules = DEFAULT_RULES, scouting, scoutingAssig
     player,
     scoutingView: getPlayerScoutingView(player, team?.id, scouting, userTeamId),
   })), [roster, team?.id, scouting, userTeamId]);
-  const xi = useMemo(() => team ? team.getPlayingXI(rules.maxOverseasInXI) : [], [team, rules.maxOverseasInXI]);
+  const xi = useMemo(() => team ? team.getPlayingXI(rules.maxOverseasInXI, { league: leagueXiApplies(rules) }) : [], [team, rules]);
   const xiIds = useMemo(() => new Set(xi.map(player => player.id)), [xi]);
 
   if (!team) return <div className="p-8 text-th-secondary">Team not found</div>;

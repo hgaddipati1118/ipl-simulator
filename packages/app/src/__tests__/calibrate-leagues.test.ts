@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { it } from "vitest";
-import { EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
+import { EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
 import { createGameState, initSeason, playNextMatch, isSeasonComplete } from "../game-state";
 
 /**
@@ -25,6 +25,8 @@ if (process.env.CAL_LP_OFF) LAST_PAIR_SWITCH.off.t20 = true;
 // LP_WICKET=t20:-0.1: a log offset added to the last-pair wicket class (the all-out calibration of docs/TACTICS.md sections 5 and 6)
 for (const kv of (process.env.LP_WICKET ?? "").split(",").filter(Boolean)) { const [f, v] = kv.split(":"); LAST_PAIR_SWITCH.wicket[f as "t20" | "odi" | "test"] = Number(v); }
 // WT_OFF=1: without the innings clock (docs/TACTICS.md section 6); WT_FILE=table.json: its tables from a t20-wicket-timing.py fit
+// LXI_OFF=1: every side with the former best-XI selection, not the fitted league selection (docs/TACTICS.md section 7)
+if (process.env.LXI_OFF) LEAGUE_XI_SWITCH.off = true;
 if (process.env.WT_OFF) INNINGS_CLOCK_SWITCH.off = true;
 if (process.env.WT_FILE) { const t = JSON.parse(readFileSync(process.env.WT_FILE, "utf-8")).tables; for (const k of Object.keys(INNINGS_CLOCK)) delete INNINGS_CLOCK[k]; Object.assign(INNINGS_CLOCK, t); }
 it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {

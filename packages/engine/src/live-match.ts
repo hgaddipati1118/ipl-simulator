@@ -5,6 +5,7 @@
  * so that each ball can be rendered individually in the UI.
  */
 
+import { matchXiOptions } from "./xi-selection.js";
 import { Player } from "./player.js";
 import { Team, type BowlingPlan } from "./team.js";
 import { applyConditionsToProfile, type ConditionsSetting } from "./conditions.js";
@@ -838,8 +839,9 @@ export function createMatchState(
   const odi = fmt.id === "odi";
   if (odi && rules.impactPlayer) rules = { ...rules, impactPlayer: false }; // no Impact Player in an ODI
 
-  const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI);
-  const awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI);
+  // a CPU side in a men's T20 league draws its XI for the match, as in simulateMatch (xi-selection.ts)
+  const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI, matchXiOptions(rules, matchSeed, 0));
+  const awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI, matchXiOptions(rules, matchSeed, 1));
 
   // Pitch conditions from home team (a neutral venue: none, as in simulateMatch)
   const neutral = !!options.neutralVenue;
