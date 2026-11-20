@@ -1,4 +1,4 @@
-import { it } from "vitest";
+import { expect, it } from "vitest";
 import {
   EXTRA_LEAGUES, RULE_PRESETS, simulateMatch, createMatchState, simulateRemaining, setAggression,
   type BallEvent, type RuleSet, type Team,
@@ -95,4 +95,53 @@ it.skipIf(!process.env.LIVE_PARITY)("live batting approach (IPL, the user side's
     const f = (x: number, d = 1) => x.toFixed(d);
     console.log(`| ${label} | ${f(a.runs / a.inns)} | ${f(a.wkts / a.inns, 2)} | ${f((6 * a.runs) / legal, 2)} | ${f(a.fours / a.inns)} | ${f(a.sixes / a.inns)} | ${f((100 * a.allOut) / a.inns)}% |`);
   }
+}, 3_600_000);
+
+/**
+ * The last pair (nine down; docs/TACTICS.md section 5): the same term in both engines (match.ts ballProbabilities, with the non-striker's rating
+ * and the ball of the over). Per innings that reached nine down, in the IPL: the share of the pair's balls the weaker batter (by batting rating) faced,
+ * the stand's balls and runs, how often it ended in the tenth wicket. The instant and the live CPU engine must read alike.
+ */
+it.skipIf(!process.env.LIVE_PARITY)("live v instant parity: the last pair", () => {
+  const rules = { ...RULE_PRESETS.modern2026, injuriesEnabled: false } as RuleSet;
+  const M = Number(process.env.PARITY_LAST_PAIR_MATCHES ?? 800);
+  const stat = (kind: "instant" | "live") => {
+    const teams = createGameState(rules).teams;
+    const byId = new Map(teams.flatMap(t => t.roster).map(p => [p.id, p]));
+    const rating = (id: string) => { const p = byId.get(id); return p ? (p.battingOvr + p.ratings.timing) / 200 : 0; };
+    let stands = 0, balls = 0, runs = 0, ended = 0, weakBalls = 0, rated = 0;
+    const add = (log: BallEvent[]) => {
+      let wk = 0, inStand = false;
+      for (const b of log) {
+        if (b.deadBall) { if (b.isWicket) wk++; continue; }
+        if (wk === 9) {
+          if (!inStand) { inStand = true; stands++; }
+          runs += b.runs + b.extras;
+          if (b.outcome !== "wide") {
+            balls++;
+            const [s, n] = [rating(b.batter), rating(b.nonStriker ?? "")];
+            if (s !== n) { rated++; if (s < n) weakBalls++; }
+          }
+          if (b.isWicket) ended++;
+        }
+        if (b.isWicket) wk++;
+      }
+    };
+    for (let i = 0; i < M; i++) {
+      const home = teams[i % teams.length];
+      let away = teams[(i * 7 + 3) % teams.length];
+      if (away === home) away = teams[(i * 7 + 4) % teams.length];
+      if (kind === "instant") for (const inn of simulateMatch(home, away, rules, 5000 + i, { countTowardStandings: false }).innings) add(inn.ballLog);
+      else {
+        const { state } = simulateRemaining(createMatchState(home, away, rules, null, 5000 + i));
+        for (const raw of [state._internal.innings1Raw, state._internal.currentInningsRaw]) if (raw) add(raw.ballLog);
+      }
+    }
+    return { stands, balls: balls / stands, runs: runs / stands, ended: ended / stands, weak: weakBalls / rated };
+  };
+  const a = stat("instant"), b = stat("live");
+  console.log("| engine  | innings at nine down | balls | runs | tenth wicket | weaker partner's share of balls |");
+  for (const [l, x] of [["instant", a], ["live CPU", b]] as const) console.log(`| ${l.padEnd(7)} | ${x.stands} | ${x.balls.toFixed(2)} | ${x.runs.toFixed(2)} | ${(100 * x.ended).toFixed(1)}% | ${(100 * x.weak).toFixed(1)}% |`);
+  expect(Math.abs(a.weak - b.weak)).toBeLessThan(0.1);
+  expect(Math.abs(a.balls - b.balls)).toBeLessThan(2);
 }, 3_600_000);

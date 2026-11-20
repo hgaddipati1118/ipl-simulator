@@ -438,6 +438,109 @@ Neither is better on the fit half and the captain model's removal loses on the h
 
 **ODI and Test.** Both have their own ball models (`odi-model.ts`, `test-match.ts`) and both show the same symptom at one place only: number 11 (ODI 4.8 / 7.2 against 2.9 / 4.9; Test 6.4 / 12.1 against 4.6 / 10.6; men's) while number 10 is right (ODI 6.8 / 9.9 against 6.6 / 9.1; Test 8.9 / 16.7 against 9.7 / 18.8). A batter's rating cannot do that: tens and elevens sit at the same rating (ODI 0.32 and 0.29, T20I 0.34 and 0.31). The same cell fit on the ODI (men and women, 2019+, the ODI sets) shows the opposite at the very bottom for men (the real tail hits more sixes and takes fewer singles than the model) and a large shortfall in women's scoring, which the position tables do not share, and an ODI wicket row moves the already too frequent all-outs further (51% against 41% in the benchmark). Nothing is applied to the ODI or the Test (the ODI table in `odi-batter-response-data.ts` is zero, wired so a future fit can use it). What is left is number 11 alone, a state (the last pair, nine down) rather than a rating, in all three formats.
 
+**The last pair (nine down).** What is left of number 11 is a state, so it was fitted as one (`packages/ratings/src/analysis/last-pair.py`, `last-pair.ts`, generated `last-pair-data.ts`, `docs/data/last_pair.json`; collectors `packages/app/src/__tests__/last-pair-collect.test.ts`; tests `last-pair.test.ts`, the last-pair block of `live-parity.test.ts`).
+
+*What real last pairs do differently* (Cricsheet ball by ball, a delivery counted by the wickets down before it; men's T20 leagues since 2016 and T20Is since 2019 between full members, The Hundred left out, ODIs since 2019, Tests since 2016):
+
+| per ball, wides left out | T20 men 8 down | T20 men 9 down | ODI men 8 down | ODI men 9 down | Test men 8 down | Test men 9 down |
+|---|---|---|---|---|---|---|
+| wicket | 10.0% | 11.0% | 5.8% | 7.3% | 3.3% | 4.8% |
+| runs off the bat | 1.23 | 1.02 | 0.84 | 0.78 | 0.54 | 0.58 |
+| dots | 32.2% | 39.0% | 48.6% | 53.9% | 69.1% | 69.0% |
+| singles | 31.7% | 28.5% | 28.7% | 22.3% | 14.8% | 12.4% |
+| fours and sixes | 15.5% | 12.7% | 9.2% | 9.8% | 6.9% | 8.4% |
+
+(The engine at nine down, before the term, in the same classes: T20 men 45.7% dots, 22.8% singles, 13.4% fours and sixes; ODI men 50.8 / 27.4 / 8.2; Test men 66.9 / 15.4 / 7.7: a singles-heavy, dot-light last pair where the real one is dot-heavy.) The two partners behave differently, and that is not a rating effect:
+1. **The senior partner (the higher batting rating) farms the strike and attacks.** He refuses singles early in the over and takes one on the last ball to keep the end; the junior partner takes them early and refuses the last ball's, so the over's end hands the strike to the senior one. Singles per ball by ball of the over (1-3, 4-5, 6), men: T20 senior 23.6 / 27.5 / 35.7%, junior 31.6 / 34.0 / 19.9%; ODI senior 19.1 / 25.4 / 27.6%, junior 25.0 / 22.6 / 15.3%; Test senior 10.0 / 22.1 / 19.8%, junior 13.4 / 9.0 / 6.7%. The engine's are flat (about 30 / 30 / 30% in the T20). The senior hits 17.1% of his balls for four or six against the junior's 7.7% (ODI 12.8% against 7.0%, Test 9.7% against 6.8%) and is dismissed less often (T20 10.6% a ball against 11.7%, ODI 7.1% against 7.7%, Test 4.0% against 5.3%).
+2. **So the junior partner faces about 45% of the balls**, not half: 45.1% of the rated pairs' balls in the men's T20 (47.2% women's), 45.7% in the ODI (49.1%), 43.9% in the Test. Number 11, who is nearly always the junior one, faces 37% of a stand's balls from its fourth on in the men's T20 leagues and 33% in the T20Is (2022-10 on, after the Law that gives the new batter the strike; he takes it 81% of the time after the ninth wicket, as the sim's rule does). The engine's batters split the strike evenly whatever they are: its number 11 faced 57 / 54 / 52% of a last pair's balls in the T20I, ODI and Test replays of the real XIs against 44 / 46 / 47% real, and from the fourth ball on 50% in the T20 and the ODI.
+3. The strike effect is there at every gap, and the scoring effect grows with how much better the senior batter is (number 11's share of a stand's balls from its fourth on: 34% when the rating gap is 0.15 or more, 39% when it is smaller; men's T20 leagues, 2022-10 on), which is why the strike term follows `tanh(gap / 0.05)` and the scoring term `clamp(gap / 0.30)`.
+
+*What was modelled* (`last-pair.ts`; `ballProbabilities` for the T20 and the ODI, `testBallProbs` for the Test, so the live engine plays it too; the live parity block checks both). With nine wickets down (the tenth is the last), a log multiplier on each outcome class (dot, 1, 2, 3, 4, 6, wicket; the extras are the bowler's and are left alone):
+
+    log m(class) = a[ball of the over][class] + s1 x b[class] + s2 x c[ball of the over][class]
+    s1 = clamp((striker rating - partner rating) / 0.30, -1, 1)      how much better the striker is: the pair's scoring
+    s2 = tanh((striker rating - partner rating) / 0.05)              who the senior one is, by a little or a lot: the strike classes
+    ball of the over: 0-2 | 3-4 | 5 legal balls already bowled; c is nonzero for dots and singles only
+
+with the rating the one the ball model reads (`(battingOvr + timing) / 200`), so **there is no positional term**: a star at number 11 with a tail-ender partner is the senior one and bats and farms as himself, and a pair of equals shows only `a`. Fitted by multinomial regression of the real balls on the engine's own shares in each cell (competition x the striker's rating bin x phase x ball of the over x rating gap), the engine as it was (the same actual-XI matches and the leagues' own squads, `last-pair-collect.test.ts`, competitions re-weighted to the real nine-down balls) as the baseline, ridge-shrunk, the strike classes' ball-of-the-over terms shared by the sexes of a format; the men's T20I table is the league one plus a shrunk offset (the T20I context plays a different level at nine down); the men's T20 wicket level is made neutral (the pair's total hazard stays where the engine had it: a wicket row moves the all-outs, as above) and the wicket term moves the hazard between the two batters only. **Fit to the end of 2023, judged on 2024+.**
+
+*Out of sample, per ball* (the held-out balls with nine down, log loss per ball against the engine as it was, minus is better, +- its standard error over the balls):
+
+| set | fit-half balls | held-out balls | engine -> with the term | difference |
+|---|---|---|---|---|
+| T20 men, leagues | 2,818 | 2,542 | 1.7620 -> 1.7391 | **-0.0228 +- 0.0048** |
+| T20I men | 809 | 1,025 | 1.7639 -> 1.7483 | **-0.0156 +- 0.0062** |
+| T20I women | 374 | 443 | 1.6202 -> 1.5703 | **-0.0500 +- 0.0199** |
+| Test men | 9,437 | 6,565 | 1.1639 -> 1.1554 | **-0.0085 +- 0.0027** |
+| ODI men (term made neutral in shares) | 3,857 | 1,407 | 1.5207 -> 1.5048 | -0.0159 +- 0.0036 |
+| ODI women | 1,889 | 1,637 | 1.4022 -> 1.4007 | -0.0015 +- 0.0029 (nothing) |
+
+**Strength.** A power on what separates the batters and the balls of the over (not on the pair's level) was scanned at 0.5 / 1 / 1.5 / 2 / 3 times the fitted term on the position tables of both halves: the men's T20I number 11 stops improving at 1 (2024+ half: 3.5 / 3.9 off, 3.0 / 3.6 at 1, 3.0 / 3.6 at 2, 3.0 / 3.7 at 3), the ODI's and the women's likewise. **Every table is played as fitted** (`LAST_PAIR_STRENGTH` 1; `LAST_PAIR_SWITCH.scale` and `BENCH_LP_SCALE` try others).
+
+**By batting position** (`BENCH_POSITIONS=1`, the matches the real XIs played in their real batting order, runs / balls; 2024+ matches in brackets, the out-of-sample half; 12 replays of every match; before = `BENCH_LP_OFF=t20,odi,test`, the engine as it was):
+
+| position | men's T20I real | before | after | men's Test real | before | after |
+|---|---|---|---|---|---|---|
+| 8 | 8.7 / 7.0 (8.7 / 7.1) | 8.4 / 7.2 (8.5 / 7.2) | 8.5 / 7.2 (8.7 / 7.2) | 18.5 / 34.2 (18.2 / 34.0) | 18.4 / 34.5 (18.4 / 34.6) | 18.2 / 34.4 (18.6 / 34.3) |
+| 9 | 6.3 / 5.7 (6.8 / 6.1) | 5.9 / 5.8 (6.0 / 5.7) | 5.9 / 5.8 (6.1 / 5.8) | 15.5 / 28.3 (15.6 / 28.8) | 14.0 / 27.3 (15.0 / 28.8) | 13.8 / 27.1 (14.6 / 27.9) |
+| 10 | 4.2 / 4.3 (4.6 / 4.7) | 4.4 / 4.9 (4.2 / 4.8) | 4.4 / 4.9 (4.3 / 4.9) | 9.7 / 18.8 (9.9 / 19.1) | 9.2 / 16.9 (9.7 / 17.6) | 9.0 / 16.7 (9.6 / 17.3) |
+| 11 | 2.3 / 2.9 (2.2 / 2.8) | 3.3 / 3.7 (3.5 / 4.0) | **3.0 / 3.6 (3.0 / 3.6)** | 4.6 / 10.6 (4.8 / 11.1) | 6.2 / 12.0 (6.6 / 12.5) | **4.7 / 10.2 (5.0 / 10.3)** |
+
+Not shipped, for the record (the same tables with the term fitted for them): women's T20I number 11 2.9 / 3.5 (2.7 / 3.4) to 2.2 / 3.5 (2.1 / 3.6) against a real 1.8 / 3.2 (2.1 / 3.6), number 10 4.1 / 4.7 to 3.9 / 4.8 (real 2.8 / 4.1); men's ODI number 11 4.8 / 7.1 to 4.5 / 7.0 (real 2.9 / 4.9) with its level made neutral, 4.4 / 6.6 with its level; women's ODI 3.8 / 7.4 to 3.6 / 7.4 (real 2.8 / 6.2).
+
+**The Test's number 11 comes to the real runs and balls on both halves** (4.7 / 10.2 against 4.6 / 10.6; 2024+ 5.0 / 10.3 against 4.8 / 11.1; it was 6.2 / 12.0 and 6.6 / 12.5), with number 10 and the rest where they were. **The men's T20I number 11 loses 0.3-0.5 runs and 0.1-0.4 balls and stays 0.7 runs and 0.7 balls above the real one** (3.0 / 3.6 against 2.3 / 2.9; 2024+ 3.0 / 3.6 against 2.2 / 2.8): a third of the gap in runs and an eighth of the balls over all matches, half of each on 2024+. What is left is not the last pair's own behaviour but *when it forms*: a men's T20 league first innings reaches nine down in the engine on average at over 16.8 against a real 17.6 (41% of the engine's last pairs start from the 19th over against a real 56%), so the engine's number 11 has about 0.8 of an over more to face. The same is true of the leagues (their last pairs are 7.0-8.3 balls long against a real 5.2-6.9 even with the term). That is a matter of when wickets fall (the engine reaches 8, 9 and 10 down more often: above), not of the last pair, and a fix would have to move earlier wickets (the 12.9 / 12.10 tables), which was not what was asked. The strength scan above shows no more is to be had from a stronger term.
+
+**What it did to the last wicket's partnership, the all-out shares and the innings totals** (instant engine, the real XIs' matches replayed 16 times in the internationals and 2,500 matches a league on the game's squads; real: leagues since 2021, T20Is since 2019, Tests since 2023; first innings; before -> after):
+
+| set | last wicket: balls, runs, ends in the 10th wicket (real) | before | after | first-innings all out (real) | first-innings runs (real) |
+|---|---|---|---|---|---|
+| IPL | 6.4, 6.95, 60.7% | 6.6, 7.74, 68.9% | 7.0, 7.93, 67.3% | 9.5% -> 9.4% (7.6%) | 180.8 -> 180.7 (181.3) |
+| BBL | 6.3, 7.04, 70.1% | 7.7, 8.04, 70.0% | 7.8, 7.31, 71.2% | 13.1% -> 13.4% (10.9%) | 167.8 -> 167.6 (163.5) |
+| PSL | 6.4, 6.56, 76.3% | 7.4, 8.08, 69.7% | 7.7, 7.79, 69.1% | 16.6% -> 16.7% (11.4%) | 177.6 -> 177.5 (179.7) |
+| SA20 | 5.2, 5.43, 69.8% | 7.5, 7.65, 73.6% | 7.8, 7.32, 73.3% | 16.2% -> 16.5% (14.4%) | 160.4 -> 160.3 (162.4) |
+| CPL | 6.9, 8.28, 75.0% | 7.4, 8.88, 71.3% | 8.3, 9.32, 70.2% | 15.5% -> 14.7% (11.8%) | 172.0 -> 172.1 (164.6) |
+| ILT20 | 6.0, 6.33, 68.8% | 7.2, 6.68, 68.8% | 7.6, 6.92, 66.2% | 12.0% -> 11.2% (10.4%) | 162.3 -> 162.3 (161.1) |
+| MLC | 6.0, 7.04, 76.0% | 7.5, 8.86, 73.2% | 7.8, 8.55, 72.4% | 18.6% -> 18.2% (17.9%) | 176.3 -> 176.1 (171.5) |
+| BPL | 6.1, 6.73, 65.3% | 7.3, 7.06, 70.1% | 7.5, 7.01, 68.7% | 12.0% -> 11.6% (14.9%) | 157.5 -> 157.6 (159.2) |
+| LPL | 5.7, 6.00, 69.5% | 7.1, 7.92, 74.6% | 7.6, 7.85, 73.6% | 16.8% -> 16.8% (12.8%) | 179.0 -> 179.0 (166.3) |
+| T20I men | 6.7, 7.93, 73.4% | 6.1, 6.57, 71.3% | 6.2, 6.95, 70.4% | 9.3% -> 9.1% (10.8%) | 165.8 -> 165.9 (165.4) |
+| Test men | 20.7, 12.93, 97.6% | 22.1, 13.65, 96.9% | 20.2, 11.99, 97.5% | 85.6% -> 86.4% (86.1%) | 319.9 -> 318.3 (320.6) |
+
+The last wicket's runs come closer to real in six of the nine men's leagues (BBL 8.04 -> 7.31 against 7.04, PSL 8.08 -> 7.79 against 6.56, SA20 7.65 -> 7.32 against 5.43, MLC, BPL, LPL a little) and move away in three (IPL 7.74 -> 7.93 against 6.95, CPL, ILT20: 0.2-0.4 runs); its length does not come closer (a league's stand is 0.1-0.9 of a ball longer, for the timing above) and the T20I's 6.1 -> 6.2 balls and 6.57 -> 6.95 runs go toward the real 6.7 and 7.93. **The all-out shares do not move away from real**: a league's first-innings all-out share moves by -0.8 to +0.3 points (mean absolute error against the real shares 2.7 -> 2.6 points over the nine leagues), the T20I's 9.3% -> 9.1% (real 10.8%), the Test's 85.6% -> 86.4% (86.1%); first-innings runs stay within 0.2 runs and wickets an innings within 0.02 in the leagues, within 0.1 runs in the T20Is, 1.6 in the Test. This was the thing the first attempt broke (a flat wicket offset, as at the start of this section, pushed the men's T20I first-innings all-out share to 15-16%): the men's T20 wicket level is made neutral on the real balls and then calibrated on the leagues' own all-out shares (`LP_WICKET`: -0.10; at 0 the nine leagues rose by 0.4 points on average).
+
+*League benchmarks* (`calibrate-leagues.test.ts`, 32 simulated seasons; runs / wickets per innings, real in brackets; the Hundred, which has no term, moves with the seasons' own squad draws, 1-1.5 runs):
+
+| league | runs / innings before -> after (real) | wickets / innings before -> after (real) |
+|---|---|---|
+| IPL | 172.2 -> 170.9 (183.7) | 5.95 -> 5.94 (6.05) |
+| WPL | 152.0 -> 152.1 (157.8) | 6.12 -> 6.10 (6.20) |
+| BBL | 155.1 -> 156.7 (158.3) | 6.30 -> 6.33 (6.47) |
+| WBBL | 138.0 -> 138.1 (141.0) | 6.04 -> 6.07 (6.37) |
+| PSL | 170.2 -> 167.0 (169.2) | 6.52 -> 6.42 (6.47) |
+| SA20 | 146.9 -> 151.6 (153.4) | 5.88 -> 5.91 (6.21) |
+| Hundred (m) | 136.9 -> 135.3 (137.3) | 5.88 -> 5.88 (5.88) |
+| Hundred (w) | 119.5 -> 120.1 (120.5) | 5.83 -> 5.85 (5.97) |
+| CPL | 157.0 -> 157.2 (158.0) | 6.00 -> 6.00 (6.27) |
+| ILT20 | 152.9 -> 153.7 (154.9) | 6.16 -> 6.18 (6.18) |
+| MLC | 163.5 -> 163.7 (164.9) | 6.32 -> 6.27 (6.38) |
+| BPL | 151.2 -> 152.0 (152.4) | 6.42 -> 6.36 (6.40) |
+| LPL | 166.7 -> 165.8 (175.7) | 6.54 -> 6.50 (6.64) |
+
+Mean absolute error against the real innings: runs 3.62 -> 3.30, wickets 0.128 -> 0.129 (two runs of the same engine differ by 1-1.5 runs a league: the PSL's -3.2 and the SA20's +4.7 are the largest moves, both toward the real level, and the women's leagues, which have no term, moved by 0.1).
+
+*Win prediction on the real fixtures* (`BENCH_ACTUAL=1 BENCH_MODES=actual BENCH_REPLAYS=96`, 256 for the Tests; the XIs that played, log loss per real match +- its standard error, difference paired per match, minus is better; before = `BENCH_LP_OFF=t20,odi,test`):
+
+| set | half (matches) | before | after | paired difference |
+|---|---|---|---|---|
+| men's T20I | holdout 2025+ (168) | 0.580 +- 0.035 | 0.583 +- 0.035 | +0.002 +- 0.002 |
+| | fit to 2024 (418) | 0.636 +- 0.021 | 0.638 +- 0.021 | +0.002 +- 0.002 |
+| men's Test | holdout 2025+ (58) | 0.571 +- 0.077 | 0.553 +- 0.071 | **-0.018 +- 0.013** |
+| | fit to 2024 (75) | 0.568 +- 0.078 | 0.556 +- 0.077 | -0.012 +- 0.009 |
+
+(The men's T20I is within noise of before on both halves, so it is not worse and not better at match level, the term acting on the last two wickets; the Test improves on both. **Not shipped, their holdouts:** women's T20I with the term +0.003 +- 0.002 on 2025+ (120 matches; fit half -0.001 +- 0.002), men's ODI with its level made neutral +0.001 +- 0.006 (109; fit half +0.002 +- 0.003) and +0.013 +- 0.009 with its level as fitted (fit half -0.004 +- 0.004), women's ODI with the term -0.003 +- 0.005 (103; fit half +0.000 +- 0.004): none of the three improves out of sample, so they stay off (`SHIPPED` in `last-pair.py`; the tables are in `docs/data/last_pair.json`, `"shipped": false`).)
+
+**Live v instant** (`LIVE_PARITY=1`, the last-pair block of `live-parity.test.ts`): @@PARITY@@
+
 ## Refitting
 
 - Bowling choice: `BENCH_TACTICS=1 BENCH_EXPORT=train.json npx vitest run packages/app/src/__tests__/tactics-allocation.test.ts`, then `python3 packages/ratings/src/analysis/bowling-choice.py train.json` (needs numpy and scipy).

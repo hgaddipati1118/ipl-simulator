@@ -11,6 +11,9 @@ import { createHash } from "node:crypto";
 import { getRealPlayers } from "../../../ratings/src/real-players.js";
 import * as E from "../index.js";
 
+// FP_NO_LAST_PAIR=1: the engine without the last-pair term (docs/TACTICS.md section 5), to show the lines it moves
+if (process.env.FP_NO_LAST_PAIR) for (const f of ["t20", "odi", "test"] as const) E.LAST_PAIR_SWITCH.off[f] = true;
+
 const nativeRandom = Math.random;
 
 const N = Number(process.argv[2] ?? 300);

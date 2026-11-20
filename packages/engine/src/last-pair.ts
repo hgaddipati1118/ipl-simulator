@@ -22,7 +22,7 @@ export type LastPairFormat = "t20" | "t20i" | "odi" | "test";
 const switchKey = (fmt: LastPairFormat): "t20" | "odi" | "test" => (fmt === "t20i" ? "t20" : fmt);
 
 /** Test hook (benchmarks): switch a format's last-pair term off, or scale it; never used by the game */
-export const LAST_PAIR_SWITCH: { off: Partial<Record<"t20" | "odi" | "test", boolean>>; scale: Partial<Record<"t20" | "odi" | "test", number>> } = { off: {}, scale: {} };
+export const LAST_PAIR_SWITCH: { off: Partial<Record<"t20" | "odi" | "test", boolean>>; scale: Partial<Record<"t20" | "odi" | "test", number>>; wicket: Partial<Record<"t20" | "odi" | "test", number>> } = { off: {}, scale: {}, wicket: {} };
 
 /** Batting rating of a player as the ball models read the striker: (battingOvr + timing) / 200 */
 export const batRating = (p: { battingOvr: number; ratings: { timing: number } }): number => (p.battingOvr + p.ratings.timing) / 200;
@@ -55,7 +55,7 @@ export function lastPairLogs(fmt: LastPairFormat, gender: Gender, striker: numbe
   return t.a[k].map((a, i) => {
     // the strength acts on what separates the two batters (b, c) and, for the strike classes, the ball-of-the-over pattern about the buckets' mean; the pair's level stays as fitted
     const mean = i <= 1 ? (t.a[0][i] + t.a[1][i] + t.a[2][i]) / 3 : a;
-    return mean + strength * (a - mean + s1 * t.b[i] + s2 * t.c[k][i]);
+    return mean + strength * (a - mean + s1 * t.b[i] + s2 * t.c[k][i]) + (i === 6 ? LAST_PAIR_SWITCH.wicket[key] ?? 0 : 0);
   });
 }
 

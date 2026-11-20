@@ -50,7 +50,7 @@ FORMATS = ["t20", "odi", "test"]
 TABLES = ["t20", "t20i", "odi", "test"]
 GROUPS = [("t20", "male"), ("t20", "female"), ("odi", "male"), ("odi", "female"), ("test", "male")]
 # a table is fitted per (format, gender) and, in the T20, a T20I table that is the league one plus a shrunk offset (the T20I context plays a different level at nine down)
-SLOTS = [("t20", "male", "league"), ("t20", "male", "t20i"), ("t20", "female", "all"), ("odi", "male", "all"), ("odi", "female", "all"), ("test", "male", "all")]   # the women's leagues and T20Is are one table (131 and 374 rated balls to 2023)
+SLOTS = [("t20", "male", "league"), ("t20", "male", "t20i"), ("t20", "female", "t20i"), ("odi", "male", "all"), ("odi", "female", "all"), ("test", "male", "all")]   # the women have the T20I table only (374 rated balls to 2023): fitted on the women's leagues too, the term moved their pair runs (WBBL, WPL) away from real
 FIT_END = "2023-12-31"
 OUT_JSON = REPO / "docs" / "data" / "last_pair.json"
 OUT_TS = ROOT.parent / "engine" / "src" / "last-pair-data.ts"
@@ -350,6 +350,11 @@ POWER = {}   # every table is played as fitted (1.0): the position tables of bot
 NEUTRAL_WICKET = {"t20"}   # formats whose wicket term is made neutral: the pair's total hazard stays where the engine had it (docs/TACTICS.md section 5: a wicket row moves the all-outs)
 
 
+# a calibrated offset to a slot's wicket level, from the league sims (LP_WICKET in last-pair-collect.test.ts: first-innings all-out shares of the nine men's leagues at 0 / -0.10 /
+# -0.20 against the engine without the term: +0.4 points a league at 0, back to the former level at -0.10; the T20I's are already below the real share and keep 0)
+WICKET_CAL = {("t20", "male", "league"): -0.10}
+
+
 def neutralise_wicket(a, b, av, bv, cells):
     """Shift each slot's wicket level (a) so that, over the real nine-down cells, the sim's wicket share under the term is its share without it: the term moves
     the wickets between the two batters (b) and the ball of the over, not the pair's total"""
@@ -378,12 +383,34 @@ def neutralise_wicket(a, b, av, bv, cells):
     return a
 
 
+NEUTRAL_ALL = {"odi"}   # formats whose whole level is made neutral: every outcome class keeps its share of the nine-down balls (only the redistribution between the batters and the balls of the over remains)
+
+
+def neutralise_all(a, b, av, bv, cells):
+    """Shift each slot's class levels (a) so that, over the real nine-down cells, every class's share under the term is its share without it (iterative proportional fitting on the shares)"""
+    a = a.copy()
+    for gi, real, simsh, bio, sv, sv2 in cells:
+        w = real.sum(1)
+        base = (w[:, None] * simsh).sum(0) / w.sum()
+        for _ in range(200):
+            th = theta(a, b, av, bv, gi, bio, sv, sv2)
+            logit = np.log(simsh) + th
+            pr = np.exp(logit - np.log(np.exp(logit).sum(1, keepdims=True)))
+            cur = (w[:, None] * pr).sum(0) / w.sum()
+            step = np.log(base / cur)
+            for i, c in enumerate(FITTED):
+                a[gi, i] += 0.7 * step[CLASSES.index(c)]
+            if np.abs(step).max() < 1e-6:
+                break
+    return a
+
+
 def cmd_fit(db: Path, simdir: Path, write: bool, lam_u: float, lam_v: float, power: float):
     sim_load(db, simdir)
     out: dict = {}
     for fmt in FORMATS:
         slots = [(g, k) for f, g, k in SLOTS if f == fmt]
-        pairs = tuple((i, [j for j, (g2, k2) in enumerate(slots) if g2 == g and k2 == "league"][0]) for i, (g, k) in enumerate(slots) if k == "t20i")
+        pairs = tuple((i, j) for i, (g, k) in enumerate(slots) if k == "t20i" for j, (g2, k2) in enumerate(slots) if g2 == g and k2 == "league")
         cf, ct = [], []
         for gi, (gender, kind) in enumerate(slots):
             Rf, Sf, rtf = build_cells(db, fmt, gender, "fit", kind)
@@ -393,8 +420,12 @@ def cmd_fit(db: Path, simdir: Path, write: bool, lam_u: float, lam_v: float, pow
             cf.append((gi, real, simsh, bio, sv, sv2))
             ct.append((gi, realt, simsht, biot, svt, svt2))
         a, b, av, bv = fit_cells(cf, len(slots), lam_u, lam_v, pairs)
-        if fmt in NEUTRAL_WICKET:
+        if fmt in NEUTRAL_ALL:
+            a = neutralise_all(a, b, av, bv, cf)
+        elif fmt in NEUTRAL_WICKET:
             a = neutralise_wicket(a, b, av, bv, cf)
+            for gi, (gender, kind) in enumerate(slots):
+                a[gi, FITTED.index("wicket")] += WICKET_CAL.get((fmt, gender, kind), 0.0)
         zero = (np.zeros_like(a), np.zeros_like(b), np.zeros_like(av), np.zeros_like(bv))
         for gi, (gender, kind) in enumerate(slots):
             print(f"\n{fmt} {gender} {kind}: nine-down balls fit {cf[gi][1].sum():.0f}, test {ct[gi][1].sum():.0f}  (H1 {H1}, H2 {H2})")
@@ -421,12 +452,16 @@ def cmd_fit(db: Path, simdir: Path, write: bool, lam_u: float, lam_v: float, pow
                         tc[bi][ACTS.index(c)] = round(float(bv[bi, VCLASSES.index(c)] * pw), 4)
                 ta[bi][ACTS.index("3")] = ta[bi][ACTS.index("2")]
             key = "t20i" if kind == "t20i" else fmt
-            out.setdefault(key, {})[gender] = {"a": ta, "b": tb, "c": tc, "balls_fit": float(cf[gi][1].sum())}
+            out.setdefault(key, {})[gender] = {"a": ta, "b": tb, "c": tc, "balls_fit": float(cf[gi][1].sum()), "shipped": (key, gender) in SHIPPED}
     if write:
         OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
         OUT_JSON.write_text(json.dumps({"H1": H1, "H2": H2, "bios": BIOS, "classes": ACTS, "tables": out}, indent=1))
         emit(out)
         print("wrote", OUT_JSON, OUT_TS)
+
+
+# what ships: the ODI's and the women's T20I terms were fitted and scored (docs/TACTICS.md section 5) and do not improve the actual-XI holdout (the women's is 2 standard errors worse); the women's leagues have none
+SHIPPED = {("t20", "male"), ("t20i", "male"), ("test", "male")}
 
 
 def emit(tables: dict):
@@ -449,7 +484,7 @@ def emit(tables: dict):
     for fmt in TABLES:
         lines.append(f"  {fmt}: {{")
         for g in ("male", "female"):
-            if fmt in tables and g in tables[fmt]:
+            if fmt in tables and g in tables[fmt] and (fmt, g) in SHIPPED:
                 t = tables[fmt][g]
                 lines.append(f"    {g}: {{ a: {json.dumps(t['a'])}, b: {json.dumps(t['b'])}, c: {json.dumps(t['c'])} }},")
         lines.append("  },")

@@ -21,6 +21,8 @@ import { testFixture } from "../test-match/test-series";
  */
 /** LP_OFF=t20,odi,test: play without the last-pair term in those formats (the engine as it was) */
 for (const f of (process.env.LP_OFF ?? "").split(",").filter(Boolean)) LAST_PAIR_SWITCH.off[f as "t20" | "odi" | "test"] = true;
+/** LP_WICKET=t20:-0.1: add a log offset to the wicket class of the term in those formats (calibrating the all-out shares) */
+for (const kv of (process.env.LP_WICKET ?? "").split(",").filter(Boolean)) { const [f, v] = kv.split(":"); LAST_PAIR_SWITCH.wicket[f as "t20" | "odi" | "test"] = Number(v); }
 /** LP_SCALE=t20:2,odi:1.5: scale the whole term in those formats */
 for (const kv of (process.env.LP_SCALE ?? "").split(",").filter(Boolean)) { const [f, v] = kv.split(":"); LAST_PAIR_SWITCH.scale[f as "t20" | "odi" | "test"] = Number(v); }
 const HERE = dirname(fileURLToPath(import.meta.url));

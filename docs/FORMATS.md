@@ -83,7 +83,7 @@ more (half-life six years):
 Each class is a Poisson rate, fitted by iterative proportional fitting with Poisson-gamma shrinkage toward 1 (10 pseudo-events
 for context levels, 20 for players; the women's context factors shrink toward the men's with 40). The batter and bowler
 effects take the players' own quality out of the situation effects (seven down, the tail is in: that is the batters, not the
-situation); they are not exported, because the engine gets quality from ratings. Every context factor is normalised to mean 1
+situation); they are not exported, because the engine gets quality from ratings. The last pair (nine down) is a state of its own that a rating cannot reach (number 11 survives longer than real); `last-pair.ts` carries a fitted term for it in the ODI's ball too (docs/TACTICS.md section 5), but the ODI's table is not shipped: it did not improve the actual-XI holdout (`LAST_PAIR.odi` is empty). Every context factor is normalised to mean 1
 over the 2019+ deliveries, so `base` is the average 2019+ ODI delivery: men 5.03 runs an over and a wicket every 36 balls,
 women 4.36 and every 35. The output is `packages/engine/src/odi-model-data.ts` (tables, `ODI_DISMISSAL_MIX`, `ODI_RAIN`) and
 `odi-venue-data.ts`; the report is `docs/data/odi_ball_model.json`, the validation targets `docs/data/odi_validation.json`.
@@ -297,7 +297,7 @@ by iterative proportional fitting (backfitting the Poisson likelihood, 16 sweeps
 | ball age | overs since the new ball: 0-4, 5-9, 10-19, 20-34, 35-49, 50-64, 65+ (a new ball assumed at 80, 160) |
 | set-ness | balls the batter has faced: 0-4, 5-9, 10-19, 20-34, 35-59, 60-99, 100-149, 150+ |
 | innings | 1-4 |
-| wickets down | 0-2, 3-5, 6-7, 8-9 (the tail is in), separately for each innings |
+| wickets down | 0-2, 3-5, 6-7, 8-9 (the tail is in), separately for each innings; with nine down a last-pair term on top (`last-pair.ts`: the senior partner farms the strike, the junior one blocks and falls; fitted from Cricsheet to 2023, judged on 2024+; docs/TACTICS.md section 5) |
 | day x pace / spin | day 1-5 for each bowler type (pitch wear) |
 | spell | the bowler's over in his spell, 1-7+ (a spell ends at a gap of more than one over at his end or overnight) |
 | situation | normal; push (the last 12 overs of an innings that was declared); 4th-innings runs needed per scheduled over left (5 x 90 less the overs bowled) 0-2.5, 2.5-3.5, 3.5-4.5, 4.5-6, 6+ |
