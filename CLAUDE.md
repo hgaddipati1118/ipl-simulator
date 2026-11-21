@@ -46,7 +46,7 @@ Live-match commentary comes from a model built from real ESPNcricinfo ball-by-ba
 generated file `packages/app/public/data/commentary-model.json`, built-in lines remain the fallback).
 
 Besides the IPL and WPL the game plays BBL, WBBL, PSL, SA20, The Hundred (men and women), CPL, ILT20, MLC, BPL and LPL
-with real teams, squads, home grounds and rules; see `docs/LEAGUES.md` (registry: `packages/engine/src/leagues.ts`). Multiplayer rooms
+with real teams, squads, home grounds and rules; see `docs/LEAGUES.md` (registry: `packages/engine/src/leagues.ts`). League home advantage is measured per league and format (`home-advantage.py`) and a ball-level home edge exists in both engines (`home-advantage.ts`, `LEAGUE_HOME`), unset: fitted on 2021-24 it did not predict 2025+ better (LEAGUES.md, "Home advantage"). Multiplayer rooms
 (auction, season draft, Draft Match pools) offer every league (`packages/app/src/multiplayer/leagues.ts`).
 
 ## Quick Start

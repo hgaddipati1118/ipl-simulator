@@ -229,11 +229,89 @@ Every extra league is within about 2% on runs and wickets per innings. The Hundr
 against 93-95 in the real data. The engine's IPL baseline averages 168 runs against the real 2024-26 IPL's 184 and its
 WPL 164 against 158; those are the existing calibration targets and were left alone.
 
+## Home advantage (measured; a league term fitted and not shipped)
+
+**Real home share.** `packages/ratings/src/analysis/home-advantage.py` (output `docs/data/home_advantage.json`). A league match has a
+home side when the ground is one of that franchise's own grounds (by name, former names and second homes included) and not one of
+the opponent's; shared grounds, hubs, the UAE legs of the IPL and PSL and festival grounds are neutral, and whole bubble seasons are
+left out (IPL 2020-22 and 2009, PSL 2021, CPL 2020-21, WBBL 2020-21, WPL 2023). The first-listed side is not used. An international
+has a home side when the venue is in one side's country (`venue_map.csv`; full members). Share of decided matches the home side won,
++- its binomial standard error (matches):
+
+| competition | all years | 2021-24 (fit half) | 2025+ (holdout) | engine, actual XIs, fit / holdout |
+|---|---|---|---|---|
+| IPL | 0.529 +- 0.018 (814) | 0.489 +- 0.042 (139) | 0.457 +- 0.044 (129) | 0.494 / 0.507 |
+| PSL | 0.554 +- 0.050 (101) | 0.553 +- 0.072 (47) | 0.567 +- 0.090 (30) | 0.517 / 0.513 |
+| BBL | 0.534 +- 0.020 (608) | 0.590 +- 0.036 (190) | 0.597 +- 0.060 (67) | 0.507 / 0.516 |
+| SA20 | 0.569 +- 0.047 (109) | 0.569 +- 0.065 (58) | 0.569 +- 0.069 (51) | 0.489 / 0.511 |
+| CPL | 0.542 +- 0.029 (297) | 0.485 +- 0.061 (68) | 0.581 +- 0.063 (62) | 0.491 / 0.481 |
+| The Hundred (men) | 0.560 +- 0.037 (182) | 0.551 +- 0.046 (118) | 0.578 +- 0.062 (64) | 0.501 / 0.504 |
+| ILT20 (three grounds, six sides) | 0.487 +- 0.056 (80) | 0.487 +- 0.080 (39) | 0.488 +- 0.078 (41) | 0.428 / 0.510 |
+| MLC (mostly neutral) | 0.438 +- 0.088 (32) | 0.455 +- 0.150 (11) | 0.429 +- 0.108 (21) | 0.526 / 0.470 |
+| BPL | 0.469 +- 0.039 (162) | 0.268 +- 0.069 (41) | 0.400 +- 0.098 (25) | (no benchmark) |
+| LPL | 0.523 +- 0.075 (44) | 0.559 +- 0.085 (34) | 0.400 +- 0.155 (10) | (no benchmark) |
+| WBBL | 0.560 +- 0.032 (241) | 0.540 +- 0.053 (87) | 0.606 +- 0.085 (33) | (no benchmark) |
+| The Hundred (women) | 0.472 +- 0.038 (176) | 0.491 +- 0.047 (114) | 0.435 +- 0.063 (62) | (no benchmark) |
+| WPL | 0.545 +- 0.087 (33) | 0.800 +- 0.127 (10) | 0.435 +- 0.103 (23) | (no benchmark) |
+| T20I men | 0.532 +- 0.017 (822) | 0.552 +- 0.030 (281) | 0.532 +- 0.042 (139) | series tuning home 2: 0.543 / 0.536 (real on its matches 0.545 / 0.552) |
+| T20I women | 0.548 +- 0.023 (469) | 0.481 +- 0.036 (187) | 0.635 +- 0.049 (96) | series tuning home 2: 0.558 / 0.665 (real on its matches 0.502 / 0.641) |
+| ODI men | 0.590 +- 0.012 (1579) | 0.611 +- 0.033 (216) | 0.635 +- 0.047 (104) | series tuning: home 4 |
+| ODI women | 0.584 +- 0.024 (440) | 0.535 +- 0.038 (172) | 0.641 +- 0.050 (92) | series tuning: home 2 |
+| Test men (decided) | 0.639 +- 0.018 (695) | 0.583 +- 0.041 (144) | 0.544 +- 0.066 (57) | ball model + series home -1.5 |
+
+The engine column is the league actual-XI benchmark (`league-bench.test.ts`, 128 replays, its own home grounds per franchise; the IPL,
+PSL and CPL fit figures still counted the 2021-22 bubble matches at a side's own ground as home; its real shares differ a little from this table's because it keeps only matches whose players the pool has). The
+engine gives every league's home side about half, because nothing in league play favours it: the ground's measured factors and chase
+edge act on both sides alike. (The T20I engine figures: the country actual-XI benchmark, `BENCH_ACTUAL=1 BENCH_MODES=actual BENCH_REPLAYS=48`, its 2019-24 / 2025+ halves.) The internationals already have home terms fitted on actual XIs and judged out of sample
+(docs/COUNTRY-VALIDATION.md, "Test and ODI series tuning"; `series-tuning-data.ts`), so they are not refitted here.
+
+**The term tried.** `packages/engine/src/home-advantage.ts`: on every ball of a league T20 or Hundred match at a side's own ground the
+batter-bowler balance of the ball model moves `edge` points toward the home side (for it when it bats, against the visitors when they
+bat; one point is what one rating point on each of the six batting and bowling attributes of both sides moves, the series tuning's
+unit). It acts in both innings whoever bats first (toss-neutral) and the two innings' scoring changes cancel (the league levels stay
+fitted). None at a neutral ground, at a ground both sides call home (ILT20 and MLC share theirs), at a borrowed ground (Draft Match),
+in T20Is, ODIs or Tests. Instant and live engines alike (`LEAGUE_HOME`, per league; empty, so no league has one). Ratings are untouched.
+
+**Fit, 2021-24, eight men's leagues** (`home-advantage-fit.py` on benchmark arms at edge 0, 4 and 8, 128 replays; the edge moves the
+home side's logit 0.048 a point, about 1.2 points of win share): per-league estimates IPL -0.1 +- 3.8, PSL +2.5 +- 6.3, BBL +9.0 +- 3.3,
+SA20 +7.4 +- 5.8, CPL -1.5 +- 5.2, ILT20 -11 +- 11, MLC -2 +- 13, The Hundred +4.3 +- 4.1. They agree within their errors (the
+between-league spread beyond noise is 0), so the empirical-Bayes fit is one pooled edge, **+3.7 +- 1.8**, every league shrunk to it.
+
+**Holdout, 2025+** (the engine played at each setting, 256 replays, the same seeds, log loss per match paired against no edge; minus is better):
+
+| league (matches) | pooled edge 3.5 (the fit) | exploratory: each league's own fit, floored at 0 (PSL 2.5, BBL 9, SA20 7.5, Hundred 4.5) | home share real / engine 0 -> pooled |
+|---|---|---|---|
+| IPL (142) | **+0.0176 +- 0.0079** | 0 | 0.444 / 0.507 -> 0.544 |
+| PSL (75) | -0.0015 +- 0.0070 | -0.0047 +- 0.0055 | 0.586 / 0.513 -> 0.552 |
+| BBL (64) | +0.0147 +- 0.0141 | +0.0201 +- 0.0301 | 0.571 / 0.516 -> 0.555 |
+| SA20 (57) | -0.0088 +- 0.0143 | -0.0127 +- 0.0261 | 0.571 / 0.511 -> 0.560 |
+| CPL (61) | -0.0198 +- 0.0139 | 0 | 0.618 / 0.481 -> 0.523 |
+| ILT20 (66) | +0.0078 +- 0.0095 | 0 | 0.316 / 0.510 -> 0.563 |
+| MLC (41) | +0.0094 +- 0.0075 | 0 | 0.385 / 0.470 -> 0.498 |
+| The Hundred (66) | -0.0183 +- 0.0123 | -0.0226 +- 0.0140 | 0.571 / 0.504 -> 0.547 |
+| **all (572)** | **+0.0023 +- 0.0039** | **-0.0023 +- 0.0046** | |
+
+**Not shipped.** The fitted term does not predict 2025+ better (+0.0023 +- 0.0039 a match, slightly worse), and it is clearly worse in
+the IPL, whose home sides won 44% of 2025+ matches. It does fix the home share where real home sides win 57-62% (PSL, SA20, CPL, The
+Hundred), but it misplaces it where they win 32-44% (IPL, ILT20, MLC), so the calibration gain is not clear either. The exploratory
+per-league setting is level (-0.0023 +- 0.0046), was chosen after the pooled holdout had been read, and overshoots the BBL (62% against
+57% real); it is not evidence enough. `LEAGUE_HOME` stays empty, so league play is ball for ball as before (the fingerprint is
+unchanged); the hook stays for benchmark arms (`LB_HOME`). Women's leagues have no actual-XI benchmark (most of their players are not in
+the pool); their real home shares (WBBL 0.56, The Hundred 0.47, WPL 0.55 on 33 matches) do not make a case on their own.
+
+Rerun: `cd packages/ratings && python3 -I src/analysis/home-advantage.py`; benchmark arms
+`LEAGUE_BENCH=1 LB_LEAGUES=ipl,psl,bbl,sa20,cpl,ilt20,mlc,hundred-m LB_REPLAYS=128 LB_HOME='{"bbl":4,...}' LB_DUMP=<dir>/h4-r128 [LB_HALF=fit|hold] npx vitest run packages/app/src/__tests__/league-bench.test.ts`
+(one per edge, every league at that edge), then `python3 -I src/analysis/home-advantage-fit.py <dir> r128 0 4 8`. The Hundred's
+actual XIs are in their own files (`docs/data/league_xi_hundred.json`, `league_results_hundred.json`: `LXI_LEAGUES=hundred-m` in
+`generate-league-xi.ts` and `LXI_IN` / `LXI_OUT` in `generate-league-results.ts`), so `league_xi.json` and the fits on it are unchanged.
+
 ## Verification
 
 * `packages/engine/src/__tests__/leagues.test.ts`: registry, rules and venues of every league, balanced schedules
   (every team plays exactly its quota), the three playoff brackets, the Hundred's 100-ball innings (5-ball sets, 20-ball bowler cap,
   no three sets in a row) and a full season to a champion for every league.
+* `packages/engine/src/__tests__/home-advantage.test.ts`: the home edge (unset in play) only at a side's own ground in league play,
+  its sign on the ball, and both engines playing it (the home side wins more; a neutral ground ball for ball as without it).
 * `packages/ratings/src/__tests__/league-players.test.ts`: squads fit each league's squad and overseas limits, one keeper per
   team, unique players, pool match-rate floors, the CricketArchive-pool hook.
 * `packages/app/src/__tests__/leagues.test.ts`: every league loads into a game with valid squads and XIs, plays a full
