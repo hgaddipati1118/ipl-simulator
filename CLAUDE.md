@@ -35,6 +35,7 @@ bats by wickets in hand and overs left, and a new batter plays himself in, as re
 bowler held fixed; 12.9, 12.10).
 
 Tactics (docs/TACTICS.md): who bowls which over in a T20 is a captain's choice model fitted on 1,788 real internationals (`bowling-choice.ts`; both engines; the ODI's default stays the former best-three rule, `captainModelFor`, because the model predicted the 2025+ ODIs worse: judge any engine change on the holdout per match with a paired standard error, TACTICS.md section 2),
+an IPL side uses its Impact Player as real sides do (fitted on Cricsheet IPL 2023-24, judged on 2025+: a bowler on at the break for a top-order batter batting first, a bowler who makes way for a batter in the chase fielding first, a batter at a wicket after a late collapse; `impact-player.ts`, both engines, the user's own sub as before; TACTICS.md section 9, with the IPL actual-XI match benchmark),
 a user sets a side's bowling plan (phases, fixed overs; in a Test who opens and when spin comes on, `BowlingPlanEditor.tsx`, `SeriesLineup.bowling`), the T20 bowler type x phase effects
 are fitted (`t20-bowler-type.ts`, out-of-sample tested against the hand-set ones they replaced), and a series takes pitch / light / weather (`conditions.ts`, `IntlSeries.conditions`, `ConditionsBar`),
 each acting through a fitted ground term. Ball-age terms were tested out of sample and not shipped.

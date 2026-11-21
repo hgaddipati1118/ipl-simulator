@@ -89,9 +89,11 @@ export const LEAGUE_LEVEL_WICKET = 1.0;
  * the wicket rate and `dot` the dot-ball rate (more dots = lower scoring, slightly fewer wickets). They were fitted so a
  * simulated season averages what the competition's 2024-26 innings averaged in the real data (runs, wickets and balls
  * per innings; a linear fit over a grid of simulated seasons, then verified over 16 seasons: docs/LEAGUES.md,
- * "Calibration"). Leagues not listed use the IPL levels.
+ * "Calibration"). Leagues not listed use the IPL levels (LEAGUE_LEVEL_RUN, LEAGUE_LEVEL_WICKET). The IPL's own entry is the wicket
+ * level refitted when its impact player and bowling attack changed (docs/TACTICS.md section 9); its neutral grounds keep no profile.
  */
 export const LEAGUE_LEVELS: Record<string, { run: number; wicket: number; dot: number }> = {
+  "ipl": { run: LEAGUE_LEVEL_RUN, wicket: 1.05, dot: 1.0 },
   "bbl": { run: 1.0, wicket: 0.964, dot: 1.179 },
   "wbbl": { run: 1.0, wicket: 0.98, dot: 1.445 },
   "psl": { run: 1.0, wicket: 0.934, dot: 1.13 },
@@ -177,7 +179,7 @@ export function getVenueProfileForTeam(teamId: string): VenueProfile | null {
  * custom leagues, whose neutral matches keep using no measured profile.
  */
 export function getNeutralVenueProfile(league: string | undefined): VenueProfile | null {
-  const level = league ? LEAGUE_LEVELS[league] : undefined;
+  const level = league && league !== "ipl" ? LEAGUE_LEVELS[league] : undefined;
   if (!league || !level) return null;
   return {
     groundName: "Neutral venue",

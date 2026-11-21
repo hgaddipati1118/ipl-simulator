@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
-import { ATTACK_MODEL, IMPACT_MODEL, IPL_TEAMS, RULE_PRESETS, Team, createPlayerFromData, isOverseasIn, simulateMatch, type BallEvent, type MatchResult, type Player, type RuleSet } from "@ipl-sim/engine";
+import { ATTACK_MODEL, IMPACT_MODEL, IPL_TEAMS, LEAGUE_LEVELS, RULE_PRESETS, Team, createPlayerFromData, isOverseasIn, simulateMatch, type BallEvent, type MatchResult, type Player, type RuleSet } from "@ipl-sim/engine";
 import { createGameState } from "../game-state";
 import { prepareLeaguePool } from "../extended-pool";
 import { getPoolPlayers, getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
@@ -164,9 +164,9 @@ export function benchSide(m: ImpMatch, s: ImpSide, make: (id: string) => Player 
   return { eleven, bench };
 }
 
-interface Arm { name: string; impactOff: boolean; except: string[] }
+interface Arm { name: string; impactOff: boolean; except: string[]; formerLevel?: boolean }
 const ARMS: Record<string, Arm> = {
-  old: { name: "former (mid-innings sub, former attack)", impactOff: true, except: ["ipl"] },
+  old: { name: "former (mid-innings sub, former attack, former wicket level)", impactOff: true, except: ["ipl"], formerLevel: true },
   new: { name: "fitted impact player + attack table", impactOff: false, except: [] },
   impact: { name: "fitted impact player, former attack", impactOff: false, except: ["ipl"] },
   attack: { name: "former impact player + attack table", impactOff: true, except: [] },
@@ -185,6 +185,7 @@ it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", asyn
   const arms = (process.env.IPL_ARMS ?? "old,new,impact").split(",").map(a => ARMS[a]);
   const make = await ratedPlayers();
   const rules = { ...RULE_PRESETS.modern2026, injuriesEnabled: false } as RuleSet;
+  const shippedLevel = { ...LEAGUE_LEVELS.ipl };
   const ms = loadImpactMatches().filter(m => m.winner && m.sides.length === 2 && m.sides.every(s => teamIdOf(s.team)));
   const halves: [string, (d: string) => boolean][] = [["fit (2023-24)", d => d <= "2024-12-31"], ["holdout (2025+)", d => d >= "2025-01-01"]];
   const only = process.env.IPL_HALF;
@@ -202,6 +203,8 @@ it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", asyn
       arms.forEach((arm, a) => {
         IMPACT_MODEL.off = arm.impactOff;
         ATTACK_MODEL.except = arm.except;
+        // the former engine had no IPL level of its own (the wicket level 1.0)
+        if (arm.formerLevel) delete LEAGUE_LEVELS.ipl; else LEAGUE_LEVELS.ipl = { ...shippedLevel };
         const teams = order.map(k => {
           const s = m.sides[k];
           const t = new Team(IPL_TEAMS.find(c => c.id === ids[k])!);
@@ -241,4 +244,5 @@ it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", asyn
   }
   IMPACT_MODEL.off = false;
   ATTACK_MODEL.except = [];
+  LEAGUE_LEVELS.ipl = shippedLevel;
 }, 14_400_000);
