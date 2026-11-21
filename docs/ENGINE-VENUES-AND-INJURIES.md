@@ -63,5 +63,9 @@ packages/engine/src/in-match-injury-data.ts; rates, benchmark and live UI in RUL
 - They are in the match result's `injuries` (`inMatch`: concussion / retired_hurt / bowler_breakdown; listed even when the
   player is fit for the next match, `matchesRemaining` 0), in the live season path (applyLiveResult) and in simulateTestMatch
   with `injuries`. The match page, the season page and the inbox show them ("concussion (in the match), out 2 matches").
-- The in-match links add about 0.03 injuries of a match or more per T20 side per match on top of the post-match model (whose
-  measured absences already contain the confirmed in-match ones, 5.6% of them): within the noise of benchmark-season.ts.
+- What the links add over a season (benchmark-season.ts, 40 IPL seasons each, `IMI_OFF=1` for before): per IPL side and match
+  about 0.010 retired hurt, 0.015 mid-over breakdowns and 0.003 concussions, two thirds of them then missing a match. The share of
+  squad-seasons (players who played) with any injury rises (batters 4.2% -> 6.0%, all-rounders 5.5% -> 9.4%, keepers 4.4% -> 7.0%,
+  pace 7.8% -> 8.8%), mostly one- and two-match absences; the share with an injury of 3+ matches, INJURY_SCALE's target, moves
+  2.8% -> 3.05% over all types (one standard error is 0.18 points). INJURY_SCALE is unchanged: the post-match model's measured
+  absences include the confirmed in-match ones (5.6% of them), so lowering it by about that share would hold the 3+ share exactly.

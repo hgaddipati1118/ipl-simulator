@@ -231,7 +231,7 @@ describe("concussion substitutes: the live engine", () => {
       }
       const d = buildDetailedResultFromState(st);
       const notes = [...(d.innings1.notes ?? []), ...(d.innings2.notes ?? [])];
-      expect(notes.length).toBe(st.inMatchInjuries!.filter(e => e.kind === "concussion").length);
+      expect(notes.length).toBe((st.inMatchInjuries ?? []).filter(e => e.kind === "concussion").length);
     }
     expect(checked).toBeGreaterThan(0);
   });

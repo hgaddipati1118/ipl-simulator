@@ -343,7 +343,7 @@ A given seed plays out differently from before.
 | handled the ball | no | I, L (data-faithful, now "obstructing" in the Laws) | 1 in IT20 |
 | hit the ball twice | no | I, L; not credited to the bowler | 1 |
 | timed out | no | I, L: a batter can be timed out on arrival (a wicket, no bowler credit) | 0 in T20; rate 1.4e-6 per wicket (Jeffreys over every format's wickets) |
-| retired hurt (resumes) | no (instant), no | I, L: not out, replaced, may return at a wicket; the innings ends when no partner is left | 261 events, 4.1e-5 per batter-ball (0.0085 an innings); 0 of 247 resumed, so the return chance is the Jeffreys 0.2% |
+| retired hurt (resumes) | no (instant), no | I, L: not out, replaced, may return at a wicket; the innings ends when no partner is left; after the match he misses the next one 64% of the time (13.9) | 261 events, 4.1e-5 per batter-ball (0.0085 an innings); 0 of 247 resumed, so the return chance is the Jeffreys 0.2% |
 | retired out (cannot return, not a wicket) | L only (death-over rule) | I, L | 108 events, 0.0067 an innings since 2022, mean over 14.6 |
 | Mankad (dead ball, nobody bowled) | no | I, L: a non-striker run out by the bowler, no legal ball counted, no bowler credit | not separable in Cricsheet (recorded as an ordinary run out): ~20 known T20 cases, 6e-6 per delivery (an assumption) |
 | **Extras** | | | |
@@ -362,7 +362,7 @@ A given seed plays out differently from before.
 | all out at 10 | yes | yes | |
 | **Bowling** | | | |
 | 4 overs, no consecutive overs, Hundred 5 or 10 balls | yes | yes | |
-| over left incomplete by injury | no | I, L: another bowler finishes it and cannot bowl the next over; the part-bowled over counts towards both; the injured bowler is done | 0.090% of overs (0.0007 per ball) |
+| over left incomplete by injury | no | I, L: another bowler finishes it and cannot bowl the next over; the part-bowled over counts towards both; the injured bowler is done, and misses the next match 67% of the time (13.9) | 0.090% of overs (0.0007 per ball) |
 | slow over-rate in-field penalty | no | not modelled: the engine has no clock | |
 | **Match** | | | |
 | tie to a super over | instant: one over, ten wickets, same batters and bowler again, the side that batted first bats first; live: boundary count / coin flip | I, L: one over each, two wickets, three batters and one bowler, the side that batted second bats first, repeated while tied, previous bowler and dismissed batters out | 208 super-over innings: 10.3 runs, 0.74 wickets; the engine's 10.0 / 0.69 after the super-over factors (1.15% of matches tie, real 0.7%) |
@@ -851,9 +851,11 @@ Run from `packages/ratings`: `CRICSHEET_JSON_DIR=/path/to/json python3 -I src/an
 | women's extras (item 5) | men's base rates | I, L: scaled to the women's per-delivery rates of the women's T20 leagues since 2019: wides x0.894, no-balls x0.974, byes / leg byes x0.918 | 145,917 women's deliveries; women's T20Is excluded (associate nations double the wide rate) |
 | strategic timeout | L (bowling side overs 6-9, batting 13-16, user choice, small rating boost) | I: IPL innings record the two timeouts (after overs 7 and 14) without an effect; L unchanged | IPL playing conditions |
 | impact player | I, L | unchanged | |
+| concussion substitute (all formats, men and women) | no | I, L, Test: a batter concussed at the crease is replaced at once by a like-for-like player from the bench (not a wicket: "retired hurt", the sub bats in his place); a fielder at the end of an over (the sub fields, keeps wicket for a keeper, bowls the rest of the quota only for a bowling option) and plays on in the next innings; the CPU picks, the user picks in the live match; card note "X replaced by Y (concussion sub)"; in the IPL separate from the Impact Player | Cricsheet `concussion_substitute`, 2023-24: T20 21 in 3,168 matches, ODI 13 in 404, Test + first-class 24 in 456 (13.9) |
+| in-match injury after the match | no: a retired-hurt batter or a bowler who broke down was fit for the next match unless the post-match roll hit him | I, L, Test: a concussed player misses the measured matches (35% none, 30% one, 17% two ...); retired hurt / a breakdown miss the next match 58-67% of the time, then the measured layoff; all in the result's `injuries` and the season and match pages | CricketArchive confirmed in-match injuries (650 + 392 spells), Cricsheet (117 concussions with a next match) |
 | super overs in the viewer (item 7) | played but not shown (the result text only) | L: the result panel lists every super over: side, three batters v bowler, each ball, score | |
 | **Not added** | | | |
-| bouncers per over (a third is a no-ball), concussion substitutes, the ICC stop clock (T20Is only), batters deliberately running on the pitch (5 penalty against the batting side), the live Hundred | | | see 13.8 |
+| bouncers per over (a third is a no-ball), the ICC stop clock (T20Is only), batters deliberately running on the pitch (5 penalty against the batting side), the live Hundred | | | see 13.8 |
 
 ### 13.2 How the plays fit on a delivery
 
@@ -993,7 +995,9 @@ beamers 0.0014, innings under the over-rate restriction 7.8%, sixes saved 0.032,
 ### 13.8 Not done
 
 - Bouncers per over (a third bouncer a no-ball, `maxBouncersPerOver`): the engines have no ball lengths; height no-balls stand in.
-- Concussion substitutes, the ICC stop clock (T20Is only, not in the franchise leagues), penalty runs against the batting side.
+- The ICC stop clock (T20Is only, not in the franchise leagues), penalty runs against the batting side.
+- Injury substitutes other than for a concussion (Cricsheet's 61 `injury_substitute` replacements, in the competitions whose
+  playing conditions allow one) are not played; a hurt player is retired hurt or leaves the attack as before.
 - The live engine still has no Hundred (so the ten-ball ends are instant-only). Its rain is now the instant engine's fitted plan, per league, when
   the match is created with `rain` (12.4). Users do not nominate super-over batters / bowler (the AI picks).
 - The instant sim's strategic timeouts are records only (no effect); misfields are labels (they do not add runs: the base model's runs already contain them).
@@ -1002,3 +1006,117 @@ beamers 0.0014, innings under the over-rate restriction 7.8%, sixes saved 0.032,
 - The live engine's scoring level is now the instant engine's (section 12.4, November 2026; it was about 242 an innings). Still the live engine's own:
   its DRS and CPU retire-out rules; its CPU sides do not use the Impact Player; a live super over is played at the death-overs rates (the instant one at
   the first over's).
+
+### 13.9 Concussion substitutes and in-match injuries after the match
+
+**Rule.** Since August 2019 the ICC playing conditions (Tests, ODIs, T20Is, men and women) and the franchise leagues let a side
+replace a player with a concussion by a like-for-like player the match referee approves; he takes the concussed player's place
+for the rest of the match (bats, fields, and bowls only if the replaced player was a bowling option). In the IPL a concussion
+substitute is separate from the Impact Player and the overseas limit still applies.
+
+**Data** (`packages/ratings/src/analysis/concussion-subs.py`, from packages/ratings: `python3 -I src/analysis/concussion-subs.py`, about a
+minute, needs `duckdb` for the spells; writes `data-export/concussion-subs.json`, `data/analysis/concussion_events.csv` and
+`packages/engine/src/in-match-injury-data.ts`). Cricsheet `replacements.match` with reason `concussion_substitute`: 166 events,
+152 since August 2019, in 23,243 matches; the CricketArchive card notes ("full substitute: A for B (after N overs of the X innings)
+(concussion)", the 263 of docs/INJURY-RISK-REPORT.md) are the cross-check and the domestic first-class / List A count (FC 136, List A 55,
+T20 leagues 31, T20Is 14, Tests 16, ODIs 11).
+
+Real rate per 1,000 matches (Cricsheet; both genders; Test = Tests and the domestic first-class matches Cricsheet has):
+
+| format | fit 2023-24 | check 2025-26 | 2020-22 | men / women, fit years |
+|---|---|---|---|---|
+| T20 (leagues + T20Is) | 6.6 (21 in 3,168) | 3.8 (13 in 3,461) | 4.5 (14 in 3,099) | 5.0 (11 in 2,194) / 10.3 (10 in 974) |
+| ODI | 32.2 (13 in 404) | 8.3 (3 in 360) | 13.0 (5 in 385) | 31.7 (9 in 284) / 33.3 (4 in 120) |
+| Test + first-class | 52.6 (24 in 456) | 33.8 (18 in 533) | 49.9 (27 in 541) | 53.3 (24 in 450) / 0 (0 in 6) |
+
+By year the T20 leagues sit at 5-8 a thousand from 2021 to 2026; the T20Is and ODIs swing (T20Is 0-17, ODIs 6-33 a year on
+100-250 matches). Women's rates over 2020-26 equal the men's (T20 4.5 against 5.1; ODI 15.4 against 19.8), so the genders are pooled.
+
+Who and when (152 events since August 2019): the replaced player was an all-rounder 51, a bowler 46, a batter 40, a keeper 15 (roles
+from each player's Cricsheet career). 58 of the 152 (21 of 58, 36%, in the fit years) were hit batting: replaced while at the crease or at the start of the
+next innings after batting in the one before; the rest were hurt in the field (at the start of their own innings, after fielding,
+or mid-innings in the field). Batting position of those hit batting: 3 the most (11), then 2, 5 and 6 (7 each), 7 (6), 1 and 9 (5), the
+tail 1-4 each. Recorded in the second innings of the match 96 times, the first 25, the third / fourth 31; in T20s 25 in overs 1-6, 17
+in 7-15, 6 in 16-20. The replacement batted in 105 (69%) and bowled in 55 (36%). Like for like: the same role 73 (48%), an all-rounder
+for or by a specialist 69 (45%), a specialist batter and a specialist bowler replacing each other 5 (3%), a keeper by a keeper 4 of 15.
+
+**After the match** (team matches the replaced player then missed in the same competition within 60 days, 117 with a next match):
+none 41 (35%), one 35 (30%), two 20 (17%), three 11 (9%), four or five 5 (4%), six or more 5 (4%).
+
+**Fit.** Per legal ball by engine format (the format's matches of the fit years, both genders), Jeffreys (k + 0.5) shrunk toward the
+all-format rate with a prior worth five events: T20 3.23e-5 (6.9 a thousand at the data's 215 balls a match), ODI 5.45e-5 (26.9 at
+493), Test 3.27e-5 (54.6 at 1,673). The share hit batting, 36% (21 of 58), is the same in every format. A batter concussed at the
+crease is the one who faced the ball; a fielder is checked at the end of each over (six balls' worth), any of the eleven.
+
+**Engines** (`in-match-injury.ts`, used by `match.ts`, `live-match.ts`, `test-match.ts`):
+- The draw is a hash of the match seed and the ball (`sideDraw`), not the engines' random streams: a seeded match without a
+  concussion plays exactly as before (`concussion.test.ts`), so seeded tests and saved replays only move where one happens.
+- Batting: the concussed batter is "retired hurt" (not out, not a wicket, he takes no further part) and the replacement comes to the
+  crease at his end and in his place in the order; the scorecard lists him right after the batter he replaced.
+- In the field: the replacement takes his place for the rest of the innings and the match (he bats in the next innings in his slot,
+  keeps wicket when the keeper was concussed and he is a keeper); he bowls what is left of the replaced player's quota only when that
+  player was a bowling option (a bowler, an all-rounder, or he had bowled), else he may not bowl (the last resort if the attack runs out).
+- The referee's choice (`concussionSubOptions`, with the former `isLikeForLikeReplacement` of ball-outcomes.ts, now counting a keeper as a
+  batter): same role or an all-rounder either way, a keeper first for a keeper who had the gloves, a spinner for a spinner and a seamer
+  for a seamer, the best rated for the role first; never a player already in the match (the eleven, the Impact Player and the player he
+  replaced, an earlier concussion sub); no more overseas players on the field than the rules allow. With nobody on the bench the side
+  carries on a player short (the batter retires, the fielder leaves).
+- Card note "X replaced by Y (concussion sub)" (`InningsScorecard.notes`; match page, live scorecard's FOW tab, Test scorecard); the
+  commentary line "... fails the concussion test: Y comes on as a like-for-like concussion substitute." (Test: the match events).
+- Live match: on the user's side with a choice, "Concussion Substitute" asks which replacement (the like-for-like options, best first,
+  "Recommended"); the CPU takes the first for its own side and when fast-forwarding. Instant sims and the Test engine take the CPU's
+  choice for both sides.
+- The unused helpers of ball-outcomes.ts (`checkMidMatchInjury` with its made-up rates, `determineInjuryResponse`, `getReplacementConstraints`
+  and their types) are deleted; `isLikeForLikeReplacement` is kept and used.
+
+**Linked to the post-match injury model** (`applyInMatchInjuries`, before the post-match checks, in simulateMatch, applyLiveResult and
+simulateTestMatch with `injuries`): a concussed player misses the measured number above; a retired-hurt batter misses the next match with
+the CricketArchive "confirmed" share (T20 64% of 218, List A 58% of 290, first-class 63% of 473; the in-match spells of regulars of
+docs/INJURY-RISK-REPORT.md), a bowler who broke down mid-over with the bowlers' share (67% of 246), and then the measured layoff of the
+confirmed spells (1: 40%, 2: 21%, 3: 11%, 4: 8%, 5: 5%, 6+: 15%; 10+ spread over 10-12). Before, both were fit for the next match unless
+the ordinary post-match roll hit them. All of them are in the result's `injuries` (`inMatch`; also when the player is fit for the next
+match, `matchesRemaining` 0), so the season page, the inbox and the match page list them ("concussion (in the match), out 2 matches").
+With injuries off only the in-match events remain (scorecard, commentary).
+
+**Real against simulated** (`benchmark-concussion.ts`: the IPL squads, T20 20,000 matches, ODI 6,000 under the men's ODI rules; the men's
+national squads, 4,000 Tests), per 1,000 matches +- one standard error:
+
+| format | real, fit 2023-24 | simulated | hit batting real / sim | like for like (sim) |
+|---|---|---|---|---|
+| T20 | 6.6 +- 1.4 | 6.0 +- 0.6 | 36% / 42% | 99% |
+| ODI | 32.2 +- 8.9 | 24.0 +- 2.0 | 36% / 40% | 100% |
+| Test | 52.6 +- 10.7 (Tests alone 33.7 +- 19) | 45.3 +- 3.4 | 36% / 44% | 100% |
+
+Per ball the engines play the fitted rate; per match the ODI and the Test are a little lower than the data because the simulated
+matches are shorter (fewer balls) than the fit years', and both are within one standard error of the real rate. The simulated
+after-match costs: concussion 58-67% miss the next match (real 65%), retired hurt 59-65% (real 58-64%), mid-over breakdowns 69-72% (67%),
+2.0-2.7 matches when out (real: concussion 2.1, confirmed in-match injuries 2.4).
+
+**Match level** (concussions are rare and the substitute is like for like, so match numbers should not move; "before" is
+`IMI_OFF=1`, the same seeds without concussions or the after-match links):
+- Men's T20I actual XIs (`BENCH_ACTUAL=1 BENCH_MODES=actual BENCH_REPLAYS=96 BENCH_ONLY=t20i-men`, log loss per real match, paired):
+  fit to 2024 (418 matches) 0.632 -> 0.632, **+0.0006 +- 0.0003** (38 matches had a concussion in some replay); holdout 2025+ (168)
+  0.585 -> 0.585, **-0.0000 +- 0.0006**. Unchanged at the third decimal; on the fit half the paired difference is two standard errors
+  above zero, the size of the extra noise a weaker substitute adds to a few replays. Re-run on the IPL run level (TACTICS.md section 10), all
+  the real matches in one set: 0.6385 -> 0.6388 (+0.0003).
+- League benchmarks (`calibrate-leagues.test.ts`, 32 seasons each, unseeded so each run is its own draw; re-run on the IPL run level of
+  TACTICS.md section 10), runs / wickets per innings, before -> after (real): IPL 184.1 -> 183.5 (183.7) / 6.11 -> 6.11 (6.05), WPL
+  152.5 -> 151.5 (157.8) / 6.05 -> 6.16 (6.2), BBL 159.4 -> 159.1 (158.3) / 6.47 -> 6.45 (6.47), WBBL 138.0 -> 136.8 (141) / 6.18 -> 6.18
+  (6.37), PSL 167.7 -> 168.1 (169.2) / 6.40 -> 6.37 (6.47), SA20 153.4 -> 155.0 (153.4) / 6.38 -> 6.36 (6.21), Hundred men 136.7 -> 134.9
+  (137.3) / 5.73 -> 5.83 (5.88), women 118.0 -> 120.8 (120.5) / 5.82 -> 5.70 (5.97), CPL 158.1 -> 157.8 (158) / 6.22 -> 6.19 (6.27), ILT20
+  155.2 -> 154.9 (154.9) / 6.20 -> 6.34 (6.18), MLC 163.8 -> 164.6 (164.9) / 6.56 -> 6.49 (6.38), BPL 153.4 -> 152.0 (152.4) / 6.41 -> 6.40
+  (6.4), LPL 175.0 -> 174.1 (175.7) / 6.52 -> 6.62 (6.64). Mean absolute error against real: runs 1.35 -> 1.49, wickets 0.102 -> 0.096
+  (before the IPL run level: runs 2.01 -> 1.88, wickets 0.089 -> 0.072): within the 1-2 runs two runs of one engine differ by, not worse.
+- Over a season (benchmark-season.ts, 40 IPL seasons): docs/ENGINE-VENUES-AND-INJURIES.md, In-match injuries.
+- Fingerprint (docs/FORMATS.md): the men's and Hundred instant lines move (a few of their matches have a concussion), the women's and the live lines are unchanged.
+
+**Saves.** Nothing old has to change: a live match saved before this has no `squadIds`, so it plays on without concussion substitutes
+(`concussion.test.ts` loads one mid-innings and plays it out); new fields are optional (`inMatchInjuries`, `inMatch`, `notes`,
+`concussed`, a Test side's `bench`). Tests: `packages/engine/src/__tests__/concussion.test.ts`; e2e: `e2e/concussion.spec.ts` (the
+user's "Concussion Substitute" prompt, with the rate raised through `setRuleOverrides`).
+
+**Thin and open.** The fit years are thin (58 events in all), and 2025-26 ran lower in every format (T20 3.8, ODI 8.3, Test 33.8 a
+thousand; the T20 drop is about two standard errors): fit on 2020-26 the rates would be T20 4.9, ODI 18.3, Test 45.1 a thousand.
+The concussion is drawn at the crease for the batter who faced, and in the field once an over; real replacements are often made
+later (at the innings break, 77 of the 84 batting-side records were not at the crease) and a batter often batted on first: the
+engines replace at once.
