@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { it } from "vitest";
-import { ATTACK_MODEL, IMPACT_MODEL, EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LEAGUE_LEVELS, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
+import { ATTACK_MODEL, IMPACT_MODEL, EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, IN_MATCH_INJURY_SWITCH, LEAGUE_LEVELS, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
 import { createGameState, initSeason, playNextMatch, isSeasonComplete } from "../game-state";
 
 /**
@@ -34,6 +34,8 @@ if (process.env.WT_OFF) INNINGS_CLOCK_SWITCH.off = true;
 if (process.env.ATTACK_OFF) ATTACK_MODEL.league = false;
 // IMPACT_OFF=1: the former impact player (docs/TACTICS.md section 9); ATTACK_EXCEPT=ipl: leagues kept on the former attack
 if (process.env.IMPACT_OFF) IMPACT_MODEL.off = true;
+// IMI_OFF=1: no concussion substitutes, in-match injuries cost nothing after the match (in-match-injury.ts; the engine before them)
+if (process.env.IMI_OFF) IN_MATCH_INJURY_SWITCH.off = true;
 if (process.env.ATTACK_EXCEPT) ATTACK_MODEL.except = process.env.ATTACK_EXCEPT.split(",");
 if (process.env.WT_FILE) { const t = JSON.parse(readFileSync(process.env.WT_FILE, "utf-8")).tables; for (const k of Object.keys(INNINGS_CLOCK)) delete INNINGS_CLOCK[k]; Object.assign(INNINGS_CLOCK, t); }
 it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {

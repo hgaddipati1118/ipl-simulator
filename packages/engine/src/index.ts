@@ -187,7 +187,7 @@ export {
 export type { InjuryStatus } from "./injury.js";
 export {
   concussionRates, concussionSubOptions, subMayBowl, inMatchInjuryStatus, applyInMatchInjuries, concussionNote, concussionLine, inMatchFormatOf,
-  concussionFitPer1000, sideDraw,
+  concussionFitPer1000, sideDraw, IN_MATCH_INJURY_SWITCH,
 } from "./in-match-injury.js";
 export type { InMatchInjury, InMatchInjuryKind, InMatchFormat, SubCandidate } from "./in-match-injury.js";
 export { IN_MATCH_INJURY_DATA } from "./in-match-injury-data.js";

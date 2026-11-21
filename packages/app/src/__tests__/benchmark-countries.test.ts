@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
-import { ATTACK_MODEL, BATTER_RESPONSE, CAPTAIN_MODEL, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LAST_PAIR_SWITCH, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
+import { ATTACK_MODEL, BATTER_RESPONSE, CAPTAIN_MODEL, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, IN_MATCH_INJURY_SWITCH, LAST_PAIR_SWITCH, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
 import { XI_SHARPEN } from "../realistic-xi";
 import { availabilitySource, createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender, type SeriesMatchRecord } from "../international";
 import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
@@ -108,6 +108,8 @@ async function setup() {
   if (process.env.BENCH_NO_RESPONSE) for (const g of ["male", "female"] as const) for (const k of Object.keys(BATTER_RESPONSE[g])) BATTER_RESPONSE[g][k] = BATTER_RESPONSE[g][k].map(() => 0);
   // BENCH_LP_OFF=t20,odi,test: no last-pair term (docs/TACTICS.md section 5) in those formats; BENCH_LP_SCALE=t20:0.5,odi:1 scales it
   for (const f of (process.env.BENCH_LP_OFF ?? "").split(",").filter(Boolean)) LAST_PAIR_SWITCH.off[f as "t20" | "odi" | "test"] = true;
+  // IMI_OFF=1: no concussion substitutes (in-match-injury.ts; the engine before them)
+  if (process.env.IMI_OFF) IN_MATCH_INJURY_SWITCH.off = true;
   for (const kv of (process.env.BENCH_LP_SCALE ?? "").split(",").filter(Boolean)) { const [f, v] = kv.split(":"); LAST_PAIR_SWITCH.scale[f as "t20" | "odi" | "test"] = Number(v); }
   if (process.env.BENCH_GAMMA) for (const k of ["t20i-men", "t20i-women", "odi-men", "odi-women", "test-men"]) XI_SHARPEN[k] = Number(process.env.BENCH_GAMMA);
   // BENCH_HOLDOUT=1: selection rates from 2024 matches only, scored against the real fixtures of 2025+ (docs/data/country_validation_2025.json)

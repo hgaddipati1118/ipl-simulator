@@ -649,6 +649,17 @@ export function LiveMatchPage({
     }
 
     const newState = applyDecision(currentState, { type, selectedPlayerId, swapOutPlayerId });
+    // a decision can add a line to the ball just played (a concussion substitute coming on, a retired-hurt batter resuming)
+    const log = newState.innings === 1 ? newState.innings1BallLog : newState.innings2BallLog;
+    const last = log[log.length - 1];
+    if (last) {
+      setRecentBalls(prev => {
+        const i = prev.length - 1;
+        const p = prev[i];
+        if (!p || p.innings !== last.innings || p.over !== last.over || p.ball !== last.ball || p.commentary === last.commentary) return prev;
+        return [...prev.slice(0, i), { ...p, commentary: last.commentary }];
+      });
+    }
     setState(newState);
     autoSave(newState);
   }, [autoSave]);

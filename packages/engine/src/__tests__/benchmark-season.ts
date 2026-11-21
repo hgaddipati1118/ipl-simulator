@@ -14,11 +14,14 @@ import {
   type RuleSet,
   type Player,
   getVenueProfileForTeam,
+  IN_MATCH_INJURY_SWITCH,
 } from "@ipl-sim/engine";
 import { getRealPlayers } from "../../../ratings/src/real-players.js";
 
 const SEASONS = Number(process.argv.find(a => /^\d+$/.test(a)) ?? 20);
 const INJURIES = !process.argv.includes("--no-injuries");
+// IMI_OFF=1: no concussion substitutes, in-match injuries cost nothing after the match (in-match-injury.ts; the engine before them)
+if (process.env.IMI_OFF) IN_MATCH_INJURY_SWITCH.off = true;
 
 /** Real IPL 2024-26 men's averages (Cricsheet ipl_json, 215 completed matches) */
 const REAL = {

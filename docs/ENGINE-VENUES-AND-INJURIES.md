@@ -43,3 +43,25 @@ Check both with npx tsx packages/engine/src/__tests__/benchmark-season.ts [seaso
 - Players carry injuryHistory [this season, last season] for the previous-injury multiplier.
 - Healing now counts the injured player's own team matches (it used to tick on every league match).
   Live-played matches now get the same post-match injury checks as simulated ones.
+
+## In-match injuries (packages/engine/src/in-match-injury.ts)
+
+Built by packages/ratings/src/analysis/concussion-subs.py (Cricsheet + the CricketArchive spells of injury-risk.py) into
+packages/engine/src/in-match-injury-data.ts; rates, benchmark and live UI in RULES-MATCH.md section 13.9.
+
+- Concussion substitutes in all three engines (instant, live, Test), every format and both genders: per legal ball, fitted on
+  Cricsheet's 2023-24 `concussion_substitute` replacements (T20 3.2e-5, ODI 5.4e-5, Test 3.3e-5; 36% of them a batter at the
+  crease). The like-for-like replacement comes from the rest of the squad (never a player already in the match; in the IPL it is
+  separate from the Impact Player and keeps the overseas limit).
+- Before, a retired-hurt batter and a bowler who broke down mid-over were fit for the next match unless the ordinary post-match
+  roll happened to injure them. Now every in-match injury goes through `applyInMatchInjuries` before the post-match checks:
+  - concussion: the measured team matches missed after a concussion substitution (117 with a next match: 0 35%, 1 30%, 2 17%,
+    3 9%, 4-5 4%, 6+ 4%);
+  - retired hurt: misses the next match with the measured "confirmed" share (T20 64%, ODI / List A 58%, Test / first-class 63%;
+    CricketArchive spells of regulars), then the measured layoff (1 match 40%, 2 21%, 3 11%, 4 8%, 5 5%, 6+ 15%; mean 2.4);
+  - a mid-over breakdown: misses the next match with the bowlers' confirmed share (67%), the same layoff.
+- They are in the match result's `injuries` (`inMatch`: concussion / retired_hurt / bowler_breakdown; listed even when the
+  player is fit for the next match, `matchesRemaining` 0), in the live season path (applyLiveResult) and in simulateTestMatch
+  with `injuries`. The match page, the season page and the inbox show them ("concussion (in the match), out 2 matches").
+- The in-match links add about 0.03 injuries of a match or more per T20 side per match on top of the post-match model (whose
+  measured absences already contain the confirmed in-match ones, 5.6% of them): within the noise of benchmark-season.ts.

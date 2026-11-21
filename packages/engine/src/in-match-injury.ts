@@ -23,6 +23,9 @@ import type { MatchInjuryEvent } from "./match.js";
 import type { RNG } from "./rng.js";
 
 export type InMatchFormat = "T20" | "ODI" | "Test";
+
+/** Benchmarks' "before": no concussions, and in-match injuries cost nothing after the match (the engines as they were) */
+export const IN_MATCH_INJURY_SWITCH = { off: false };
 export type InMatchInjuryKind = "concussion" | "retired_hurt" | "bowler_breakdown";
 
 /** One in-match injury, as an engine records it */
@@ -61,6 +64,7 @@ export function inMatchFormatOf(id: string | undefined): InMatchFormat {
 /** Per legal ball: a batter concussed at the crease, a fielder concussed */
 export function concussionRates(fmt: InMatchFormat): { batting: number; fielding: number } {
   const o = ruleOverrides();
+  if (IN_MATCH_INJURY_SWITCH.off) return { batting: 0, fielding: 0 };
   const total = o.concussionPerBall ?? D.concussion.formats[fmt].perBall;
   const share = o.concussionBattingShare ?? D.concussion.battingShare;
   return { batting: total * share, fielding: total * (1 - share) };
@@ -183,7 +187,7 @@ export function applyInMatchInjuries(
   playerOf: (id: string) => Player | undefined,
   opts: { enabled: boolean; format: InMatchFormat; rng: RNG },
 ): MatchInjuryEvent[] {
-  if (!opts.enabled) return [];
+  if (!opts.enabled || IN_MATCH_INJURY_SWITCH.off) return [];
   const best = new Map<string, { e: InMatchInjury; s: InjuryStatus }>();
   for (const e of events) {
     const s = inMatchInjuryStatus(e.kind, opts.format, opts.rng);
