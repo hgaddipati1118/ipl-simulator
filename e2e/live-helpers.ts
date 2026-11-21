@@ -43,6 +43,8 @@ const decisionChoices = (page: Page) => page.locator("div.fixed.inset-0 button:v
 
 /** Answer every decision the live page is asking the user with its first option (Bat First for a toss) */
 export async function answerDecisions(page: Page): Promise<void> {
+  // A ball's result (and the picker it raises, e.g. "Who Bats Next?" after a wicket) lands a moment after Step
+  await page.waitForTimeout(400);
   for (let i = 0; i < 10 && (await decisionChoices(page).count()) > 0; i++) {
     const batFirst = page.getByText("Bat First", { exact: true }).first();
     if (await batFirst.isVisible().catch(() => false)) await batFirst.click();
