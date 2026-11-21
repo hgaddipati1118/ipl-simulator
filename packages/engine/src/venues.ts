@@ -101,7 +101,7 @@ export const LEAGUE_LEVEL_WICKET = 1.0;
  * level refitted when its impact player and bowling attack changed (docs/TACTICS.md section 9); its neutral grounds keep no profile.
  */
 export const LEAGUE_LEVELS: Record<string, { run: number; wicket: number; dot: number }> = {
-  "ipl": { run: LEAGUE_LEVEL_RUN, wicket: 1.05, dot: 1.0 },
+  "ipl": { run: 1.17, wicket: 1.21, dot: 1.0 },
   "bbl": { run: 1.0, wicket: 0.964, dot: 1.179 },
   "wbbl": { run: 1.0, wicket: 0.98, dot: 1.445 },
   "psl": { run: 1.0, wicket: 0.934, dot: 1.13 },
@@ -166,10 +166,12 @@ function computeNorm(ids: string[]) {
 }
 
 /**
- * Measured conditions for a team's home ground, or null when the team has no mapped ground. `opts.levelRun: false` leaves out the league's
- * run level above its grounds' (levelRun): a T20I at a franchise ground plays the T20I's own level (scoring-context.ts), not the league's.
+ * Measured conditions for a team's home ground, or null when the team has no mapped ground. `opts.league: false` (a T20I at a franchise
+ * ground, which plays the T20I's own level, scoring-context.ts) leaves out the league's run level above its grounds' (levelRun) and the
+ * IPL's own levels (LEAGUE_LEVELS.ipl, fitted on IPL matches: docs/TACTICS.md sections 9-10): the ground at the engine's base levels.
+ * The extra leagues' wicket and dot levels stay in a T20I at their grounds, as the T20I level was fitted with them.
  */
-export function getVenueProfileForTeam(teamId: string, opts?: { levelRun?: boolean }): VenueProfile | null {
+export function getVenueProfileForTeam(teamId: string, opts?: { league?: boolean }): VenueProfile | null {
   const rec = VENUE_DATA.teams[teamId];
   const league = leagueOf(teamId);
   if (!rec || !league) return null;
@@ -177,12 +179,12 @@ export function getVenueProfileForTeam(teamId: string, opts?: { levelRun?: boole
   const base = chaseBaseline(league);
   const ground = rec.chaseAdvantage ?? norm.chase;
   const wkt = rec.wicketFactor / 100 / norm.wkt;
-  const level = LEAGUE_LEVELS[league];
+  const level = opts?.league === false && league === "ipl" ? undefined : LEAGUE_LEVELS[league];
   const levelRun = (level?.run ?? LEAGUE_LEVEL_RUN) / labelRunLevel(league);
   return {
     groundName: rec.name,
     runMult: labelRunLevel(league) * rec.runFactor / 100 / norm.run,
-    ...(levelRun !== 1 && opts?.levelRun !== false ? { levelRun } : {}),
+    ...(levelRun !== 1 && opts?.league !== false ? { levelRun } : {}),
     sixMult: rec.sixFactor / 100 / norm.six,
     wicketMult: (level?.wicket ?? LEAGUE_LEVEL_WICKET) * (1 + (wkt - 1) * WICKET_FACTOR_WEIGHT),
     ...(level ? { dotMult: level.dot } : {}),

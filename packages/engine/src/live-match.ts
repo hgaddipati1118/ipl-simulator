@@ -865,7 +865,7 @@ export function createMatchState(
   const odiGender = genderOf(rules);
   const groundProfile = odi
     ? (neutral ? null : getOdiVenueProfile(options.venueName ?? homeTeam.config.stadiumName, odiGender))
-    : neutral ? getNeutralVenueProfile(rules.league) : getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id, { levelRun: rules.scoringContext !== "t20i" });
+    : neutral ? getNeutralVenueProfile(rules.league) : getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id, { league: rules.scoringContext !== "t20i" });
   // pitch / light set by the user (conditions.ts) laid over the ground, as simulateMatch does
   const venueProfile = applyConditionsToProfile(groundProfile, options.conditions, odi ? "odi" : "t20",
     odi ? ODI_CONDITIONS.chaseAdvantage[odiGender] : getLeagueChaseAdvantage(rules.league, rules.gender));
