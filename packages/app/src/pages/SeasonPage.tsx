@@ -13,7 +13,7 @@ import { TeamBadge } from "../components/TeamBadge";
 import { PlayerLink } from "../components/PlayerLink";
 import { PlayerAvatar } from "../components/PlayerAvatar";
 import { getTeamLogo } from "../team-logos";
-import { roleLabel } from "../ui-utils";
+import { injuryLabel, roleLabel } from "../ui-utils";
 import { displayOversToReal } from "@ipl-sim/engine";
 
 interface Props {
@@ -455,7 +455,7 @@ export function SeasonPage({ state, onSimSeason, onStartMatchBased, onPlayNextMa
                 <PlayerLink playerId={inj.playerId} className="text-red-300">{inj.playerName}</PlayerLink>
                 <span className="text-th-muted">({state.teams.find(t => t.id === inj.teamId)?.shortName})</span>
                 <span className="text-red-500/70 text-xs">
-                  {inj.injury.injuryType} - {inj.injury.matchesRemaining}m
+                  {injuryLabel(inj)}
                 </span>
               </div>
             ))}

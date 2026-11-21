@@ -6,7 +6,7 @@ import { getActiveSlotId } from "../storage";
 import { PlayerLink } from "../components/PlayerLink";
 import { WormChart } from "../components/WormChart";
 import { getDrsVerdict, getDrsVerdictLabel } from "../drs-utils";
-import { oversLabel } from "../ui-utils";
+import { injuryLabel, oversLabel } from "../ui-utils";
 import { ensureCommentaryModel } from "../commentary-loader";
 import { hasCommentaryModel, withModelCommentary } from "@ipl-sim/engine";
 import type {
@@ -260,6 +260,27 @@ export function MatchPage({ state }: Props) {
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Card notes: concussion substitutes */}
+      {(activeInnings.notes?.length ?? 0) > 0 && (
+        <div className="bg-th-surface rounded-xl border border-th p-4 mb-6" data-testid="scorecard-notes">
+          <h4 className="text-xs font-semibold text-th-muted uppercase tracking-wider mb-2">Notes</h4>
+          {activeInnings.notes!.map((n, i) => <div key={i} className="text-th-secondary text-sm">{n}</div>)}
+        </div>
+      )}
+
+      {/* Injuries from this match (in the match, and found after it) */}
+      {(match?.result?.injuries?.length ?? 0) > 0 && (
+        <div className="bg-th-surface rounded-xl border border-th p-4 mb-6" data-testid="match-injuries">
+          <h4 className="text-xs font-semibold text-th-muted uppercase tracking-wider mb-2">Injuries</h4>
+          {match!.result!.injuries.map((inj, i) => (
+            <div key={i} className="text-sm">
+              <PlayerLink playerId={inj.playerId} className="text-th-primary">{inj.playerName}</PlayerLink>
+              <span className="text-th-muted"> &middot; {injuryLabel(inj)}</span>
+            </div>
+          ))}
         </div>
       )}
 

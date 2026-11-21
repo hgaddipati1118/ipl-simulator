@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { GameState, getBoardExpectation, getBoardExpectationStatus } from "../game-state";
 import { PlayerLink } from "../components/PlayerLink";
+import { injuryLabel } from "../ui-utils";
 import { MAX_SCOUTING_ASSIGNMENTS } from "../scouting";
 
 interface Props {
@@ -440,7 +441,7 @@ export function InboxPage({ state }: Props) {
                     {recentInjuries.map((injury, index) => (
                       <div key={`${injury.playerId}-${index}`} className="text-sm">
                         <PlayerLink playerId={injury.playerId} className="text-th-primary">{injury.playerName}</PlayerLink>
-                        <span className="text-th-muted"> • {injury.injury.injuryType} • {injury.injury.matchesRemaining} match(es)</span>
+                        <span className="text-th-muted"> • {injuryLabel(injury)}</span>
                       </div>
                     ))}
                   </div>

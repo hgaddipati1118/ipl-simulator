@@ -150,3 +150,13 @@ export function getPlayerInitials(name: string): string {
 export function oversLabel(totalOvers: string): string {
   return /balls/.test(totalOvers) ? totalOvers : `${totalOvers} ov`;
 }
+
+/** An injury from a match, for the injury lists: "concussion (in the match), out 2 matches" / "retired hurt, fit for the next match" */
+export function injuryLabel(inj: { injury: { injuryType: string; matchesRemaining: number }; inMatch?: string }): string {
+  const what = inj.inMatch === "concussion" ? "concussion (in the match)"
+    : inj.inMatch === "retired_hurt" ? `retired hurt (${inj.injury.injuryType})`
+    : inj.inMatch === "bowler_breakdown" ? `broke down bowling (${inj.injury.injuryType})`
+    : inj.injury.injuryType;
+  const n = inj.injury.matchesRemaining;
+  return n > 0 ? `${what}, out ${n} match${n === 1 ? "" : "es"}` : `${what}, fit for the next match`;
+}

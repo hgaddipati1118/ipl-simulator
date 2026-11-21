@@ -90,6 +90,9 @@ export function TestScorecard({ st, colors = {} }: { st: TestMatchState; colors?
               <span className="font-mono">{inn.runs}/{inn.wickets} ({oversText(inn.legalBalls)} ov)</span>
             </div>
             {dnb.length > 0 && <div className="px-4 py-2 border-t border-th/40 text-[11px] text-th-muted">Did not bat: {dnb.join(", ")}</div>}
+            {(sc.notes?.length ?? 0) > 0 && (
+              <div className="px-4 py-2 border-t border-th/40 text-[11px] text-th-muted" data-testid="scorecard-notes">{sc.notes!.join("; ")}</div>
+            )}
             {sc.fallOfWickets.length > 0 && (
               <div className="px-4 py-2 border-t border-th/40 text-[11px] text-th-muted" data-testid="test-fow">
                 <span className="font-display font-semibold text-th-secondary">Fall of wickets:</span> {sc.fallOfWickets.join(", ")}

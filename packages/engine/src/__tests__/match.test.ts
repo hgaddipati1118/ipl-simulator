@@ -481,8 +481,12 @@ describe("Match injuries", () => {
         expect(injury.playerName).toBeTruthy();
         expect(injury.teamId).toBeTruthy();
         expect([home.id, away.id]).toContain(injury.teamId);
-        expect(injury.injury.isInjured).toBe(true);
-        expect(injury.injury.matchesRemaining).toBeGreaterThan(0);
+        // an in-match injury (retired hurt, a breakdown, a concussion) is listed even when he is fit for the next match
+        if (injury.inMatch) expect(injury.injury.isInjured).toBe(injury.injury.matchesRemaining > 0);
+        else {
+          expect(injury.injury.isInjured).toBe(true);
+          expect(injury.injury.matchesRemaining).toBeGreaterThan(0);
+        }
         expect(["minor", "moderate", "severe"]).toContain(injury.injury.severity);
       }
     }

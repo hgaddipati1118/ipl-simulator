@@ -1565,6 +1565,15 @@ export function LiveMatchPage({
                   </div>
                 )}
 
+                {/* Concussion substitutes so far */}
+                {(state.inMatchInjuries ?? []).some(e => e.kind === "concussion") && (
+                  <div className="mt-3 pt-3 border-t border-th text-[11px] text-th-muted" data-testid="live-concussion-notes">
+                    {(state.inMatchInjuries ?? []).filter(e => e.kind === "concussion").map((e, i) => (
+                      <div key={i}>{e.subName ? `${e.playerName} replaced by ${e.subName} (concussion sub)` : `${e.playerName} concussed (no replacement)`}</div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Innings 1 FOW if in second innings */}
                 {state.innings === 2 && state.innings1Scorecard && state.innings1Scorecard.fallOfWickets.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-th">
@@ -1695,6 +1704,50 @@ export function LiveMatchPage({
           </div>
         </DecisionModal>
       )}
+
+      {/* Concussion substitute: the user picks the like-for-like replacement (the referee approves these; best first) */}
+      {isDecisionForUser && state.pendingDecision!.type === "concussion_sub" && (() => {
+        const c = state.pendingDecision!.concussion;
+        return (
+          <DecisionModal
+            title="Concussion Substitute"
+            subtitle={`${c?.playerName ?? "Your player"} ${c?.side === "batting" ? "was struck on the helmet" : "took a blow to the head in the field"} and failed the concussion test. Pick a like-for-like replacement. ${battingTeam.shortName} ${state.score}/${state.wickets} (${oversDisplay} ov)`}
+          >
+            <div className="space-y-1.5 max-h-[60vh] overflow-y-auto" data-testid="concussion-sub-options">
+              {(state.pendingDecision!.optionDetails ?? []).map((opt, i) => (
+                <button
+                  key={opt.playerId}
+                  onClick={() => handleDecision("concussion_sub", opt.playerId)}
+                  className={`w-full text-left px-4 py-3 rounded-xl border transition-all hover:border-orange-500/50 hover:bg-orange-500/5 ${
+                    i === 0 ? "border-orange-500/30 bg-orange-500/5" : "border-th bg-th-body"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-display font-semibold text-th-primary text-sm">{opt.playerName}</span>
+                        <span className="text-[10px] uppercase tracking-wider text-th-faint px-1.5 py-0.5 bg-th-hover rounded">{opt.role}</span>
+                        {opt.bowlingStyle && bowlingStyleLabel(opt.bowlingStyle) && (
+                          <span className="text-[10px] font-semibold text-purple-400 px-1.5 py-0.5 bg-purple-500/10 rounded">{bowlingStyleLabel(opt.bowlingStyle)}</span>
+                        )}
+                        {i === 0 && <span className="text-[10px] uppercase tracking-wider text-orange-400 px-1.5 py-0.5 bg-orange-500/10 rounded">Recommended</span>}
+                      </div>
+                      <div className="flex gap-3 mt-1 text-xs text-th-muted font-mono">
+                        <span>BAT: {opt.battingOvr}</span>
+                        <span>BOWL: {opt.bowlingOvr}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-display font-bold text-th-primary stat-num">{opt.overall}</div>
+                      <div className="text-[10px] text-th-faint">OVR</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </DecisionModal>
+        );
+      })()}
 
       {/* Choose Batter Modal */}
       {isDecisionForUser && state.pendingDecision!.type === "choose_batter" && (() => {
