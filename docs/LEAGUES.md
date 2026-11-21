@@ -180,7 +180,7 @@ for their domestic-only and young players; those are the players the CricketArch
 
 The IPL and WPL keep the scoring the engine was tuned to. For the extra leagues the engine's player ratings and measured
 grounds already land near each competition's real scoring, but with about 10% too many wickets (the same bias the IPL
-has), so each league has three scoring levels in `LEAGUE_LEVELS` (`venues.ts`): `run` (scales the ground's run factor),
+has), so each league has three scoring levels in `LEAGUE_LEVELS` (`venues.ts`): `run` (all scoring, over the grounds' own level),
 `wicket` (wicket rate) and `dot` (dot-ball rate). They are applied to the league's home grounds and to its neutral
 playoff ground. Fitted per league by a linear fit of simulated runs / wickets / balls per innings over a grid of levels
 (6 simulated seasons per point), solved for the real 2024-26 averages of the competition in
@@ -200,6 +200,14 @@ pooled response, then one Newton step per league at 64 seasons; wicket factors u
 64-season verification: BBL 158.9 / 6.47, PSL 169.1 / 6.43, SA20 153.1 / 6.27, CPL 158.1 / 6.23, ILT20 154.8 / 6.21, MLC 165.9 / 6.45,
 BPL 152.4 / 6.43, LPL 174.7 / 6.58 (the IPL, which keeps the former attack and has no levels, 176.4 / 6.00). The table below is the
 earlier fit.
+
+Since the Impact Player (TACTICS.md section 9) the IPL has levels of its own, and since section 10 its run level works: `run` is now a
+multiplier on every scoring class, sixes included, over the level a league's grounds are set at (the profile's `levelRun`), where it had
+scaled the ground's run factor (which the stadium labels read, so a refit was cancelled by the stadium effect, and which reached only the
+non-six classes, under a clamp). The extra leagues' `run` is 1, so they are unchanged. The IPL is refitted on 2024 (182.9 runs an innings,
+wickets kept where section 9 put them): run 1.17, wicket 1.21; 64 seasons 182.7 runs / 6.06 wickets (before 175.8 / 6.08; real 2025-26
+184.1 / 5.96). The IPL's neutral (playoff) grounds now play the league's level, like the extra leagues'; a T20I at an IPL ground plays
+none of the IPL's levels.
 
 | League | Runs/innings sim | real | Wickets/innings sim | real | Balls/innings sim | real |
 |---|---|---|---|---|---|---|

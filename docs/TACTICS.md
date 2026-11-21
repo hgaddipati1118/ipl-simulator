@@ -647,7 +647,7 @@ Per league (now): BBL 5.99 / 81% / 18% / 3.18 (real 6.08 / 90% / 17% / 3.06), PS
 
 Switches: `ATTACK_MODEL` (`league`, `t20i`, `except`); `ATTACK_OFF=1` in `calibrate-leagues.test.ts`, `LXI_ATTACK_OFF=1` in the `LXI_SIM` collector, `BENCH_ATTACK=off|t20i` in `benchmark-countries.test.ts` (and `t20i` in `tactics-allocation.test.ts`). Tests: `packages/app/src/__tests__/bowling-attack.test.ts`. Saves: nothing new is stored.
 
-## 9. The Impact Player: when and for whom IPL sides use him (shipped; the IPL joins the bowling attack of section 8)
+## 9. The Impact Player: when and for whom IPL sides use him (shipped; the IPL joins the bowling attack of section 8; its level refitted in section 10)
 
 Section 8 kept the IPL on the former attack because of its impact player: the engine brought him on mid-innings at best (`evaluateBowlingImpact`: over 13+, or earlier when the run rate was high; in 21% of bowling innings), and gave each side a sub in each innings by hand rules, so its IPL sides bowled with the eleven they had picked. Real sides use him to field a different eleven from the one that bats. This section measures how (Cricsheet, every IPL match since 2023, the Impact Player era), fits the CPU's decision to it, and ships it with the IPL on the attack table.
 
@@ -696,7 +696,7 @@ The bowling eleven's sixth / seventh bowler with X and Y drawn from the model on
 
 The attack alone made the IPL use seven bowlers in 37% of innings and its extras rise (9.35 to 9.57); with the fitted subs the bowling eleven has its sixth front-line bowler and the shape comes to real except the seventh bowler (20% against 15%, before 27%), with extras unchanged (9.35 to 9.36; real 8.9, a gap from before). (The impact subs alone, on the former attack, fix the bowling eleven but not the attack: the former order-based attack still brings on a seventh in 36%.)
 
-*League level* (`CALIBRATE_LEAGUES=1 CAL_SEASONS=64 CAL_ONLY=none`, whole IPL seasons, both innings; real 2024-26): the change took the IPL's wickets an innings from 6.01 to 5.88 (real 6.05; the extra bowling depth), so the IPL got a wicket level of its own (`LEAGUE_LEVELS.ipl`, wicket 1.05, from 32-season runs at 1.03 and 1.06 and two 64-season checks; its neutral grounds keep no profile, as before). The IPL's run level does not move its runs (1.04 and 1.07 read the same within noise: its phase context sets them), so the runs were left.
+*League level* (`CALIBRATE_LEAGUES=1 CAL_SEASONS=64 CAL_ONLY=none`, whole IPL seasons, both innings; real 2024-26): the change took the IPL's wickets an innings from 6.01 to 5.88 (real 6.05; the extra bowling depth), so the IPL got a wicket level of its own (`LEAGUE_LEVELS.ipl`, wicket 1.05, from 32-season runs at 1.03 and 1.06 and two 64-season checks; its neutral grounds keep no profile, as before). The IPL's run level did not move its runs (1.04 and 1.07 read the same within noise), so the runs were left. (It was not the phase context: two bugs in how the level reached the ball, fixed in section 10, where the level is refitted.)
 
 | IPL | runs / innings | wickets / innings | first-innings all out |
 |---|---|---|---|
@@ -730,6 +730,107 @@ The attack alone made the IPL use seven bowlers in 37% of innings and its extras
 Saves: a live match saved before this change has no plans in its state, so its CPU sides use no sub (the user's side as before); nothing else is stored. Tests: `packages/engine/src/__tests__/impact-player.test.ts`.
 
 
+## 10. IPL match prediction and the IPL's run level (the run level shipped; no separation term)
+
+Section 9 left two findings: the engine has no skill on IPL matches with the real twelves (0.7123 fit half 2023-24, 0.7039 holdout 2025+, a coin 0.6931), and the IPL's run level did not move its runs (1.04 and 1.07 read the same), leaving the IPL about 8 runs an innings short. The first is diagnosed here (no term ships: the data does not support one that keeps the game a game, below); the second was two bugs, both fixed, and the IPL's level is refitted on 2024 and judged on 2025+.
+
+### 10.1 Why the engine has no skill on IPL matches
+
+**Calibration** (the IPL actual-XI benchmark of section 9 at 256 replays, `IPL_DUMP`; p = the engine's probability for the side it favours, observed = how often that side won):
+
+| favourite's p | fit 2023-24: matches / mean p / observed | holdout 2025+: matches / mean p / observed |
+|---|---|---|
+| 0.50-0.55 | 70 / 0.522 / 0.400 | 61 / 0.525 / 0.328 |
+| 0.55-0.60 | 52 / 0.570 / 0.481 | 47 / 0.574 / 0.574 |
+| 0.60-0.65 | 17 / 0.626 / 0.706 | 27 / 0.615 / 0.444 |
+| 0.65+ | 5 / 0.687 / 0.200 | 9 / 0.679 / 0.667 |
+| log loss (coin 0.6931) | 0.7094 | 0.7082 |
+| slope of the real result on the engine's logit (1 = calibrated, 0 = no skill) | -0.25 | -0.03 |
+
+The engine is not spreading its IPL predictions wide: they sit at 0.50-0.65 (mean distance from a coin 0.06, sd of the logit 0.30-0.34, a quarter of it the replays' own noise). What fails is the ordering: the real result does not follow it at all (slopes -0.25 and -0.03), so any separation costs log loss. Shrinking the engine's logit by a factor k: 0.7094 / 0.7082 at k = 1, 0.6986 / 0.6972 at 0.5, 0.6952 / 0.6943 at 0.25, the coin at 0. The best k fitted on the fit half is 0.
+
+**The ratings against the results, without the engine** (every match since 2021 of the league benchmark below, the eleven that batted for each side, logistic regression of the result on the difference in the XIs' mean overall (or in their overseas and domestic players' means together), with the home side; per rating point, +- its standard error; the engine's slope is that of its logit on the same difference):
+
+| league (matches 2021+) | XI mean overall | overseas players' mean | domestic players' mean | the engine's own slope per point (fit / holdout) |
+|---|---|---|---|---|
+| IPL (418) | **+0.018 +- 0.037** | -0.042 +- 0.023 | +0.061 +- 0.033 | 0.080 / 0.067 |
+| PSL (191) | +0.158 +- 0.058 | +0.095 +- 0.034 | +0.072 +- 0.046 | 0.104 / 0.071 |
+| BBL (269) | +0.124 +- 0.040 | -0.018 +- 0.022 | +0.116 +- 0.033 | 0.111 / 0.102 |
+
+The difference between two real IPL elevens (sd 2.7 points of mean overall, as in the PSL) does not predict the result: +0.018 +- 0.037 a point, where the PSL and BBL show 0.12-0.16 and the engine plays 0.07-0.11 in all three. The engine treats the IPL as it treats the other leagues; the IPL's results do not follow the ratings. Candidates checked:
+- *Look-ahead* (the game's ratings are today's, applied to 2021-24 matches): with point-in-time ratings (each player's real T20 batting and bowling of the years up to the one before the match, `rating-history.json`) the slope is -0.009 +- 0.021 on the fit half and +0.020 +- 0.035 held out (the game's ratings +0.010 / -0.024): not the cause.
+- *Domestic against overseas players*: in the IPL the overseas players' ratings point the wrong way (-0.042 +- 0.023) and the Indian players' the right way (+0.061 +- 0.033); the BBL shows the same pattern (overseas -0.018, domestic +0.116), the PSL does not (+0.095 / +0.072). Every side fields four overseas players, so this is a difference between overseas players, not their level against Indian ones; at 2 standard errors in one league it is a lead for the ratings, not a term.
+- *Home advantage*: the real IPL home side won 0.496 (fit, 129 matches) and 0.444 (holdout, 117); the engine gives it 0.498. Nothing to fit.
+- *Toss and dew*: the side batting first won 0.521 of 2023-24 matches and 0.431 of 2025+; the engine's replays 0.499 and 0.506. The halves disagree; the engine sits between them.
+- *The IPL's phase context and level terms* move every side alike and cannot reorder two sides.
+
+**No league has a series tuning**: `SERIES_TUNING` ({spread, home}) is applied to T20I, ODI and Test series only (`series-tuning.ts`); league matches play the ratings as they are. Below, k is the factor on the engine's logit fitted on the fit half (the post-hoc equivalent of a spread: at these gaps the engine's logit is linear in the rating gap), so the competitions' own separations can be compared.
+
+**The league actual-XI benchmark** (new, `LEAGUE_BENCH=1` in `league-bench.test.ts`; data `docs/data/league_xi.json` + `docs/data/league_results.json` from `generate-league-results.ts`): every decided match since 2021 of seven men's leagues replayed with the elevens that batted, the IPL's twelfth on the bench, the real home side where the ground is one of a side's home grounds (else neutral), the league's rules; 128 replays, log loss per match:
+
+| league | fit to 2024 / holdout 2025+ (matches) | engine: fit / holdout | k fitted on the fit half | holdout at that k | home side won, real fit / holdout (engine) |
+|---|---|---|---|---|---|
+| IPL | 276 / 142 | 0.7100 / 0.6948 | 0.00 | 0.6931 | 0.496 / 0.444 (0.498) |
+| PSL | 116 / 75 | **0.6645 / 0.6675** | 1.31 | 0.6661 | 0.549 / 0.586 (0.515) |
+| BBL | 205 / 64 | **0.6854 / 0.6778** | 0.65 | 0.6746 | 0.608 / 0.571 (0.509) |
+| SA20 | 59 / 57 | 0.7117 / 0.7223 | 0.00 | 0.6931 | 0.574 / 0.571 (0.499) |
+| CPL | 119 / 61 | 0.7077 / 0.7148 | 0.05 | 0.6927 | 0.513 / 0.618 (0.486) |
+| ILT20 | 44 / 66 | 0.6318 / 0.7057 | 1.84 | 0.7439 | (home grounds shared) |
+| MLC | 36 / 41 | 0.6684 / 0.7082 | 1.08 | 0.7112 | (mostly neutral) |
+
+(Matches are left out where a player is not in the pool, the result was by D/L or a franchise is not the game's: 3-26 a half. The IPL rows here run from 2021 with 128 replays; section 9's benchmark, from 2023 at 1,024, is the gate.)
+
+So the engine has skill in the PSL and the BBL (where, as in the T20I, it separates a little too little or about right) and none in the IPL, SA20 or CPL. The right separation is competition-specific, as the T20I's spread of 3 suggested, and for the IPL the data's answer is no separation: a fitted IPL spread would play every IPL match close to a coin whatever the squads, which a management game whose point is building a better squad cannot ship. **Not shipped; a decision for Harsha** (below).
+
+The home side is the one thing the engine misses in the other leagues: the real home side won 0.55-0.62 in the PSL, BBL, SA20 and CPL on both halves, the engine 0.49-0.52. A home logit shift fitted on the four leagues' fit halves (+0.30, +0.074 win probability for equal sides) gives the holdout -0.011 +- 0.008 per match pooled (PSL -0.004, BBL -0.006, SA20 -0.007, CPL -0.028; with ILT20 and MLC, whose home grounds are shared or neutral, -0.003 +- 0.005). Suggestive, not yet decisive, and not the IPL (whose home side wins half): **not shipped; a candidate** (below).
+
+### 10.2 The IPL's run level
+
+**Why it did nothing: two bugs.**
+1. *The stadium labels cancelled it.* A league's run level was folded into each ground's `runMult`, and `runMult` also derives the team's stadium label (`deriveStadiumBowlingRating`), which a team's config stores at load (and a save keeps). `stadiumRatingFor` compares the stored rating with the one the profile now implies and applies the difference as the legacy stadium effect on dots and wickets. With the IPL's run level at 1.10 the IPL grounds' implied rating fell, the stored one did not, and the stadium effect rose to 1.07 on dots and wickets: the level was mostly cancelled (`LEVELS_FILE` overrides, used for every level fit, hit it always; a code change would have hit every save).
+2. *Only the non-six classes carried it, under a clamp.* `applyVenueProfile` puts the ground's run factor on sixes through the six factor (which the level did not touch) and the rest on 1-4, clamped at 1.25; past a level of about 1.12 the IPL's batting grounds hit the clamp (1.12 to 1.16: +0.9 runs).
+
+**The fix** (`venues.ts`): the level rides on the profile as `levelRun` (the league's run level over the one its grounds' `runMult` is set at, `labelRunLevel`: the IPL's 1.04, the extra leagues' 1), a multiplier on every scoring class including sixes at the ground gain (1.6), applied after the ground. `runMult` and so every stadium label stay where they were: a stored rating still equals the measured default and the stadium effect stays neutral. At the former levels `levelRun` is 1 everywhere, so the fix alone changes nothing ball for ball (the IPL benchmark with it, at the former level and the IPL's neutral grounds as before, reproduced section 9's 0.7123 / 0.7039 to the fourth decimal). Also: the IPL's neutral grounds (playoffs) now take the league's level like the extra leagues' do (they had no profile, and would have played some 25 runs under its home grounds), and a T20I at a franchise ground leaves out the IPL's levels and any `levelRun` (the T20I has its own level; the extra leagues' wicket and dot levels stay in T20Is at their grounds as before, since the T20I level was fitted with them).
+
+**The refit** (`CALIBRATE_LEAGUES=1 CAL_ONLY=none`, whole IPL seasons, both innings, `LEVELS_FILE`). Fitted to 2024 (182.9 runs an innings), keeping the wickets an innings where section 9 shipped them (6.06-6.08; the run level takes wickets down, so the wicket level moves with it):
+
+| IPL run / wicket level | seasons | runs / innings | wickets / innings | first-innings all out |
+|---|---|---|---|---|
+| before the fix: 1.04 / 1.05 | 32 | 175.7 | 6.10 | 9.7% |
+| before the fix: 1.10 / 1.05 | 32 | 180.6 | 5.79 | 7.6% |
+| 1.04 / 1.05 (the fix, the former level) | 32 | 176.4 | 6.02 | 8.5% |
+| 1.10 / 1.05 | 32 | 182.6 | 5.85 | 7.1% |
+| 1.10 / 1.12 | 32 | 179.6 | 6.10 | 10.3% |
+| 1.16 / 1.12 | 32 | 185.8 | 5.82 | 8.3% |
+| 1.15 / 1.18 | 64 | 182.3 | 6.04 | 10.5% |
+| **1.17 / 1.21 (shipped)** | 64 | **182.7** | **6.06** | 10.8% |
+| real 2024 (fit) | | 182.9 | 6.22 | |
+| real 2025-26 (holdout) | | 184.1 | 5.96 | |
+
+(Calibration runs are not seeded alike: two runs of one engine differ by up to about 1 run, so the 175.7 and 176.4 of the former level are the same engine.) The level is fitted on 2024; on 2025-26 the IPL is now 1.4 runs under real (it was 8.3) and 0.10 wickets over (0.12).
+
+*The IPL actual-XI benchmark* (section 9's, 1,024 replays, the same seeds; paired against origin/main; minus is better):
+
+| arm | fit half 2023-24 (144) | paired | holdout 2025+ (144) | paired | runs an innings (fit / holdout) |
+|---|---|---|---|---|---|
+| before (origin/main) | 0.7123 +- 0.0120 | | 0.7039 +- 0.0137 | | 175.1 / 178.2 |
+| the former level, the IPL's neutral grounds on it | 0.7135 | +0.0011 +- 0.0012 | 0.7022 | -0.0018 +- 0.0009 | 175.2 / 178.3 |
+| **shipped**: run 1.17, wicket 1.21 | **0.7128** | **+0.0004 +- 0.0037** | **0.7017** | **-0.0023 +- 0.0038** | 182.9 / 186.3 |
+
+(Real: 178.8 runs an innings in 2023-24, 184.1 in 2025-26.) Level on the fit half, a shade better held out: the IPL still has no skill (section 10.1), and the level does not need it.
+
+*The men's T20I benchmark* (`BENCH_ACTUAL=1 BENCH_MODES=actual BENCH_REPLAYS=256 BENCH_ONLY=t20i-men`, `BENCH_DUMP`, paired per match against origin/main): fit 0.6301 -> 0.6310 (+0.0009 +- 0.0010), holdout 0.5760 -> 0.5752 (-0.0009 +- 0.0016). Only the T20Is at IPL grounds move (39 and 18 matches): they lose the IPL's wicket level, which had reached them since section 9 (1.05), and never get the new one.
+
+**Verdict: the run-level fix and the IPL's refit shipped.** The level now moves the IPL's runs, the IPL comes to its real runs (175.8 to 182.7 against 182.9 in 2024 and 184.1 since) with its wickets kept, and neither match benchmark gets worse on either half. The first-innings all-out share rises (9.7% to 10.8%; real 7.7% since 2021): with more runs the wicket level must rise to keep the wickets, and those wickets fall in the last overs. Ratings, saves and stadium labels are unchanged (a team's stored stadium rating still matches; `levelRun` is computed, never stored). Tests: `packages/engine/src/__tests__/league-run-level.test.ts`.
+
+### 10.3 For Harsha
+
+1. **An IPL separation term** (the league equivalent of the T20I's spread). The data says none: fitted to 2024 it is 0 (every IPL match a coin whatever the squads), which would take most of the point out of building an IPL squad. Not shipped. If a smaller, game-friendly compression is wanted (e.g. half the engine's separation, k = 0.5: 0.7094 to 0.6986 on the fit half, 0.7082 to 0.6972 held out, post hoc), it needs a league strength term in both engines (the series tuning moves player copies, which league play does not have).
+2. **A home advantage for the other men's leagues**: the real home side wins 0.55-0.62 in the PSL, BBL, SA20 and CPL on both halves, the engine 0.49-0.52; a pooled term fitted to 2024 improves 2025+ by -0.011 +- 0.008 a match (4 leagues). Worth building as a ball-level home term (both engines, like the chase edge), then judged on this benchmark at more replays.
+3. **Overseas players' ratings in franchise cricket**: in the IPL and BBL the overseas players' rating differences do not predict results (IPL -0.042 +- 0.023, BBL -0.018 +- 0.022 a point) where the domestic players' do (+0.061, +0.116). A lead for the ratings pipeline (validation only, nothing in the engine).
+4. **The extra leagues' wicket and dot levels still reach T20Is at their grounds** (the T20I level was fitted with them, so they were left): the IPL's no longer do.
+
+
 ## Refitting
 
 - League XIs (section 7): `cd packages/ratings && npx tsx src/pipeline/generate-league-xi.ts` (after a Cricsheet update), `LXI_OUT=xi.json npx vitest run packages/app/src/__tests__/league-xi.test.ts`, then
@@ -738,7 +839,8 @@ Saves: a live match saved before this change has no plans in its state, so its C
 
 - Bowling attack (section 8): `cd packages/ratings && npx tsx src/pipeline/generate-bowling-overs.ts` (after `generate-league-xi.ts` / `generate-actual-xi.ts`), `LXI_TRAIN=league.json npx vitest run packages/app/src/__tests__/league-xi.test.ts -t "training rows"`, `BENCH_TACTICS=1 BENCH_ONLY=t20i-men BENCH_REPLAYS=0 BENCH_EXPORT=t20i.json npx vitest run packages/app/src/__tests__/tactics-allocation.test.ts`, then `python3 -I packages/ratings/src/analysis/bowling-attack.py league.json t20i.json --write` (needs numpy and scipy; about two minutes, the forward calibration included). `LXI_SIM=sim.json` (`LXI_ATTACK_OFF=1` for the former attack) collects the allocation table; after a refit the league levels move (`calibrate-leagues.test.ts`, `LEVELS_FILE`).
 - Impact Player (section 9): `cd packages/ratings && npx tsx src/pipeline/generate-impact-player.ts` (after a Cricsheet update), `IMP_OUT=rows.json npx vitest run packages/app/src/__tests__/impact-player.test.ts -t rows`, then
-  `python3 -I packages/ratings/src/analysis/impact-player.py rows.json --write` (needs numpy and scipy; seconds). `IMP_SIM=1 [IMPACT_OFF=1] [ATTACK_OFF=1]` collects the IPL's allocation and subs on the game's squads; `IPL_BENCH=1 IPL_REPLAYS=1024 IPL_ARMS=old,new` is the IPL actual-XI match benchmark (`IPL_DUMP=prefix` writes the per-match counts). After a refit check the IPL's wicket level (`LEAGUE_LEVELS.ipl`; `calibrate-leagues.test.ts` with `CAL_ONLY=none`, `LEVELS_FILE`).
+  `python3 -I packages/ratings/src/analysis/impact-player.py rows.json --write` (needs numpy and scipy; seconds). `IMP_SIM=1 [IMPACT_OFF=1] [ATTACK_OFF=1]` collects the IPL's allocation and subs on the game's squads; `IPL_BENCH=1 IPL_REPLAYS=1024 IPL_ARMS=old,new` is the IPL actual-XI match benchmark (`IPL_DUMP=prefix` writes the per-match counts). After a refit check the IPL's run and wicket levels (`LEAGUE_LEVELS.ipl`; `calibrate-leagues.test.ts` with `CAL_ONLY=none`, `LEVELS_FILE`, section 10); `IPL_LEVEL='{"run":..,"wicket":..,"dot":1}'` adds a benchmark arm `level` with another IPL level.
+- League match prediction (section 10): `cd packages/ratings && npx tsx src/pipeline/generate-league-results.ts` (after `generate-league-xi.ts`), then `LEAGUE_BENCH=1 [LB_LEAGUES=ipl,psl,bbl,sa20,cpl,ilt20,mlc] [LB_REPLAYS=128] [LB_DUMP=prefix] [LEVELS_FILE=...] npx vitest run packages/app/src/__tests__/league-bench.test.ts`, the men's league actual-XI benchmark (the dump has each match's sides with their players' ratings, for calibration and the ratings-against-results regressions).
 - Bowling choice: `BENCH_TACTICS=1 BENCH_EXPORT=train.json npx vitest run packages/app/src/__tests__/tactics-allocation.test.ts`, then `python3 packages/ratings/src/analysis/bowling-choice.py train.json` (needs numpy and scipy).
   `BENCH_TACTICS=1 [BENCH_REPLAYS=2] [BENCH_ONLY=...]` prints the allocation tables above (real against the sim).
 - Bowler type: `python3 -I packages/ratings/src/analysis/t20-bowler-type.py --types 2 --write` (about 15 minutes; `--holdout` for the out-of-sample score, `--types 5|7` for finer types).

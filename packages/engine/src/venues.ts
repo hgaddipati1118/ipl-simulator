@@ -93,12 +93,14 @@ export const LEAGUE_LEVEL_RUN = 1.04;
 export const LEAGUE_LEVEL_WICKET = 1.0;
 
 /**
- * Scoring level of each extra league, relative to the IPL calibration above. `run` scales the ground run factor, `wicket`
- * the wicket rate and `dot` the dot-ball rate (more dots = lower scoring, slightly fewer wickets). They were fitted so a
- * simulated season averages what the competition's 2024-26 innings averaged in the real data (runs, wickets and balls
- * per innings; a linear fit over a grid of simulated seasons, then verified over 16 seasons: docs/LEAGUES.md,
- * "Calibration"). Leagues not listed use the IPL levels (LEAGUE_LEVEL_RUN, LEAGUE_LEVEL_WICKET). The IPL's own entry is the wicket
- * level refitted when its impact player and bowling attack changed (docs/TACTICS.md section 9); its neutral grounds keep no profile.
+ * Scoring level of each league with one, relative to the engine calibration above. `run` multiplies every scoring class (sixes too) over
+ * the level the league's grounds are set at (labelRunLevel: the IPL's LEAGUE_LEVEL_RUN, the extra leagues' 1; the profile's levelRun),
+ * `wicket` the wicket rate and `dot` the dot-ball rate (more dots = lower scoring, slightly fewer wickets). The extra leagues' were fitted
+ * so a simulated season averages what the competition's 2024-26 innings averaged in the real data (runs, wickets and balls per innings; a
+ * linear fit over a grid of simulated seasons, then verified over 16 seasons: docs/LEAGUES.md, "Calibration"). Leagues not listed use
+ * LEAGUE_LEVEL_RUN and LEAGUE_LEVEL_WICKET. The IPL's own entry: the wicket level of its impact player and bowling attack (docs/TACTICS.md
+ * section 9), then run and wicket refitted on 2024 once the run level worked (section 10: 182.9 runs an innings, wickets kept at 6.06);
+ * its neutral grounds play it too. A T20I at an IPL ground plays none of it (getVenueProfileForTeam, `league: false`).
  */
 export const LEAGUE_LEVELS: Record<string, { run: number; wicket: number; dot: number }> = {
   "ipl": { run: 1.17, wicket: 1.21, dot: 1.0 },
