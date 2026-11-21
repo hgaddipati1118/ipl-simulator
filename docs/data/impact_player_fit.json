@@ -1,0 +1,117 @@
+{
+ "x": {
+  "lam": 0.001,
+  "n_fit": 220,
+  "n_holdout": 241,
+  "weights": {
+   "bat": 4.9206,
+   "bowl": -5.8212,
+   "fld": -5.8246,
+   "os": -0.4837,
+   "pos23": 0.2938,
+   "pos45": -0.0155,
+   "pos6": 0.0071,
+   "chase:bat": -2.2767,
+   "chase:bowl": -0.9245
+  },
+  "fit_ll": -1.3988,
+  "holdout_ll": -1.5443,
+  "holdout_top1": 0.336,
+  "uniform_holdout_ll": -2.2458,
+  "former_top1_holdout": 0.282,
+  "mean_choices_holdout": 9.48
+ },
+ "y": {
+  "lam": 0.001,
+  "n_fit": 239,
+  "n_holdout": 242,
+  "weights": {
+   "gain": -0.5965,
+   "bat": -4.1657,
+   "os": 0.0783,
+   "chase:gain": 1.3454,
+   "chase:bat": -4.9154
+  },
+  "fit_ll": -0.5367,
+  "holdout_ll": -0.4358,
+  "holdout_top1": 0.806,
+  "uniform_holdout_ll": -0.7455,
+  "former_top1_holdout": 0.678,
+  "gain_top1_holdout": 0.628,
+  "gain_top1_fit": 0.565,
+  "mean_choices_holdout": 2.45
+ },
+ "mid": {
+  "lam": 0.1,
+  "n_fit": 34,
+  "n_holdout": 38,
+  "weights": {
+   "bat": 1.9174,
+   "bat2": 2.3664,
+   "bowl": 0.9288,
+   "os": 1.2931
+  },
+  "fit_ll": -0.6591,
+  "holdout_ll": -0.9311,
+  "holdout_top1": 0.605,
+  "uniform_holdout_ll": -1.0032,
+  "mean_choices_holdout": 3.05
+ },
+ "hazard": {
+  "lam": 0.1,
+  "n_fit": 809,
+  "n_holdout": 829,
+  "weights": {
+   "const": -3.9859,
+   "w5": 0.8102,
+   "w6": 3.8041,
+   "w7": -0.4357,
+   "o12": -0.419,
+   "o15": -1.8209,
+   "o17": -0.1407
+  },
+  "fit_ll": -0.1333,
+  "holdout_ll": -0.1562,
+  "const_holdout_ll": -0.1862,
+  "events_fit": 35,
+  "events_holdout": 38
+ },
+ "kinds": {
+  "fit": {
+   "bf:batfirst-break": 108,
+   "ch:chase": 132,
+   "bf:batfirst-mid": 35,
+   "ch:none": 13,
+   "bf:none": 2
+  },
+  "holdout": {
+   "bf:batfirst-break": 108,
+   "ch:chase": 134,
+   "bf:batfirst-mid": 38,
+   "ch:none": 14,
+   "bf:none": 2
+  }
+ },
+ "shape_holdout": {
+  "real": [
+   59.94,
+   48.56
+  ],
+  "model": [
+   60.23,
+   48.36
+  ],
+  "n": 280
+ },
+ "shape_fit": {
+  "real": [
+   63.04,
+   49.39
+  ],
+  "model": [
+   63.15,
+   49.41
+  ],
+  "n": 275
+ }
+}

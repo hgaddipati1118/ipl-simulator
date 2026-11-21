@@ -36,6 +36,8 @@ export type {
 
 export { Team, IPL_TEAMS, WPL_TEAMS, LEGACY_STADIUM_BOWLING_RATINGS, xiSelectionValue, keeperSelectionValue } from "./team.js";
 export { LEAGUE_XI_VALUE, LEAGUE_XI_SWITCH, leagueXiApplies, selectLeagueXI, matchXiOptions, type XiOptions } from "./xi-selection.js";
+export { IMPACT_MODEL, impactApplies, impactSeed, planImpact, midImpactNow, swapIn, type ImpactPlan, type ImpactCandidate } from "./impact-player.js";
+export { IMPACT_FIT } from "./impact-player-data.js";
 export {
   getVenueProfileForTeam, getLeagueChaseAdvantage, deriveStadiumBowlingRating,
   derivePitchType, deriveBoundarySize, deriveDewFactor, getOdiVenueProfile,

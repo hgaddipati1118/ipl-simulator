@@ -13,6 +13,7 @@
  */
 
 import { matchXiOptions } from "./xi-selection.js";
+import { impactApplies, impactSeed, midImpactNow, planImpact, swapIn } from "./impact-player.js";
 import { Player } from "./player.js";
 import { Team } from "./team.js";
 import { clamp, weightedRandom } from "./math.js";
@@ -202,6 +203,8 @@ export interface InningsScore {
   batterStats: Map<string, { runs: number; balls: number; fours: number; sixes: number; isOut: boolean; retiredHurt?: boolean }>;
   bowlerStats: Map<string, { overs: number; balls: number; runs: number; wickets: number; wides: number; noballs: number }>;
   impactSub?: ImpactSubEvent;
+  /** Every impact sub of the innings (both sides' with the fitted plan: docs/TACTICS.md section 9); `impactSub` is the first */
+  impactSubs?: ImpactSubEvent[];
   /** Extras by type (the total is `extras`) */
   extrasBreakdown?: { wides: number; noBalls: number; byes: number; legByes: number; penalty: number };
   /** Timed out / retired out / retired hurt */
@@ -1083,6 +1086,8 @@ interface InningsExtra {
   timeouts?: boolean;
   /** DRS reviews per side (default DRS_REVIEWS_PER_INNINGS; 0 = no DRS) */
   reviews?: number;
+  /** The batting side's mid-innings impact sub (impact-player.ts): asked at each wicket whether a bench batter comes in now, for whom */
+  impactBat?: (wickets: number, over: number, dismissed: Player[], onField: Player[]) => { subIn: Player; subOut: Player } | null;
 }
 
 function simulateInnings(
@@ -1189,6 +1194,17 @@ function simulateInnings(
   };
   /** A batter arrives (he may be timed out); -1 when the innings is over */
   const arrive = (over: number, ball: number): number => {
+    // the impact player batting first: a bench batter may come in now, for a batter who is out (he bats next)
+    if (extra.impactBat && !innings.impactSub && innings.wickets > 0 && innings.wickets < maxWickets) {
+      const dismissed = battingOrder.slice(0, nextIdx).filter(p => innings.batterStats.get(p.id)?.isOut);
+      const sub = extra.impactBat(innings.wickets, over, dismissed, [...battingOrder]);
+      if (sub) {
+        battingOrder.splice(nextIdx, 0, sub.subIn);
+        innings.batterStats.set(sub.subIn.id, { runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false });
+        innings.impactSub = { subIn: sub.subIn.id, subOut: sub.subOut.id, overUsed: over, side: "batting" };
+        innings.impactSubs = [innings.impactSub];
+      }
+    }
     for (;;) {
       if (innings.wickets >= maxWickets) return -1;
       const idx = pickNext();
@@ -1552,8 +1568,8 @@ function updatePlayerStats(
     const batStat = innings.batterStats.get(player.id);
     const bowlStat = bowlingInnings.bowlerStats.get(player.id);
 
+    if (batStat || (bowlStat && (bowlStat.overs > 0 || bowlStat.balls > 0))) player.stats.matches++; // an impact player who only bowled played too
     if (batStat) {
-      player.stats.matches++;
       if (batStat.balls > 0) {
         player.stats.innings++;
         player.stats.runs += batStat.runs;
@@ -2066,9 +2082,11 @@ export function simulateMatch(
   const homeXI = own ? realHomeXI.map(p => p.forFormat("odi")) : realHomeXI;
   const awayXI = own ? realAwayXI.map(p => p.forFormat("odi")) : realAwayXI;
 
-  // Impact player subs (empty arrays if rule is off; never in an ODI)
-  const homeSubs = rules.impactPlayer && !own ? homeTeam.getImpactSubs(homeXI) : [];
-  const awaySubs = rules.impactPlayer && !own ? awayTeam.getImpactSubs(awayXI) : [];
+  // Impact player: the fitted plan (impact-player.ts, docs/TACTICS.md section 9) once the toss is known; the former mid-innings
+  // subs (each innings, by a hand rule) only with IMPACT_MODEL.off. Never in an ODI.
+  const impactOn = impactApplies(rules) && !own;
+  const homeSubs = rules.impactPlayer && !own && !impactOn ? homeTeam.getImpactSubs(homeXI) : [];
+  const awaySubs = rules.impactPlayer && !own && !impactOn ? awayTeam.getImpactSubs(awayXI) : [];
 
   // Toss
   const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
@@ -2094,6 +2112,14 @@ export function simulateMatch(
   const firstBowlXI = battingFirst === homeTeam ? awayXI : homeXI;
   const firstBatSubs = battingFirst === homeTeam ? homeSubs : awaySubs;
   const firstBowlSubs = battingFirst === homeTeam ? awaySubs : homeSubs;
+  // The plans: the side batting first fields its batting eleven less X plus Y from the break (or brings a batter in at a wicket);
+  // the side fielding first fields with Y from the start, and X replaces him when it bats
+  const planOf = (t: Team, xi: Player[], batFirst: boolean) =>
+    impactOn ? planImpact(t.getBattingOrder(xi), t.roster, batFirst, rules.maxOverseasInXI, impactSeed(matchSeed, t === homeTeam ? 0 : 1)) : null;
+  const bfPlan = planOf(battingFirst, firstXI, true);
+  const chPlan = planOf(bowlingFirst, firstBowlXI, false);
+  const chaseSub = chPlan?.use && chPlan.x && chPlan.yBowl ? { x: chPlan.x, y: chPlan.yBowl } : null;
+  const chaseField = chaseSub ? swapIn(firstBowlXI, chaseSub.x, chaseSub.y) : firstBowlXI;
 
   // Rain (fitted per league): a full match, a shortened one with a DLS target, or no result
   const plan = options?.rain ? planRain(rules, rng, fmt) : null;
@@ -2107,12 +2133,13 @@ export function simulateMatch(
   // First innings
   let inn1Overs = fullOvers;
   let inn1Extra: InningsExtra = { timeouts: ipl };
+  if (bfPlan?.use) inn1Extra.impactBat = (w, o, dismissed, onField) => midImpactNow(bfPlan, w, o, dismissed, onField, rules.maxOverseasInXI);
   if (plan && plan.when === "preMatch") inn1Overs = plan.overs;
   if (plan && plan.kind === "no_result" && plan.when === "firstInnings") inn1Overs = plan.stopAt;
   if (plan && plan.when === "firstInnings") inn1Extra = { ...inn1Extra, revise: { atOver: plan.stopAt, newOvers: plan.overs } };
   const innings1 = simulateInnings(
     battingFirst, bowlingFirst,
-    firstXI, firstBowlXI,
+    firstXI, chaseField,
     false, 0, venue, inn1Overs,
     firstBatSubs, firstBowlSubs,
     rng, fmt, inn1Extra,
@@ -2161,7 +2188,19 @@ export function simulateMatch(
     if (plan.when === "secondInnings") { inn2Overs = Math.min(plan.stopAt, fullOvers); }
   }
   const secondXI = bowlingFirst === homeTeam ? homeXI : awayXI;
-  const secondBowlXI = bowlingFirst === homeTeam ? awayXI : homeXI;
+  // the side batting first fields from the break with its sub (the batter he came in for, at a wicket or at the break, sits out)
+  let secondBowlXI = bowlingFirst === homeTeam ? awayXI : homeXI;
+  let breakSub: { subIn: string; subOut: string; overUsed: number; side: "bowling" } | undefined;
+  if (bfPlan?.use) {
+    const mid = innings1.impactSub;
+    if (mid) {
+      const out = secondBowlXI.find(p => p.id === mid.subOut), inn = battingFirst.roster.find(p => p.id === mid.subIn);
+      if (out && inn) secondBowlXI = swapIn(secondBowlXI, out, inn);
+    } else if (bfPlan.x && bfPlan.yBowl) {
+      secondBowlXI = swapIn(secondBowlXI, bfPlan.x, bfPlan.yBowl);
+      breakSub = { subIn: bfPlan.yBowl.id, subOut: bfPlan.x.id, overUsed: 0, side: "bowling" };
+    }
+  }
   const secondBatSubs = bowlingFirst === homeTeam ? homeSubs : awaySubs;
   const secondBowlSubs = bowlingFirst === homeTeam ? awaySubs : homeSubs;
 
@@ -2176,6 +2215,17 @@ export function simulateMatch(
       rng, fmt, inn2Extra,
     );
   if (innings2.dlsTarget !== undefined) target = innings2.dlsTarget;
+  // the impact subs of the second innings: the side in the field's at the break, the chasing side's when X first comes to the crease
+  if (!(noResult && plan!.when !== "secondInnings") && (breakSub || chaseSub)) {
+    const subs = [...(innings2.impactSubs ?? [])];
+    if (breakSub) subs.push(breakSub);
+    if (chaseSub) {
+      const at = innings2.ballLog.find(b => b.batter === chaseSub.x.id || b.nonStriker === chaseSub.x.id);
+      subs.push({ subIn: chaseSub.x.id, subOut: chaseSub.y.id, overUsed: at?.over ?? 0, side: "batting" });
+    }
+    innings2.impactSubs = subs;
+    innings2.impactSub ??= subs[0];
+  }
   if (noResult) {
     const bowled = plan!.when === "secondInnings" ? innings2.overs : innings1.overs;
     rainInfo = { kind: "no_result", when: plan!.when, overs: bowled, narrative: `Rain: the match was abandoned${plan!.when === "secondInnings" ? ` with the chase ${innings2.runs}/${innings2.wickets} after ${innings2.overs} overs` : ` after ${innings1.overs} overs of the first innings`}. No result.` };
@@ -2213,7 +2263,8 @@ export function simulateMatch(
     const rounds: [InningsScore, InningsScore][] = [];
     let first = bowlingFirst;
     let prev: { bowlerOf: Map<string, string>; outOf: Map<string, Set<string>> } = { bowlerOf: new Map(), outOf: new Map() };
-    const xiOf = (t: Team) => (t === homeTeam ? homeXI : awayXI);
+    // the elevens on the field at the end (the side batting first with its impact sub)
+    const xiOf = (t: Team) => (t === battingFirst ? secondBowlXI : secondXI);
     for (let round = 0; round < 25; round++) {
       const second = first === homeTeam ? awayTeam : homeTeam;
       const nominate = (bat: Team, bowl: Team) => {
@@ -2341,7 +2392,7 @@ export function simulateMatch(
     matchId, homeTeam, awayTeam,
     battingFirst, bowlingFirst,
     innings1, innings2,
-    firstXI, firstBowlXI,
+    firstXI, chaseField,
     secondXI, secondBowlXI,
     winnerId, margin,
     tossWinner, tossDecision,
