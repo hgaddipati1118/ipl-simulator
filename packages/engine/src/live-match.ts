@@ -6,6 +6,7 @@
  */
 
 import { matchXiOptions } from "./xi-selection.js";
+import { impactApplies, impactSeed, midImpactNow, planImpact, type ImpactCandidate, type ImpactPlan } from "./impact-player.js";
 import { Player } from "./player.js";
 import { Team, type BowlingPlan } from "./team.js";
 import { applyConditionsToProfile, type ConditionsSetting } from "./conditions.js";
@@ -385,6 +386,11 @@ interface MatchStateInternal {
   // Impact player tracking
   battingImpactUsed: boolean;
   bowlingImpactUsed: boolean;
+  /** CPU sides' impact-player plans (impact-player.ts, docs/TACTICS.md section 9), batting first and fielding first; absent in states
+   *  saved before them (no CPU sub then) */
+  impactPlans?: Record<string, { bf: LiveImpactPlan; ch: LiveImpactPlan }>;
+  /** A CPU side fielding first with its bowling sub: its batter `x` replaces `y` when it bats */
+  impactPending?: Record<string, { x: string; y: string }>;
 
   // Which team bats first
   battingFirstId: string;
@@ -842,8 +848,9 @@ export function createMatchState(
   if (odi && rules.impactPlayer) rules = { ...rules, impactPlayer: false }; // no Impact Player in an ODI
 
   // a CPU side in a men's T20 league draws its XI for the match, as in simulateMatch (xi-selection.ts)
-  const homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI, matchXiOptions(rules, matchSeed, 0));
-  const awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI, matchXiOptions(rules, matchSeed, 1));
+  let homeXI = homeTeam.getPlayingXI(rules.maxOverseasInXI, matchXiOptions(rules, matchSeed, 0));
+  let awayXI = awayTeam.getPlayingXI(rules.maxOverseasInXI, matchXiOptions(rules, matchSeed, 1));
+  const homeBatXI = homeXI, awayBatXI = awayXI; // the elevens that bat (a CPU side fielding first fields with its impact sub)
 
   // Pitch conditions from home team (a neutral venue: none, as in simulateMatch)
   const neutral = !!options.neutralVenue;
@@ -875,6 +882,28 @@ export function createMatchState(
 
   const battingFirst = tossDecision === "bat" ? tossWinner : (tossWinner === homeTeam ? awayTeam : homeTeam);
   const bowlingFirst = battingFirst === homeTeam ? awayTeam : homeTeam;
+
+  // CPU impact-player plans, drawn as simulateMatch draws them (docs/TACTICS.md section 9): the side fielding first fields with its
+  // bowling sub from the start (its batter X comes in when it bats); the side batting first makes its swap at a wicket or the break
+  const impactPlans: Record<string, { bf: LiveImpactPlan; ch: LiveImpactPlan }> = {};
+  if (impactApplies(rules) && !odi) {
+    for (const [t, xi, side] of [[homeTeam, homeXI, 0], [awayTeam, awayXI, 1]] as const) {
+      if (t.id === userTeamId) continue;
+      const order = t.getBattingOrder(xi), seed = impactSeed(matchSeed, side);
+      impactPlans[t.id] = {
+        bf: livePlan(planImpact(order, t.roster, true, rules.maxOverseasInXI, seed)),
+        ch: livePlan(planImpact(order, t.roster, false, rules.maxOverseasInXI, seed)),
+      };
+    }
+  }
+  const impactPending: Record<string, { x: string; y: string }> = {};
+  const chasePlan = isUserTossWinner ? undefined : impactPlans[bowlingFirst.id]?.ch;
+  if (chasePlan?.use && chasePlan.x && chasePlan.yBowl) {
+    const y = bowlingFirst.roster.find(p => p.id === chasePlan.yBowl);
+    const swap = (xi: Player[]) => (y ? xi.map(p => (p.id === chasePlan.x ? y : p)) : xi);
+    if (bowlingFirst === homeTeam) homeXI = swap(homeXI); else awayXI = swap(awayXI);
+    if (y) impactPending[bowlingFirst.id] = { x: chasePlan.x, y: y.id };
+  }
 
   const stadiumRating = (odi || neutral ? 1 : stadiumRatingFor(homeTeam, groundProfile)) * (2 - rules.scoringMultiplier);
 
@@ -938,8 +967,16 @@ export function createMatchState(
   }
 
   // Bench (impact sub) players
-  const homeBenchIds = rules.impactPlayer ? homeTeam.getImpactSubs(homeXI).map(p => p.id) : [];
-  const awayBenchIds = rules.impactPlayer ? awayTeam.getImpactSubs(awayXI).map(p => p.id) : [];
+  // a CPU side's five named subs hold the players its plan may bring on (and, fielding first with its sub, the batter X)
+  const benchOf = (t: Team, xi: Player[]): string[] => {
+    const base = t.getImpactSubs(xi).map(p => p.id);
+    const pl = impactPlans[t.id];
+    if (!pl) return base;
+    const named = [impactPending[t.id]?.x, pl.bf.yBowl, pl.bf.yMid, pl.ch.yBowl, ...base].filter((id): id is string => !!id && !xi.some(p => p.id === id));
+    return [...new Set(named)].slice(0, 5);
+  };
+  const homeBenchIds = rules.impactPlayer ? benchOf(homeTeam, homeXI) : [];
+  const awayBenchIds = rules.impactPlayer ? benchOf(awayTeam, awayXI) : [];
 
   // Make sure bench players are in the player data map
   for (const p of [...homeTeam.getImpactSubs(homeXI), ...awayTeam.getImpactSubs(awayXI)]) {
@@ -965,7 +1002,7 @@ export function createMatchState(
   // Each side's batting and bowling order as its team sets it (a user's order; the engine's auto order otherwise), for
   // whichever innings the side bats or bowls (the toss and the innings break use them)
   const teamBattingOrderIds = {
-    [homeTeam.id]: homeTeam.getBattingOrder(asPlayed(homeXI)).map(p => p.id), [awayTeam.id]: awayTeam.getBattingOrder(asPlayed(awayXI)).map(p => p.id),
+    [homeTeam.id]: homeTeam.getBattingOrder(asPlayed(homeBatXI)).map(p => p.id), [awayTeam.id]: awayTeam.getBattingOrder(asPlayed(awayBatXI)).map(p => p.id),
   };
   const teamBowlingOrderIds = {
     [homeTeam.id]: homeTeam.getBowlingOrder(asPlayed(homeXI)).map(p => p.id), [awayTeam.id]: awayTeam.getBowlingOrder(asPlayed(awayXI)).map(p => p.id),
@@ -1070,6 +1107,8 @@ export function createMatchState(
       userTeamId,
       homeBenchIds,
       awayBenchIds,
+      ...(Object.keys(impactPlans).length > 0 ? { impactPlans } : {}),
+      ...(Object.keys(impactPending).length > 0 ? { impactPending } : {}),
       pitchType,
       boundarySize,
       dewFactor,
@@ -2196,6 +2235,8 @@ function afterWicket(
     state.status = "waiting_for_decision";
     return;
   }
+  // A CPU side batting first may bring its impact sub in to bat now (docs/TACTICS.md section 9; as simulateInnings does)
+  if (!userBats && state.innings === 1) cpuMidImpact(state, ni, pm, rawInnings);
   // A batter can be timed out on arrival (three minutes without being ready); the next one then comes in
   for (;;) {
     if (state.wickets >= 10) { ni.allOut = true; return; }
@@ -2674,6 +2715,8 @@ export function applyDecision(
       newState.bowlingTeamId = bowlingFirstId;
       ni.battingFirstId = battingFirstId;
       ni.bowlingFirstId = bowlingFirstId;
+      // a CPU side now fielding first takes the field with its impact sub (docs/TACTICS.md section 9)
+      settleChaseImpact(newState, ni);
 
       // Recompute batting/bowling orders
       const battingXIIds = battingFirstId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
@@ -3221,7 +3264,7 @@ export function applyImpactSub(
   }
 
   const newState = cloneState(state);
-  return applyDecision(
+  const applied = applyDecision(
     { ...newState, status: "waiting_for_decision", pendingDecision: {
       type: 'impact_sub',
       options: [subInId],
@@ -3230,6 +3273,9 @@ export function applyImpactSub(
     }},
     { type: 'impact_sub', selectedPlayerId: subInId, swapOutPlayerId: subOutId },
   );
+  // a sub made at the innings break leaves the match at the break (the second innings starts when the user starts it)
+  if (state.status === "innings_break") applied.status = "innings_break";
+  return applied;
 }
 
 /** Set batting aggression for a team (0=defensive, 50=normal, 100=all-out attack) */
@@ -3299,6 +3345,9 @@ export function startSecondInnings(state: MatchState): MatchState {
   // A first innings cut by rain leaves the chase the same (shorter) innings: maxOvers stays. The rain note clears.
   newState.rainChecked = false;
   newState.rainDelay = undefined;
+
+  // CPU impact subs at the break (docs/TACTICS.md section 9), before the orders are made
+  applyBreakImpact(newState, ni);
 
   // Innings 2 orders: each side's own (impact subs applied during the break are in them)
   const battingXIIds = newBattingTeamId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
@@ -3731,6 +3780,91 @@ export function deserializeMatchState(data: any): MatchState {
  * dropped, newcomers after them in the computed order), or, in a state saved before teams' orders were kept, the order
  * computed from the XI.
  */
+/** A CPU side's impact-player plan as the live state keeps it (ids) */
+interface LiveImpactPlan { use: boolean; x: string | null; yBowl: string | null; yMid: string | null; xUtil: Record<string, number>; seed: number }
+
+function livePlan(p: ImpactPlan<Player>): LiveImpactPlan {
+  return { use: p.use, x: p.x?.id ?? null, yBowl: p.yBowl?.id ?? null, yMid: p.yMid?.id ?? null, xUtil: p.xUtil, seed: p.seed };
+}
+
+function impactCandidate(pm: Record<string, SerializedPlayer>, id: string): ImpactCandidate {
+  const p = pm[id];
+  return { id, battingOvr: p.battingOvr, bowlingOvr: p.bowlingOvr, overall: p.overall, isInternational: p.isInternational, isWicketKeeper: p.isWicketKeeper, ratings: {} };
+}
+
+/** A CPU side's impact sub: `inId` (from the bench) replaces `outId` in its eleven, for good */
+function liveImpactSwap(state: MatchState, ni: MatchStateInternal, teamId: string, outId: string, inId: string): boolean {
+  const home = teamId === state.homeTeam.id;
+  const xi = home ? ni.homeXIIds : ni.awayXIIds;
+  const k = xi.indexOf(outId);
+  if (k < 0 || xi.includes(inId) || !ni.playerDataMap[inId]) return false;
+  xi[k] = inId;
+  if (home) ni.homeBenchIds = ni.homeBenchIds.filter(id => id !== inId);
+  else ni.awayBenchIds = ni.awayBenchIds.filter(id => id !== inId);
+  if (ni.teamBowlingOrderIds) ni.teamBowlingOrderIds[teamId] = computeBowlingOrder(xi, ni.playerDataMap);
+  return true;
+}
+
+/** The CPU side fielding first (once the toss is decided) takes the field with its bowling sub; its batter X waits on the bench */
+function settleChaseImpact(state: MatchState, ni: MatchStateInternal): void {
+  const id = ni.bowlingFirstId;
+  const pl = ni.impactPlans?.[id]?.ch;
+  if (!pl?.use || !pl.x || !pl.yBowl || ni.impactPending?.[id]) return;
+  const home = id === state.homeTeam.id;
+  const xi = home ? ni.homeXIIds : ni.awayXIIds;
+  const k = xi.indexOf(pl.x);
+  if (k < 0 || xi.includes(pl.yBowl)) return;
+  xi[k] = pl.yBowl;
+  const bench = (home ? ni.homeBenchIds : ni.awayBenchIds).filter(b => b !== pl.yBowl && b !== pl.x);
+  if (home) ni.homeBenchIds = [pl.x, ...bench].slice(0, 5); else ni.awayBenchIds = [pl.x, ...bench].slice(0, 5);
+  if (ni.teamBowlingOrderIds) ni.teamBowlingOrderIds[id] = computeBowlingOrder(xi, ni.playerDataMap);
+  (ni.impactPending ??= {})[id] = { x: pl.x, y: pl.yBowl };
+}
+
+/** At the break: the CPU side batting first brings its bowler on for its batter X (unless it used its sub at a wicket); the CPU side
+ *  fielding first brings its batter X in for the bowler who fielded */
+function applyBreakImpact(state: MatchState, ni: MatchStateInternal): void {
+  const bf = ni.battingFirstId;
+  const pl = ni.impactPlans?.[bf]?.bf;
+  const bfHome = bf === state.homeTeam.id;
+  if (pl?.use && pl.x && pl.yBowl && !(bfHome ? state.impactSubUsed.home : state.impactSubUsed.away)) {
+    if (liveImpactSwap(state, ni, bf, pl.x, pl.yBowl)) {
+      if (bfHome) state.impactSubUsed.home = true; else state.impactSubUsed.away = true;
+      queueNote(ni, `${ni.playerDataMap[pl.yBowl].name} comes on as the Impact Player for ${ni.playerDataMap[pl.x].name}.`);
+    }
+  }
+  const ch = ni.bowlingFirstId;
+  const pend = ni.impactPending?.[ch];
+  if (pend) {
+    delete ni.impactPending![ch];
+    if (liveImpactSwap(state, ni, ch, pend.y, pend.x)) {
+      if (ch === state.homeTeam.id) state.impactSubUsed.home = true; else state.impactSubUsed.away = true;
+    }
+  }
+}
+
+/** At a wicket in the first innings: the CPU side batting first may bring its bench batter in now, for a batter who is out (he bats next) */
+function cpuMidImpact(state: MatchState, ni: MatchStateInternal, pm: Record<string, SerializedPlayer>, raw: InningsScoreRaw): void {
+  const id = state.battingTeamId;
+  const home = id === state.homeTeam.id;
+  if (id !== ni.battingFirstId || (home ? state.impactSubUsed.home : state.impactSubUsed.away)) return;
+  const pl = ni.impactPlans?.[id]?.bf;
+  if (!pl?.use || !pl.yMid || !pm[pl.yMid]) return;
+  const out = new Set(state.batterStats.filter(b => b.isOut).map(b => b.playerId));
+  const dismissed = ni.battingOrderIds.slice(0, state.nextBatterIdx).filter(pid => out.has(pid)).map(pid => impactCandidate(pm, pid));
+  const plan: ImpactPlan = { batFirst: true, use: true, x: null, yBowl: null, yMid: impactCandidate(pm, pl.yMid), xUtil: pl.xUtil, bench: [], seed: pl.seed };
+  const sub = midImpactNow(plan, state.wickets, state.overs, dismissed, ni.battingOrderIds.map(pid => impactCandidate(pm, pid)), ni.rules.maxOverseasInXI);
+  if (!sub) return;
+  ni.battingOrderIds.splice(state.nextBatterIdx, 0, sub.subIn.id);
+  raw.batterStats[sub.subIn.id] = { runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false };
+  const xi = home ? ni.homeXIIds : ni.awayXIIds;
+  const k = xi.indexOf(sub.subOut.id);
+  if (k >= 0) xi[k] = sub.subIn.id;
+  if (home) { ni.homeBenchIds = ni.homeBenchIds.filter(b => b !== sub.subIn.id); state.impactSubUsed.home = true; }
+  else { ni.awayBenchIds = ni.awayBenchIds.filter(b => b !== sub.subIn.id); state.impactSubUsed.away = true; }
+  queueNote(ni, `${pm[sub.subIn.id].name} comes in as the Impact Player for ${pm[sub.subOut.id].name}.`);
+}
+
 function sideOrder(ni: MatchStateInternal, teamId: string, xiIds: string[], kind: "bat" | "bowl"): string[] {
   const computed = kind === "bat" ? computeBattingOrder(xiIds, ni.playerDataMap) : computeBowlingOrder(xiIds, ni.playerDataMap);
   const own = (kind === "bat" ? ni.teamBattingOrderIds : ni.teamBowlingOrderIds)?.[teamId];

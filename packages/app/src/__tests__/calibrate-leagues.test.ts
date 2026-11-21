@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { it } from "vitest";
-import { ATTACK_MODEL, EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LEAGUE_LEVELS, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
+import { ATTACK_MODEL, IMPACT_MODEL, EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LEAGUE_LEVELS, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
 import { createGameState, initSeason, playNextMatch, isSeasonComplete } from "../game-state";
 
 /**
@@ -32,6 +32,9 @@ if (process.env.LEVELS_FILE) Object.assign(LEAGUE_LEVELS, JSON.parse(readFileSyn
 if (process.env.WT_OFF) INNINGS_CLOCK_SWITCH.off = true;
 // ATTACK_OFF=1: the bowling attack as before the attack table (docs/TACTICS.md section 8): the section-1 model over Team.autoBowlingOrder
 if (process.env.ATTACK_OFF) ATTACK_MODEL.league = false;
+// IMPACT_OFF=1: the former impact player (docs/TACTICS.md section 9); ATTACK_EXCEPT=ipl: leagues kept on the former attack
+if (process.env.IMPACT_OFF) IMPACT_MODEL.off = true;
+if (process.env.ATTACK_EXCEPT) ATTACK_MODEL.except = process.env.ATTACK_EXCEPT.split(",");
 if (process.env.WT_FILE) { const t = JSON.parse(readFileSync(process.env.WT_FILE, "utf-8")).tables; for (const k of Object.keys(INNINGS_CLOCK)) delete INNINGS_CLOCK[k]; Object.assign(INNINGS_CLOCK, t); }
 it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {
   const leagues = process.env.CAL_ONLY ? EXTRA_LEAGUES.filter(l => process.env.CAL_ONLY!.split(",").includes(l.id)) : EXTRA_LEAGUES;

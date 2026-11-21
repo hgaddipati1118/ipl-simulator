@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
-import { ATTACK_MODEL, IMPACT_MODEL, RULE_PRESETS, createPlayerFromData, isOverseasIn, simulateMatch, type BallEvent, type MatchResult, type Player, type RuleSet } from "@ipl-sim/engine";
+import { ATTACK_MODEL, IMPACT_MODEL, IPL_TEAMS, RULE_PRESETS, Team, createPlayerFromData, isOverseasIn, simulateMatch, type BallEvent, type MatchResult, type Player, type RuleSet } from "@ipl-sim/engine";
 import { createGameState } from "../game-state";
 import { prepareLeaguePool } from "../extended-pool";
 import { getPoolPlayers, getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
@@ -144,3 +144,101 @@ it.skipIf(!process.env.IMP_SIM)("impact player: the engine's IPL", async () => {
     yBowl: (t.yBowl / Math.max(1, t.ny)).toFixed(1), yBat: (t.yBat / Math.max(1, t.ny)).toFixed(1), xBat: (t.xBat / Math.max(1, t.nx)).toFixed(1),
     field67: [(t.f6 / t.nf).toFixed(1), (t.f7 / t.nf).toFixed(1)] }));
 }, 3_600_000);
+
+const HOME_CITIES: Record<string, string[]> = {
+  srh: ["Hyderabad"], dc: ["Delhi", "Visakhapatnam"], rcb: ["Bengaluru", "Bangalore"], kkr: ["Kolkata"], rr: ["Jaipur", "Guwahati"], csk: ["Chennai"],
+  mi: ["Mumbai"], pbks: ["Mohali", "Dharamsala", "New Chandigarh", "Chandigarh"], gt: ["Ahmedabad"], lsg: ["Lucknow"],
+};
+const teamIdOf = (name: string) => IPL_TEAMS.find(t => t.name === name || (name.startsWith("Royal Challengers") && t.id === "rcb"))?.id;
+
+/** A side of a real match as the benchmark plays it: the eleven that batted (in the real batting order) and the twelfth as the bench */
+export function benchSide(m: ImpMatch, s: ImpSide, make: (id: string) => Player | undefined) {
+  const ps = s.xi.map(id => (id ? make(id) : undefined));
+  let off = -1;
+  const sub = s.sub;
+  if (sub && sub.in >= 0 && sub.out >= 0 && ps.length >= 12) off = m.batFirst === s.team ? sub.in : sub.out; // the one who did not bat for the side
+  const keep = ps.map((p, j) => ({ p, j })).filter(x => x.j !== off && x.p && x.j < (off >= 0 ? 13 : 11));
+  const eleven = keep.slice(0, 11).map(x => x.p!);
+  const bench = off >= 0 && ps[off] ? [ps[off]!] : [];
+  // the batting order: the order of the card (who batted first), then the rest
+  return { eleven, bench };
+}
+
+interface Arm { name: string; impactOff: boolean; except: string[] }
+const ARMS: Record<string, Arm> = {
+  old: { name: "former (mid-innings sub, former attack)", impactOff: true, except: ["ipl"] },
+  new: { name: "fitted impact player + attack table", impactOff: false, except: [] },
+  impact: { name: "fitted impact player, former attack", impactOff: false, except: ["ipl"] },
+  attack: { name: "former impact player + attack table", impactOff: true, except: [] },
+};
+
+/**
+ * IPL_BENCH=1 [IPL_REPLAYS=256] [IPL_ARMS=old,new,impact] [IPL_DUMP=prefix]: the IPL actual-XI match benchmark. Every decided IPL match
+ * since 2023 (the Impact Player era, docs/data/impact_player.json) replayed with the players who really played: each side's eleven that
+ * batted, in the real batting order, the twelfth (the impact player or the man he replaced) as its only bench player; the real home side
+ * (neutral when neither side is at home); the engine's own toss; the same seeds in every arm. Log loss per match of the real winner,
+ * p = (wins + 1) / (replays + 2) clamped to [0.03, 0.97], on the fit half (2023-24) and the 2025+ holdout, and each arm's paired
+ * difference against the first with its standard error over the matches.
+ */
+it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", async () => {
+  const replays = Number(process.env.IPL_REPLAYS ?? 256);
+  const arms = (process.env.IPL_ARMS ?? "old,new,impact").split(",").map(a => ARMS[a]);
+  const make = await ratedPlayers();
+  const rules = { ...RULE_PRESETS.modern2026, injuriesEnabled: false } as RuleSet;
+  const ms = loadImpactMatches().filter(m => m.winner && m.sides.length === 2 && m.sides.every(s => teamIdOf(s.team)));
+  const halves: [string, (d: string) => boolean][] = [["fit (2023-24)", d => d <= "2024-12-31"], ["holdout (2025+)", d => d >= "2025-01-01"]];
+  const only = process.env.IPL_HALF;
+  for (const [label, inHalf] of halves) {
+    if (only && !label.startsWith(only)) continue;
+    const set = ms.filter(m => inHalf(m.date));
+    const loss: number[][] = arms.map(() => []);
+    const extra = arms.map(() => ({ bf: 0, n: 0, runs: 0, inns: 0 }));
+    const per: unknown[] = [];
+    set.forEach((m, i) => {
+      const ids = m.sides.map(s => teamIdOf(s.team)!);
+      const homeIdx = ids.findIndex(id => HOME_CITIES[id]?.includes(m.city ?? ""));
+      const order = homeIdx === 1 ? [1, 0] : [0, 1];
+      const row: Record<string, unknown> = { id: m.id, date: m.date, winner: m.winner };
+      arms.forEach((arm, a) => {
+        IMPACT_MODEL.off = arm.impactOff;
+        ATTACK_MODEL.except = arm.except;
+        const teams = order.map(k => {
+          const s = m.sides[k];
+          const t = new Team(IPL_TEAMS.find(c => c.id === ids[k])!);
+          const { eleven, bench } = benchSide(m, s, make);
+          t.roster = [...eleven, ...bench];
+          t.isUserControlled = true;
+          t.userPlayingXI = eleven.map(p => p.id);
+          t.userBattingOrder = eleven.map(p => p.id);
+          return { t, name: s.team };
+        });
+        let w = 0, n = 0;
+        for (let j = 0; j < replays; j++) {
+          const r = simulateMatch(teams[0].t, teams[1].t, rules, 7919 * i + 104729 * (j + 1), { countTowardStandings: false, neutralVenue: homeIdx < 0 });
+          if (!r.winnerId) continue;
+          n++;
+          const winName = r.winnerId === teams[0].t.id ? teams[0].name : teams[1].name;
+          if (winName === m.winner) w++;
+          extra[a].n++; if (r.winnerId === r.innings[0].teamId) extra[a].bf++;
+          for (const inn of r.innings) { extra[a].runs += inn.runs; extra[a].inns++; }
+        }
+        const p = Math.min(0.97, Math.max(0.03, (w + 1) / (n + 2)));
+        loss[a].push(-Math.log(p));
+        row[Object.keys(ARMS).find(k => ARMS[k] === arm)!] = [w, n];
+      });
+      per.push(row);
+    });
+    const mean = (v: number[]) => v.reduce((x, y) => x + y, 0) / v.length;
+    const sd = (v: number[]) => { const mu = mean(v); return Math.sqrt(v.reduce((x, y) => x + (y - mu) ** 2, 0) / (v.length - 1)); };
+    console.log(`\nIPL ${label}: ${set.length} matches, ${replays} replays`);
+    arms.forEach((arm, a) => {
+      const d = loss[a].map((x, k) => x - loss[0][k]);
+      console.log(`  ${arm.name}: log loss ${mean(loss[a]).toFixed(4)} +- ${(sd(loss[a]) / Math.sqrt(loss[a].length)).toFixed(4)}` +
+        (a > 0 ? ` | paired vs first ${mean(d) >= 0 ? "+" : ""}${mean(d).toFixed(4)} +- ${(sd(d) / Math.sqrt(d.length)).toFixed(4)}` : "") +
+        ` | bat-first wins ${(extra[a].bf / extra[a].n).toFixed(3)} | runs/inns ${(extra[a].runs / extra[a].inns).toFixed(1)}`);
+    });
+    if (process.env.IPL_DUMP) writeFileSync(`${process.env.IPL_DUMP}-${label.startsWith("fit") ? "fit" : "hold"}.json`, JSON.stringify(per));
+  }
+  IMPACT_MODEL.off = false;
+  ATTACK_MODEL.except = [];
+}, 14_400_000);

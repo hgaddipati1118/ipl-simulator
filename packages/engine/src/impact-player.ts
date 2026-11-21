@@ -98,7 +98,9 @@ export function planImpact<P extends ImpactCandidate>(order: P[], squad: P[], ba
   const osOn = osCount(order) - (x.isInternational ? 1 : 0);
   const legal = pool.filter(p => !p.isInternational || osOn < maxOverseas);
   const yBowl = legal.length > 0 ? legal.reduce((b, p) => (p.bowlingOvr > b.bowlingOvr || (p.bowlingOvr === b.bowlingOvr && p.battingOvr < b.battingOvr) ? p : b), legal[0]) : null;
-  const yMid = batFirst ? pool[draw(pool.map(midUtility), rng())] : null;
+  // the batter for a collapse: one who could come in for a local batter (the eleven is usually at its overseas limit)
+  const midPool = pool.filter(p => !p.isInternational || osCount(order) < maxOverseas);
+  const yMid = batFirst && midPool.length > 0 ? midPool[draw(midPool.map(midUtility), rng())] : null;
   plan.x = x; plan.yBowl = yBowl; plan.yMid = yMid;
   plan.use = !skip && yBowl !== null;
   const named = [yBowl, yMid].filter((p): p is P => !!p);
