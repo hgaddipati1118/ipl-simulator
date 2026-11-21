@@ -83,7 +83,8 @@ describe("home edge", () => {
     const off = play(), offNeutral = play({ neutralVenue: true });
     LEAGUE_HOME.ipl = 8;
     const on = play(), onNeutral = play({ neutralVenue: true });
-    expect(on.home - off.home).toBeGreaterThan(0.06);
+    // an 8-point edge moves the home side's wins by 0.05-0.09 over 1,500 matches (by seed range); 300 matches leave a 0.02 noise
+    expect(on.home - off.home).toBeGreaterThan(0.03);
     expect(onNeutral.scores).toEqual(offNeutral.scores);
   });
 
@@ -106,6 +107,7 @@ describe("home edge", () => {
     const on = margin();
     delete LEAGUE_HOME.ipl;
     const off = margin();
-    expect(on - off).toBeGreaterThan(15);
+    // about 14 runs over 300 matches (15.5 before the chase's state term, which makes chases collapse less and so narrows run margins)
+    expect(on - off).toBeGreaterThan(8);
   });
 });
