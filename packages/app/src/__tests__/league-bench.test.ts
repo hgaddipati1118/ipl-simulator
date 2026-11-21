@@ -122,7 +122,7 @@ it.skipIf(!process.env.LEAGUE_BENCH)("league actual-XI benchmark", async () => {
         losses.push(-Math.log(p));
         const top = (v: number[], k: number) => [...v].sort((x, y) => y - x).slice(0, k).reduce((x, y) => x + y, 0) / k;
         per.push({ id: m.id, date: m.date, winner: r.winner, home: homeIdx < 0 ? -1 : 0, toss: r.toss, batFirst: r.batFirst, venue: r.venue, w, n,
-          sides: order.map(k => { const el = sides[k].eleven as Player[]; return { name: m.sides[k].team, ovr: top(el.map(p => p.overall), 11), bat: top(el.map(p => p.battingOvr), 7), bowl: top(el.map(p => p.bowlingOvr), 5), os: el.filter(p => p.isInternational).length, ids: el.map(p => p.sourceId ?? p.id) }; }) });
+          sides: order.map(k => { const el = sides[k].eleven as Player[]; return { name: m.sides[k].team, ovr: top(el.map(p => p.overall), 11), bat: top(el.map(p => p.battingOvr), 7), bowl: top(el.map(p => p.bowlingOvr), 5), os: el.filter(p => p.isInternational).length, ids: el.map(p => p.sourceId ?? p.id), pl: el.map(p => [p.overall, p.battingOvr, p.bowlingOvr, p.isInternational ? 1 : 0, p.age, p.careerStats?.m ?? -1, p.experience ?? -1]) }; }) });
       });
       const mean = losses.reduce((a, b) => a + b, 0) / Math.max(1, losses.length);
       const sd = Math.sqrt(losses.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, losses.length - 1));

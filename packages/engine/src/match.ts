@@ -966,7 +966,7 @@ function getVenueContext(
     };
   }
 
-  const ground = getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id);
+  const ground = getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id, { levelRun: rules.scoringContext !== "t20i" });
   const profile = applyConditionsToProfile(ground, options?.conditions, "t20", leagueChase);
   return {
     stadiumBowlRating: stadiumRatingFor(homeTeam, ground) * (2 - rules.scoringMultiplier),

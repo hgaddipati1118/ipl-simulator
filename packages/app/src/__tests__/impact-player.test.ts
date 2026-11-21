@@ -164,13 +164,15 @@ export function benchSide(m: ImpMatch, s: ImpSide, make: (id: string) => Player 
   return { eleven, bench };
 }
 
-interface Arm { name: string; impactOff: boolean; except: string[]; formerLevel?: boolean }
+interface Arm { name: string; impactOff: boolean; except: string[]; formerLevel?: boolean; level?: { run: number; wicket: number; dot: number } }
 const ARMS: Record<string, Arm> = {
   old: { name: "former (mid-innings sub, former attack, former wicket level)", impactOff: true, except: ["ipl"], formerLevel: true },
   new: { name: "fitted impact player + attack table", impactOff: false, except: [] },
   impact: { name: "fitted impact player, former attack", impactOff: false, except: ["ipl"] },
   attack: { name: "former impact player + attack table", impactOff: true, except: [] },
 };
+// IPL_LEVEL='{"run":1.1,"wicket":1.1,"dot":1}': the arm "level", the shipped engine with this IPL level (LEAGUE_LEVELS.ipl)
+if (process.env.IPL_LEVEL) ARMS.level = { name: `the IPL level ${process.env.IPL_LEVEL}`, impactOff: false, except: [], level: JSON.parse(process.env.IPL_LEVEL) };
 
 /**
  * IPL_BENCH=1 [IPL_REPLAYS=256] [IPL_ARMS=old,new,impact] [IPL_DUMP=prefix]: the IPL actual-XI match benchmark. Every decided IPL match
@@ -210,7 +212,7 @@ it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", asyn
         IMPACT_MODEL.off = arm.impactOff;
         ATTACK_MODEL.except = arm.except;
         // the former engine had no IPL level of its own (the wicket level 1.0)
-        if (arm.formerLevel) delete LEAGUE_LEVELS.ipl; else LEAGUE_LEVELS.ipl = { ...shippedLevel };
+        if (arm.formerLevel) delete LEAGUE_LEVELS.ipl; else LEAGUE_LEVELS.ipl = { ...(arm.level ?? shippedLevel) };
         const teams = order.map(k => {
           const s = m.sides[k];
           const t = new Team(IPL_TEAMS.find(c => c.id === ids[k])!);

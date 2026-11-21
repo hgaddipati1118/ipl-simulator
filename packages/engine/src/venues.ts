@@ -59,13 +59,13 @@ export interface VenueProfile {
   /** Runs multiplier relative to the league's average ground (1.0 = average) */
   runMult: number;
   /**
-   * The run multiplier the stadium labels read (deriveStadiumBowlingRating, derivePitchType): the ground against its league at the run
-   * level its labels were set on (labelRunLevel). Absent = runMult. Kept apart from runMult so a refit of a league's run level moves its
-   * scoring, not its labels: a team's stored stadium rating (team.config, saves) then still equals the measured default and
-   * stadiumRatingFor stays neutral. (Before, a run level that differed from the labels' level was cancelled by the stadium effect on
-   * dots and wickets: docs/TACTICS.md section 10.)
+   * A league's run level above the one its grounds' runMult (and so its stadium labels) are set at (labelRunLevel): a multiplier on every
+   * scoring class, sixes included, in applyVenueProfile. Absent = 1. Kept out of runMult for two reasons (docs/TACTICS.md section 10):
+   * runMult feeds the stadium labels, so a level inside it moved a team's measured default stadium rating away from the one stored in its
+   * config (built at load, kept in saves), and stadiumRatingFor's stadium effect on dots and wickets then cancelled the level; and the
+   * level inside runMult went to the non-six classes alone, which the clamp in applyVenueProfile caps at 1.25.
    */
-  labelRunMult?: number;
+  levelRun?: number;
   /** Sixes multiplier relative to the league's average ground */
   sixMult: number;
   /** Wickets multiplier, shrunk toward 1.0 */
@@ -115,7 +115,7 @@ export const LEAGUE_LEVELS: Record<string, { run: number; wicket: number; dot: n
   "lpl": { run: 1.0, wicket: 0.87, dot: 0.905 },
 };
 
-/** The run level a league's stadium labels are read at: the IPL's (and leagues without an entry) LEAGUE_LEVEL_RUN, the extra leagues' 1 */
+/** The run level a league's grounds' runMult is set at: LEAGUE_LEVEL_RUN for the IPL (and leagues without an entry), 1 for the extra leagues */
 function labelRunLevel(league: string): number {
   return league !== "ipl" && LEAGUE_LEVELS[league] ? 1.0 : LEAGUE_LEVEL_RUN;
 }
@@ -165,8 +165,11 @@ function computeNorm(ids: string[]) {
   };
 }
 
-/** Measured conditions for a team's home ground, or null when the team has no mapped ground. */
-export function getVenueProfileForTeam(teamId: string): VenueProfile | null {
+/**
+ * Measured conditions for a team's home ground, or null when the team has no mapped ground. `opts.levelRun: false` leaves out the league's
+ * run level above its grounds' (levelRun): a T20I at a franchise ground plays the T20I's own level (scoring-context.ts), not the league's.
+ */
+export function getVenueProfileForTeam(teamId: string, opts?: { levelRun?: boolean }): VenueProfile | null {
   const rec = VENUE_DATA.teams[teamId];
   const league = leagueOf(teamId);
   if (!rec || !league) return null;
@@ -175,10 +178,11 @@ export function getVenueProfileForTeam(teamId: string): VenueProfile | null {
   const ground = rec.chaseAdvantage ?? norm.chase;
   const wkt = rec.wicketFactor / 100 / norm.wkt;
   const level = LEAGUE_LEVELS[league];
+  const levelRun = (level?.run ?? LEAGUE_LEVEL_RUN) / labelRunLevel(league);
   return {
     groundName: rec.name,
-    runMult: (level?.run ?? LEAGUE_LEVEL_RUN) * rec.runFactor / 100 / norm.run,
-    labelRunMult: labelRunLevel(league) * rec.runFactor / 100 / norm.run,
+    runMult: labelRunLevel(league) * rec.runFactor / 100 / norm.run,
+    ...(levelRun !== 1 && opts?.levelRun !== false ? { levelRun } : {}),
     sixMult: rec.sixFactor / 100 / norm.six,
     wicketMult: (level?.wicket ?? LEAGUE_LEVEL_WICKET) * (1 + (wkt - 1) * WICKET_FACTOR_WEIGHT),
     ...(level ? { dotMult: level.dot } : {}),
@@ -189,15 +193,18 @@ export function getVenueProfileForTeam(teamId: string): VenueProfile | null {
 }
 
 /**
- * A neutral ground (playoffs) in an extra league: the league's scoring level with no ground effects. Null for IPL, WPL and
- * custom leagues, whose neutral matches keep using no measured profile.
+ * A neutral ground (playoffs) in a league with a level of its own (the IPL and the extra leagues): the league's scoring level with no ground
+ * effects. Null for the WPL and custom leagues, whose neutral matches keep using no measured profile. (The IPL's neutral grounds had no
+ * profile until its run level was refitted, docs/TACTICS.md section 10: they would otherwise play some 25 runs under its home grounds.)
  */
 export function getNeutralVenueProfile(league: string | undefined): VenueProfile | null {
-  const level = league && league !== "ipl" ? LEAGUE_LEVELS[league] : undefined;
+  const level = league ? LEAGUE_LEVELS[league] : undefined;
   if (!league || !level) return null;
+  const levelRun = level.run / labelRunLevel(league);
   return {
     groundName: "Neutral venue",
-    runMult: level.run,
+    runMult: labelRunLevel(league),
+    ...(levelRun !== 1 ? { levelRun } : {}),
     sixMult: 1,
     wicketMult: level.wicket,
     dotMult: level.dot,
@@ -260,7 +267,7 @@ function clamp(v: number, lo: number, hi: number): number {
 /** Bowling-rating scale used by the stadium editor: >1 = bowler-friendly. 1 run-% ~ 0.02. */
 export function deriveStadiumBowlingRating(profile: VenueProfile): number {
   // Label the ground relative to its league (exclude the engine's calibration level)
-  const relative = (profile.labelRunMult ?? profile.runMult) / LEAGUE_LEVEL_RUN;
+  const relative = profile.runMult / LEAGUE_LEVEL_RUN;
   return Math.round((1 + (1 - relative) * 2) * 100) / 100;
 }
 
@@ -275,7 +282,7 @@ export function derivePitchType(profile: VenueProfile): PitchType {
   const pace = (value("RA fast") + value("RA fast-medium") + value("RA medium") + value("LA pace")) / 4;
   if (spin - pace > 1.5) return "turning";
   if (pace - spin > 1.5) return "seaming";
-  if ((profile.labelRunMult ?? profile.runMult) / LEAGUE_LEVEL_RUN >= 1.02) return "flat";
+  if (profile.runMult / LEAGUE_LEVEL_RUN >= 1.02) return "flat";
   return "balanced";
 }
 
@@ -325,6 +332,10 @@ export function applyVenueProfile(probs: Probs, profile: VenueProfile, bowlingSt
     if (probs[k] !== undefined) probs[k] *= other * type.runMod;
   }
   if (probs["6"] !== undefined) probs["6"] *= six * type.runMod;
+  if (profile.levelRun !== undefined && profile.levelRun !== 1) {
+    const level = Math.pow(profile.levelRun, gain);
+    for (const k of ["1", "2", "3", "4", "6"]) if (probs[k] !== undefined) probs[k] *= level;
+  }
   if (probs.wicket !== undefined) probs.wicket *= profile.wicketMult * type.wicketMod;
   if (profile.dotMult !== undefined && probs.dot !== undefined) probs.dot *= profile.dotMult;
 }
