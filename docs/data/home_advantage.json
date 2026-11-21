@@ -1,0 +1,1277 @@
+{
+ "leagues": {
+  "ipl": {
+   "all": {
+    "n": 814,
+    "homeWins": 431,
+    "share": 0.5295,
+    "se": 0.0175
+   },
+   "since2015": {
+    "n": 527,
+    "homeWins": 272,
+    "share": 0.5161,
+    "se": 0.0218
+   },
+   "fit": {
+    "n": 139,
+    "homeWins": 68,
+    "share": 0.4892,
+    "se": 0.0424
+   },
+   "hold": {
+    "n": 129,
+    "homeWins": 59,
+    "share": 0.4574,
+    "se": 0.0439
+   },
+   "neutralDecided": 100,
+   "noResult": 18,
+   "bubbleSeasonMatches": 311,
+   "byTeam": {
+    "Chennai Super Kings": {
+     "n": 77,
+     "homeWins": 51,
+     "share": 0.6623,
+     "se": 0.0539
+    },
+    "Deccan Chargers": {
+     "n": 22,
+     "homeWins": 4,
+     "share": 0.1818,
+     "se": 0.0822
+    },
+    "Delhi Capitals": {
+     "n": 35,
+     "homeWins": 15,
+     "share": 0.4286,
+     "se": 0.0836
+    },
+    "Delhi Daredevils": {
+     "n": 61,
+     "homeWins": 28,
+     "share": 0.459,
+     "se": 0.0638
+    },
+    "Gujarat Lions": {
+     "n": 13,
+     "homeWins": 5,
+     "share": 0.3846,
+     "se": 0.1349
+    },
+    "Gujarat Titans": {
+     "n": 30,
+     "homeWins": 17,
+     "share": 0.5667,
+     "se": 0.0905
+    },
+    "Kings XI Punjab": {
+     "n": 67,
+     "homeWins": 38,
+     "share": 0.5672,
+     "se": 0.0605
+    },
+    "Kochi Tuskers Kerala": {
+     "n": 6,
+     "homeWins": 3,
+     "share": 0.5,
+     "se": 0.2041
+    },
+    "Kolkata Knight Riders": {
+     "n": 93,
+     "homeWins": 52,
+     "share": 0.5591,
+     "se": 0.0515
+    },
+    "Lucknow Super Giants": {
+     "n": 26,
+     "homeWins": 11,
+     "share": 0.4231,
+     "se": 0.0969
+    },
+    "Mumbai Indians": {
+     "n": 95,
+     "homeWins": 56,
+     "share": 0.5895,
+     "se": 0.0505
+    },
+    "Pune Warriors": {
+     "n": 16,
+     "homeWins": 4,
+     "share": 0.25,
+     "se": 0.1083
+    },
+    "Punjab Kings": {
+     "n": 27,
+     "homeWins": 8,
+     "share": 0.2963,
+     "se": 0.0879
+    },
+    "Rajasthan Royals": {
+     "n": 78,
+     "homeWins": 47,
+     "share": 0.6026,
+     "se": 0.0554
+    },
+    "Rising Pune Supergiant": {
+     "n": 7,
+     "homeWins": 5,
+     "share": 0.7143,
+     "se": 0.1707
+    },
+    "Rising Pune Supergiants": {
+     "n": 4,
+     "homeWins": 0,
+     "share": 0.0,
+     "se": 0.0
+    },
+    "Royal Challengers Bangalore": {
+     "n": 72,
+     "homeWins": 35,
+     "share": 0.4861,
+     "se": 0.0589
+    },
+    "Royal Challengers Bengaluru": {
+     "n": 17,
+     "homeWins": 10,
+     "share": 0.5882,
+     "se": 0.1194
+    },
+    "Sunrisers Hyderabad": {
+     "n": 68,
+     "homeWins": 42,
+     "share": 0.6176,
+     "se": 0.0589
+    }
+   }
+  },
+  "psl": {
+   "all": {
+    "n": 101,
+    "homeWins": 56,
+    "share": 0.5545,
+    "se": 0.0495
+   },
+   "since2015": {
+    "n": 101,
+    "homeWins": 56,
+    "share": 0.5545,
+    "se": 0.0495
+   },
+   "fit": {
+    "n": 47,
+    "homeWins": 26,
+    "share": 0.5532,
+    "se": 0.0725
+   },
+   "hold": {
+    "n": 30,
+    "homeWins": 17,
+    "share": 0.5667,
+    "se": 0.0905
+   },
+   "neutralDecided": 196,
+   "noResult": 6,
+   "bubbleSeasonMatches": 54,
+   "byTeam": {
+    "Islamabad United": {
+     "n": 18,
+     "homeWins": 10,
+     "share": 0.5556,
+     "se": 0.1171
+    },
+    "Karachi Kings": {
+     "n": 33,
+     "homeWins": 14,
+     "share": 0.4242,
+     "se": 0.086
+    },
+    "Lahore Qalandars": {
+     "n": 34,
+     "homeWins": 20,
+     "share": 0.5882,
+     "se": 0.0844
+    },
+    "Multan Sultans": {
+     "n": 16,
+     "homeWins": 12,
+     "share": 0.75,
+     "se": 0.1083
+    }
+   }
+  },
+  "bbl": {
+   "all": {
+    "n": 608,
+    "homeWins": 325,
+    "share": 0.5345,
+    "se": 0.0202
+   },
+   "since2015": {
+    "n": 509,
+    "homeWins": 278,
+    "share": 0.5462,
+    "se": 0.0221
+   },
+   "fit": {
+    "n": 190,
+    "homeWins": 112,
+    "share": 0.5895,
+    "se": 0.0357
+   },
+   "hold": {
+    "n": 67,
+    "homeWins": 40,
+    "share": 0.597,
+    "se": 0.0599
+   },
+   "neutralDecided": 39,
+   "noResult": 15,
+   "bubbleSeasonMatches": 0,
+   "byTeam": {
+    "Adelaide Strikers": {
+     "n": 80,
+     "homeWins": 45,
+     "share": 0.5625,
+     "se": 0.0555
+    },
+    "Brisbane Heat": {
+     "n": 75,
+     "homeWins": 34,
+     "share": 0.4533,
+     "se": 0.0575
+    },
+    "Hobart Hurricanes": {
+     "n": 77,
+     "homeWins": 45,
+     "share": 0.5844,
+     "se": 0.0562
+    },
+    "Melbourne Renegades": {
+     "n": 78,
+     "homeWins": 31,
+     "share": 0.3974,
+     "se": 0.0554
+    },
+    "Melbourne Stars": {
+     "n": 70,
+     "homeWins": 36,
+     "share": 0.5143,
+     "se": 0.0597
+    },
+    "Perth Scorchers": {
+     "n": 82,
+     "homeWins": 56,
+     "share": 0.6829,
+     "se": 0.0514
+    },
+    "Sydney Sixers": {
+     "n": 70,
+     "homeWins": 45,
+     "share": 0.6429,
+     "se": 0.0573
+    },
+    "Sydney Thunder": {
+     "n": 76,
+     "homeWins": 33,
+     "share": 0.4342,
+     "se": 0.0569
+    }
+   }
+  },
+  "sa20": {
+   "all": {
+    "n": 109,
+    "homeWins": 62,
+    "share": 0.5688,
+    "se": 0.0474
+   },
+   "since2015": {
+    "n": 109,
+    "homeWins": 62,
+    "share": 0.5688,
+    "se": 0.0474
+   },
+   "fit": {
+    "n": 58,
+    "homeWins": 33,
+    "share": 0.569,
+    "se": 0.065
+   },
+   "hold": {
+    "n": 51,
+    "homeWins": 29,
+    "share": 0.5686,
+    "se": 0.0694
+   },
+   "neutralDecided": 13,
+   "noResult": 8,
+   "bubbleSeasonMatches": 0,
+   "byTeam": {
+    "Durban's Super Giants": {
+     "n": 16,
+     "homeWins": 8,
+     "share": 0.5,
+     "se": 0.125
+    },
+    "Joburg Super Kings": {
+     "n": 17,
+     "homeWins": 10,
+     "share": 0.5882,
+     "se": 0.1194
+    },
+    "MI Cape Town": {
+     "n": 20,
+     "homeWins": 10,
+     "share": 0.5,
+     "se": 0.1118
+    },
+    "Paarl Royals": {
+     "n": 20,
+     "homeWins": 13,
+     "share": 0.65,
+     "se": 0.1067
+    },
+    "Pretoria Capitals": {
+     "n": 17,
+     "homeWins": 9,
+     "share": 0.5294,
+     "se": 0.1211
+    },
+    "Sunrisers Eastern Cape": {
+     "n": 19,
+     "homeWins": 12,
+     "share": 0.6316,
+     "se": 0.1107
+    }
+   }
+  },
+  "cpl": {
+   "all": {
+    "n": 297,
+    "homeWins": 161,
+    "share": 0.5421,
+    "se": 0.0289
+   },
+   "since2015": {
+    "n": 263,
+    "homeWins": 142,
+    "share": 0.5399,
+    "se": 0.0307
+   },
+   "fit": {
+    "n": 68,
+    "homeWins": 33,
+    "share": 0.4853,
+    "se": 0.0606
+   },
+   "hold": {
+    "n": 62,
+    "homeWins": 36,
+    "share": 0.5806,
+    "se": 0.0627
+   },
+   "neutralDecided": 75,
+   "noResult": 7,
+   "bubbleSeasonMatches": 66,
+   "byTeam": {
+    "Antigua Hawksbills": {
+     "n": 6,
+     "homeWins": 1,
+     "share": 0.1667,
+     "se": 0.1521
+    },
+    "Antigua and Barbuda Falcons": {
+     "n": 13,
+     "homeWins": 7,
+     "share": 0.5385,
+     "se": 0.1383
+    },
+    "Barbados Royals": {
+     "n": 13,
+     "homeWins": 7,
+     "share": 0.5385,
+     "se": 0.1383
+    },
+    "Barbados Tridents": {
+     "n": 32,
+     "homeWins": 17,
+     "share": 0.5312,
+     "se": 0.0882
+    },
+    "Guyana Amazon Warriors": {
+     "n": 58,
+     "homeWins": 39,
+     "share": 0.6724,
+     "se": 0.0616
+    },
+    "Jamaica Kingsmen": {
+     "n": 4,
+     "homeWins": 2,
+     "share": 0.5,
+     "se": 0.25
+    },
+    "Jamaica Tallawahs": {
+     "n": 25,
+     "homeWins": 16,
+     "share": 0.64,
+     "se": 0.096
+    },
+    "St Kitts and Nevis Patriots": {
+     "n": 40,
+     "homeWins": 14,
+     "share": 0.35,
+     "se": 0.0754
+    },
+    "St Lucia Kings": {
+     "n": 19,
+     "homeWins": 10,
+     "share": 0.5263,
+     "se": 0.1145
+    },
+    "St Lucia Stars": {
+     "n": 10,
+     "homeWins": 2,
+     "share": 0.2,
+     "se": 0.1265
+    },
+    "St Lucia Zouks": {
+     "n": 15,
+     "homeWins": 7,
+     "share": 0.4667,
+     "se": 0.1288
+    },
+    "Trinbago Knight Riders": {
+     "n": 48,
+     "homeWins": 28,
+     "share": 0.5833,
+     "se": 0.0712
+    },
+    "Trinidad & Tobago Red Steel": {
+     "n": 14,
+     "homeWins": 11,
+     "share": 0.7857,
+     "se": 0.1097
+    }
+   }
+  },
+  "hundred-m": {
+   "all": {
+    "n": 182,
+    "homeWins": 102,
+    "share": 0.5604,
+    "se": 0.0368
+   },
+   "since2015": {
+    "n": 182,
+    "homeWins": 102,
+    "share": 0.5604,
+    "se": 0.0368
+   },
+   "fit": {
+    "n": 118,
+    "homeWins": 65,
+    "share": 0.5508,
+    "se": 0.0458
+   },
+   "hold": {
+    "n": 64,
+    "homeWins": 37,
+    "share": 0.5781,
+    "se": 0.0617
+   },
+   "neutralDecided": 10,
+   "noResult": 9,
+   "bubbleSeasonMatches": 0,
+   "byTeam": {
+    "Birmingham Phoenix": {
+     "n": 23,
+     "homeWins": 14,
+     "share": 0.6087,
+     "se": 0.1018
+    },
+    "London Spirit": {
+     "n": 22,
+     "homeWins": 8,
+     "share": 0.3636,
+     "se": 0.1026
+    },
+    "MI London": {
+     "n": 4,
+     "homeWins": 2,
+     "share": 0.5,
+     "se": 0.25
+    },
+    "Manchester Originals": {
+     "n": 17,
+     "homeWins": 7,
+     "share": 0.4118,
+     "se": 0.1194
+    },
+    "Manchester Super Giants": {
+     "n": 4,
+     "homeWins": 3,
+     "share": 0.75,
+     "se": 0.2165
+    },
+    "Northern Superchargers": {
+     "n": 19,
+     "homeWins": 9,
+     "share": 0.4737,
+     "se": 0.1145
+    },
+    "Oval Invincibles": {
+     "n": 19,
+     "homeWins": 16,
+     "share": 0.8421,
+     "se": 0.0837
+    },
+    "Southern Brave": {
+     "n": 23,
+     "homeWins": 14,
+     "share": 0.6087,
+     "se": 0.1018
+    },
+    "Sunrisers Leeds": {
+     "n": 4,
+     "homeWins": 4,
+     "share": 1.0,
+     "se": 0.0
+    },
+    "Trent Rockets": {
+     "n": 24,
+     "homeWins": 18,
+     "share": 0.75,
+     "se": 0.0884
+    },
+    "Welsh Fire": {
+     "n": 23,
+     "homeWins": 7,
+     "share": 0.3043,
+     "se": 0.0959
+    }
+   }
+  },
+  "ilt20": {
+   "all": {
+    "n": 80,
+    "homeWins": 39,
+    "share": 0.4875,
+    "se": 0.0559
+   },
+   "since2015": {
+    "n": 80,
+    "homeWins": 39,
+    "share": 0.4875,
+    "se": 0.0559
+   },
+   "fit": {
+    "n": 39,
+    "homeWins": 19,
+    "share": 0.4872,
+    "se": 0.08
+   },
+   "hold": {
+    "n": 41,
+    "homeWins": 20,
+    "share": 0.4878,
+    "se": 0.0781
+   },
+   "neutralDecided": 52,
+   "noResult": 2,
+   "bubbleSeasonMatches": 0,
+   "byTeam": {
+    "Abu Dhabi Knight Riders": {
+     "n": 25,
+     "homeWins": 8,
+     "share": 0.32,
+     "se": 0.0933
+    },
+    "Desert Vipers": {
+     "n": 10,
+     "homeWins": 8,
+     "share": 0.8,
+     "se": 0.1265
+    },
+    "Dubai Capitals": {
+     "n": 15,
+     "homeWins": 9,
+     "share": 0.6,
+     "se": 0.1265
+    },
+    "Gulf Giants": {
+     "n": 12,
+     "homeWins": 6,
+     "share": 0.5,
+     "se": 0.1443
+    },
+    "MI Emirates": {
+     "n": 3,
+     "homeWins": 3,
+     "share": 1.0,
+     "se": 0.0
+    },
+    "Sharjah Warriors": {
+     "n": 7,
+     "homeWins": 2,
+     "share": 0.2857,
+     "se": 0.1707
+    },
+    "Sharjah Warriorz": {
+     "n": 8,
+     "homeWins": 3,
+     "share": 0.375,
+     "se": 0.1712
+    }
+   }
+  },
+  "mlc": {
+   "all": {
+    "n": 32,
+    "homeWins": 14,
+    "share": 0.4375,
+    "se": 0.0877
+   },
+   "since2015": {
+    "n": 32,
+    "homeWins": 14,
+    "share": 0.4375,
+    "se": 0.0877
+   },
+   "fit": {
+    "n": 11,
+    "homeWins": 5,
+    "share": 0.4545,
+    "se": 0.1501
+   },
+   "hold": {
+    "n": 21,
+    "homeWins": 9,
+    "share": 0.4286,
+    "se": 0.108
+   },
+   "neutralDecided": 76,
+   "noResult": 1,
+   "bubbleSeasonMatches": 0,
+   "byTeam": {
+    "Los Angeles Knight Riders": {
+     "n": 3,
+     "homeWins": 1,
+     "share": 0.3333,
+     "se": 0.2722
+    },
+    "San Francisco Unicorns": {
+     "n": 8,
+     "homeWins": 5,
+     "share": 0.625,
+     "se": 0.1712
+    },
+    "Texas Super Kings": {
+     "n": 21,
+     "homeWins": 8,
+     "share": 0.381,
+     "se": 0.106
+    }
+   }
+  },
+  "bpl": {
+   "all": {
+    "n": 162,
+    "homeWins": 76,
+    "share": 0.4691,
+    "se": 0.0392
+   },
+   "since2015": {
+    "n": 144,
+    "homeWins": 64,
+    "share": 0.4444,
+    "se": 0.0414
+   },
+   "fit": {
+    "n": 41,
+    "homeWins": 11,
+    "share": 0.2683,
+    "se": 0.0692
+   },
+   "hold": {
+    "n": 25,
+    "homeWins": 10,
+    "share": 0.4,
+    "se": 0.098
+   },
+   "neutralDecided": 304,
+   "noResult": 3,
+   "bubbleSeasonMatches": 0,
+   "byTeam": {
+    "Chattogram Challengers": {
+     "n": 16,
+     "homeWins": 7,
+     "share": 0.4375,
+     "se": 0.124
+    },
+    "Chittagong Kings": {
+     "n": 8,
+     "homeWins": 3,
+     "share": 0.375,
+     "se": 0.1712
+    },
+    "Chittagong Vikings": {
+     "n": 15,
+     "homeWins": 6,
+     "share": 0.4,
+     "se": 0.1265
+    },
+    "Dhaka Capitals": {
+     "n": 7,
+     "homeWins": 1,
+     "share": 0.1429,
+     "se": 0.1323
+    },
+    "Dhaka Dominators": {
+     "n": 6,
+     "homeWins": 2,
+     "share": 0.3333,
+     "se": 0.1925
+    },
+    "Dhaka Dynamites": {
+     "n": 40,
+     "homeWins": 26,
+     "share": 0.65,
+     "se": 0.0754
+    },
+    "Dhaka Gladiators": {
+     "n": 12,
+     "homeWins": 9,
+     "share": 0.75,
+     "se": 0.125
+    },
+    "Dhaka Platoon": {
+     "n": 9,
+     "homeWins": 4,
+     "share": 0.4444,
+     "se": 0.1656
+    },
+    "Durdanto Dhaka": {
+     "n": 6,
+     "homeWins": 1,
+     "share": 0.1667,
+     "se": 0.1521
+    },
+    "Khulna Royal Bengals": {
+     "n": 3,
+     "homeWins": 2,
+     "share": 0.6667,
+     "se": 0.2722
+    },
+    "Minister Group Dhaka": {
+     "n": 5,
+     "homeWins": 1,
+     "share": 0.2,
+     "se": 0.1789
+    },
+    "Sylhet Sixers": {
+     "n": 8,
+     "homeWins": 4,
+     "share": 0.5,
+     "se": 0.1768
+    },
+    "Sylhet Strikers": {
+     "n": 13,
+     "homeWins": 5,
+     "share": 0.3846,
+     "se": 0.1349
+    },
+    "Sylhet Sunrisers": {
+     "n": 3,
+     "homeWins": 0,
+     "share": 0.0,
+     "se": 0.0
+    },
+    "Sylhet Thunder": {
+     "n": 2,
+     "homeWins": 0,
+     "share": 0.0,
+     "se": 0.0
+    },
+    "Sylhet Titans": {
+     "n": 9,
+     "homeWins": 5,
+     "share": 0.5556,
+     "se": 0.1656
+    }
+   }
+  },
+  "lpl": {
+   "all": {
+    "n": 44,
+    "homeWins": 23,
+    "share": 0.5227,
+    "se": 0.0753
+   },
+   "since2015": {
+    "n": 44,
+    "homeWins": 23,
+    "share": 0.5227,
+    "se": 0.0753
+   },
+   "fit": {
+    "n": 34,
+    "homeWins": 19,
+    "share": 0.5588,
+    "se": 0.0852
+   },
+   "hold": {
+    "n": 10,
+    "homeWins": 4,
+    "share": 0.4,
+    "se": 0.1549
+   },
+   "neutralDecided": 93,
+   "noResult": 6,
+   "bubbleSeasonMatches": 0,
+   "byTeam": {
+    "B-Love Kandy": {
+     "n": 3,
+     "homeWins": 3,
+     "share": 1.0,
+     "se": 0.0
+    },
+    "Colombo Kaps": {
+     "n": 4,
+     "homeWins": 2,
+     "share": 0.5,
+     "se": 0.25
+    },
+    "Colombo Stars": {
+     "n": 13,
+     "homeWins": 6,
+     "share": 0.4615,
+     "se": 0.1383
+    },
+    "Colombo Strikers": {
+     "n": 9,
+     "homeWins": 4,
+     "share": 0.4444,
+     "se": 0.1656
+    },
+    "Dambulla Sixers": {
+     "n": 7,
+     "homeWins": 3,
+     "share": 0.4286,
+     "se": 0.187
+    },
+    "Kandy Falcons": {
+     "n": 6,
+     "homeWins": 4,
+     "share": 0.6667,
+     "se": 0.1925
+    },
+    "Kandy Royals": {
+     "n": 2,
+     "homeWins": 1,
+     "share": 0.5,
+     "se": 0.3536
+    }
+   }
+  },
+  "wbbl": {
+   "all": {
+    "n": 241,
+    "homeWins": 135,
+    "share": 0.5602,
+    "se": 0.032
+   },
+   "since2015": {
+    "n": 241,
+    "homeWins": 135,
+    "share": 0.5602,
+    "se": 0.032
+   },
+   "fit": {
+    "n": 87,
+    "homeWins": 47,
+    "share": 0.5402,
+    "se": 0.0534
+   },
+   "hold": {
+    "n": 33,
+    "homeWins": 20,
+    "share": 0.6061,
+    "se": 0.0851
+   },
+   "neutralDecided": 159,
+   "noResult": 18,
+   "bubbleSeasonMatches": 109,
+   "byTeam": {
+    "Adelaide Strikers": {
+     "n": 34,
+     "homeWins": 20,
+     "share": 0.5882,
+     "se": 0.0844
+    },
+    "Brisbane Heat": {
+     "n": 33,
+     "homeWins": 19,
+     "share": 0.5758,
+     "se": 0.086
+    },
+    "Hobart Hurricanes": {
+     "n": 36,
+     "homeWins": 17,
+     "share": 0.4722,
+     "se": 0.0832
+    },
+    "Melbourne Renegades": {
+     "n": 7,
+     "homeWins": 2,
+     "share": 0.2857,
+     "se": 0.1707
+    },
+    "Melbourne Stars": {
+     "n": 31,
+     "homeWins": 14,
+     "share": 0.4516,
+     "se": 0.0894
+    },
+    "Perth Scorchers": {
+     "n": 46,
+     "homeWins": 32,
+     "share": 0.6957,
+     "se": 0.0678
+    },
+    "Sydney Sixers": {
+     "n": 43,
+     "homeWins": 22,
+     "share": 0.5116,
+     "se": 0.0762
+    },
+    "Sydney Thunder": {
+     "n": 11,
+     "homeWins": 9,
+     "share": 0.8182,
+     "se": 0.1163
+    }
+   }
+  },
+  "hundred-w": {
+   "all": {
+    "n": 176,
+    "homeWins": 83,
+    "share": 0.4716,
+    "se": 0.0376
+   },
+   "since2015": {
+    "n": 176,
+    "homeWins": 83,
+    "share": 0.4716,
+    "se": 0.0376
+   },
+   "fit": {
+    "n": 114,
+    "homeWins": 56,
+    "share": 0.4912,
+    "se": 0.0468
+   },
+   "hold": {
+    "n": 62,
+    "homeWins": 27,
+    "share": 0.4355,
+    "se": 0.063
+   },
+   "neutralDecided": 7,
+   "noResult": 5,
+   "bubbleSeasonMatches": 0,
+   "byTeam": {
+    "Birmingham Phoenix": {
+     "n": 21,
+     "homeWins": 7,
+     "share": 0.3333,
+     "se": 0.1029
+    },
+    "London Spirit": {
+     "n": 22,
+     "homeWins": 8,
+     "share": 0.3636,
+     "se": 0.1026
+    },
+    "MI London": {
+     "n": 3,
+     "homeWins": 0,
+     "share": 0.0,
+     "se": 0.0
+    },
+    "Manchester Originals": {
+     "n": 17,
+     "homeWins": 7,
+     "share": 0.4118,
+     "se": 0.1194
+    },
+    "Manchester Super Giants": {
+     "n": 3,
+     "homeWins": 0,
+     "share": 0.0,
+     "se": 0.0
+    },
+    "Northern Superchargers": {
+     "n": 18,
+     "homeWins": 14,
+     "share": 0.7778,
+     "se": 0.098
+    },
+    "Oval Invincibles": {
+     "n": 20,
+     "homeWins": 10,
+     "share": 0.5,
+     "se": 0.1118
+    },
+    "Southern Brave": {
+     "n": 24,
+     "homeWins": 18,
+     "share": 0.75,
+     "se": 0.0884
+    },
+    "Sunrisers Leeds": {
+     "n": 4,
+     "homeWins": 2,
+     "share": 0.5,
+     "se": 0.25
+    },
+    "Trent Rockets": {
+     "n": 23,
+     "homeWins": 9,
+     "share": 0.3913,
+     "se": 0.1018
+    },
+    "Welsh Fire": {
+     "n": 21,
+     "homeWins": 8,
+     "share": 0.381,
+     "se": 0.106
+    }
+   }
+  },
+  "wpl": {
+   "all": {
+    "n": 33,
+    "homeWins": 18,
+    "share": 0.5455,
+    "se": 0.0867
+   },
+   "since2015": {
+    "n": 33,
+    "homeWins": 18,
+    "share": 0.5455,
+    "se": 0.0867
+   },
+   "fit": {
+    "n": 10,
+    "homeWins": 8,
+    "share": 0.8,
+    "se": 0.1265
+   },
+   "hold": {
+    "n": 23,
+    "homeWins": 10,
+    "share": 0.4348,
+    "se": 0.1034
+   },
+   "neutralDecided": 32,
+   "noResult": 1,
+   "bubbleSeasonMatches": 22,
+   "byTeam": {
+    "Gujarat Giants": {
+     "n": 8,
+     "homeWins": 4,
+     "share": 0.5,
+     "se": 0.1768
+    },
+    "Mumbai Indians": {
+     "n": 19,
+     "homeWins": 13,
+     "share": 0.6842,
+     "se": 0.1066
+    },
+    "Royal Challengers Bengaluru": {
+     "n": 3,
+     "homeWins": 0,
+     "share": 0.0,
+     "se": 0.0
+    },
+    "UP Warriorz": {
+     "n": 3,
+     "homeWins": 1,
+     "share": 0.3333,
+     "se": 0.2722
+    }
+   }
+  }
+ },
+ "internationals": {
+  "t20i-men": {
+   "all": {
+    "n": 822,
+    "homeWins": 437,
+    "share": 0.5316,
+    "se": 0.0174
+   },
+   "since2015": {
+    "n": 645,
+    "homeWins": 345,
+    "share": 0.5349,
+    "se": 0.0196
+   },
+   "fit": {
+    "n": 281,
+    "homeWins": 155,
+    "share": 0.5516,
+    "se": 0.0297
+   },
+   "hold": {
+    "n": 139,
+    "homeWins": 74,
+    "share": 0.5324,
+    "se": 0.0423
+   },
+   "neutralMatches": 276,
+   "unplacedVenue": 3
+  },
+  "t20i-women": {
+   "all": {
+    "n": 469,
+    "homeWins": 257,
+    "share": 0.548,
+    "se": 0.023
+   },
+   "since2015": {
+    "n": 416,
+    "homeWins": 226,
+    "share": 0.5433,
+    "se": 0.0244
+   },
+   "fit": {
+    "n": 187,
+    "homeWins": 90,
+    "share": 0.4813,
+    "se": 0.0365
+   },
+   "hold": {
+    "n": 96,
+    "homeWins": 61,
+    "share": 0.6354,
+    "se": 0.0491
+   },
+   "neutralMatches": 221,
+   "unplacedVenue": 8
+  },
+  "odi-men": {
+   "all": {
+    "n": 1579,
+    "homeWins": 931,
+    "share": 0.5896,
+    "se": 0.0124
+   },
+   "since2015": {
+    "n": 707,
+    "homeWins": 442,
+    "share": 0.6252,
+    "se": 0.0182
+   },
+   "fit": {
+    "n": 216,
+    "homeWins": 132,
+    "share": 0.6111,
+    "se": 0.0332
+   },
+   "hold": {
+    "n": 104,
+    "homeWins": 66,
+    "share": 0.6346,
+    "se": 0.0472
+   },
+   "neutralMatches": 386,
+   "unplacedVenue": 19
+  },
+  "odi-women": {
+   "all": {
+    "n": 440,
+    "homeWins": 257,
+    "share": 0.5841,
+    "se": 0.0235
+   },
+   "since2015": {
+    "n": 395,
+    "homeWins": 229,
+    "share": 0.5797,
+    "se": 0.0248
+   },
+   "fit": {
+    "n": 172,
+    "homeWins": 92,
+    "share": 0.5349,
+    "se": 0.038
+   },
+   "hold": {
+    "n": 92,
+    "homeWins": 59,
+    "share": 0.6413,
+    "se": 0.05
+   },
+   "neutralMatches": 111,
+   "unplacedVenue": 1
+  },
+  "test-men": {
+   "all": {
+    "n": 695,
+    "homeWins": 444,
+    "share": 0.6388,
+    "se": 0.0182
+   },
+   "since2015": {
+    "n": 394,
+    "homeWins": 246,
+    "share": 0.6244,
+    "se": 0.0244
+   },
+   "fit": {
+    "n": 144,
+    "homeWins": 84,
+    "share": 0.5833,
+    "se": 0.0411
+   },
+   "hold": {
+    "n": 57,
+    "homeWins": 31,
+    "share": 0.5439,
+    "se": 0.066
+   },
+   "neutralMatches": 36,
+   "unplacedVenue": 9,
+   "homeWinOfAllResults": {
+    "all": {
+     "n": 853,
+     "homeWins": 444,
+     "share": 0.5205,
+     "se": 0.0171
+    },
+    "since2015": {
+     "n": 454,
+     "homeWins": 246,
+     "share": 0.5419,
+     "se": 0.0234
+    },
+    "fit": {
+     "n": 166,
+     "homeWins": 84,
+     "share": 0.506,
+     "se": 0.0388
+    },
+    "hold": {
+     "n": 62,
+     "homeWins": 31,
+     "share": 0.5,
+     "se": 0.0635
+    }
+   }
+  }
+ }
+}

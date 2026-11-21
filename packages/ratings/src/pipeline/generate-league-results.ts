@@ -5,6 +5,7 @@
  * they are.
  *
  *   npx tsx src/pipeline/generate-league-results.ts      (reads data/cricsheet/<league>_json/*.json)   -> docs/data/league_results.json
+ *   LXI_IN=../../docs/data/league_xi_hundred.json LXI_OUT=../../docs/data/league_results_hundred.json npx tsx src/pipeline/generate-league-results.ts
  */
 import { readFileSync, writeFileSync, existsSync } from "fs";
 
@@ -14,6 +15,7 @@ const XI = new URL("../../../../docs/data/league_xi.json", import.meta.url).path
 const OUT = new URL("../../../../docs/data/league_results.json", import.meta.url).pathname;
 const FOLDER: Record<string, string> = {
   ipl: "ipl_json", bbl: "bbl_json", psl: "psl_json", sa20: "sat_json", cpl: "cpl_json", ilt20: "ilt_json", mlc: "mlc_json", bpl: "bpl_json", lpl: "lpl_json",
+  "hundred-m": "hnd_json",
 };
 
 interface CsInfo {
@@ -23,7 +25,7 @@ interface CsInfo {
 }
 
 function main() {
-  const xi = JSON.parse(readFileSync(XI, "utf-8")) as Record<string, { id: string }[]>;
+  const xi = JSON.parse(readFileSync(process.env.LXI_IN ?? XI, "utf-8")) as Record<string, { id: string }[]>;
   const out: Record<string, unknown[]> = {};
   for (const [lg, list] of Object.entries(xi)) {
     const rows: unknown[] = [];
@@ -41,7 +43,8 @@ function main() {
     out[lg] = rows;
     console.log(`${lg}: ${rows.length} matches, ${rows.filter(r => (r as { winner: string | null }).winner).length} decided`);
   }
-  writeFileSync(OUT, JSON.stringify(out));
-  console.log("wrote " + OUT);
+  const outFile = process.env.LXI_OUT ?? OUT;
+  writeFileSync(outFile, JSON.stringify(out));
+  console.log("wrote " + outFile);
 }
 main();

@@ -21,6 +21,7 @@ import { stadiumRatingFor, planRain, ballProbabilities, type RainPlan, type Venu
 import { scoringContextFor, type T20Context } from "./scoring-context.js";
 import { drawMatchConditions, type MatchConditions } from "./match-conditions.js";
 import { wicketsInHandKey } from "./wickets-in-hand.js";
+import { battingHomeEdge, leagueHomeEdge } from "./home-advantage.js";
 import {
   type BattingHand,
   type BowlingStyle,
@@ -441,6 +442,8 @@ interface MatchStateInternal {
   venueProfile?: VenueProfile | null;
   /** P(chaser wins) - 0.5 for equal sides at this venue */
   chaseAdvantage?: number;
+  /** League play at the home side's own ground: the home edge in balance points (home-advantage.ts; absent = none, as in saves before it) */
+  homeEdge?: number;
 
   // Phase-specific bowling plans per team
   homeBowlingPlan?: BowlingPlan;
@@ -596,6 +599,8 @@ interface LiveRulesCtx {
   partnerRating?: number;
   /** An ODI ball: the situation for the fitted ODI model (odi-model.ts), which replaces the T20 tables */
   odi?: OdiBallContext;
+  /** The match's home edge (home-advantage.ts), signed on the ball by isHomeBatting */
+  homeEdge?: number;
 }
 
 /** A middle-of-the-road batter and bowler: the live T20 base model's aggression effect is measured on them */
@@ -683,6 +688,7 @@ function runOneBall(
       batterBalls: odi ? odi.batterBalls : batterBalls,
       ...(rulesCtx.partnerRating !== undefined ? { partnerRating: rulesCtx.partnerRating, ballInOver: legalBallInOver } : {}),
       ...(odi ? { scheduledOvers: odi.scheduledOvers } : {}),
+      ...(rulesCtx.homeEdge && !odi ? { homeEdge: battingHomeEdge(rulesCtx.homeEdge, isHomeBatting) } : {}),
     },
   });
   applyAggression(probs, aggression);
@@ -690,7 +696,7 @@ function runOneBall(
   for (const key of Object.keys(fieldMod) as BallOutcome[]) {
     probs[key] *= fieldMod[key] ?? 1;
   }
-  void isHomeBatting; void isDayNight; void bowlerOversBowled;
+  void isDayNight; void bowlerOversBowled;
 
   // Fielding: runs saved, byes, and dismissal chances (catches / stumpings / run-outs are converted or put down)
   const mix = odi ? ODI_DISMISSAL_MIX[rulesCtx.gender] : undefined; // an ODI's own dismissal mix
@@ -886,6 +892,9 @@ export function createMatchState(
   const chaseAdvantage = odi
     ? venueProfile?.chaseAdvantage ?? ODI_CONDITIONS.chaseAdvantage[odiGender]
     : neutral ? getLeagueChaseAdvantage(rules.league, rules.gender) : venueProfile?.chaseAdvantage ?? getLeagueChaseAdvantage(rules.league, rules.gender);
+
+  // League play at the home side's own ground: the home edge, as simulateMatch (home-advantage.ts)
+  const homeEdge = odi ? 0 : leagueHomeEdge(rules, homeTeam, awayTeam, neutral);
 
   // CPU toss decision: follow the ground's measured chase advantage (ODI: as often as real ODI captains field first)
   const tossDecision: "bat" | "bowl" = isUserTossWinner
@@ -1128,6 +1137,7 @@ export function createMatchState(
       dewFactor,
       venueProfile,
       chaseAdvantage,
+      ...(homeEdge ? { homeEdge } : {}),
       homeBowlingPlan,
       awayBowlingPlan,
       teamBattingOrderIds,
@@ -1271,6 +1281,7 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
       freeHit: freeHitNow, gender: rulesGender, bench: benchPool, nonStrikerName: pm[int.battingOrderIds[state.nonStrikerIdx]]?.name,
       overRatePenalty: overRateOn, context: scoringContextFor(int.rules, liveMatchFormat(int.rules)), conditions: int.conditions,
       wicketsInHandKey: wicketsInHandKey(int.rules, rulesGender),
+      ...(int.homeEdge ? { homeEdge: int.homeEdge } : {}),
       ...(int.rules.matchFormat !== "hundred" && pm[int.battingOrderIds[state.nonStrikerIdx]] ? { partnerRating: (pm[int.battingOrderIds[state.nonStrikerIdx]].battingOvr + pm[int.battingOrderIds[state.nonStrikerIdx]].ratings.timing) / 200 } : {}),
       ...(odi ? {
         odi: {
@@ -4454,7 +4465,7 @@ export function playLiveSuperOvers(state: MatchState): void {
         bat, pm[bowlerId], 19, target !== undefined, target ?? 0, runs, 6 - legal, wickets, ni.stadiumRating, 50, "standard",
         ni.pitchType, ni.boundarySize, ni.dewFactor, 0, 0, legal, 0, rng, batId === homeId, true,
         ni.venueProfile ?? null, ni.chaseAdvantage, unit, { gender: gender === "female" ? "female" : "male", nonStrikerName: pm[batters[non]]?.name },
-        { freeHit, gender, bench: [], nonStrikerName: pm[batters[non]]?.name, superOver: true, context: scoringContextFor(ni.rules, liveMatchFormat(ni.rules)), conditions: ni.conditions },
+        { freeHit, gender, bench: [], nonStrikerName: pm[batters[non]]?.name, superOver: true, context: scoringContextFor(ni.rules, liveMatchFormat(ni.rules)), conditions: ni.conditions, ...(ni.homeEdge ? { homeEdge: ni.homeEdge } : {}) },
       );
       const d = res.detail;
       runs += res.runs + res.extras;

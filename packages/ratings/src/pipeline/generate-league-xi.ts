@@ -5,6 +5,8 @@
  * selection on the same squads (the union of a franchise's XIs over a season) and to fit it (packages/app/src/__tests__/league-xi.test.ts).
  *
  *   npx tsx src/pipeline/generate-league-xi.ts            (reads data/cricsheet/<league>_json/*.json)   -> docs/data/league_xi.json
+ *   LXI_LEAGUES=hundred-m LXI_OUT=../../docs/data/league_xi_hundred.json npx tsx src/pipeline/generate-league-xi.ts
+ *                                                         (The Hundred's, for the league benchmark only: docs/LEAGUES.md "Home advantage")
  *
  * Players are keyed like the rest of the app (`espn_<id>` in the game pool, else `ca_<id>` in the CricketArchive pool, senior and tier0
  * shards) through Cricsheet's people registry, as generate-actual-xi.ts does; a player neither pool has is null. Order of the card:
@@ -28,6 +30,8 @@ const LEAGUES: [string, string, string][] = [
   ["sa20", "SA20", "sat_json"], ["cpl", "Caribbean Premier League", "cpl_json"], ["ilt20", "International League T20", "ilt_json"],
   ["mlc", "Major League Cricket", "mlc_json"], ["bpl", "Bangladesh Premier League", "bpl_json"], ["lpl", "Lanka Premier League", "lpl_json"],
 ];
+/** Leagues written only when named in LXI_LEAGUES (to their own file, LXI_OUT), so league_xi.json and the fits on it stay as they are */
+const OPTIONAL: [string, string, string][] = [["hundred-m", "The Hundred Men's Competition", "hnd_json"]];
 
 function duck<T>(sql: string): T[] {
   const out = execFileSync("duckdb", ["-json", "-c", "SET memory_limit='2GB'; " + sql], { encoding: "utf-8", cwd: DIR, maxBuffer: 1024 * 1024 * 1024 });
@@ -56,7 +60,8 @@ function main() {
   };
 
   const out: Record<string, unknown[]> = {};
-  for (const [lg, event, folder] of LEAGUES) {
+  const only = process.env.LXI_LEAGUES?.split(",");
+  for (const [lg, event, folder] of only ? [...LEAGUES, ...OPTIONAL].filter(l => only.includes(l[0])) : LEAGUES) {
     const rows = duck<{ match_id: string; date: string; season: string }>(`SELECT match_id, strftime(date, '%Y-%m-%d') date, season FROM 'matches.parquet'
       WHERE event = '${event.replace(/'/g, "''")}' AND gender = 'male' AND date >= DATE '2021-01-01' ORDER BY date, match_id`);
     const list: unknown[] = [];
@@ -97,7 +102,8 @@ function main() {
     out[lg] = list;
     console.log(`${lg}: ${list.length} matches (${missing} without a json file), ${nulls}/${places} places not in the pool`);
   }
-  writeFileSync(OUT, JSON.stringify(out));
-  console.log("wrote " + OUT);
+  const outFile = process.env.LXI_OUT ?? OUT;
+  writeFileSync(outFile, JSON.stringify(out));
+  console.log("wrote " + outFile);
 }
 main();

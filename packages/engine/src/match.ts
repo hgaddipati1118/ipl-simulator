@@ -13,6 +13,7 @@
  */
 
 import { matchXiOptions } from "./xi-selection.js";
+import { battingHomeEdge, leagueHomeEdge } from "./home-advantage.js";
 import { impactApplies, impactSeed, midImpactNow, planImpact, swapIn } from "./impact-player.js";
 import { Player } from "./player.js";
 import { Team } from "./team.js";
@@ -261,6 +262,9 @@ export interface VenueContext {
   wicketsInHandKey?: string;
   /** The rules' league (the attack table of bowling-choice.ts is switched per league) */
   league?: string;
+  /** League play at a side's own ground: the home edge (balance points, home-advantage.ts) and the home side */
+  homeEdge?: number;
+  homeTeamId?: string;
 }
 
 /* ───── Detailed scorecard types (from WT2) ───── */
@@ -402,12 +406,13 @@ const PHASE_MULTIPLIERS: Record<"powerplay" | "middle" | "death", Partial<Record
 function baseOutcomeProbabilities(
   batter: BallModelPlayer,
   bowler: BallModelPlayer,
+  homeEdge = 0,
 ): Record<BallOutcome, number> {
   const batRating = (batter.battingOvr + batter.ratings.timing) / 2 / 100;
   const bowlRating = (bowler.bowlingOvr + bowler.ratings.accuracy) / 2 / 100;
 
-  // Balance between batter and bowler determines distribution
-  const balance = batRating - bowlRating; // -1 to 1, positive favors batter
+  // Balance between batter and bowler determines distribution; a league side at its own ground has the home edge (home-advantage.ts)
+  const balance = batRating - bowlRating + homeEdge / 100; // -1 to 1, positive favors batter
 
   // Tuned to match IPL 2025 ball-outcome distributions:
   //   IPL 2025 had 52 scores above 200, avg innings ~178, record boundaries
@@ -478,6 +483,8 @@ export interface BallRules {
   /** The non-striker's batting rating ((battingOvr + timing) / 200) and the legal balls already bowled in the over: the last pair's term with nine down (last-pair.ts) */
   partnerRating?: number;
   ballInOver?: number;
+  /** The home edge on this ball (home-advantage.ts): + when the home side bats, - when the visitors do, absent at a neutral ground */
+  homeEdge?: number;
 }
 
 /** A player as the ball model reads him: a Player, or the live engine's serialized player */
@@ -526,7 +533,7 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
     // the last pair (nine down): the senior partner farms the strike, the junior one blocks or slogs and falls (last-pair.ts)
     if (wicketsDown === 9 && rules.partnerRating !== undefined && !rules.superOver) applyLastPair(probs, "odi", rules.gender, (batter.battingOvr + batter.ratings.timing) / 200, rules.partnerRating, rules.ballInOver ?? 0);
   } else {
-    probs = baseOutcomeProbabilities(batter, bowler);
+    probs = baseOutcomeProbabilities(batter, bowler, rules.homeEdge ?? 0);
     // Women's cricket has its own wide / no-ball / bye rates
     applyGenderExtras(probs, rules.gender);
     // the refitted response to the striker's rating (a flat line in the base matrix was too shallow at the bottom of the order)
@@ -1138,6 +1145,7 @@ function simulateInnings(
   // The side in the field (an impact sub replaces the player he came on for)
   const fieldXI = so ? [...so.fieldXI] : [...bowlingXI];
   let fieldingUnit = buildFieldingUnit(fieldXI);
+  const homeEdge = battingHomeEdge(venue.homeEdge, battingTeam.id === venue.homeTeamId);
   const gender = venue.gender ?? "male";
   const own = hasOwnBallModel(fmt); // the ODI: its own ball model and captaincy
   const maxWickets = so ? 2 : 10;
@@ -1459,6 +1467,7 @@ function simulateInnings(
           batterBalls: innings.batterStats.get(striker.id)!.balls,
           partnerRating: (nonStriker.battingOvr + nonStriker.ratings.timing) / 200, ballInOver: legalBalls,
           ...(own ? { scheduledOvers: maxOvers } : {}),
+          ...(homeEdge ? { homeEdge } : {}),
         },
         nonStriker,
       );
@@ -2193,6 +2202,9 @@ export function simulateMatch(
   // Toss
   const tossWinner = rng() < 0.5 ? homeTeam : awayTeam;
   const venue = getVenueContext(homeTeam, rules, options, fmt);
+  // League play at the home side's own ground: the home edge (home-advantage.ts)
+  const homeEdge = own ? 0 : leagueHomeEdge(rules, homeTeam, awayTeam, !!options?.neutralVenue);
+  if (homeEdge) { venue.homeEdge = homeEdge; venue.homeTeamId = homeTeam.id; }
   // The match's own conditions on the day (T20, The Hundred; drawn only where the league or gender has a fitted shape)
   const conditions = own ? undefined : drawMatchConditions(venue.gender ?? "male", rules.league, rng, rules.scoringContext);
   if (conditions) venue.conditions = conditions;

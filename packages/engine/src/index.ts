@@ -349,3 +349,4 @@ export { applyInningsClock, inningsClockTable, INNINGS_CLOCK_SWITCH } from "./in
 export { INNINGS_CLOCK } from "./innings-clock-data.js";
 export { WICKETS_IN_HAND, WICKETS_IN_HAND_BANDS, WICKETS_IN_HAND_SET, WICKETS_IN_HAND_SET_EDGES } from "./wickets-in-hand-data.js";
 export { WICKETS_IN_HAND_NORM } from "./wickets-in-hand-norm-data.js";
+export { LEAGUE_HOME, battingHomeEdge, leagueHomeEdge } from "./home-advantage.js";
