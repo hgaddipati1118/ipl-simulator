@@ -205,6 +205,7 @@ a user side. The ODI work left every line as it was. Since then, on purpose:
 | the IPL's run level working and refitted (run 1.17, wicket 1.21; TACTICS.md section 10): every line (all four instant lines and both live ones play on the IPL's grounds, whose level moved) | `c23597d9ad13c69c` / `94eddffb17aa5ec9` / `9216c2e59a524c44` / `6120c5e71d6ad583` | `da5a372b74dcb986` / `27e8b93a5b75dcc0` | `1f55d73de23369d9` |
 | concussion substitutes (RULES-MATCH.md 13.9): the men's and Hundred instant lines (the draw is off the engines' own random streams, so only the matches with a concussion move; none of the 100 women's matches nor the 100 + 100 live matches has one) | `2a4aaedd7e7b88cb` / `4e50762d0bb874da` / women unchanged / `bbabfe0e83881c8b` | unchanged | `1b53d9ac847efcc6` |
 | the league home-edge hook (docs/LEAGUES.md, "Home advantage"; fitted, not shipped: `LEAGUE_HOME` empty): every line unchanged | unchanged | unchanged | `1b53d9ac847efcc6` |
+| the chase wicket term by pressure, over and wickets down, and the extra leagues' levels refitted (TACTICS.md section 11): the men's instant lines and both live ones (IPL chases); the women's line (no table for the women) and The Hundred's (not a T20) unchanged | `c25a56e2a3ecd6d7` / `7fb1b9dd200e356b` / women unchanged / Hundred unchanged | `a9b04f376a49d662` / `d6f35f0e5b80787b` | `3bda2f67e5dff433` |
 
 ### Refitting
 
