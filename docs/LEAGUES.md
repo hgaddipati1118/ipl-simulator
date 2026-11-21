@@ -209,6 +209,14 @@ wickets kept where section 9 put them): run 1.17, wicket 1.21; 64 seasons 182.7 
 184.1 / 5.96). The IPL's neutral (playoff) grounds now play the league's level, like the extra leagues'; a T20I at an IPL ground plays
 none of the IPL's levels.
 
+Since the chase's state term (TACTICS.md section 11: a chase's wicket rate by its pressure, the over and wickets down, neutral on the
+engine's own balls, so chases collapse and end all out less often and last longer) the eight extra men's leagues' `wicket` and `dot`
+levels were refitted to the same targets once more (one Newton step on the response pooled over the leagues; wicket factors -2.8% to
++0.8%, dot factors -2.3% to +3.6%; the IPL's level as section 10 fitted it). The 128-season verification: BBL 158.6 / 6.42, PSL 168.5 /
+6.45, SA20 152.3 / 6.21, CPL 158.3 / 6.21, ILT20 155.3 / 6.26, MLC 165.2 / 6.31, BPL 151.9 / 6.36, LPL 176.8 / 6.63, IPL 184.1 / 6.09.
+The balls an innings cannot be fitted through the levels (at fixed runs and wickets their response to the three levels is nearly
+singular); they follow the all-outs.
+
 | League | Runs/innings sim | real | Wickets/innings sim | real | Balls/innings sim | real |
 |---|---|---|---|---|---|---|
 | IPL (engine baseline, not refitted) | 167.6 | 183.7 | 6.84 | 6.05 | 110.4 | 113.7 |

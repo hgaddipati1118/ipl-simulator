@@ -100,21 +100,22 @@ export const LEAGUE_LEVEL_WICKET = 1.0;
  * linear fit over a grid of simulated seasons, then verified over 16 seasons: docs/LEAGUES.md, "Calibration"). Leagues not listed use
  * LEAGUE_LEVEL_RUN and LEAGUE_LEVEL_WICKET. The IPL's own entry: the wicket level of its impact player and bowling attack (docs/TACTICS.md
  * section 9), then run and wicket refitted on 2024 once the run level worked (section 10: 182.9 runs an innings, wickets kept at 6.06);
- * its neutral grounds play it too. A T20I at an IPL ground plays none of it (getVenueProfileForTeam, `league: false`).
+ * its neutral grounds play it too. A T20I at an IPL ground plays none of it (getVenueProfileForTeam, `league: false`). The eight extra
+ * men's leagues' wicket and dot levels were refitted to the same targets with the chase's state term (docs/TACTICS.md section 11).
  */
 export const LEAGUE_LEVELS: Record<string, { run: number; wicket: number; dot: number }> = {
   "ipl": { run: 1.17, wicket: 1.21, dot: 1.0 },
-  "bbl": { run: 1.0, wicket: 0.964, dot: 1.179 },
+  "bbl": { run: 1.0, wicket: 0.9597, dot: 1.2218 },
   "wbbl": { run: 1.0, wicket: 0.98, dot: 1.445 },
-  "psl": { run: 1.0, wicket: 0.934, dot: 1.13 },
-  "sa20": { run: 1.0, wicket: 0.951, dot: 1.223 },
+  "psl": { run: 1.0, wicket: 0.9327, dot: 1.1411 },
+  "sa20": { run: 1.0, wicket: 0.9408, dot: 1.2675 },
   "hundred-m": { run: 1.0, wicket: 0.925, dot: 1.043 },
   "hundred-w": { run: 1.0, wicket: 1.062, dot: 1.397 },
-  "cpl": { run: 1.0, wicket: 0.994, dot: 1.228 },
-  "ilt20": { run: 1.0, wicket: 0.926, dot: 1.307 },
-  "mlc": { run: 1.0, wicket: 1.0, dot: 1.156 },
-  "bpl": { run: 1.0, wicket: 0.966, dot: 1.337 },
-  "lpl": { run: 1.0, wicket: 0.87, dot: 0.905 },
+  "cpl": { run: 1.0, wicket: 0.9921, dot: 1.2559 },
+  "ilt20": { run: 1.0, wicket: 0.9227, dot: 1.3103 },
+  "mlc": { run: 1.0, wicket: 0.9727, dot: 1.1809 },
+  "bpl": { run: 1.0, wicket: 0.9597, dot: 1.3755 },
+  "lpl": { run: 1.0, wicket: 0.8772, dot: 0.8848 },
 };
 
 /** The run level a league's grounds' runMult is set at: LEAGUE_LEVEL_RUN for the IPL (and leagues without an entry), 1 for the extra leagues */

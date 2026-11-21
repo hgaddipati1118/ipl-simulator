@@ -831,6 +831,104 @@ The home side is the one thing the engine misses in the other leagues: the real 
 4. **The extra leagues' wicket and dot levels still reach T20Is at their grounds** (the T20I level was fitted with them, so they were left): the IPL's no longer do.
 
 
+## 11. The innings shape: all-outs, extras and the seventh bowler (a chase wicket term shipped for the men's leagues)
+
+Three gaps were left open by sections 6-10: too many innings ending all out (the IPL's first innings 10.8% against "7.7%", the leagues' mean all-out error 1.99 -> 2.76 points with section 6), the IPL's extras (9.36 an innings against 8.9) and the IPL's innings with seven or more bowlers (20% against 15%). Each was checked against the real record in the window the engine's levels are fitted on, and with the real elevens.
+
+**What the real numbers are** (Cricsheet, every IPL match of the year, both innings; super overs out):
+
+| IPL | 2021-23 | 2024 (fit) | 2025-26 (holdout) | the engine (origin/main, 128 seasons) |
+|---|---|---|---|---|
+| first innings all out | 6.3% (208) | 8.5% (71) | 8.8% (148) | 10.8% |
+| second innings all out | 10.6% | 15.5% | 15.9% | 18.8% |
+| extras an innings (wides / no-balls / byes / leg byes) | 8.46 | 9.25 (5.99 / 0.53 / 0.58 / 2.15) | 8.59 (5.90 / 0.45 / 0.45 / 1.78) | 8.08 (5.55 / 0.44 / 0.54 / 1.53) |
+| innings of 19+ overs with 7+ bowlers | 7.6% (2021-22), 22.3% (2023) | 23.0% | 11.2% | 22.2% |
+
+The "real" figures the gaps were stated against mix eras: the all-out share since 2021 includes the IPL before the Impact Player (6.3% in 2021-23, 8.5-8.8% since), and 15% seven-bowler innings is the average of a 2024 at 23% and a 2025-26 at 11%. Two of the three gaps had also moved: since section 10's run level the engine's IPL extras are 8.1, below real, not above it.
+
+**With the real elevens the engine shows the same shape**, so the CPU's XIs are not the cause. The IPL actual-XI replays of section 9 (the real twelves and batting orders, 32 replays): first innings all out 10.8% (2023-24) / 10.3% (2025+), second 17.8% / 18.7%, seven or more bowlers 20.3% / 20.4%, extras 8.06 / 8.18 (`IPL_BENCH`, which now prints this shape line).
+
+### 11.1 All-outs: the chase collapses too often (a wicket term by the state of the chase, shipped)
+
+*Where the engine's wickets differ from real ones.* Every first and second innings of the nine men's leagues since 2021 (Cricsheet, full matches, the striker rated with the game's ratings: `t20-wicket-timing.py build`) against 3,000 engine matches a league (`last-pair-collect.test.ts`, `LP_LEAGUES=1 LP_MIN_WK=0`), the real wickets over the engine's expected number in the same cell (competition, state, striker rating bin and balls-faced bin), pooled over the leagues:
+
+| chase: real wickets / the engine's, 2021-24 / 2025+ | 0-2 down | 3-4 down | 5-6 down | 7-8 down | 9 down |
+|---|---|---|---|---|---|
+| comfortable (pressure <= -0.25) | 1.09 / 1.11 | 0.97 / 1.00 | 1.04 / 0.93 | | |
+| level (0-0.25) | 0.92 / 0.95 | 0.78 / 0.88 | 1.05 / 1.01 | | |
+| behind (0.5-1) | 0.86 / 0.87 | 1.00 / 0.88 | 0.93 / 0.96 | 0.92 / 0.83 | |
+| far behind (1+) | 0.81 / 0.67 | 0.97 / 1.16 | 0.95 / 0.89 | 0.88 / 0.88 | 0.98 / 0.98 |
+
+(pressure = (required rate - current rate) / 8, the engine's own measure in `chaseAdjustment`.) A real side chasing behind the rate, or seven or eight down, loses fewer wickets than the engine's, and a comfortable one more: the engine's chase adjustment raises the wicket rate by hand-set steps with the pressure (up to +45%) and with five or seven down (+15% / +30%), and lowers it when comfortable. The engine's chase wickets also come early: pooled, its sixth to tenth wickets fell 0.5-0.8 overs before real ones (the ninth 16.43 against 17.25, 0-based), so its tails had more balls to face and the chase ended all out 21.9% of the time against 18.3% (3,000 matches a league, no rain; real: full matches 2024+). With the term: the ninth wicket at 16.86, the tenth at 17.24 (real 17.58), all out 19.5%; the IPL's 18.7% to 16.3% (real 16.1%). In the first innings the same comparison shows the engine losing a few more wickets with three to six down in the middle overs (0.81-0.93) in 2021-23 and 2025+, but not in 2024 (0.87-1.01): see the verdict below.
+
+*The term* (`packages/ratings/src/analysis/state-wickets.py`; engine `state-wickets.ts`, generated `state-wickets-data.ts`; report `docs/data/state_wickets.json`). A log multiplier on the wicket class per cell of a chase, pressure (6 bins) x over band (1-6, 7-11, 12-15, 16-18, 19-20) x wickets down (0-2, 3-4, 5-6, 7-8, 9), pooled over the nine leagues: a wickets-down main effect plus a ridge-shrunk cell effect, fitted by maximum likelihood (each real ball's wicket against the engine's own rate in its cell, competition, striker rating and balls faced), **fitted to the end of 2024 (from 2021), judged on 2025+**, the ridge chosen by fitting to 2023 and scoring 2024. Then made neutral per league over the engine's own chase balls (a factor of 1.04-1.05), so each league's wickets per innings stay where its levels put them and only *when* they fall moves. It multiplies the wicket weight after the chase adjustment (`ballProbabilities`, so the live engine plays it too), in a men's league T20 only: a T20I, The Hundred, the women, a super over and every first innings play exactly as before. A second step of the same fit, on the engine with the term, did not predict 2024 better (converged). The same fit for the first innings (over band x wickets down) was not taken: fitted to 2023 it did not predict 2024 better at any ridge (-0.08e-4 a ball at its best), though it scored +0.55e-4 +- 0.32e-4 a ball on 2025+.
+
+The fitted multipliers (the IPL's factor included): seven or eight down 0.73-0.92 in every state but the last two overs of a comfortable chase (about 1); nine down about 1 (0.85-1.20, the last pair's own term acts there); none to two down 0.92-1.29 after the powerplay (more wickets than the engine, most of all behind the rate in overs 12-15) and 0.89-0.92 in the powerplay behind the rate; three to six down 0.70-1.29 by cell.
+
+*Out of sample, per ball* (chase balls of rated strikers, log likelihood of the wicket against the engine as it was, plus is better, +- its standard error over the balls):
+
+| version (chase state) | 2024, fitted to 2023 (chosen ridge) | holdout 2025+ (67,833 balls), fitted to 2024 |
+|---|---|---|
+| pressure x over band x wickets down (**shipped**) | +4.2e-4 +- 1.6e-4 | **+3.6e-4 +- 1.2e-4** |
+| pressure x wickets down | +1.0e-4 +- 0.7e-4 | +1.6e-4 +- 0.6e-4 |
+| over band x wickets down | +2.3e-4 +- 1.2e-4 | +1.6e-4 +- 0.8e-4 |
+| first innings, over band x wickets down (not taken) | -0.08e-4 +- 0.48e-4 | +0.55e-4 +- 0.32e-4 |
+
+The holdout gain is positive in eight of the nine leagues (BBL +7.1, ILT20 +8.5, SA20 +5.1, MLC +5.0, CPL +4.8, LPL +5.2, BPL +1.9, PSL +0.8 e-4 a ball); the IPL's is flat (-0.15e-4 +- 2.5e-4).
+
+*Levels.* The term is neutral on the engine's own balls but chases that collapse less last longer, so the leagues' wickets rose 0.03-0.16 an innings; the eight extra leagues' `wicket` and `dot` levels were refitted to the same 2024-26 targets as before (one Newton step on the response pooled over the leagues: wicket factors -2.8% to +0.8%, dot factors -2.3% to +3.6%). The IPL's level was left as section 10 fitted it (its runs and wickets moved within the noise). The balls-per-innings target the levels were first fitted with (LEAGUES.md, "Calibration") cannot be reached through the levels: at fixed runs and wickets the response of balls to the run, wicket and dot levels is nearly singular (bringing SA20 up 1.3 balls would take all three up 20-40%), so balls an innings follows the all-outs, not the levels.
+
+*The leagues* (`CALIBRATE_LEAGUES=1 CAL_SEASONS=128`, whole seasons with rain, both innings; before = origin/main, after = shipped; real runs and wickets 2024-26, all out 2024+ with the innings in brackets):
+
+| league | runs / innings: real, before, after | wickets / innings: real, before, after | 1st innings all out: real, before, after | 2nd innings all out: real, before, after |
+|---|---|---|---|---|
+| IPL | 183.7, 183.6, **184.1** | 6.05, 6.11, **6.09** | 8.7% (219), 10.8%, **10.8%** | 15.7% (216), 18.8%, **15.8%** |
+| BBL | 158.3, 158.7, **158.6** | 6.47, 6.49, **6.42** | 12.0% (108), 14.2%, **12.8%** | 18.9% (106), 24.2%, **19.9%** |
+| PSL | 169.2, 168.5, **168.5** | 6.47, 6.42, **6.45** | 13.8% (109), 14.2%, **14.1%** | 25.0% (108), 21.2%, **17.9%** |
+| SA20 | 153.4, 153.2, **152.3** | 6.21, 6.29, **6.21** | 12.4% (97), 20.7%, **18.2%** | 21.7% (92), 22.5%, **20.8%** |
+| CPL | 158.0, 158.3, **158.3** | 6.27, 6.27, **6.21** | 13.5% (104), 18.1%, **18.3%** | 13.5% (104), 21.1%, **17.5%** |
+| ILT20 | 154.9, 155.1, **155.3** | 6.18, 6.25, **6.26** | 11.8% (102), 11.3%, **11.3%** | 12.7% (102), 18.9%, **15.6%** |
+| MLC | 164.9, 164.0, **165.2** | 6.38, 6.41, **6.31** | 18.9% (90), 20.5%, **18.0%** | 16.7% (90), 22.3%, **17.9%** |
+| BPL | 152.4, 153.0, **151.9** | 6.40, 6.42, **6.36** | 16.0% (125), 12.3%, **11.4%** | 17.6% (125), 20.9%, **17.9%** |
+| LPL | 175.7, 174.3, **176.8** | 6.64, 6.58, **6.63** | 14.6% (48), 16.9%, **17.1%** | 17.0% (47), 24.7%, **23.4%** |
+| mean absolute error (bias), nine | 0.53 -> **0.57** | 0.043 -> **0.041** | 2.87 (+1.94) -> **2.48 (+1.16)** | 4.82 (+3.97) -> **2.66 (+0.87)** |
+| against 2021+ (the former measure) | | | 3.81 (+3.26) -> 3.24 (+2.48) | 3.79 (+3.21) -> 1.87 (+0.11) |
+| against 2025+ only (the holdout years) | | | 3.79 (+0.86) -> 3.55 (+0.08) | 5.07 (+3.64) -> 2.91 (+0.54) |
+
+The second innings' all-outs come to real (the pooled bias +3.97 points to +0.87; the IPL 18.8% to 15.8% against 15.7%), the first innings' move a little with the level refit (bias +1.94 to +1.16; the IPL's stays at 10.8% against 8.7%), runs and wickets an innings stay where they were (a 128-season run of one engine differs from another by about 0.5 runs and 0.4 points of all-out a league). Balls an innings come up 0.1-1.3 (MLC 110.3 to 111.6, real 111.6; SA20 108.1 to 108.6, real 110.2). Per league the real shares carry a sampling error of 3-5 points (48-125 innings since 2024), so a mean absolute error of 2.5 points is about what an engine matching every league's true share would show; the pooled bias is the measure that has the power, and it is the one that moves. Extras and bowlers used are unchanged (IPL 8.08 to 8.07 extras, 22.2% to 22.2% seven-bowler innings).
+
+*Match prediction* (paired per real match, minus is better; before = `SW_OFF=1` with the former levels, the same seeds):
+
+| benchmark | fit half | paired | holdout 2025+ | paired |
+|---|---|---|---|---|
+| IPL actual XI (section 9: the real twelves, 1,024 replays) | 2023-24 (144): 0.7131 -> 0.7148 | +0.0017 +- 0.0021 | 144: 0.7016 -> 0.7045 | +0.0029 +- 0.0022 |
+| league actual XI (section 10: seven leagues, 256 replays), pooled | to 2024 (855): 0.6931 -> 0.6949 | +0.0018 +- 0.0023 | 506: 0.6927 -> 0.6923 | **-0.0004 +- 0.0031** |
+| of which the IPL | 276: 0.7098 -> 0.7108 | +0.0010 +- 0.0032 | 142: 0.6942 -> 0.6981 | +0.0039 +- 0.0041 |
+| men's T20I actual XI (`BENCH_ACTUAL=1 BENCH_MODES=actual BENCH_ONLY=t20i-men`; only the T20Is at the extra leagues' grounds move, through their refitted levels), 96 replays | to 2024 (418): 0.6324 -> 0.6359 | +0.0034 +- 0.0040 | 168: 0.5829 -> 0.5866 | +0.0037 +- 0.0056 |
+| the same, 256 replays | 0.6313 -> 0.6318 | +0.0006 +- 0.0025 | 0.5744 -> 0.5764 | +0.0020 +- 0.0027 |
+
+With the real twelves (the IPL rows, 1,024 replays) the chase's all-outs fall from 18.3% / 17.7% to 15.4% / 14.9% (2023-24 / 2025+; real 14.1% / 15.9%), the first innings' stay at 11.1% / 10.2% (real 6.3% / 8.8%), runs an innings 182.9 / 186.3 to 183.5 / 186.9 (real 178.8 / 184.1).
+
+**Verdict: shipped (the chase term and the level refit), as level within noise while clearly fixing a calibration gap.** Out of sample the term predicts the 2025+ chase balls better (+3.6e-4 +- 1.2e-4 a ball, three standard errors, eight leagues of nine), and the gap it targets closes: the leagues' second-innings all-out bias from +4.0 to +0.9 points (their mean error 4.8 to 2.7), the IPL's chase all-outs to real with the game's squads and with the real twelves. No match benchmark moves outside its noise on either half (the league benchmark's holdout -0.0004 +- 0.0031; the IPL's +0.0029 +- 0.0022 and +0.0039 +- 0.0041, the IPL having no skill either way, section 10.1; the T20I +0.0020 +- 0.0027 at 256). Runs and wickets an innings stay as they were (mean error 0.53 to 0.57 runs, 0.043 to 0.041 wickets: within the 128-season noise). **What is not fixed: the IPL's first-innings all-outs** (10.8% against 8.7% since 2024, about one standard error of the real share): the first-innings state term did not predict 2024 and was not taken, and with the striker held fixed the IPL's first-innings wickets are within 2.5% of real ball by ball (real / engine 0.975 in both halves), so what is left is in who is batting and when, not in the hazard.
+
+### 11.2 Extras: the IPL's run level dilutes them (not changed)
+
+The IPL's extras went from 9.36 an innings (section 9) to 8.1 with section 10's run level, with no change to any extras rate: the level multiplies every scoring class by 1.17^1.6 = 1.29 in the ball's weights, and the wides, no-balls and leg byes, which it leaves alone, lose share when the weights are normalised (the impact player collector, `IMP_SIM=1 IMP_MATCHES=3000`: 8.27 now). Undoing the dilution (the level acting on the legal ball only) would bring the IPL back to about 9.3: the 2024 figure (9.25), 0.7 over 2025-26 (8.59), where the engine is now 0.5 under; by kind, wides 5.55 would go to about 6.3 (real 5.99 / 5.90), leg byes 1.53 to about 1.75 (2.15 / 1.78). No better on the holdout, so not done; the other leagues' levels leave extras alone (their run level is 1). Real IPL extras fell from 2024 to 2025-26 mostly in the leg byes and byes (2.73 to 2.23), which nothing fitted on 2024 could see.
+
+### 11.3 The seventh bowler: an IPL change of habit in 2025 (not changed)
+
+Real IPL sides used seven or more bowlers in 7.6% of innings in 2021-22, 22-23% in 2023-24 (the first Impact Player seasons) and 11.2% in 2025-26 (242 innings). The attack table of section 8, fitted on all the leagues to 2024, plays 22.2% on the game's squads and 20.3% / 20.4% on the real IPL elevens of 2023-24 and 2025+: it matches the fit era and the real 2025+ elevens do not tell it that captains changed (the IPL's real batting elevens carried slightly fewer bowlers in 2025+, 4.95 rated 60+ against 5.23, and the model still brings on a seventh in 20%). An IPL offset fitted on 2023-24 would be about zero; one fitted on 2025+ would be fitted on the holdout. Left as it is; the other leagues are within 1-3 points of real (section 8).
+
+### 11.4 For Harsha
+
+1. **Window of the all-out targets.** Real all-out shares rose after 2021-23 in most leagues (IPL first innings 6.3% to 8.8%); the comparisons above use 2024+ like the runs and wickets. Per league the real share has a sampling error of 3-5 points (70-150 innings), so a mean error near 2.5-3.5 points is what a perfect engine would show; the pooled bias is the cleaner measure.
+2. **The IPL's extras** (11.2): undo the run level's dilution if 9.3 an innings (2024-like) is preferred to 8.1 (now); neither is closer to 2025-26 (8.6).
+3. **The seventh bowler** (11.3): a 2025 change of IPL habit; an IPL-only offset could be fitted on 2025-26 if the game should follow the latest season rather than the fit window.
+4. **A first-innings state term** (over band x wickets down, 11.1) is a candidate: it scored +0.55e-4 +- 0.32e-4 a ball on 2025+ but failed the 2024 check it was chosen by, so it is in the data file as zeros; with more seasons it could be scored again (`state-wickets.py` takes it when the 2024 check passes).
+5. **The calibration harness** (`calibrate-leagues.test.ts`, like `last-pair-collect.test.ts`) plays the extra leagues without the CricketArchive pool the app loads (`prepareLeaguePool`), so their squads have stand-ins where the app has real players; the levels are fitted on those squads.
+
+Saves: nothing new is stored. Tests: `packages/engine/src/__tests__/state-wickets.test.ts`.
+
 ## Refitting
 
 - League XIs (section 7): `cd packages/ratings && npx tsx src/pipeline/generate-league-xi.ts` (after a Cricsheet update), `LXI_OUT=xi.json npx vitest run packages/app/src/__tests__/league-xi.test.ts`, then
@@ -840,6 +938,12 @@ The home side is the one thing the engine misses in the other leagues: the real 
 - Bowling attack (section 8): `cd packages/ratings && npx tsx src/pipeline/generate-bowling-overs.ts` (after `generate-league-xi.ts` / `generate-actual-xi.ts`), `LXI_TRAIN=league.json npx vitest run packages/app/src/__tests__/league-xi.test.ts -t "training rows"`, `BENCH_TACTICS=1 BENCH_ONLY=t20i-men BENCH_REPLAYS=0 BENCH_EXPORT=t20i.json npx vitest run packages/app/src/__tests__/tactics-allocation.test.ts`, then `python3 -I packages/ratings/src/analysis/bowling-attack.py league.json t20i.json --write` (needs numpy and scipy; about two minutes, the forward calibration included). `LXI_SIM=sim.json` (`LXI_ATTACK_OFF=1` for the former attack) collects the allocation table; after a refit the league levels move (`calibrate-leagues.test.ts`, `LEVELS_FILE`).
 - Impact Player (section 9): `cd packages/ratings && npx tsx src/pipeline/generate-impact-player.ts` (after a Cricsheet update), `IMP_OUT=rows.json npx vitest run packages/app/src/__tests__/impact-player.test.ts -t rows`, then
   `python3 -I packages/ratings/src/analysis/impact-player.py rows.json --write` (needs numpy and scipy; seconds). `IMP_SIM=1 [IMPACT_OFF=1] [ATTACK_OFF=1]` collects the IPL's allocation and subs on the game's squads; `IPL_BENCH=1 IPL_REPLAYS=1024 IPL_ARMS=old,new` is the IPL actual-XI match benchmark (`IPL_DUMP=prefix` writes the per-match counts). After a refit check the IPL's run and wicket levels (`LEAGUE_LEVELS.ipl`; `calibrate-leagues.test.ts` with `CAL_ONLY=none`, `LEVELS_FILE`, section 10); `IPL_LEVEL='{"run":..,"wicket":..,"dot":1}'` adds a benchmark arm `level` with another IPL level.
+- The chase's state term (section 11): `cd packages/ratings && python3 -I src/analysis/t20-wicket-timing.py build work.duckdb` (the real table, once),
+  `SW_OFF=1 LP_LEAGUES=1 LP_MIN_WK=0 LP_MATCHES=3000 LP_ONLY=ipl,bbl,psl,sa20,cpl,ilt20,mlc,bpl,lpl LP_OUT=sim npx vitest run packages/app/src/__tests__/last-pair-collect.test.ts`
+  (the engine without the term), then `python3 -I src/analysis/state-wickets.py fit work.duckdb sim --write` (needs numpy and scipy; seconds; `--chase pressure|over`
+  for the candidates). A further step: collect with the term in play and fit with `--prev docs/data/state_wickets.json`. The collectors and benchmarks take
+  `SW_OFF=1`, `SW_CHASE_OFF=1`, `SW_FILE=state_wickets.json` (`state-wickets-env.ts`). After a refit, refit the league levels (`calibrate-leagues.test.ts`, `LEVELS_FILE`,
+  which also prints the innings shape: all-outs by innings, extras by kind, bowlers used).
 - League match prediction (section 10): `cd packages/ratings && npx tsx src/pipeline/generate-league-results.ts` (after `generate-league-xi.ts`), then `LEAGUE_BENCH=1 [LB_LEAGUES=ipl,psl,bbl,sa20,cpl,ilt20,mlc] [LB_REPLAYS=128] [LB_DUMP=prefix] [LEVELS_FILE=...] npx vitest run packages/app/src/__tests__/league-bench.test.ts`, the men's league actual-XI benchmark (the dump has each match's sides with their players' ratings, for calibration and the ratings-against-results regressions).
 - Bowling choice: `BENCH_TACTICS=1 BENCH_EXPORT=train.json npx vitest run packages/app/src/__tests__/tactics-allocation.test.ts`, then `python3 packages/ratings/src/analysis/bowling-choice.py train.json` (needs numpy and scipy).
   `BENCH_TACTICS=1 [BENCH_REPLAYS=2] [BENCH_ONLY=...]` prints the allocation tables above (real against the sim).

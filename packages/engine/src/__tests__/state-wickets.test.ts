@@ -96,6 +96,8 @@ describe("in play", () => {
       }
       return { ao: ao / N, wk: wk / N, first };
     };
+    // (the first set of teams built in a process plays differently from every later one, whatever the switch: build one and throw it away)
+    teams();
     const before = play(true), after = play(false);
     expect(after.first).toEqual(before.first);
     expect(after.ao).toBeLessThan(before.ao);
