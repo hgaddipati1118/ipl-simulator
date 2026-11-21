@@ -8,6 +8,9 @@ import { prepareLeaguePool } from "../extended-pool";
 import { getPoolPlayers, getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { toRealPlayerData } from "@ipl-sim/ratings/dist/extended-pool.js";
 import { createPoolLoader } from "../extended-pool";
+import { applyStateWicketsEnv } from "./state-wickets-env";
+// SW_OFF / SW_FIRST_OFF / SW_CHASE_OFF / SW_FILE: the state-wickets term switched or replaced (docs/TACTICS.md section 11)
+applyStateWicketsEnv();
 
 /**
  * The Impact Player (docs/TACTICS.md section 9).
@@ -187,6 +190,8 @@ it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", asyn
   const arms = (process.env.IPL_ARMS ?? "old,new,impact").split(",").map(a => ARMS[a]);
   const make = await ratedPlayers();
   const rules = { ...RULE_PRESETS.modern2026, injuriesEnabled: false } as RuleSet;
+  // LEVELS_FILE=levels.json: LEAGUE_LEVELS entries replaced before the arms read the IPL's (the engine before a level refit)
+  if (process.env.LEVELS_FILE) Object.assign(LEAGUE_LEVELS, JSON.parse(readFileSync(process.env.LEVELS_FILE, "utf-8")));
   const shippedLevel = { ...LEAGUE_LEVELS.ipl };
   const ms = loadImpactMatches().filter(m => m.winner && m.sides.length === 2 && m.sides.every(s => teamIdOf(s.team)));
   const halves: [string, (d: string) => boolean][] = [["fit (2023-24)", d => d <= "2024-12-31"], ["holdout (2025+)", d => d >= "2025-01-01"]];
@@ -196,6 +201,8 @@ it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", asyn
     const set = ms.filter(m => inHalf(m.date));
     const loss: number[][] = arms.map(() => []);
     const extra = arms.map(() => ({ bf: 0, n: 0, runs: 0, inns: 0 }));
+    // the innings shape of the replays (docs/TACTICS.md section 11): all out by innings, wickets, extras, bowlers used in innings of 19+ overs
+    const shape = arms.map(() => ({ ao1: 0, ao2: 0, wk1: 0, wk2: 0, ex: 0, wd: 0, nb: 0, lb: 0, by: 0, bi: 0, seven: 0, six: 0, used: 0 }));
     const per: unknown[] = [];
     set.forEach((m, i) => {
       const ids = m.sides.map(s => teamIdOf(s.team)!);
@@ -232,6 +239,15 @@ it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", asyn
           if (winName === m.winner) w++;
           extra[a].n++; if (r.winnerId === r.innings[0].teamId) extra[a].bf++;
           for (const inn of r.innings) { extra[a].runs += inn.runs; extra[a].inns++; }
+          const sh = shape[a];
+          r.innings.forEach((inn, q) => {
+            if (q === 0) { sh.ao1 += +(inn.wickets >= 10); sh.wk1 += inn.wickets; } else { sh.ao2 += +(inn.wickets >= 10); sh.wk2 += inn.wickets; }
+            const eb = inn.extrasBreakdown;
+            sh.ex += inn.extras; sh.wd += eb?.wides ?? 0; sh.nb += eb?.noBalls ?? 0; sh.lb += eb?.legByes ?? 0; sh.by += eb?.byes ?? 0;
+            const overs = new Map<number, string>();
+            for (const e of inn.ballLog as BallEvent[]) if (!overs.has(e.over)) overs.set(e.over, e.bowler);
+            if (overs.size >= 19) { const k = new Set(overs.values()).size; sh.bi++; sh.used += k; sh.six += +(k >= 6); sh.seven += +(k >= 7); }
+          });
         }
         const p = Math.min(0.97, Math.max(0.03, (w + 1) / (n + 2)));
         loss[a].push(-Math.log(p));
@@ -247,6 +263,8 @@ it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", asyn
       console.log(`  ${arm.name}: log loss ${mean(loss[a]).toFixed(4)} +- ${(sd(loss[a]) / Math.sqrt(loss[a].length)).toFixed(4)}` +
         (a > 0 ? ` | paired vs first ${mean(d) >= 0 ? "+" : ""}${mean(d).toFixed(4)} +- ${(sd(d) / Math.sqrt(d.length)).toFixed(4)}` : "") +
         ` | bat-first wins ${(extra[a].bf / extra[a].n).toFixed(3)} | runs/inns ${(extra[a].runs / extra[a].inns).toFixed(1)}`);
+      const sh = shape[a], n = extra[a].n || 1, ni = extra[a].inns || 1, b = sh.bi || 1;
+      console.log(`    shape: all out 1st ${(100 * sh.ao1 / n).toFixed(1)}% 2nd ${(100 * sh.ao2 / n).toFixed(1)}% | wickets 1st ${(sh.wk1 / n).toFixed(2)} 2nd ${(sh.wk2 / n).toFixed(2)} | extras ${(sh.ex / ni).toFixed(2)} (wides ${(sh.wd / ni).toFixed(2)} nb ${(sh.nb / ni).toFixed(2)} byes ${(sh.by / ni).toFixed(2)} lb ${(sh.lb / ni).toFixed(2)}) | bowlers ${(sh.used / b).toFixed(2)} 6+ ${(100 * sh.six / b).toFixed(1)}% 7+ ${(100 * sh.seven / b).toFixed(1)}%`);
     });
     if (process.env.IPL_DUMP) writeFileSync(`${process.env.IPL_DUMP}-${label.startsWith("fit") ? "fit" : "hold"}.json`, JSON.stringify(per));
   }

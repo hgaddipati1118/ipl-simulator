@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { WICKETS_IN_HAND, WICKETS_IN_HAND_SET } from "../wickets-in-hand-data.js";
 import { WICKETS_IN_HAND_NORM } from "../wickets-in-hand-norm-data.js";
 import { applyWicketsInHand, setLevel, wicketsInHandBand, wicketsInHandKey } from "../wickets-in-hand.js";
+import { STATE_WICKETS_SWITCH } from "../state-wickets.js";
 import { ballProbabilities, simulateMatch, type BallModelPlayer, type BallOutcome, type VenueContext } from "../match.js";
 import { T20_FORMAT } from "../format.js";
 import { RULE_PRESETS, type RuleSet } from "../rules.js";
@@ -64,7 +65,10 @@ describe("where it applies", () => {
       over: 8, isSecondInnings: second, target: second ? 180 : 0, currentScore: 60, ballsRemaining: 66, wicketsDown: 4,
       venue: { ...venue, ...(key ? { wicketsInHandKey: key } : {}) }, inningsBalls: 120, rules: { freeHit: false, fmt: T20_FORMAT, gender: "male" },
     });
+    // (the chase's own state term, state-wickets.ts, reads the same key: off here, this is about the wickets-in-hand table)
+    STATE_WICKETS_SWITCH.off = true;
     expect(at(true, "ipl")).toEqual(at(true));
+    STATE_WICKETS_SWITCH.off = false;
     expect(at(false, "ipl")["6"]).not.toBeCloseTo(at(false)["6"], 6);
   });
 });

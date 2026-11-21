@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs";
 import { it } from "vitest";
 import { ATTACK_MODEL, IMPACT_MODEL, EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, IN_MATCH_INJURY_SWITCH, LEAGUE_LEVELS, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, RULE_PRESETS, type RuleSet } from "@ipl-sim/engine";
 import { createGameState, initSeason, playNextMatch, isSeasonComplete } from "../game-state";
+import { applyStateWicketsEnv } from "./state-wickets-env";
+// SW_OFF / SW_FIRST_OFF / SW_CHASE_OFF / SW_FILE: the state-wickets term switched or replaced (docs/TACTICS.md section 11)
+applyStateWicketsEnv();
 
 /**
  * League scoring calibration (skipped unless CALIBRATE_LEAGUES=1): simulated innings scoring per league against the real
@@ -42,7 +45,9 @@ it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {
   const leagues = process.env.CAL_ONLY ? EXTRA_LEAGUES.filter(l => process.env.CAL_ONLY!.split(",").includes(l.id)) : EXTRA_LEAGUES;
   const list: Array<{ id: string; rules: RuleSet }> = [{ id: "ipl", rules: RULE_PRESETS.modern2026 }, { id: "wpl", rules: RULE_PRESETS.wpl }, ...leagues];
   for (const { id, rules } of list) {
-    let runs = 0, wkts = 0, balls = 0, inns = 0, first = 0, second = 0, wins2 = 0, n = 0, allOut1 = 0, wk1 = 0;
+    let runs = 0, wkts = 0, balls = 0, inns = 0, first = 0, second = 0, wins2 = 0, n = 0, allOut1 = 0, wk1 = 0, allOut2 = 0;
+    // the innings shape (docs/TACTICS.md section 11): extras by kind, and bowlers used in innings of 19+ overs
+    const ex = { total: 0, wides: 0, noBalls: 0, byes: 0, legByes: 0 }; let bInns = 0, used = 0, six = 0, seven = 0;
     for (let s = 0; s < SEASONS; s++) {
       let st = initSeason({ ...createGameState({ ...rules, injuriesEnabled: false } as RuleSet), phase: "season" });
       let guard = 0;
@@ -51,11 +56,17 @@ it.skipIf(!process.env.CALIBRATE_LEAGUES)("calibrate", () => {
         if (r.result.margin === "Super Over") continue;
         const [a, b] = r.result.innings;
         for (const i of [a, b]) { runs += i.runs; wkts += i.wickets; balls += i.totalBalls; inns++; }
-        first += a.runs; second += b.runs; n++; wk1 += a.wickets; if (a.wickets >= 10) allOut1++;
+        first += a.runs; second += b.runs; n++; wk1 += a.wickets; if (a.wickets >= 10) allOut1++; if (b.wickets >= 10) allOut2++;
+        for (const c of r.detailed ? [r.detailed.innings1, r.detailed.innings2] : []) {
+          ex.total += c.extras.total; ex.wides += c.extras.wides; ex.noBalls += c.extras.noBalls; ex.byes += c.extras.byes ?? 0; ex.legByes += c.extras.legByes;
+          if (Number(c.totalOvers) >= 19) { const k = c.bowlers.length; bInns++; used += k; six += +(k >= 6); seven += +(k >= 7); }
+        }
         if (r.result.winnerId === b.teamId) wins2++;
       }
     }
     const t = TARGET[id];
     console.log(`${id.padEnd(10)} runs/inn ${(runs / inns).toFixed(1)} (real ${t.runs})  wkts/inn ${(wkts / inns).toFixed(2)} (${t.wkts})  balls/inn ${(balls / inns).toFixed(1)} (${t.balls})  1st ${(first / n).toFixed(1)} 2nd ${(second / n).toFixed(1)} chase-win ${(100 * wins2 / n).toFixed(0)}%  1st all out ${(100 * allOut1 / n).toFixed(1)}% 1st wkts ${(wk1 / n).toFixed(2)}  mult ${rules.scoringMultiplier}`);
+    const d = Math.max(1, ex.total ? inns : 1), m = Math.max(1, bInns);
+    console.log(`${id.padEnd(10)} shape: 2nd all out ${(100 * allOut2 / n).toFixed(1)}%  extras/inn ${(ex.total / d).toFixed(2)} (wides ${(ex.wides / d).toFixed(2)} nb ${(ex.noBalls / d).toFixed(2)} byes ${(ex.byes / d).toFixed(2)} lb ${(ex.legByes / d).toFixed(2)})  bowlers ${(used / m).toFixed(2)} 6+ ${(100 * six / m).toFixed(1)}% 7+ ${(100 * seven / m).toFixed(1)}% (${bInns} inns of 19+ overs)`);
   }
 }, 3_600_000);

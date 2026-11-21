@@ -68,6 +68,7 @@ import { applyScoringContext, scoringContextFor, type T20Context } from "./scori
 import { applyMatchConditions, drawMatchConditions, type MatchConditions } from "./match-conditions.js";
 import { applyWicketsInHand, wicketsInHandKey as wicketsInHandKeyFor } from "./wickets-in-hand.js";
 import { applyInningsClock } from "./innings-clock.js";
+import { applyStateWickets } from "./state-wickets.js";
 import { applyBatterResponse } from "./batter-response.js";
 import { applyLastPair } from "./last-pair.js";
 import { odiBallProbabilities, odiBowlerChoices } from "./odi-model.js";
@@ -609,6 +610,16 @@ export function ballProbabilities(batter: BallModelPlayer, bowler: BallModelPlay
       ? (currentScore / (inningsBalls - ballsRemaining)) * 6
       : 0;
     probs = chaseAdjustment(probs, requiredRate, currentRate, wicketsDown);
+  }
+
+  // The wicket hazard by the state of the innings, a men's league T20 (docs/TACTICS.md section 11): the chase by its pressure and wickets down
+  if (!own && !rules.superOver && rules.fmt.id === "t20" && venue.wicketsInHandKey) {
+    let pressure: number | undefined;
+    if (isSecondInnings && ballsRemaining > 0) {
+      const bowled = inningsBalls - ballsRemaining;
+      pressure = (((target - currentScore) / ballsRemaining) * 6 - (bowled > 0 ? (currentScore / bowled) * 6 : 0)) / 8;
+    }
+    applyStateWickets(probs, venue.wicketsInHandKey, isSecondInnings, over, wicketsDown, pressure);
   }
 
   // Clutch factor for last 3 overs in close games

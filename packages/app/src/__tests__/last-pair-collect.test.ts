@@ -10,6 +10,9 @@ import { createSeries, matchContext, seriesSquads, type SeriesGender } from "../
 import { createPoolLoader } from "../extended-pool";
 import { playTestInstantly } from "../test-match/test-entry";
 import { testFixture } from "../test-match/test-series";
+import { applyStateWicketsEnv } from "./state-wickets-env";
+// SW_OFF / SW_FIRST_OFF / SW_CHASE_OFF / SW_FILE: the state-wickets term switched or replaced (docs/TACTICS.md section 11)
+applyStateWicketsEnv();
 
 /**
  * Last-pair state, simulated (skipped unless LP_COLLECT=1): the actual-XI matches (real batting orders, docs/data/actual_xi.json)

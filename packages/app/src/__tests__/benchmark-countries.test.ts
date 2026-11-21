@@ -4,11 +4,13 @@ import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
-import { ATTACK_MODEL, BATTER_RESPONSE, CAPTAIN_MODEL, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, IN_MATCH_INJURY_SWITCH, LAST_PAIR_SWITCH, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
+import { ATTACK_MODEL, BATTER_RESPONSE, CAPTAIN_MODEL, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, IN_MATCH_INJURY_SWITCH, LAST_PAIR_SWITCH, LEAGUE_LEVELS, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
 import { XI_SHARPEN } from "../realistic-xi";
 import { availabilitySource, createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender, type SeriesMatchRecord } from "../international";
 import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
 import { createPoolLoader } from "../extended-pool";
+// LEVELS_FILE=levels.json: LEAGUE_LEVELS entries replaced (a T20I at a league's ground plays its wicket and dot levels: docs/TACTICS.md section 10)
+if (process.env.LEVELS_FILE) Object.assign(LEAGUE_LEVELS, JSON.parse(readFileSync(process.env.LEVELS_FILE, "utf-8")));
 
 /**
  * Per-country benchmark (skipped unless BENCH_COUNTRIES=1): the national sides' simulated results against the real ones

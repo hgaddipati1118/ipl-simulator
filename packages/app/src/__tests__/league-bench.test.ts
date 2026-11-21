@@ -6,6 +6,9 @@ import { EXTRA_LEAGUES, IPL_TEAMS, LEAGUE_HOME, LEAGUE_LEVELS, LEAGUE_RULE_PRESE
 import { getPoolPlayers, getRealPlayers } from "@ipl-sim/ratings/dist/real-players.js";
 import { toRealPlayerData } from "@ipl-sim/ratings/dist/extended-pool.js";
 import { createPoolLoader } from "../extended-pool";
+import { applyStateWicketsEnv } from "./state-wickets-env";
+// SW_OFF / SW_FIRST_OFF / SW_CHASE_OFF / SW_FILE: the state-wickets term switched or replaced (docs/TACTICS.md section 11)
+applyStateWicketsEnv();
 
 /**
  * LEAGUE_BENCH=1 [LB_LEAGUES=ipl,psl,bbl,sa20,cpl,ilt20,mlc,hundred-m] [LB_REPLAYS=256] [LB_DUMP=prefix] [LEVELS_FILE=levels.json] [LB_HOME='{"bbl":3}']:
