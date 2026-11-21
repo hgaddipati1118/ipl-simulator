@@ -12,6 +12,8 @@ import { Player } from "./player.js";
 import { shuffle } from "./math.js";
 import { DEFAULT_RULES, IPL_10_TEAM_IDS, type RuleSet } from "./rules.js";
 import { healInjuries, runPostMatchInjuryChecks } from "./injury.js";
+import { applyInMatchInjuries, inMatchFormatOf } from "./in-match-injury.js";
+import { createRNG } from "./rng.js";
 import type { MatchState } from "./live-match.js";
 
 export type PlayoffMatchType = "qualifier1" | "eliminator" | "qualifier2" | "semi1" | "semi2" | "final";
@@ -658,15 +660,20 @@ export function applyLiveResult(
   for (const p of home.roster) addFieldingStats(p, (battingFirstId === home.id ? innings2 : innings1).ballLog);
   for (const p of away.roster) addFieldingStats(p, (battingFirstId === away.id ? innings2 : innings1).ballLog);
 
-  // Mark matches played for all XI players
-  const homeXISet = new Set(completedMatch._internal.homeXIIds);
-  const awayXISet = new Set(completedMatch._internal.awayXIIds);
+  // Mark matches played for all XI players (a concussed player who was replaced played too)
+  const hurt = completedMatch.inMatchInjuries ?? [];
+  const concussed = (teamId: string) => hurt.filter(e => e.kind === "concussion" && e.teamId === teamId).map(e => e.playerId);
+  const homeXISet = new Set([...completedMatch._internal.homeXIIds, ...concussed(home.id)]);
+  const awayXISet = new Set([...completedMatch._internal.awayXIIds, ...concussed(away.id)]);
   for (const p of home.roster) { if (homeXISet.has(p.id)) p.stats.matches++; }
   for (const p of away.roster) { if (awayXISet.has(p.id)) p.stats.matches++; }
 
-  // Live matches get the same post-match injury checks as simulated ones
+  // Live matches get the same post-match injury checks as simulated ones: what the in-match injuries cost first
   const injuriesEnabled = rules.injuriesEnabled ?? true;
-  result.injuries = [...result.injuries];
+  const rosterPlayer = (id: string) => home.roster.find(p => p.id === id) ?? away.roster.find(p => p.id === id);
+  result.injuries = [...result.injuries, ...applyInMatchInjuries(hurt, rosterPlayer, {
+    enabled: injuriesEnabled, format: inMatchFormatOf(completedMatch._internal.rules.matchFormat), rng: createRNG((completedMatch._internal.seed ^ 0x27d4eb2f) | 0),
+  })];
   for (const [team, ids] of [[home, homeXISet], [away, awayXISet]] as const) {
     const xi = team.roster.filter(p => ids.has(p.id));
     for (const { player, injury } of runPostMatchInjuryChecks(xi, injuriesEnabled, { gender: rules.gender })) {

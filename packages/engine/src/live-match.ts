@@ -14,6 +14,7 @@ import { attackStateOf, attackTableFor, attackTally, bowlerKind, captainModelFor
 import { clamp, weightedRandom } from "./math.js";
 import { DEFAULT_RULES, type RuleSet } from "./rules.js";
 import { runPostMatchInjuryChecks, type InjuryStatus } from "./injury.js";
+import { concussionLine, concussionNote, concussionRates, concussionSubOptions, inMatchFormatOf, sideDraw, subMayBowl, type InMatchInjury } from "./in-match-injury.js";
 import { createRNG, randomSeed, type RNG } from "./rng.js";
 import { getVenueProfileForTeam, getLeagueChaseAdvantage, getNeutralVenueProfile, getOdiVenueProfile, type VenueProfile } from "./venues.js";
 import { stadiumRatingFor, planRain, ballProbabilities, type RainPlan, type VenueContext } from "./match.js";
@@ -125,6 +126,8 @@ export interface LiveBatterStats {
   fallOfWicket?: string;
   /** Left the field hurt; not out, and may resume at a wicket */
   retiredHurt?: boolean;
+  /** Concussed: replaced by a concussion substitute, he takes no further part */
+  concussed?: boolean;
 }
 
 /** One super over (a tied match is settled by one or more) */
@@ -174,7 +177,7 @@ export interface PendingDrsContext {
 
 /** A pending tactical decision the user must resolve before the match continues. */
 export interface PendingDecision {
-  type: 'choose_bowler' | 'choose_batter' | 'impact_sub' | 'toss_decision' | 'drs_review' | 'retire_out' | 'strategic_timeout';
+  type: 'choose_bowler' | 'choose_batter' | 'impact_sub' | 'toss_decision' | 'drs_review' | 'retire_out' | 'strategic_timeout' | 'concussion_sub';
   /** Player IDs the user can pick from. For impact_sub, these are bench players who can come in.
    *  For toss_decision, options are ["bat", "bowl"]. For drs_review, options are ["review", "accept"]. */
   options: string[];
@@ -191,6 +194,8 @@ export interface PendingDecision {
   outgoingBowlerName?: string;
   /** choose_batter: the options that are retired-hurt batters who may resume (ids); "none" = nobody comes in, the innings ends */
   retiredHurtIds?: string[];
+  /** concussion_sub: who was concussed, batting or in the field (the options are the like-for-like replacements, best first) */
+  concussion?: { playerId: string; playerName: string; side: "batting" | "fielding" };
 }
 
 export interface PendingDecisionOption {
@@ -281,6 +286,8 @@ export interface MatchState {
   winnerId?: string;
   manOfTheMatch?: { playerId: string; playerName: string; reason: string };
   injuries: MatchInjuryEvent[];
+  /** Concussions (with their substitutes), retired hurt and mid-over breakdowns so far (in-match-injury.ts); absent in older states */
+  inMatchInjuries?: InMatchInjury[];
 
   // Tactical decision support
   pendingDecision?: PendingDecision;
@@ -351,6 +358,13 @@ interface MatchStateInternal {
   batterSlotIdx?: number;
   /** Bowlers who left the field hurt (or were removed from the attack) this innings */
   unavailableBowlers?: string[];
+  /** Concussion substitutes: each side's available squad at the start (absent in states saved before them: no concussion subs),
+   *  the players who have been in the match, the subs who may not bowl (they replaced a player who was not a bowling option),
+   *  and a concussion waiting on the user's choice of replacement */
+  squadIds?: Record<string, string[]>;
+  inMatchIds?: Record<string, string[]>;
+  noBowlIds?: string[];
+  pendingConcussion?: InMatchInjury;
   /** The bowler of each completed over of the innings in play (index = over): the captain's choice model reads gaps and phase use from it */
   overBowlers?: string[];
   /** Teams (ids) that set their own bowling order: it is their attack (the attack table of bowling-choice.ts does not widen it) */
@@ -1124,6 +1138,12 @@ export function createMatchState(
       ...(odi ? { superOverOnTie: options.superOver ?? false } : options.superOver === false ? { superOverOnTie: false } : {}),
       ...(rainPlan ? { rainPlan: { ...rainPlan, applied: rainPlan.when === "preMatch" } } : {}),
       ...(conditions ? { conditions } : {}),
+      squadIds: { [homeTeam.id]: homeTeam.roster.filter(p => !p.injured).map(p => p.id), [awayTeam.id]: awayTeam.roster.filter(p => !p.injured).map(p => p.id) },
+      inMatchIds: Object.fromEntries([[homeTeam, homeXI, homeBatXI], [awayTeam, awayXI, awayBatXI]].map(([t, xi, bat]) => {
+        const pl = impactPlans[(t as Team).id];
+        const plan = pl ? [pl.bf.x, pl.bf.yBowl, pl.bf.yMid, pl.ch.x, pl.ch.yBowl, pl.ch.yMid] : [];
+        return [(t as Team).id, [...new Set([...(xi as Player[]), ...(bat as Player[])].map(p => p.id).concat(plan.filter((id): id is string => !!id)))]];
+      })),
     },
   };
 }
@@ -1733,6 +1753,17 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     retireHurt(newState, ni, pm, rawInnings, rng() < 0.67);
   }
 
+  // The batter who faced is concussed: a like-for-like substitute takes his place at the crease (not a wicket). Drawn off the
+  // match's own stream (sideDraw), so a match without one plays exactly as before. Not on the innings' last ball.
+  if (detail.legal && ni.squadIds && newState.status !== "waiting_for_decision" && !ni.allOut && newState.wickets < 10 &&
+      !(isSecondInnings && newState.score >= target) && (maxOvers - newState.overs) * 6 - ni.currentOverLegalBalls > 0 &&
+      sideDraw(ni.seed, newState.innings, rawInnings.totalBalls, 1) < concussionRates(inMatchFormatOf(ni.rules.matchFormat)).batting) {
+    const k = ni.battingOrderIds.indexOf(strikerId);
+    if ((k === newState.strikerIdx || k === newState.nonStrikerIdx) && !newState.batterStats.find(b => b.playerId === strikerId)?.isOut) {
+      concussPlayer(newState, ni, pm, rawInnings, newState.battingTeamId, strikerId, "batting");
+    }
+  }
+
   // Create the detailed event
   const detailedBall: DetailedBallEvent = {
     over: newState.overs,
@@ -1809,6 +1840,17 @@ export function stepBall(state: MatchState): { state: MatchState; ball: Detailed
     const tempName = newState.strikerName;
     newState.strikerName = newState.nonStrikerName;
     newState.nonStrikerName = tempName;
+
+    // ── A fielder is concussed (checked at the end of each over, as in the instant engine) ──
+    if (ni.squadIds && newState.status !== "waiting_for_decision" && newState.overs < maxOvers && newState.wickets < 10 && !ni.allOut &&
+        !(isSecondInnings && newState.score >= target) &&
+        sideDraw(ni.seed, newState.innings, newState.overs - 1, 2) < concussionRates(inMatchFormatOf(ni.rules.matchFormat)).fielding * 6) {
+      const xi = newState.bowlingTeamId === newState.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
+      if (xi.length > 1) {
+        const k = Math.min(xi.length - 1, Math.floor(sideDraw(ni.seed, newState.innings, newState.overs - 1, 3) * xi.length));
+        concussPlayer(newState, ni, pm, rawInnings, newState.bowlingTeamId, xi[k], "fielding");
+      }
+    }
 
     // ── Retire Out (between overs, death phase only; a T20 tactic, not offered in an ODI) ─────────
     // Only offer in overs 16+ when explosive batters are waiting
@@ -2070,6 +2112,9 @@ function bowlerLeavesMidOver(state: MatchState, ni: MatchStateInternal, reason: 
   (ni.unavailableBowlers ??= []).push(goneId);
   ni.bowlerOvers[goneId] = ni.maxOversPerBowler; // off for the innings: his overs are used up
   const goneName = pm[goneId].name;
+  if (reason === "injury") {
+    (state.inMatchInjuries ??= []).push({ kind: "bowler_breakdown", playerId: goneId, playerName: goneName, teamId: state.bowlingTeamId, innings: state.innings, over: state.overs, ball: ni.currentOverLegalBalls });
+  }
   const userBowling = ni.userTeamId !== null && state.bowlingTeamId === ni.userTeamId;
   if (userBowling && pool.length > 1 && state.status !== "waiting_for_decision") {
     for (const id of pool) if (ni.bowlerOvers[id] === undefined) ni.bowlerOvers[id] = 0;
@@ -2307,6 +2352,7 @@ function retireHurt(
   const live = state.batterStats.find(b => b.playerId === id);
   if (live) { live.retiredHurt = true; live.howOut = RETIRED_HURT_TEXT; }
   queueNote(ni, retiredHurtLine(pm[id].name, createRNG(state.score * 17 + state.overs)));
+  (state.inMatchInjuries ??= []).push({ kind: "retired_hurt", playerId: id, playerName: pm[id].name, teamId: state.battingTeamId, innings: state.innings, over: state.overs, ball: ni.currentOverLegalBalls });
   if (state.nextBatterIdx >= ni.battingOrderIds.length) {
     // nobody to replace him: a lone batter cannot continue, the innings is over
     ni.allOut = true;
@@ -2316,6 +2362,121 @@ function retireHurt(
   const newIdx = state.nextBatterIdx;
   if (strikerHurt) state.strikerIdx = newIdx; else state.nonStrikerIdx = newIdx;
   bringInNextBatter(state, ni, pm, rawInnings, newIdx);
+}
+
+/* ─────────────────── Concussion substitutes (in-match-injury.ts) ─────────────────── */
+
+function xiOfTeam(state: MatchState, ni: MatchStateInternal, teamId: string): string[] {
+  return teamId === state.homeTeam.id ? ni.homeXIIds : ni.awayXIIds;
+}
+
+/** The replacements the referee would approve for `outId`, best first: from the squad, not anyone already in the match */
+function concussionOptionsFor(state: MatchState, ni: MatchStateInternal, teamId: string, outId: string): string[] {
+  const squad = ni.squadIds?.[teamId];
+  const pm = ni.playerDataMap;
+  if (!squad || !pm[outId]) return [];
+  const xi = xiOfTeam(state, ni, teamId);
+  const used = new Set([
+    ...(ni.inMatchIds?.[teamId] ?? []), ...xi,
+    ...Object.keys(ni.currentInningsRaw.batterStats), ...Object.keys(ni.currentInningsRaw.bowlerStats),
+    ...Object.keys(ni.innings1Raw?.batterStats ?? {}), ...Object.keys(ni.innings1Raw?.bowlerStats ?? {}),
+    ...Object.values(ni.impactPending ?? {}).flatMap(v => [v.x, v.y]),
+  ]);
+  const bench = squad.filter(id => !used.has(id) && pm[id]).map(id => pm[id]);
+  const onField = xi.map(id => pm[id]).filter(Boolean);
+  return concussionSubOptions(pm[outId], bench, {
+    overseasOnField: onField.filter(p => p.isInternational).length, maxOverseas: ni.rules.maxOverseasInXI, keeping: !!pm[outId].isWicketKeeper,
+  }).map(p => p.id);
+}
+
+/** A player is concussed: the user picks his replacement when it is his side and there is a choice; else the referee's first choice */
+function concussPlayer(
+  state: MatchState, ni: MatchStateInternal, pm: Record<string, SerializedPlayer>, raw: InningsScoreRaw,
+  teamId: string, outId: string, side: "batting" | "fielding",
+): void {
+  const ev: InMatchInjury = {
+    kind: "concussion", playerId: outId, playerName: pm[outId].name, teamId, innings: state.innings, over: state.overs, ball: ni.currentOverLegalBalls, side,
+  };
+  if (side === "batting") {
+    const live = state.batterStats.find(b => b.playerId === outId);
+    if (live) { live.retiredHurt = true; live.concussed = true; live.howOut = RETIRED_HURT_TEXT; }
+  }
+  const opts = concussionOptionsFor(state, ni, teamId, outId);
+  const user = ni.userTeamId !== null && teamId === ni.userTeamId;
+  if (user && opts.length > 1 && state.status !== "waiting_for_decision") {
+    ni.pendingConcussion = ev;
+    state.pendingDecision = {
+      type: "concussion_sub", options: opts, teamId, concussion: { playerId: outId, playerName: ev.playerName, side },
+      optionDetails: opts.map(id => {
+        const p = pm[id];
+        return {
+          playerId: id, playerName: p.name, role: p.role, battingOvr: p.battingOvr, bowlingOvr: p.bowlingOvr, overall: p.overall, bowlingStyle: p.bowlingStyle,
+          battingHand: p.battingHand, isBench: true,
+        };
+      }),
+    };
+    state.status = "waiting_for_decision";
+    return;
+  }
+  finishConcussion(state, ni, pm, raw, ev, opts[0]);
+}
+
+/** The replacement comes on (or, with nobody on the bench, the side goes on a player short) */
+function finishConcussion(
+  state: MatchState, ni: MatchStateInternal, pm: Record<string, SerializedPlayer>, raw: InningsScoreRaw, ev: InMatchInjury, subId: string | undefined,
+): void {
+  if (subId) { ev.subId = subId; ev.subName = pm[subId].name; }
+  (state.inMatchInjuries ??= []).push(ev);
+  queueNote(ni, concussionLine(ev));
+  const xi = xiOfTeam(state, ni, ev.teamId);
+  const k = xi.indexOf(ev.playerId);
+  const swapIn = (ids: string[] | undefined, keep: boolean) => {
+    if (!ids) return;
+    const i = ids.indexOf(ev.playerId);
+    if (i < 0) return;
+    if (subId && keep) ids[i] = subId; else ids.splice(i, 1);
+  };
+  if (subId) {
+    if (k >= 0) xi[k] = subId; else xi.push(subId);
+    ((ni.inMatchIds ??= {})[ev.teamId] ??= []).push(subId);
+    if (ev.teamId === state.homeTeam.id) ni.homeBenchIds = ni.homeBenchIds.filter(id => id !== subId);
+    else ni.awayBenchIds = ni.awayBenchIds.filter(id => id !== subId);
+  } else if (k >= 0) xi.splice(k, 1);
+  const outBowled = (ni.bowlerOvers[ev.playerId] ?? 0) > 0 || (ni.innings1Raw?.bowlerStats[ev.playerId]?.overs ?? 0) + (ni.innings1Raw?.bowlerStats[ev.playerId]?.balls ?? 0) > 0;
+  const mayBowl = subMayBowl(pm[ev.playerId], outBowled);
+  if (subId && !mayBowl) (ni.noBowlIds ??= []).push(subId);
+  // the sides' own orders for a later innings: the substitute in his place
+  swapIn(ni.teamBattingOrderIds?.[ev.teamId], true);
+  swapIn(ni.teamBowlingOrderIds?.[ev.teamId], mayBowl);
+  if (ev.side === "batting") {
+    const idx = ni.battingOrderIds.indexOf(ev.playerId);
+    if (subId) {
+      ni.battingOrderIds[idx] = subId;
+      raw.batterStats[subId] = { runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false };
+      const at = state.batterStats.findIndex(b => b.playerId === ev.playerId);
+      state.batterStats.splice(at + 1, 0, { playerId: subId, playerName: pm[subId].name, runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false, howOut: "not out" });
+      syncBatterNames(state, ni);
+    } else if (state.nextBatterIdx >= ni.battingOrderIds.length) {
+      ni.allOut = true; // nobody to replace him and nobody left to bat
+    } else {
+      const newIdx = state.nextBatterIdx;
+      if (state.strikerIdx === idx) state.strikerIdx = newIdx; else state.nonStrikerIdx = newIdx;
+      bringInNextBatter(state, ni, pm, raw, newIdx);
+    }
+  } else {
+    // in the field: he bowls no more; the substitute bowls what is left of his quota when he was a bowling option
+    const overs = ni.bowlerOvers[ev.playerId] ?? 0;
+    (ni.unavailableBowlers ??= []).push(ev.playerId);
+    ni.bowlerOvers[ev.playerId] = ni.maxOversPerBowler;
+    if (subId) {
+      if (mayBowl) {
+        if (!ni.bowlingOrderIds.includes(subId)) ni.bowlingOrderIds.push(subId);
+        ni.bowlerOvers[subId] = overs;
+      } else {
+        ni.bowlerOvers[subId] = ni.maxOversPerBowler;
+      }
+    }
+  }
 }
 
 /** Queue a line for the commentary of the ball being played (or the one just played) */
@@ -2528,6 +2689,8 @@ function finalizeFirstInningsBreak(
     rawInnings,
     id => ni.playerDataMap[id]?.name,
   );
+  const notes1 = (state.inMatchInjuries ?? []).filter(e => e.kind === "concussion" && e.innings === 1).map(concussionNote);
+  if (notes1.length > 0) state.innings1Scorecard.notes = notes1;
 
   state.status = "innings_break";
 }
@@ -2624,6 +2787,14 @@ export function applyDecision(
       // Now bring in the batter
       bringInNextBatter(newState, ni, pm, rawInnings);
       if (ni.deferredOverSwap) { ni.deferredOverSwap = false; swapStrike(newState); }
+      break;
+    }
+
+    case 'concussion_sub': {
+      const ev = ni.pendingConcussion;
+      ni.pendingConcussion = undefined;
+      if (ev) finishConcussion(newState, ni, pm, rawInnings, ev, decision.selectedPlayerId);
+      if (ni.allOut) endInningsNow = true;
       break;
     }
 
@@ -3137,7 +3308,7 @@ export function applyDecision(
   // After retire-out, strategic timeout, or DRS review, bowler selection may be needed.
   // If at the start of a new over (currentOverLegalBalls === 0), trigger bowler selection.
   const odiMatch = ni.rules.matchFormat === "odi";
-  if ((pending.type === 'retire_out' || pending.type === 'strategic_timeout' || pending.type === 'drs_review') &&
+  if ((pending.type === 'retire_out' || pending.type === 'strategic_timeout' || pending.type === 'drs_review' || pending.type === 'concussion_sub') &&
       ni.currentOverLegalBalls === 0 && newState.overs < (odiMatch ? newState.maxOvers : 20) && newState.wickets < 10) {
     const isUserBowling = ni.userTeamId !== null && newState.bowlingTeamId === ni.userTeamId;
     ensureFreshBowlerOption(newState, ni);
@@ -3357,10 +3528,11 @@ export function startSecondInnings(state: MatchState): MatchState {
 
   const pm = ni.playerDataMap;
 
-  // Reset bowler overs
+  // Reset bowler overs (a concussion sub who replaced a player who was not a bowling option may not bowl)
   ni.bowlerOvers = {};
   ni.overBowlers = [];
   for (const id of ni.bowlingOrderIds) ni.bowlerOvers[id] = 0;
+  for (const id of ni.noBowlIds ?? []) if (bowlingXIIds.includes(id)) ni.bowlerOvers[id] = ni.maxOversPerBowler;
   ni.lastBowlerId = null;
   ni.currentOverLegalBalls = 0;
 
@@ -3531,6 +3703,11 @@ export function autoResolveDecision(state: MatchState): MatchState {
     case 'strategic_timeout': {
       // When auto-resolving, skip the timeout
       return applyDecision(state, { type: 'strategic_timeout', selectedPlayerId: "skip" });
+    }
+
+    case 'concussion_sub': {
+      // The referee's first choice (best like-for-like replacement)
+      return applyDecision(state, { type: 'concussion_sub', selectedPlayerId: pending.options[0] });
     }
   }
 
@@ -3718,6 +3895,8 @@ export function buildDetailedResultFromState(state: MatchState): DetailedMatchRe
     },
     fallOfWickets: state.fallOfWickets,
   };
+  const notes2 = (state.inMatchInjuries ?? []).filter(e => e.kind === "concussion" && e.innings === 2).map(concussionNote);
+  if (notes2.length > 0) innings2Scorecard.notes = notes2;
 
   return {
     matchId: state._internal.matchId,

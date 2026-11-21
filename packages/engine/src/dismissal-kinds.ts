@@ -77,6 +77,9 @@ export interface RuleOverrides {
   mankadPerDelivery?: number;
   penaltyPerDelivery?: number;
   bowlerLeavesPerOver?: number;
+  /** Concussions per legal ball (both sides together; in-match-injury.ts) and the share of them that are a batter at the crease */
+  concussionPerBall?: number;
+  concussionBattingShare?: number;
   overthrowBoundaryAfterRun?: number;
   overthrowBoundaryAfterDot?: number;
   /** Probability that a wicket draw is on a substitute fielder */

@@ -9,12 +9,10 @@ import {
   canBeDismissedOnFreeHit,
   checkRunOut,
   checkOverthrow,
-  checkMidMatchInjury,
-  determineInjuryResponse,
   isLikeForLikeReplacement,
   processDRSReview,
 } from "../ball-outcomes.js";
-import type { DismissalType, WideType, MatchInjuryType } from "../ball-outcomes.js";
+import type { DismissalType, WideType } from "../ball-outcomes.js";
 
 // ── Helper: run a function many times and collect results ─────────────
 function sample<T>(fn: () => T, n: number): T[] {
@@ -391,129 +389,6 @@ describe("checkOverthrow", () => {
   });
 });
 
-// ── checkMidMatchInjury ───────────────────────────────────────────────
-
-describe("checkMidMatchInjury", () => {
-  const baseParams = {
-    playerAge: 25,
-    isBowling: false,
-    oversBowled: 0,
-    isSprinting: false,
-  };
-
-  it("very rare per ball", () => {
-    const results = sample(() => checkMidMatchInjury(baseParams), 10_000);
-    const injuries = results.filter(r => r !== null).length;
-    // 0.1% for young non-bowling non-sprinting = ~10 in 10000
-    expect(injuries / results.length).toBeLessThan(0.05);
-  });
-
-  it("bowlers more likely than batters", () => {
-    const bowlerResults = sample(
-      () => checkMidMatchInjury({ ...baseParams, isBowling: true, oversBowled: 2 }),
-      100_000,
-    );
-    const batterResults = sample(
-      () => checkMidMatchInjury({ ...baseParams, isBowling: false }),
-      100_000,
-    );
-    const bowlerInjuries = bowlerResults.filter(r => r !== null).length;
-    const batterInjuries = batterResults.filter(r => r !== null).length;
-    // Bowler base rate (0.0005) is 5x higher than batter (0.0001)
-    expect(bowlerInjuries).toBeGreaterThan(batterInjuries);
-  });
-
-  it("age increases risk", () => {
-    const youngResults = sample(
-      () => checkMidMatchInjury({ ...baseParams, playerAge: 22, isBowling: true, oversBowled: 2 }),
-      100_000,
-    );
-    const oldResults = sample(
-      () => checkMidMatchInjury({ ...baseParams, playerAge: 36, isBowling: true, oversBowled: 2 }),
-      100_000,
-    );
-    const youngInjuries = youngResults.filter(r => r !== null).length;
-    const oldInjuries = oldResults.filter(r => r !== null).length;
-    expect(oldInjuries).toBeGreaterThan(youngInjuries);
-  });
-
-  it("returns injury type when injury occurs", () => {
-    const validTypes: MatchInjuryType[] = [
-      "hamstring", "side-strain", "groin", "concussion", "finger", "ankle",
-    ];
-    // Force high probability scenario
-    const results = sample(
-      () => checkMidMatchInjury({
-        playerAge: 37,
-        isBowling: true,
-        oversBowled: 4,
-        isSprinting: true,
-      }),
-      10_000,
-    );
-    const injuries = results.filter(r => r !== null);
-    expect(injuries.length).toBeGreaterThan(0);
-    for (const inj of injuries) {
-      expect(inj!.injured).toBe(true);
-      expect(validTypes).toContain(inj!.type);
-    }
-  });
-});
-
-// ── determineInjuryResponse ───────────────────────────────────────────
-
-describe("determineInjuryResponse", () => {
-  it("concussion always returns concussion-sub", () => {
-    // Test both batting and bowling
-    for (let i = 0; i < 50; i++) {
-      expect(determineInjuryResponse("concussion", true)).toBe("concussion-sub");
-      expect(determineInjuryResponse("concussion", false)).toBe("concussion-sub");
-    }
-  });
-
-  it("hamstring/groin for batters returns retired-hurt", () => {
-    for (let i = 0; i < 50; i++) {
-      expect(determineInjuryResponse("hamstring", true)).toBe("retired-hurt");
-      expect(determineInjuryResponse("groin", true)).toBe("retired-hurt");
-    }
-  });
-
-  it("hamstring/groin for bowlers returns bowling-breakdown", () => {
-    for (let i = 0; i < 50; i++) {
-      expect(determineInjuryResponse("hamstring", false)).toBe("bowling-breakdown");
-      expect(determineInjuryResponse("groin", false)).toBe("bowling-breakdown");
-    }
-  });
-
-  it("ankle for batters returns retired-hurt", () => {
-    for (let i = 0; i < 50; i++) {
-      expect(determineInjuryResponse("ankle", true)).toBe("retired-hurt");
-    }
-  });
-
-  it("side-strain for batters can be retired-hurt or continues", () => {
-    const results = sample(
-      () => determineInjuryResponse("side-strain", true),
-      200,
-    );
-    const retiredHurt = countOccurrences(results, "retired-hurt");
-    const continues = countOccurrences(results, "continues");
-    expect(retiredHurt).toBeGreaterThan(0);
-    expect(continues).toBeGreaterThan(0);
-  });
-
-  it("side-strain for bowlers returns bowling-breakdown", () => {
-    for (let i = 0; i < 50; i++) {
-      expect(determineInjuryResponse("side-strain", false)).toBe("bowling-breakdown");
-    }
-  });
-
-  it("uses injected RNG for borderline batter injury calls", () => {
-    expect(determineInjuryResponse("side-strain", true, () => 0.2)).toBe("retired-hurt");
-    expect(determineInjuryResponse("side-strain", true, () => 0.8)).toBe("continues");
-  });
-});
-
 // ── isLikeForLikeReplacement ──────────────────────────────────────────
 
 describe("isLikeForLikeReplacement", () => {
@@ -539,6 +414,12 @@ describe("isLikeForLikeReplacement", () => {
 
   it("bowler cannot replace batter", () => {
     expect(isLikeForLikeReplacement("batsman", "bowler")).toBe(false);
+  });
+
+  it("a keeper counts as a batter", () => {
+    expect(isLikeForLikeReplacement("wicket-keeper", "batsman")).toBe(true);
+    expect(isLikeForLikeReplacement("batsman", "wicket-keeper")).toBe(true);
+    expect(isLikeForLikeReplacement("wicket-keeper", "bowler")).toBe(false);
   });
 });
 

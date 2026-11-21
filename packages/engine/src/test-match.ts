@@ -24,7 +24,7 @@ import { type ConditionsSetting, type PitchPreset, type WeatherPreset } from "./
 import { Player, calculateBattingOverall, type PlayerRatings } from "./player.js";
 import type { Team } from "./team.js";
 import type { RNG } from "./rng.js";
-import { randomSeed } from "./rng.js";
+import { createRNG, randomSeed } from "./rng.js";
 import { TEST_MODEL as M } from "./test-model-data.js";
 import { applyLastPairTest } from "./last-pair.js";
 import { TEST_PROFILE_DATA } from "./test-profile-data.js";
@@ -37,6 +37,7 @@ import { dismissalText, isBowlerWicket, type DismissalKind } from "./dismissal-k
 import { drsText, type DrsKind, type DrsReview } from "./drs.js";
 import { generateDeliveryCommentary } from "./commentary.js";
 import { runPostMatchInjuryChecks } from "./injury.js";
+import { applyInMatchInjuries, concussionLine, concussionNote, concussionRates, concussionSubOptions, sideDraw, subMayBowl, type InMatchInjury, type SubCandidate } from "./in-match-injury.js";
 import type { BatterInnings, BowlerFigures, InningsScorecard, MatchInjuryEvent } from "./match.js";
 
 // ── Model tables ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -170,6 +171,8 @@ export interface TestBatterLine {
   out: boolean;
   /** Retired hurt and not (yet) back */
   retiredHurt?: boolean;
+  /** Concussed and replaced: he takes no further part */
+  concussed?: boolean;
   kind?: DismissalKind;
   bowlerId?: string;
   fielderId?: string;
@@ -287,6 +290,8 @@ export interface TestTeamState {
   bazball?: boolean;
   /** The user's bowling plan for this side (bowling-choice.ts BowlingPlan): overs of an innings fixed to a bowler (0 and 1: who opens) and `spinFrom` */
   bowling?: BowlingPlan;
+  /** The rest of the squad, who may come on as a concussion substitute (absent in matches saved before them: no substitutes) */
+  bench?: string[];
 }
 
 export type TestDecisionType = "toss" | "follow_on" | "drs_batting" | "drs_fielding" | "new_ball" | "next_batter";
@@ -316,7 +321,7 @@ export interface TestMatchEvent {
   inn: number;
   /** Innings overs when it happened */
   overs: number;
-  kind: "toss" | "day_start" | "stumps" | "lunch" | "tea" | "weather" | "innings_end" | "declaration" | "follow_on" | "new_ball" | "nightwatchman" | "result";
+  kind: "toss" | "day_start" | "stumps" | "lunch" | "tea" | "weather" | "innings_end" | "declaration" | "follow_on" | "new_ball" | "nightwatchman" | "result" | "concussion";
   text: string;
 }
 
@@ -381,6 +386,8 @@ export interface TestMatchState {
   commentaryUsed?: Record<string, 1>;
   result?: TestResult;
   injuries?: MatchInjuryEvent[];
+  /** Concussions (with their substitutes) and retired hurt (in-match-injury.ts) */
+  inMatchInjuries?: InMatchInjury[];
 }
 
 /** A delivery waiting on a DRS decision: what really happened and what the umpire gave */
@@ -785,12 +792,15 @@ export function createTestMatch(home: Team, away: Team, options: TestMatchOption
   const players: Record<string, TestPlayer> = {};
   homeXI.forEach((p, i) => { players[p.id] = testPlayerOf(p, i); });
   awayXI.forEach((p, i) => { players[p.id] = testPlayerOf(p, i); });
+  // the rest of each squad: the concussion substitutes
+  const benchOf = (t: Team, xi: Player[]) => t.roster.filter(p => !p.injured && !xi.includes(p)).map(p => { players[p.id] ??= testPlayerOf(p); return p.id; });
   const teamState = (t: Team, xi: Player[], isHome: boolean): TestTeamState => ({
     id: t.id, name: t.name, shortName: t.shortName, xi: xi.map(p => p.id),
     keeperId: testKeeperOf(xi).id,
     home: isHome && !options.neutral, approach: null,
     ...(options.bazballTeamId === t.id ? { bazball: true } : {}),
     ...(options.bowling?.[t.id] ? { bowling: options.bowling[t.id] } : {}),
+    bench: benchOf(t, xi),
   });
 
   const st: TestMatchState = {
@@ -1495,7 +1505,13 @@ function applyBall(st: TestMatchState, inn: TestInnings, ev: TestBallEvent): boo
       inn.batters[id].retiredHurt = true;
       (inn.retiredHurt ??= []).push(id);
       inn.strikerId = incoming;
+      (st.inMatchInjuries ??= []).push({ kind: "retired_hurt", playerId: id, playerName: st.players[id].name, teamId: inn.battingTeamId, innings: inn.number, over: Math.floor(inn.legalBalls / 6), ball: inn.overBalls });
     }
+  }
+  // the batter who faced is concussed: a like-for-like substitute bats in his place (not a wicket); drawn off the match's stream
+  if (legal && st.teams[inn.battingTeamId].bench && (inn.strikerId === ev.batter || inn.nonStrikerId === ev.batter) &&
+      sideDraw(st.seed, inn.number, inn.legalBalls, 1) < concussionRates("Test").batting) {
+    if (concussTest(st, inn, inn.battingTeamId, ev.batter, "batting")) { closeInnings(st, inn, "all_out"); return true; }
   }
   if (inn.overBalls >= 6) endOver(st, inn);
   return false;
@@ -1518,9 +1534,71 @@ function endOver(st: TestMatchState, inn: TestInnings): void {
   inn.end = inn.end === 0 ? 1 : 0;
   noteSession(st, inn);
   const overs = Math.floor(inn.legalBalls / 6);
+  // a fielder is concussed (checked at the end of each over, as in the T20 engines)
+  const field = st.teams[inn.bowlingTeamId];
+  if (field.bench && field.xi.length > 1 && sideDraw(st.seed, inn.number, overs - 1, 2) < concussionRates("Test").fielding * 6) {
+    concussTest(st, inn, inn.bowlingTeamId, field.xi[Math.min(field.xi.length - 1, Math.floor(sideDraw(st.seed, inn.number, overs - 1, 3) * field.xi.length))], "fielding");
+  }
   if (!inn.newBallDue && overs - inn.ballTakenAt >= 80) inn.newBallDue = true;
   // the batting captain: push for, then make, a declaration (innings 1-3)
   if (inn.number <= 3 && st.status === "in_progress" && !isUserSide(st, inn.battingTeamId)) cpuDeclaration(st, inn);
+}
+
+/** What the referee compares for a Test player (batting / bowling value in rating-like units) */
+function testCandidate(tp: TestPlayer): SubCandidate {
+  const bat = 50 + 40 * tp.batValue, bowl = 50 + 40 * tp.bowlValue;
+  return { id: tp.id, role: tp.role, isWicketKeeper: tp.isWicketKeeper, battingOvr: bat, bowlingOvr: bowl, overall: (bat + bowl) / 2, bowlingStyle: tp.bowlingStyle };
+}
+
+/**
+ * A concussion in a Test: the best like-for-like player from the rest of the squad replaces him for the rest of the match (the
+ * CPU's choice for both sides). Batting: he takes the concussed batter's place at the crease. In the field: he takes over the
+ * gloves when the keeper is concussed, and bowls only when he replaced a bowler. True when the innings is over (nobody to
+ * replace a batter and nobody left to come in).
+ */
+function concussTest(st: TestMatchState, inn: TestInnings, teamId: string, outId: string, side: "batting" | "fielding"): boolean {
+  const team = st.teams[teamId];
+  const out = st.players[outId];
+  const opts = concussionSubOptions(testCandidate(out), (team.bench ?? []).map(id => testCandidate(st.players[id])), { keeping: team.keeperId === outId });
+  const subId = opts[0]?.id;
+  if (side === "batting" && !subId && testBatterQueue(inn).filter(id => !inn.retiredHurt?.includes(id)).length === 0) return false;
+  const ev: InMatchInjury = {
+    kind: "concussion", playerId: outId, playerName: out.name, teamId, innings: inn.number, over: Math.floor(inn.legalBalls / 6), ball: inn.overBalls, side,
+    ...(subId ? { subId, subName: st.players[subId].name } : {}),
+  };
+  (st.inMatchInjuries ??= []).push(ev);
+  st.events.push({ day: st.day, inn: inn.number, overs: Math.floor(inn.legalBalls / 6), kind: "concussion", text: concussionLine(ev) });
+  const k = team.xi.indexOf(outId);
+  if (subId) {
+    team.xi[k] = subId;
+    team.bench = team.bench!.filter(id => id !== subId);
+    if (!subMayBowl(out, Object.values(st.innings).some(i => (i.bowlers[outId]?.balls ?? 0) > 0))) st.players[subId] = { ...st.players[subId], bowler: false };
+  } else team.xi.splice(k, 1);
+  if (team.keeperId === outId) team.keeperId = (subId && st.players[subId].isWicketKeeper ? subId : team.xi.find(id => st.players[id].isWicketKeeper)) ?? subId ?? team.xi[0];
+  // later innings bat in the eleven's order: the substitute in his place (startInnings copies team.xi)
+  for (const i of [inn]) {
+    const oi = i.order.indexOf(outId);
+    if (oi >= 0 && i.battingTeamId === teamId) { if (subId) i.order[oi] = subId; else i.order.splice(oi, 1); }
+  }
+  if (side === "batting") {
+    const line = inn.batters[outId];
+    line.retiredHurt = true;
+    line.concussed = true;
+    let incoming: string | null;
+    if (subId) {
+      inn.batters[subId] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, arrived: line.arrived + 0.5 };
+      inn.arrived = Object.keys(inn.batters).length;
+      incoming = subId;
+    } else {
+      incoming = nextBatter(inn);
+      if (!incoming) return true;
+    }
+    if (inn.strikerId === outId) inn.strikerId = incoming; else inn.nonStrikerId = incoming;
+  } else {
+    if (inn.ends[0] === outId) inn.ends[0] = null;
+    if (inn.ends[1] === outId) inn.ends[1] = null;
+  }
+  return false;
 }
 
 // ── The captains (fitted policies) ──────────────────────────────────────────────────────────────────────────────────
@@ -1997,6 +2075,10 @@ export function testInningsScorecard(st: TestMatchState, inn: TestInnings): Inni
     totalRuns: inn.runs, totalWickets: inn.wickets, totalOvers: oversText(inn.legalBalls), batters, bowlers,
     extras: { wides: x.wides, noBalls: x.noBalls, legByes: x.legByes, total: x.wides + x.noBalls + x.byes + x.legByes + x.penalty, ...(x.byes ? { byes: x.byes } : {}) },
     fallOfWickets: inn.fow.map(f => `${f.runs}/${f.wickets} (${oversText(f.balls)} ov)`),
+    ...(() => {
+      const notes = (st.inMatchInjuries ?? []).filter(e => e.kind === "concussion" && e.innings === inn.number).map(concussionNote);
+      return notes.length > 0 ? { notes } : {};
+    })(),
   };
 }
 
@@ -2042,7 +2124,9 @@ export function simulateTestMatch(home: Team, away: Team, options: TestMatchOpti
   const st = createTestMatch(home, away, { ...options, userTeamId: null });
   runTestToEnd(st);
   if (options.injuries) {
-    st.injuries = [];
+    // what the in-match injuries cost (a concussion, retired hurt), then the post-match checks with the Test multiplier
+    const rosterPlayer = (id: string) => home.roster.find(p => p.id === id) ?? away.roster.find(p => p.id === id);
+    st.injuries = applyInMatchInjuries(st.inMatchInjuries ?? [], rosterPlayer, { enabled: true, format: "Test", rng: createRNG((st.seed ^ 0x27d4eb2f) | 0) });
     for (const t of [home, away]) {
       const xi = st.teams[t.id].xi.map(id => t.roster.find(p => p.id === id)).filter((p): p is Player => !!p);
       for (const { player, injury } of runPostMatchInjuryChecks(xi, true, { gender: st.gender === "female" ? "women" : "men", format: "Test/FC" })) {

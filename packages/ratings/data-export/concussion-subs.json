@@ -1,0 +1,1413 @@
+{
+ "generated": "2026-11-20T18:47:31",
+ "fit_years": [
+  2023,
+  2024
+ ],
+ "check_years": [
+  2025,
+  2026
+ ],
+ "engine": {
+  "pooled_per_ball": 3.560438597345434e-05,
+  "batting_share": 0.3644067796610169,
+  "batting_share_n": [
+   21,
+   58
+  ],
+  "formats": {
+   "T20": {
+    "per_ball": 3.2256645586845604e-05,
+    "per_ball_batting": 1.1754540340969159e-05,
+    "per_ball_fielding": 2.0502105245876445e-05,
+    "balls_per_match": 215.0,
+    "fit": {
+     "matches": 3168,
+     "balls": 681104,
+     "events": 21,
+     "hit_batting": 6,
+     "hit_fielding": 15,
+     "per_1000_matches": 6.63,
+     "per_1000_matches_jeffreys": 6.78,
+     "per_ball_batting": 9.543329653033898e-06,
+     "per_ball_fielding": 2.2757170711080833e-05
+    },
+    "check": {
+     "matches": 3461,
+     "balls": 740991,
+     "events": 13,
+     "hit_batting": 1,
+     "hit_fielding": 12,
+     "per_1000_matches": 3.76,
+     "per_1000_matches_jeffreys": 3.9,
+     "per_ball_batting": 2.0243160848107466e-06,
+     "per_ball_fielding": 1.6869300706756222e-05
+    },
+    "2020-22": {
+     "matches": 3099,
+     "balls": 677527,
+     "events": 14,
+     "hit_batting": 9,
+     "hit_fielding": 5,
+     "per_1000_matches": 4.52,
+     "per_1000_matches_jeffreys": 4.68,
+     "per_ball_batting": 1.402158142775122e-05,
+     "per_ball_fielding": 8.117757668698074e-06
+    },
+    "fit_per_1000": 6.94,
+    "men_fit": {
+     "matches": 2194,
+     "balls": 474678,
+     "events": 11,
+     "hit_batting": 4,
+     "hit_fielding": 7,
+     "per_1000_matches": 5.01,
+     "per_1000_matches_jeffreys": 5.24,
+     "per_ball_batting": 9.4801107276933e-06,
+     "per_ball_fielding": 1.58001845461555e-05
+    },
+    "women_fit": {
+     "matches": 974,
+     "balls": 206426,
+     "events": 10,
+     "hit_batting": 2,
+     "hit_fielding": 8,
+     "per_1000_matches": 10.27,
+     "per_1000_matches_jeffreys": 10.77,
+     "per_ball_batting": 1.2110877505740555e-05,
+     "per_ball_fielding": 4.117698351951789e-05
+    },
+    "men_all": {
+     "matches": 6828,
+     "balls": 1484838,
+     "events": 35,
+     "hit_batting": 13,
+     "hit_fielding": 22,
+     "per_1000_matches": 5.13,
+     "per_1000_matches_jeffreys": 5.2,
+     "per_ball_batting": 9.091900934647416e-06,
+     "per_ball_fielding": 1.515316822441236e-05
+    },
+    "women_all": {
+     "matches": 2900,
+     "balls": 614784,
+     "events": 13,
+     "hit_batting": 3,
+     "hit_fielding": 10,
+     "per_1000_matches": 4.48,
+     "per_1000_matches_jeffreys": 4.65,
+     "per_ball_batting": 5.693056423068915e-06,
+     "per_ball_fielding": 1.7079169269206745e-05
+    }
+   },
+   "ODI": {
+    "per_ball": 5.447968216183433e-05,
+    "per_ball_batting": 1.9852765533549796e-05,
+    "per_ball_fielding": 3.4626916628284536e-05,
+    "balls_per_match": 492.9,
+    "fit": {
+     "matches": 404,
+     "balls": 199144,
+     "events": 13,
+     "hit_batting": 3,
+     "hit_fielding": 10,
+     "per_1000_matches": 32.18,
+     "per_1000_matches_jeffreys": 33.33,
+     "per_ball_batting": 1.7575221949945768e-05,
+     "per_ball_fielding": 5.2725665849837304e-05
+    },
+    "check": {
+     "matches": 360,
+     "balls": 184936,
+     "events": 3,
+     "hit_batting": 3,
+     "hit_fielding": 0,
+     "per_1000_matches": 8.33,
+     "per_1000_matches_jeffreys": 9.7,
+     "per_ball_batting": 1.892546610719384e-05,
+     "per_ball_fielding": 2.7036380153134058e-06
+    },
+    "2020-22": {
+     "matches": 385,
+     "balls": 200086,
+     "events": 5,
+     "hit_batting": 3,
+     "hit_fielding": 2,
+     "per_1000_matches": 12.99,
+     "per_1000_matches_jeffreys": 14.25,
+     "per_ball_batting": 1.7492478234359226e-05,
+     "per_ball_fielding": 1.2494627310256589e-05
+    },
+    "fit_per_1000": 26.85,
+    "men_fit": {
+     "matches": 284,
+     "balls": 141911,
+     "events": 9,
+     "hit_batting": 3,
+     "hit_fielding": 6,
+     "per_1000_matches": 31.69,
+     "per_1000_matches_jeffreys": 33.33,
+     "per_ball_batting": 2.4663345336161398e-05,
+     "per_ball_fielding": 4.580335562429974e-05
+    },
+    "women_fit": {
+     "matches": 120,
+     "balls": 57233,
+     "events": 4,
+     "hit_batting": 0,
+     "hit_fielding": 4,
+     "per_1000_matches": 33.33,
+     "per_1000_matches_jeffreys": 37.19,
+     "per_ball_batting": 8.736218615134625e-06,
+     "per_ball_fielding": 7.862596753621163e-05
+    },
+    "men_all": {
+     "matches": 759,
+     "balls": 390094,
+     "events": 15,
+     "hit_batting": 7,
+     "hit_fielding": 8,
+     "per_1000_matches": 19.76,
+     "per_1000_matches_jeffreys": 20.39,
+     "per_ball_batting": 1.9226135239198758e-05,
+     "per_ball_fielding": 2.1789619937758593e-05
+    },
+    "women_all": {
+     "matches": 390,
+     "balls": 194072,
+     "events": 6,
+     "hit_batting": 2,
+     "hit_fielding": 4,
+     "per_1000_matches": 15.38,
+     "per_1000_matches_jeffreys": 16.62,
+     "per_ball_batting": 1.2881817057586876e-05,
+     "per_ball_fielding": 2.3187270703656373e-05
+    }
+   },
+   "Test": {
+    "per_ball": 3.2660196109171866e-05,
+    "per_ball_batting": 1.1901596887240594e-05,
+    "per_ball_fielding": 2.0758599221931274e-05,
+    "balls_per_match": 1672.8,
+    "fit": {
+     "matches": 456,
+     "balls": 762808,
+     "events": 24,
+     "hit_batting": 12,
+     "hit_fielding": 12,
+     "per_1000_matches": 52.63,
+     "per_1000_matches_jeffreys": 53.61,
+     "per_ball_batting": 1.63868234208346e-05,
+     "per_ball_fielding": 1.63868234208346e-05
+    },
+    "check": {
+     "matches": 533,
+     "balls": 872111,
+     "events": 18,
+     "hit_batting": 5,
+     "hit_fielding": 13,
+     "per_1000_matches": 33.77,
+     "per_1000_matches_jeffreys": 34.64,
+     "per_ball_batting": 6.306536667924152e-06,
+     "per_ball_fielding": 1.5479680912177464e-05
+    },
+    "2020-22": {
+     "matches": 541,
+     "balls": 956330,
+     "events": 27,
+     "hit_batting": 8,
+     "hit_fielding": 19,
+     "per_1000_matches": 49.91,
+     "per_1000_matches_jeffreys": 50.74,
+     "per_ball_batting": 8.888145305490783e-06,
+     "per_ball_fielding": 2.039045099494944e-05
+    },
+    "fit_per_1000": 54.63,
+    "men_fit": {
+     "matches": 450,
+     "balls": 751986,
+     "events": 24,
+     "hit_batting": 12,
+     "hit_fielding": 12,
+     "per_1000_matches": 53.33,
+     "per_1000_matches_jeffreys": 54.32,
+     "per_ball_batting": 1.6622649889758587e-05,
+     "per_ball_fielding": 1.6622649889758587e-05
+    },
+    "women_fit": {
+     "matches": 6,
+     "balls": 10822,
+     "events": 0,
+     "hit_batting": 0,
+     "hit_fielding": 0,
+     "per_1000_matches": 0.0,
+     "per_1000_matches_jeffreys": 71.43,
+     "per_ball_batting": 4.620218074293107e-05,
+     "per_ball_fielding": 4.620218074293107e-05
+    },
+    "men_all": {
+     "matches": 1517,
+     "balls": 2568551,
+     "events": 69,
+     "hit_batting": 25,
+     "hit_fielding": 44,
+     "per_1000_matches": 45.48,
+     "per_1000_matches_jeffreys": 45.78,
+     "per_ball_batting": 9.927776400001402e-06,
+     "per_ball_fielding": 1.7324943129414212e-05
+    },
+    "women_all": {
+     "matches": 13,
+     "balls": 22698,
+     "events": 0,
+     "hit_batting": 0,
+     "hit_fielding": 0,
+     "per_1000_matches": 0.0,
+     "per_1000_matches_jeffreys": 35.71,
+     "per_ball_batting": 2.202837254383646e-05,
+     "per_ball_fielding": 2.202837254383646e-05
+    }
+   }
+  },
+  "missed_next": {
+   "0": 41,
+   "1": 35,
+   "2": 20,
+   "3": 11,
+   "4": 4,
+   "5": 1,
+   "6": 5
+  },
+  "missed_next_n": 117,
+  "like_for_like": {
+   "all-rounder -> all-rounder": 15,
+   "bowler -> bowler": 37,
+   "wicket-keeper -> wicket-keeper": 4,
+   "all-rounder -> batter": 19,
+   "wicket-keeper -> all-rounder": 4,
+   "batter -> all-rounder": 17,
+   "batter -> batter": 17,
+   "all-rounder -> bowler": 15,
+   "wicket-keeper -> bowler": 2,
+   "bowler -> batter": 2,
+   "wicket-keeper -> batter": 5,
+   "all-rounder -> wicket-keeper": 2,
+   "batter -> wicket-keeper": 3,
+   "batter -> bowler": 3,
+   "bowler -> all-rounder": 6,
+   "bowler -> wicket-keeper": 1
+  },
+  "retired_hurt": {
+   "miss_prob": {
+    "T20": [
+     140,
+     218
+    ],
+    "ODI": [
+     169,
+     290
+    ],
+    "Test": [
+     300,
+     473
+    ]
+   },
+   "missed": {
+    "1": 262,
+    "2": 136,
+    "3": 73,
+    "4": 51,
+    "5": 34,
+    "6": 22,
+    "7": 5,
+    "8": 10,
+    "9": 7,
+    "10": 9
+   },
+   "bowler_miss_prob": [
+    165,
+    246
+   ]
+  }
+ },
+ "cricsheet_events": 166,
+ "cricsheet_events_since_2019_08": 152,
+ "rates": {
+  "T20 league|male|fit": {
+   "matches": 1237,
+   "balls": 269956,
+   "events": 6,
+   "hit_batting": 2,
+   "hit_fielding": 4,
+   "per_1000_matches": 4.85,
+   "per_1000_matches_jeffreys": 5.25,
+   "per_ball_batting": 9.260768421520544e-06,
+   "per_ball_fielding": 1.666938315873698e-05
+  },
+  "T20 league|male|check": {
+   "matches": 1232,
+   "balls": 270752,
+   "events": 10,
+   "hit_batting": 0,
+   "hit_fielding": 10,
+   "per_1000_matches": 8.12,
+   "per_1000_matches_jeffreys": 8.52,
+   "per_ball_batting": 1.8467084268998936e-06,
+   "per_ball_fielding": 3.8780876964897766e-05
+  },
+  "T20 league|male|2020-22": {
+   "matches": 1528,
+   "balls": 340222,
+   "events": 9,
+   "hit_batting": 6,
+   "hit_fielding": 3,
+   "per_1000_matches": 5.89,
+   "per_1000_matches_jeffreys": 6.21,
+   "per_ball_batting": 1.9105172505011433e-05,
+   "per_ball_fielding": 1.0287400579621541e-05
+  },
+  "T20 league|female|fit": {
+   "matches": 368,
+   "balls": 79041,
+   "events": 3,
+   "hit_batting": 1,
+   "hit_fielding": 2,
+   "per_1000_matches": 8.15,
+   "per_1000_matches_jeffreys": 9.49,
+   "per_ball_batting": 1.8977492693665314e-05,
+   "per_ball_fielding": 3.1629154489442186e-05
+  },
+  "T20 league|female|check": {
+   "matches": 346,
+   "balls": 74285,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 1.44,
+   "per_ball_batting": 6.730833950326445e-06,
+   "per_ball_fielding": 6.730833950326445e-06
+  },
+  "T20 league|female|2020-22": {
+   "matches": 405,
+   "balls": 86988,
+   "events": 1,
+   "hit_batting": 0,
+   "hit_fielding": 1,
+   "per_1000_matches": 2.47,
+   "per_1000_matches_jeffreys": 3.69,
+   "per_ball_batting": 5.747919253230331e-06,
+   "per_ball_fielding": 1.724375775969099e-05
+  },
+  "T20I|male|fit": {
+   "matches": 957,
+   "balls": 204722,
+   "events": 5,
+   "hit_batting": 2,
+   "hit_fielding": 3,
+   "per_1000_matches": 5.22,
+   "per_1000_matches_jeffreys": 5.74,
+   "per_ball_batting": 1.221168218364416e-05,
+   "per_ball_fielding": 1.7096355057101826e-05
+  },
+  "T20I|male|check": {
+   "matches": 1069,
+   "balls": 225218,
+   "events": 3,
+   "hit_batting": 1,
+   "hit_fielding": 2,
+   "per_1000_matches": 2.81,
+   "per_1000_matches_jeffreys": 3.27,
+   "per_ball_batting": 6.6602136596542015e-06,
+   "per_ball_fielding": 1.110035609942367e-05
+  },
+  "T20I|male|2020-22": {
+   "matches": 805,
+   "balls": 173968,
+   "events": 2,
+   "hit_batting": 2,
+   "hit_fielding": 0,
+   "per_1000_matches": 2.48,
+   "per_1000_matches_jeffreys": 3.1,
+   "per_ball_batting": 1.4370458934976547e-05,
+   "per_ball_fielding": 2.8740917869953097e-06
+  },
+  "T20I|female|fit": {
+   "matches": 606,
+   "balls": 127385,
+   "events": 7,
+   "hit_batting": 1,
+   "hit_fielding": 6,
+   "per_1000_matches": 11.55,
+   "per_1000_matches_jeffreys": 12.36,
+   "per_ball_batting": 1.1775326765317737e-05,
+   "per_ball_fielding": 5.102641598304353e-05
+  },
+  "T20I|female|check": {
+   "matches": 814,
+   "balls": 170736,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 0.61,
+   "per_ball_batting": 2.928497797769656e-06,
+   "per_ball_fielding": 2.928497797769656e-06
+  },
+  "T20I|female|2020-22": {
+   "matches": 361,
+   "balls": 76349,
+   "events": 2,
+   "hit_batting": 1,
+   "hit_fielding": 1,
+   "per_1000_matches": 5.54,
+   "per_1000_matches_jeffreys": 6.91,
+   "per_ball_batting": 1.964662274555004e-05,
+   "per_ball_fielding": 1.964662274555004e-05
+  },
+  "ODI|male|fit": {
+   "matches": 284,
+   "balls": 141911,
+   "events": 9,
+   "hit_batting": 3,
+   "hit_fielding": 6,
+   "per_1000_matches": 31.69,
+   "per_1000_matches_jeffreys": 33.33,
+   "per_ball_batting": 2.4663345336161398e-05,
+   "per_ball_fielding": 4.580335562429974e-05
+  },
+  "ODI|male|check": {
+   "matches": 218,
+   "balls": 113923,
+   "events": 2,
+   "hit_batting": 2,
+   "hit_fielding": 0,
+   "per_1000_matches": 9.17,
+   "per_1000_matches_jeffreys": 11.42,
+   "per_ball_batting": 2.1944646822854032e-05,
+   "per_ball_fielding": 4.388929364570807e-06
+  },
+  "ODI|male|2020-22": {
+   "matches": 257,
+   "balls": 134260,
+   "events": 4,
+   "hit_batting": 2,
+   "hit_fielding": 2,
+   "per_1000_matches": 15.56,
+   "per_1000_matches_jeffreys": 17.44,
+   "per_ball_batting": 1.8620586920899747e-05,
+   "per_ball_fielding": 1.8620586920899747e-05
+  },
+  "ODI|female|fit": {
+   "matches": 120,
+   "balls": 57233,
+   "events": 4,
+   "hit_batting": 0,
+   "hit_fielding": 4,
+   "per_1000_matches": 33.33,
+   "per_1000_matches_jeffreys": 37.19,
+   "per_ball_batting": 8.736218615134625e-06,
+   "per_ball_fielding": 7.862596753621163e-05
+  },
+  "ODI|female|check": {
+   "matches": 142,
+   "balls": 71013,
+   "events": 1,
+   "hit_batting": 1,
+   "hit_fielding": 0,
+   "per_1000_matches": 7.04,
+   "per_1000_matches_jeffreys": 10.49,
+   "per_ball_batting": 2.1122892991424105e-05,
+   "per_ball_fielding": 7.040964330474702e-06
+  },
+  "ODI|female|2020-22": {
+   "matches": 128,
+   "balls": 65826,
+   "events": 1,
+   "hit_batting": 1,
+   "hit_fielding": 0,
+   "per_1000_matches": 7.81,
+   "per_1000_matches_jeffreys": 11.63,
+   "per_ball_batting": 2.2787348464132712e-05,
+   "per_ball_fielding": 7.595782821377571e-06
+  },
+  "Test|male|fit": {
+   "matches": 83,
+   "balls": 140024,
+   "events": 3,
+   "hit_batting": 1,
+   "hit_fielding": 2,
+   "per_1000_matches": 36.14,
+   "per_1000_matches_jeffreys": 41.67,
+   "per_ball_batting": 1.0712449294406674e-05,
+   "per_ball_fielding": 1.7854082157344454e-05
+  },
+  "Test|male|check": {
+   "matches": 63,
+   "balls": 107698,
+   "events": 4,
+   "hit_batting": 1,
+   "hit_fielding": 3,
+   "per_1000_matches": 63.49,
+   "per_1000_matches_jeffreys": 70.31,
+   "per_ball_batting": 1.39278352429943e-05,
+   "per_ball_fielding": 3.2498282233653365e-05
+  },
+  "Test|male|2020-22": {
+   "matches": 107,
+   "balls": 200732,
+   "events": 8,
+   "hit_batting": 3,
+   "hit_fielding": 5,
+   "per_1000_matches": 74.77,
+   "per_1000_matches_jeffreys": 78.7,
+   "per_ball_batting": 1.7436183568140605e-05,
+   "per_ball_fielding": 2.7399717035649524e-05
+  },
+  "Test|female|fit": {
+   "matches": 6,
+   "balls": 10822,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 71.43,
+   "per_ball_batting": 4.620218074293107e-05,
+   "per_ball_fielding": 4.620218074293107e-05
+  },
+  "Test|female|check": {
+   "matches": 3,
+   "balls": 4561,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 125.0,
+   "per_ball_batting": 0.00010962508221881167,
+   "per_ball_fielding": 0.00010962508221881167
+  },
+  "Test|female|2020-22": {
+   "matches": 4,
+   "balls": 7315,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 100.0,
+   "per_ball_batting": 6.83526999316473e-05,
+   "per_ball_fielding": 6.83526999316473e-05
+  },
+  "List A (domestic)|male|fit": {
+   "matches": 312,
+   "balls": 148243,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 1.6,
+   "per_ball_batting": 3.3728405388450043e-06,
+   "per_ball_fielding": 3.3728405388450043e-06
+  },
+  "List A (domestic)|male|check": {
+   "matches": 356,
+   "balls": 182893,
+   "events": 2,
+   "hit_batting": 2,
+   "hit_fielding": 0,
+   "per_1000_matches": 5.62,
+   "per_1000_matches_jeffreys": 7.0,
+   "per_ball_batting": 1.366919455637996e-05,
+   "per_ball_fielding": 2.733838911275992e-06
+  },
+  "List A (domestic)|male|2020-22": {
+   "matches": 259,
+   "balls": 130129,
+   "events": 3,
+   "hit_batting": 2,
+   "hit_fielding": 1,
+   "per_1000_matches": 11.58,
+   "per_1000_matches_jeffreys": 13.46,
+   "per_ball_batting": 1.921170530780994e-05,
+   "per_ball_fielding": 1.1527023184685966e-05
+  },
+  "List A (domestic)|female|fit": {
+   "matches": 110,
+   "balls": 53681,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 4.5,
+   "per_ball_batting": 9.31428252081742e-06,
+   "per_ball_fielding": 9.31428252081742e-06
+  },
+  "List A (domestic)|female|check": {
+   "matches": 130,
+   "balls": 66754,
+   "events": 1,
+   "hit_batting": 0,
+   "hit_fielding": 1,
+   "per_1000_matches": 7.69,
+   "per_1000_matches_jeffreys": 11.45,
+   "per_ball_batting": 7.490187853911376e-06,
+   "per_ball_fielding": 2.2470563561734128e-05
+  },
+  "List A (domestic)|female|2020-22": {
+   "matches": 96,
+   "balls": 50233,
+   "events": 1,
+   "hit_batting": 0,
+   "hit_fielding": 1,
+   "per_1000_matches": 10.42,
+   "per_1000_matches_jeffreys": 15.46,
+   "per_ball_batting": 9.95361614874684e-06,
+   "per_ball_fielding": 2.986084844624052e-05
+  },
+  "First-class (domestic)|male|fit": {
+   "matches": 367,
+   "balls": 611962,
+   "events": 21,
+   "hit_batting": 11,
+   "hit_fielding": 10,
+   "per_1000_matches": 57.22,
+   "per_1000_matches_jeffreys": 58.42,
+   "per_ball_batting": 1.8792016497756397e-05,
+   "per_ball_fielding": 1.7157928106647144e-05
+  },
+  "First-class (domestic)|male|check": {
+   "matches": 467,
+   "balls": 759852,
+   "events": 14,
+   "hit_batting": 4,
+   "hit_fielding": 10,
+   "per_1000_matches": 29.98,
+   "per_1000_matches_jeffreys": 30.98,
+   "per_ball_batting": 5.922205903254844e-06,
+   "per_ball_fielding": 1.381848044092797e-05
+  },
+  "First-class (domestic)|male|2020-22": {
+   "matches": 430,
+   "balls": 748283,
+   "events": 19,
+   "hit_batting": 5,
+   "hit_fielding": 14,
+   "per_1000_matches": 44.19,
+   "per_1000_matches_jeffreys": 45.24,
+   "per_ball_batting": 7.350160300314186e-06,
+   "per_ball_fielding": 1.9377695337191943e-05
+  },
+  "First-class (domestic)|female|fit": {
+   "matches": 0,
+   "balls": 0,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": null,
+   "per_1000_matches_jeffreys": null,
+   "per_ball_batting": null,
+   "per_ball_fielding": null
+  },
+  "First-class (domestic)|female|check": {
+   "matches": 0,
+   "balls": 0,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": null,
+   "per_1000_matches_jeffreys": null,
+   "per_ball_batting": null,
+   "per_ball_fielding": null
+  },
+  "First-class (domestic)|female|2020-22": {
+   "matches": 0,
+   "balls": 0,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": null,
+   "per_1000_matches_jeffreys": null,
+   "per_ball_batting": null,
+   "per_ball_fielding": null
+  }
+ },
+ "by_year": {
+  "T20 league|2019": {
+   "matches": 415,
+   "balls": 91681,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 1.2,
+   "per_ball_batting": 5.453692695324004e-06,
+   "per_ball_fielding": 5.453692695324004e-06
+  },
+  "T20 league|2020": {
+   "matches": 424,
+   "balls": 92960,
+   "events": 1,
+   "hit_batting": 1,
+   "hit_fielding": 0,
+   "per_1000_matches": 2.36,
+   "per_1000_matches_jeffreys": 3.53,
+   "per_ball_batting": 1.6135972461273665e-05,
+   "per_ball_fielding": 5.378657487091222e-06
+  },
+  "T20 league|2021": {
+   "matches": 783,
+   "balls": 173314,
+   "events": 6,
+   "hit_batting": 3,
+   "hit_fielding": 3,
+   "per_1000_matches": 7.66,
+   "per_1000_matches_jeffreys": 8.29,
+   "per_ball_batting": 2.019456016247966e-05,
+   "per_ball_fielding": 2.019456016247966e-05
+  },
+  "T20 league|2022": {
+   "matches": 726,
+   "balls": 160936,
+   "events": 3,
+   "hit_batting": 2,
+   "hit_fielding": 1,
+   "per_1000_matches": 4.13,
+   "per_1000_matches_jeffreys": 4.81,
+   "per_ball_batting": 1.553412536660536e-05,
+   "per_ball_fielding": 9.320475219963214e-06
+  },
+  "T20 league|2023": {
+   "matches": 789,
+   "balls": 172724,
+   "events": 4,
+   "hit_batting": 1,
+   "hit_fielding": 3,
+   "per_1000_matches": 5.07,
+   "per_1000_matches_jeffreys": 5.7,
+   "per_ball_batting": 8.684375072369793e-06,
+   "per_ball_fielding": 2.0263541835529514e-05
+  },
+  "T20 league|2024": {
+   "matches": 816,
+   "balls": 176273,
+   "events": 5,
+   "hit_batting": 2,
+   "hit_fielding": 3,
+   "per_1000_matches": 6.13,
+   "per_1000_matches_jeffreys": 6.73,
+   "per_ball_batting": 1.4182546391109245e-05,
+   "per_ball_fielding": 1.9855564947552944e-05
+  },
+  "T20 league|2025": {
+   "matches": 855,
+   "balls": 186713,
+   "events": 5,
+   "hit_batting": 0,
+   "hit_fielding": 5,
+   "per_1000_matches": 5.85,
+   "per_1000_matches_jeffreys": 6.43,
+   "per_ball_batting": 2.677906733864273e-06,
+   "per_ball_fielding": 2.9456974072507e-05
+  },
+  "T20 league|2026": {
+   "matches": 723,
+   "balls": 158324,
+   "events": 5,
+   "hit_batting": 0,
+   "hit_fielding": 5,
+   "per_1000_matches": 6.92,
+   "per_1000_matches_jeffreys": 7.6,
+   "per_ball_batting": 3.158080897400268e-06,
+   "per_ball_fielding": 3.473888987140294e-05
+  },
+  "T20I|2019": {
+   "matches": 189,
+   "balls": 40927,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 2.63,
+   "per_ball_batting": 1.2216873946294622e-05,
+   "per_ball_fielding": 1.2216873946294622e-05
+  },
+  "T20I|2020": {
+   "matches": 121,
+   "balls": 26568,
+   "events": 2,
+   "hit_batting": 2,
+   "hit_fielding": 0,
+   "per_1000_matches": 16.53,
+   "per_1000_matches_jeffreys": 20.49,
+   "per_ball_batting": 9.409816320385426e-05,
+   "per_ball_fielding": 1.8819632640770853e-05
+  },
+  "T20I|2021": {
+   "matches": 390,
+   "balls": 83486,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 1.28,
+   "per_ball_batting": 5.9890281005198475e-06,
+   "per_ball_fielding": 5.9890281005198475e-06
+  },
+  "T20I|2022": {
+   "matches": 655,
+   "balls": 140263,
+   "events": 2,
+   "hit_batting": 1,
+   "hit_fielding": 1,
+   "per_1000_matches": 3.05,
+   "per_1000_matches_jeffreys": 3.81,
+   "per_ball_batting": 1.0694195903410023e-05,
+   "per_ball_fielding": 1.0694195903410023e-05
+  },
+  "T20I|2023": {
+   "matches": 603,
+   "balls": 126821,
+   "events": 3,
+   "hit_batting": 2,
+   "hit_fielding": 1,
+   "per_1000_matches": 4.98,
+   "per_1000_matches_jeffreys": 5.79,
+   "per_ball_batting": 1.9712823585999163e-05,
+   "per_ball_fielding": 1.18276941515995e-05
+  },
+  "T20I|2024": {
+   "matches": 960,
+   "balls": 205286,
+   "events": 9,
+   "hit_batting": 1,
+   "hit_fielding": 8,
+   "per_1000_matches": 9.38,
+   "per_1000_matches_jeffreys": 9.89,
+   "per_ball_batting": 7.3068791831883325e-06,
+   "per_ball_fielding": 4.1405648704733886e-05
+  },
+  "T20I|2025": {
+   "matches": 946,
+   "balls": 198983,
+   "events": 3,
+   "hit_batting": 1,
+   "hit_fielding": 2,
+   "per_1000_matches": 3.17,
+   "per_1000_matches_jeffreys": 3.7,
+   "per_ball_batting": 7.538332420357518e-06,
+   "per_ball_fielding": 1.256388736726253e-05
+  },
+  "T20I|2026": {
+   "matches": 937,
+   "balls": 196971,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 0.53,
+   "per_ball_batting": 2.538444745673221e-06,
+   "per_ball_fielding": 2.538444745673221e-06
+  },
+  "ODI|2019": {
+   "matches": 38,
+   "balls": 20150,
+   "events": 1,
+   "hit_batting": 0,
+   "hit_fielding": 1,
+   "per_1000_matches": 26.32,
+   "per_1000_matches_jeffreys": 38.46,
+   "per_ball_batting": 2.4813895781637717e-05,
+   "per_ball_fielding": 7.444168734491315e-05
+  },
+  "ODI|2020": {
+   "matches": 50,
+   "balls": 26557,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 9.8,
+   "per_ball_batting": 1.88274277968144e-05,
+   "per_ball_fielding": 1.88274277968144e-05
+  },
+  "ODI|2021": {
+   "matches": 110,
+   "balls": 56963,
+   "events": 1,
+   "hit_batting": 1,
+   "hit_fielding": 0,
+   "per_1000_matches": 9.09,
+   "per_1000_matches_jeffreys": 13.51,
+   "per_ball_batting": 2.6332882748450747e-05,
+   "per_ball_fielding": 8.777627582816916e-06
+  },
+  "ODI|2022": {
+   "matches": 225,
+   "balls": 116566,
+   "events": 4,
+   "hit_batting": 2,
+   "hit_fielding": 2,
+   "per_1000_matches": 17.78,
+   "per_1000_matches_jeffreys": 19.91,
+   "per_ball_batting": 2.144707719232023e-05,
+   "per_ball_fielding": 2.144707719232023e-05
+  },
+  "ODI|2023": {
+   "matches": 245,
+   "balls": 122232,
+   "events": 8,
+   "hit_batting": 3,
+   "hit_fielding": 5,
+   "per_1000_matches": 32.65,
+   "per_1000_matches_jeffreys": 34.55,
+   "per_ball_batting": 2.8634072910530793e-05,
+   "per_ball_fielding": 4.499640028797696e-05
+  },
+  "ODI|2024": {
+   "matches": 159,
+   "balls": 76912,
+   "events": 5,
+   "hit_batting": 0,
+   "hit_fielding": 5,
+   "per_1000_matches": 31.45,
+   "per_1000_matches_jeffreys": 34.38,
+   "per_ball_batting": 6.5009361348034115e-06,
+   "per_ball_fielding": 7.151029748283753e-05
+  },
+  "ODI|2025": {
+   "matches": 202,
+   "balls": 102766,
+   "events": 2,
+   "hit_batting": 2,
+   "hit_fielding": 0,
+   "per_1000_matches": 9.9,
+   "per_1000_matches_jeffreys": 12.32,
+   "per_ball_batting": 2.4327112079870774e-05,
+   "per_ball_fielding": 4.8654224159741545e-06
+  },
+  "ODI|2026": {
+   "matches": 158,
+   "balls": 82170,
+   "events": 1,
+   "hit_batting": 1,
+   "hit_fielding": 0,
+   "per_1000_matches": 6.33,
+   "per_1000_matches_jeffreys": 9.43,
+   "per_ball_batting": 1.8254837531945966e-05,
+   "per_ball_fielding": 6.0849458439819885e-06
+  },
+  "Test|2019": {
+   "matches": 23,
+   "balls": 42882,
+   "events": 5,
+   "hit_batting": 3,
+   "hit_fielding": 2,
+   "per_1000_matches": 217.39,
+   "per_1000_matches_jeffreys": 229.17,
+   "per_ball_batting": 8.161932745674175e-05,
+   "per_ball_fielding": 5.82995196119584e-05
+  },
+  "Test|2020": {
+   "matches": 22,
+   "balls": 40585,
+   "events": 2,
+   "hit_batting": 0,
+   "hit_fielding": 2,
+   "per_1000_matches": 90.91,
+   "per_1000_matches_jeffreys": 108.7,
+   "per_ball_batting": 1.2319822594554639e-05,
+   "per_ball_fielding": 6.159911297277319e-05
+  },
+  "Test|2021": {
+   "matches": 44,
+   "balls": 83989,
+   "events": 3,
+   "hit_batting": 2,
+   "hit_fielding": 1,
+   "per_1000_matches": 68.18,
+   "per_1000_matches_jeffreys": 77.78,
+   "per_ball_batting": 2.9765802664634656e-05,
+   "per_ball_fielding": 1.7859481598780793e-05
+  },
+  "Test|2022": {
+   "matches": 45,
+   "balls": 83473,
+   "events": 3,
+   "hit_batting": 1,
+   "hit_fielding": 2,
+   "per_1000_matches": 66.67,
+   "per_1000_matches_jeffreys": 76.09,
+   "per_ball_batting": 1.79698824769686e-05,
+   "per_ball_fielding": 2.9949804128281002e-05
+  },
+  "Test|2023": {
+   "matches": 36,
+   "balls": 64148,
+   "events": 2,
+   "hit_batting": 1,
+   "hit_fielding": 1,
+   "per_1000_matches": 55.56,
+   "per_1000_matches_jeffreys": 67.57,
+   "per_ball_batting": 2.3383425827773274e-05,
+   "per_ball_fielding": 2.3383425827773274e-05
+  },
+  "Test|2024": {
+   "matches": 53,
+   "balls": 86698,
+   "events": 1,
+   "hit_batting": 0,
+   "hit_fielding": 1,
+   "per_1000_matches": 18.87,
+   "per_1000_matches_jeffreys": 27.78,
+   "per_ball_batting": 5.76714572423816e-06,
+   "per_ball_fielding": 1.730143717271448e-05
+  },
+  "Test|2025": {
+   "matches": 41,
+   "balls": 69869,
+   "events": 1,
+   "hit_batting": 1,
+   "hit_fielding": 0,
+   "per_1000_matches": 24.39,
+   "per_1000_matches_jeffreys": 35.71,
+   "per_ball_batting": 2.146874865820321e-05,
+   "per_ball_fielding": 7.156249552734403e-06
+  },
+  "Test|2026": {
+   "matches": 25,
+   "balls": 42390,
+   "events": 3,
+   "hit_batting": 0,
+   "hit_fielding": 3,
+   "per_1000_matches": 120.0,
+   "per_1000_matches_jeffreys": 134.62,
+   "per_ball_batting": 1.179523472517103e-05,
+   "per_ball_fielding": 8.256664307619721e-05
+  },
+  "List A (domestic)|2019": {
+   "matches": 17,
+   "balls": 9013,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 27.78,
+   "per_ball_batting": 5.547542438699656e-05,
+   "per_ball_fielding": 5.547542438699656e-05
+  },
+  "List A (domestic)|2020": {
+   "matches": 27,
+   "balls": 14786,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 17.86,
+   "per_ball_batting": 3.381577167590964e-05,
+   "per_ball_fielding": 3.381577167590964e-05
+  },
+  "List A (domestic)|2021": {
+   "matches": 147,
+   "balls": 72976,
+   "events": 1,
+   "hit_batting": 1,
+   "hit_fielding": 0,
+   "per_1000_matches": 6.8,
+   "per_1000_matches_jeffreys": 10.14,
+   "per_ball_batting": 2.0554702916027186e-05,
+   "per_ball_fielding": 6.851567638675729e-06
+  },
+  "List A (domestic)|2022": {
+   "matches": 181,
+   "balls": 92600,
+   "events": 3,
+   "hit_batting": 1,
+   "hit_fielding": 2,
+   "per_1000_matches": 16.57,
+   "per_1000_matches_jeffreys": 19.23,
+   "per_ball_batting": 1.6198704103671705e-05,
+   "per_ball_fielding": 2.6997840172786177e-05
+  },
+  "List A (domestic)|2023": {
+   "matches": 156,
+   "balls": 77779,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 3.18,
+   "per_ball_batting": 6.428470409750704e-06,
+   "per_ball_fielding": 6.428470409750704e-06
+  },
+  "List A (domestic)|2024": {
+   "matches": 266,
+   "balls": 124145,
+   "events": 0,
+   "hit_batting": 0,
+   "hit_fielding": 0,
+   "per_1000_matches": 0.0,
+   "per_1000_matches_jeffreys": 1.87,
+   "per_ball_batting": 4.027548431269886e-06,
+   "per_ball_fielding": 4.027548431269886e-06
+  },
+  "List A (domestic)|2025": {
+   "matches": 237,
+   "balls": 121284,
+   "events": 2,
+   "hit_batting": 1,
+   "hit_fielding": 1,
+   "per_1000_matches": 8.44,
+   "per_1000_matches_jeffreys": 10.5,
+   "per_ball_batting": 1.2367665974077372e-05,
+   "per_ball_fielding": 1.2367665974077372e-05
+  },
+  "List A (domestic)|2026": {
+   "matches": 249,
+   "balls": 128363,
+   "events": 1,
+   "hit_batting": 1,
+   "hit_fielding": 0,
+   "per_1000_matches": 4.02,
+   "per_1000_matches_jeffreys": 6.0,
+   "per_ball_batting": 1.1685610339428028e-05,
+   "per_ball_fielding": 3.895203446476009e-06
+  },
+  "First-class (domestic)|2019": {
+   "matches": 51,
+   "balls": 76728,
+   "events": 1,
+   "hit_batting": 1,
+   "hit_fielding": 0,
+   "per_1000_matches": 19.61,
+   "per_1000_matches_jeffreys": 28.85,
+   "per_ball_batting": 1.9549577729121052e-05,
+   "per_ball_fielding": 6.516525909707017e-06
+  },
+  "First-class (domestic)|2020": {
+   "matches": 84,
+   "balls": 142518,
+   "events": 3,
+   "hit_batting": 0,
+   "hit_fielding": 3,
+   "per_1000_matches": 35.71,
+   "per_1000_matches_jeffreys": 41.18,
+   "per_ball_batting": 3.508328772505929e-06,
+   "per_ball_fielding": 2.4558301407541504e-05
+  },
+  "First-class (domestic)|2021": {
+   "matches": 166,
+   "balls": 278515,
+   "events": 4,
+   "hit_batting": 1,
+   "hit_fielding": 3,
+   "per_1000_matches": 24.1,
+   "per_1000_matches_jeffreys": 26.95,
+   "per_ball_batting": 5.385706335385886e-06,
+   "per_ball_fielding": 1.25666481159004e-05
+  },
+  "First-class (domestic)|2022": {
+   "matches": 180,
+   "balls": 327250,
+   "events": 12,
+   "hit_batting": 4,
+   "hit_fielding": 8,
+   "per_1000_matches": 66.67,
+   "per_1000_matches_jeffreys": 69.06,
+   "per_ball_batting": 1.3750954927425515e-05,
+   "per_ball_fielding": 2.5974025974025975e-05
+  },
+  "First-class (domestic)|2023": {
+   "matches": 180,
+   "balls": 298150,
+   "events": 10,
+   "hit_batting": 6,
+   "hit_fielding": 4,
+   "per_1000_matches": 55.56,
+   "per_1000_matches_jeffreys": 58.01,
+   "per_ball_batting": 2.1801106825423446e-05,
+   "per_ball_fielding": 1.5093073956062385e-05
+  },
+  "First-class (domestic)|2024": {
+   "matches": 187,
+   "balls": 313812,
+   "events": 11,
+   "hit_batting": 5,
+   "hit_fielding": 6,
+   "per_1000_matches": 58.82,
+   "per_1000_matches_jeffreys": 61.17,
+   "per_ball_batting": 1.75264170904873e-05,
+   "per_ball_fielding": 2.0713038379666808e-05
+  },
+  "First-class (domestic)|2025": {
+   "matches": 265,
+   "balls": 429154,
+   "events": 12,
+   "hit_batting": 3,
+   "hit_fielding": 9,
+   "per_1000_matches": 45.28,
+   "per_1000_matches_jeffreys": 46.99,
+   "per_ball_batting": 8.155580514221002e-06,
+   "per_ball_fielding": 2.2136575681457006e-05
+  },
+  "First-class (domestic)|2026": {
+   "matches": 202,
+   "balls": 330698,
+   "events": 2,
+   "hit_batting": 1,
+   "hit_fielding": 1,
+   "per_1000_matches": 9.9,
+   "per_1000_matches_jeffreys": 12.32,
+   "per_ball_batting": 4.535860513217497e-06,
+   "per_ball_fielding": 4.535860513217497e-06
+  }
+ },
+ "summary": {
+  "out_role": {
+   "all-rounder": 51,
+   "bowler": 46,
+   "wicket-keeper": 15,
+   "batter": 40
+  },
+  "in_role": {
+   "all-rounder": 42,
+   "bowler": 57,
+   "wicket-keeper": 10,
+   "batter": 43
+  },
+  "pair": {
+   "all-rounder -> all-rounder": 15,
+   "bowler -> bowler": 37,
+   "wicket-keeper -> wicket-keeper": 4,
+   "all-rounder -> batter": 19,
+   "wicket-keeper -> all-rounder": 4,
+   "batter -> all-rounder": 17,
+   "batter -> batter": 17,
+   "all-rounder -> bowler": 15,
+   "wicket-keeper -> bowler": 2,
+   "bowler -> batter": 2,
+   "wicket-keeper -> batter": 5,
+   "all-rounder -> wicket-keeper": 2,
+   "batter -> wicket-keeper": 3,
+   "batter -> bowler": 3,
+   "bowler -> all-rounder": 6,
+   "bowler -> wicket-keeper": 1
+  },
+  "hit_batting": {
+   "false": 94,
+   "true": 58
+  },
+  "batting_side": {
+   "false": 68,
+   "true": 84
+  },
+  "on_field_batting": {
+   "true": 7,
+   "false": 77
+  },
+  "bat_pos_hit_batting": {
+   "5": 7,
+   "3": 11,
+   "2": 7,
+   "7": 6,
+   "6": 7,
+   "9": 5,
+   "4": 3,
+   "10": 4,
+   "8": 1,
+   "11": 2,
+   "1": 5
+  },
+  "innings": {
+   "2": 17,
+   "1": 96,
+   "0": 25,
+   "3": 14
+  },
+  "over_bucket_limited": {
+   "0-5": 25,
+   "6-14": 17,
+   "15-19": 6
+  },
+  "sub_batted": {
+   "true": 105,
+   "false": 47
+  },
+  "sub_bowled": {
+   "false": 97,
+   "true": 55
+  },
+  "missed_next": {
+   "1": 35,
+   "3": 11,
+   "2": 20,
+   "0": 41,
+   "4": 4,
+   "6": 5,
+   "5": 1
+  },
+  "missed_by_fmt": {
+   "T20 league": {
+    "2": 5,
+    "0": 10,
+    "4": 2,
+    "3": 1,
+    "1": 3,
+    "6": 3
+   },
+   "T20I": {
+    "2": 3,
+    "6": 1,
+    "0": 8,
+    "1": 3
+   },
+   "ODI": {
+    "2": 4,
+    "1": 7,
+    "0": 2,
+    "3": 1,
+    "4": 1
+   },
+   "Test": {
+    "1": 7,
+    "0": 3,
+    "3": 1,
+    "2": 1
+   },
+   "List A (domestic)": {
+    "1": 2,
+    "2": 1
+   },
+   "First-class (domestic)": {
+    "3": 8,
+    "2": 6,
+    "1": 13,
+    "0": 18,
+    "4": 1,
+    "5": 1,
+    "6": 1
+   }
+  }
+ },
+ "cricketarchive": {
+  "events": 263,
+  "by_format_gender": {
+   "Test|female": 13,
+   "First-class (domestic)|male": 130,
+   "Test|male": 3,
+   "First-class (domestic)|female": 6,
+   "List A (domestic)|male": 36,
+   "ODI|male": 9,
+   "ODI|female": 2,
+   "T20 league|male": 24,
+   "T20I|male": 7,
+   "T20I|female": 7,
+   "List A (domestic)|female": 19,
+   "T20 league|female": 7
+  },
+  "batting_side": {
+   "Test|female": 7,
+   "First-class (domestic)|male": 79,
+   "Test|male": 3,
+   "First-class (domestic)|female": 6
+  }
+ }
+}

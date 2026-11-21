@@ -241,133 +241,19 @@ export function checkOverthrow(fieldingQuality: number, rng: RNG = Math.random):
   return { happened: false, extraRuns: 0 };
 }
 
-// ── Mid-Match Injuries ──────────────────────────────────────────────────
+// ── Concussion substitutes ─────────────────────────────────────────────
 
-export type MatchInjuryType = "hamstring" | "side-strain" | "groin" | "concussion" | "finger" | "ankle";
-
-/** Check if a player gets injured during play */
-export function checkMidMatchInjury(params: {
-  playerAge: number;
-  isBowling: boolean;
-  oversBowled: number;
-  isSprinting: boolean; // running between wickets
-  rng?: RNG;
-}): { injured: boolean; type: MatchInjuryType } | null {
-  const { playerAge, isBowling, oversBowled, isSprinting, rng = Math.random } = params;
-
-  // Very rare event: ~0.05% per ball for bowlers, ~0.01% for batters
-  let baseChance = isBowling ? 0.0005 : 0.0001;
-
-  // Age increases risk
-  if (playerAge > 34) baseChance *= 2.0;
-  else if (playerAge > 30) baseChance *= 1.5;
-
-  // Bowling workload increases risk
-  if (isBowling && oversBowled > 3) baseChance *= 1.5;
-
-  // Sprinting increases injury risk
-  if (isSprinting) baseChance *= 2.0;
-
-  if (rng() < baseChance) {
-    // Determine injury type
-    const types: [MatchInjuryType, number][] = [
-      ["hamstring", 0.30],
-      ["side-strain", 0.25],
-      ["groin", 0.20],
-      ["ankle", 0.15],
-      ["finger", 0.08],
-      ["concussion", 0.02],
-    ];
-    const rand = rng();
-    let cum = 0;
-    for (const [type, prob] of types) {
-      cum += prob;
-      if (rand < cum) return { injured: true, type };
-    }
-    return { injured: true, type: "hamstring" };
-  }
-
-  return null;
-}
-
-// ── Injury Responses ────────────────────────────────────────────────────
-
-export type InjuryResponse =
-  | "retired-hurt"       // Batter walks off, can potentially return later
-  | "retired-out"        // Voluntary tactical retirement — batter cannot return
-  | "concussion-sub"     // Like-for-like replacement from bench
-  | "bowling-breakdown"  // Bowler can't continue, another bowler finishes over
-  | "continues";         // Minor, player plays on
-
-/** Determine the response to a mid-match injury */
-export function determineInjuryResponse(injuryType: MatchInjuryType, isBatting: boolean, rng: RNG = Math.random): InjuryResponse {
-  if (injuryType === "concussion") return "concussion-sub";
-
-  if (isBatting) {
-    // Batters: most injuries = retired hurt
-    switch (injuryType) {
-      case "hamstring":
-      case "groin":
-      case "ankle":
-        return "retired-hurt";
-      case "side-strain":
-        return rng() < 0.5 ? "retired-hurt" : "continues";
-      case "finger":
-        return rng() < 0.3 ? "retired-hurt" : "continues";
-      default:
-        return "continues";
-    }
-  } else {
-    // Bowlers: can't bowl = breakdown
-    switch (injuryType) {
-      case "hamstring":
-      case "groin":
-      case "side-strain":
-        return "bowling-breakdown";
-      case "ankle":
-        return rng() < 0.7 ? "bowling-breakdown" : "continues";
-      case "finger":
-        return rng() < 0.4 ? "bowling-breakdown" : "continues";
-      default:
-        return "continues";
-    }
-  }
-}
-
-/** Check if a concussion sub is a valid like-for-like replacement.
- *  In IPL: batter replaced by batter, bowler by bowler, AR by AR. */
+/** Is `replacementRole` a like-for-like concussion replacement for `injuredRole` (the match referee's test; in-match-injury.ts)?
+ *  Same role, or an all-rounder either way; a keeper counts as a batter. In the Cricsheet concussion substitutions since
+ *  2019 (152) a specialist batter and a specialist bowler replaced each other 5 times (3%). */
 export function isLikeForLikeReplacement(
   injuredRole: string,
   replacementRole: string,
 ): boolean {
-  // Strict like-for-like (IPL rules)
-  if (injuredRole === replacementRole) return true;
-  // Slight flexibility: AR can replace batter or bowler
-  if (replacementRole === "all-rounder") return true;
-  if (injuredRole === "all-rounder") return true;
-  return false;
-}
-
-// ── Season Injury Replacement ───────────────────────────────────────────
-
-/** When a player is ruled out for multiple games, determine replacement eligibility.
- *  Returns constraints for the replacement player. */
-export function getReplacementConstraints(injuredPlayer: {
-  isInternational: boolean;
-  role: string;
-  bid: number;
-}): {
-  mustBeInternational: boolean | null; // null = either is fine
-  maxPrice: number; // replacement must be at or below this price
-  preferredRole: string;
-} {
-  return {
-    // Overseas replaced by overseas, domestic by domestic
-    mustBeInternational: injuredPlayer.isInternational ? true : false,
-    // Replacement in same price bracket (or lower)
-    maxPrice: injuredPlayer.bid,
-    preferredRole: injuredPlayer.role,
-  };
+  const norm = (r: string) => (r === "wicket-keeper" ? "batsman" : r);
+  const a = norm(injuredRole), b = norm(replacementRole);
+  if (a === b) return true;
+  return a === "all-rounder" || b === "all-rounder";
 }
 
 // ── DRS System ──────────────────────────────────────────────────────────

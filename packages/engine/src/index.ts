@@ -69,11 +69,10 @@ export { MATCH_RULES_EXTRA } from "./match-rules-extra-data.js";
 export {
   determineDismissalType, isCatchDropped, determineWideType, runsOffWide,
   determineNoBallType, runsOffNoBall, isFreeHitBall, canBeDismissedOnFreeHit,
-  determineLegByes, checkRunOut, checkOverthrow, checkMidMatchInjury,
-  determineInjuryResponse, isLikeForLikeReplacement, getReplacementConstraints,
+  determineLegByes, checkRunOut, checkOverthrow, isLikeForLikeReplacement,
   processDRSReview,
 } from "./ball-outcomes.js";
-export type { DismissalType, WideType, NoBallType, MatchInjuryType, InjuryResponse, DRSResult } from "./ball-outcomes.js";
+export type { DismissalType, WideType, NoBallType, DRSResult } from "./ball-outcomes.js";
 
 export {
   fieldingRating, keepingRating, pickKeeper, fieldingValueBonus, buildFieldingUnit, resolveWicketChance, applyFieldingToProbs,
@@ -186,6 +185,12 @@ export {
   getTeamInjuryReport,
 } from "./injury.js";
 export type { InjuryStatus } from "./injury.js";
+export {
+  concussionRates, concussionSubOptions, subMayBowl, inMatchInjuryStatus, applyInMatchInjuries, concussionNote, concussionLine, inMatchFormatOf,
+  concussionFitPer1000, sideDraw,
+} from "./in-match-injury.js";
+export type { InMatchInjury, InMatchInjuryKind, InMatchFormat, SubCandidate } from "./in-match-injury.js";
+export { IN_MATCH_INJURY_DATA } from "./in-match-injury-data.js";
 
 export {
   createMatchState,
