@@ -58,6 +58,14 @@ export interface VenueProfile {
   groundName: string;
   /** Runs multiplier relative to the league's average ground (1.0 = average) */
   runMult: number;
+  /**
+   * The run multiplier the stadium labels read (deriveStadiumBowlingRating, derivePitchType): the ground against its league at the run
+   * level its labels were set on (labelRunLevel). Absent = runMult. Kept apart from runMult so a refit of a league's run level moves its
+   * scoring, not its labels: a team's stored stadium rating (team.config, saves) then still equals the measured default and
+   * stadiumRatingFor stays neutral. (Before, a run level that differed from the labels' level was cancelled by the stadium effect on
+   * dots and wickets: docs/TACTICS.md section 10.)
+   */
+  labelRunMult?: number;
   /** Sixes multiplier relative to the league's average ground */
   sixMult: number;
   /** Wickets multiplier, shrunk toward 1.0 */
@@ -106,6 +114,11 @@ export const LEAGUE_LEVELS: Record<string, { run: number; wicket: number; dot: n
   "bpl": { run: 1.0, wicket: 0.966, dot: 1.337 },
   "lpl": { run: 1.0, wicket: 0.87, dot: 0.905 },
 };
+
+/** The run level a league's stadium labels are read at: the IPL's (and leagues without an entry) LEAGUE_LEVEL_RUN, the extra leagues' 1 */
+function labelRunLevel(league: string): number {
+  return league !== "ipl" && LEAGUE_LEVELS[league] ? 1.0 : LEAGUE_LEVEL_RUN;
+}
 
 /** Ground effects on wickets did not hold up out of sample, so keep only a quarter of them. */
 export const WICKET_FACTOR_WEIGHT = 0.25;
@@ -165,6 +178,7 @@ export function getVenueProfileForTeam(teamId: string): VenueProfile | null {
   return {
     groundName: rec.name,
     runMult: (level?.run ?? LEAGUE_LEVEL_RUN) * rec.runFactor / 100 / norm.run,
+    labelRunMult: labelRunLevel(league) * rec.runFactor / 100 / norm.run,
     sixMult: rec.sixFactor / 100 / norm.six,
     wicketMult: (level?.wicket ?? LEAGUE_LEVEL_WICKET) * (1 + (wkt - 1) * WICKET_FACTOR_WEIGHT),
     ...(level ? { dotMult: level.dot } : {}),
@@ -246,7 +260,7 @@ function clamp(v: number, lo: number, hi: number): number {
 /** Bowling-rating scale used by the stadium editor: >1 = bowler-friendly. 1 run-% ~ 0.02. */
 export function deriveStadiumBowlingRating(profile: VenueProfile): number {
   // Label the ground relative to its league (exclude the engine's calibration level)
-  const relative = profile.runMult / LEAGUE_LEVEL_RUN;
+  const relative = (profile.labelRunMult ?? profile.runMult) / LEAGUE_LEVEL_RUN;
   return Math.round((1 + (1 - relative) * 2) * 100) / 100;
 }
 
@@ -261,7 +275,7 @@ export function derivePitchType(profile: VenueProfile): PitchType {
   const pace = (value("RA fast") + value("RA fast-medium") + value("RA medium") + value("LA pace")) / 4;
   if (spin - pace > 1.5) return "turning";
   if (pace - spin > 1.5) return "seaming";
-  if (profile.runMult / LEAGUE_LEVEL_RUN >= 1.02) return "flat";
+  if ((profile.labelRunMult ?? profile.runMult) / LEAGUE_LEVEL_RUN >= 1.02) return "flat";
   return "balanced";
 }
 

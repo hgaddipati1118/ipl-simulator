@@ -199,7 +199,13 @@ it.skipIf(!process.env.IPL_BENCH)("impact player: IPL actual-XI benchmark", asyn
       const ids = m.sides.map(s => teamIdOf(s.team)!);
       const homeIdx = ids.findIndex(id => HOME_CITIES[id]?.includes(m.city ?? ""));
       const order = homeIdx === 1 ? [1, 0] : [0, 1];
-      const row: Record<string, unknown> = { id: m.id, date: m.date, winner: m.winner };
+      const row: Record<string, unknown> = { id: m.id, date: m.date, winner: m.winner, home: homeIdx < 0 ? -1 : order.indexOf(homeIdx) === 0 ? 0 : 1, toss: m.toss, batFirst: m.batFirst, venue: m.venue, city: m.city };
+      // the two sides in play order with their strengths (the eleven that batted): overall, top-7 batting, top-5 bowling
+      row.sides = order.map(k => {
+        const el = benchSide(m, m.sides[k], make).eleven;
+        const top = (v: number[], n: number) => v.sort((x, y) => y - x).slice(0, n).reduce((x, y) => x + y, 0) / Math.max(1, Math.min(n, v.length));
+        return { name: m.sides[k].team, ovr: top(el.map(p => p.overall), 11), bat: top(el.map(p => p.battingOvr), 7), bowl: top(el.map(p => p.bowlingOvr), 5), os: el.filter(p => p.isInternational).length };
+      });
       arms.forEach((arm, a) => {
         IMPACT_MODEL.off = arm.impactOff;
         ATTACK_MODEL.except = arm.except;
