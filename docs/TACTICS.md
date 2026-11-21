@@ -647,6 +647,89 @@ Per league (now): BBL 5.99 / 81% / 18% / 3.18 (real 6.08 / 90% / 17% / 3.06), PS
 
 Switches: `ATTACK_MODEL` (`league`, `t20i`, `except`); `ATTACK_OFF=1` in `calibrate-leagues.test.ts`, `LXI_ATTACK_OFF=1` in the `LXI_SIM` collector, `BENCH_ATTACK=off|t20i` in `benchmark-countries.test.ts` (and `t20i` in `tactics-allocation.test.ts`). Tests: `packages/app/src/__tests__/bowling-attack.test.ts`. Saves: nothing new is stored.
 
+## 9. The Impact Player: when and for whom IPL sides use him (shipped; the IPL joins the bowling attack of section 8)
+
+Section 8 kept the IPL on the former attack because of its impact player: the engine brought him on mid-innings at best (`evaluateBowlingImpact`: over 13+, or earlier when the run rate was high; in 21% of bowling innings), and gave each side a sub in each innings by hand rules, so its IPL sides bowled with the eleven they had picked. Real sides use him to field a different eleven from the one that bats. This section measures how (Cricsheet, every IPL match since 2023, the Impact Player era), fits the CPU's decision to it, and ships it with the IPL on the attack table.
+
+**Data** (`packages/ratings/src/pipeline/generate-impact-player.ts` -> `docs/data/impact_player.json`): 293 matches (2023-26), each side's twelve in batting-card order with what each did, and the substitution as Cricsheet records it (`replacements.match`, reason `impact_player`, on the delivery before which he comes on; six concussion substitutes left out). Cricsheet does not record the five named substitutes, only the one who came on. Rated with the game's own ratings (`IMP_OUT=rows.json npx vitest run packages/app/src/__tests__/impact-player.test.ts`, the season squad that day as the bench, as in section 7).
+
+*What real sides do* (293 matches; X = the player of the batting eleven who does not field, Y = the one who fields but does not bat for the side):
+
+| side | share | when (where Cricsheet records it) | X (out of the field) | Y (comes on) |
+|---|---|---|---|---|
+| batting first: a bowler on at the break for a batter who batted | 74% (216) | start of the second innings 163, when he first bowls later in it 53 | batter 81 (bowling 35), batted 2nd on average, 19 balls | bowler 73 (batting 33) |
+| batting first: a batter in at a wicket for a batter who is out | 25% (73) | at 6+ down in 52, mean 5.8 down, over 14 (0-based) | batter 82, out already | batting all-rounder 67 (bowling 52), bats 7th-8th, bowls 1.3 overs |
+| batting first: no sub | 1% (4) | | | |
+| fielding first: a bowler fields, then a batter bats in his place | 91% (266) | during the first innings once the bowler's overs are done 84, at the start of the chase 73, at a wicket in the chase (when the batter walks in) 109 | batter 81 (bowling 34), bats 2nd-3rd | bowler 76 (batting 25), bowled 3.5 overs |
+| fielding first: no sub | 9% (27) | | | |
+
+So the batter-for-bowler swap is the rule in both halves, made at the break (batting first) or before the match (fielding first, the sub's timing in the chase only marks when the batter walks in). The only decision taken during play is the mid-innings batter of a side batting first, which comes after a late collapse. The bowling eleven that results has a sixth bowler rated 63.0 and a seventh 49.4 (fit half; 59.9 / 48.6 held out), against 52 / 40 for the eleven that bats.
+
+**The model** (`packages/ratings/src/analysis/impact-player.py`, generated `packages/engine/src/impact-player-data.ts`, report `docs/data/impact_player_fit.json`; engine `impact-player.ts`). The engine's XI is the eleven that bats (section 7). Each side draws a plan once per match (seeded by the match, so the instant and live engines play the same subs):
+- **X**, the batter who does not field: conditional logit over the batting eleven (keepers apart) on batting, bowling and fielding rating, overseas, batting place, with a fielding-first interaction. Weights: batting +4.9, bowling -5.8, fielding -5.8 (a top-order batter who neither bowls nor fields well; fielding first, batting counts 2.3 less).
+- **Y**, the bowler who comes on: the best bowler on the bench (ties: the weaker batter) within the overseas limit, as the former engine chose him. A fitted Y choice is not identified: the bench of a real side that day (the season squad, the five named subs are not recorded) offers 2.45 options on average, and on them a logit puts no weight on bowling at all (it separates by batting), which on a game squad of 20 would bring on any non-batter. On the real benches the best-bowler rule picks the real Y 68% of the time held out (a rule by the bowling value of the eleven, section 7's weights, 63%).
+- **The mid-innings batter** (batting first only): a hazard at each first-innings wicket (logistic on wickets down 5 / 6 / 7+ and over 12 / 15 / 17+: +3.8 at six down, -1.8 from over 15), the batter drawn from the bench by a logit on batting (and bowling, overseas; the eleven's overseas limit holds), and X drawn among the batters who are out by the X weights. He bats next and stays in the side for the second innings.
+- No sub: 1.4% of sides batting first, 9.0% fielding first (fit half shares).
+
+*Out of sample* (fit to the end of 2024, judged on 2025+, per choice):
+
+| choice | held-out choices | log likelihood: fitted / uniform | top-1 hit: fitted / the former engine's rule |
+|---|---|---|---|
+| X (from 9.5 on average) | 241 | **-1.544** / -2.246 | **33.6%** / 28.2% (the weakest bowler) |
+| Y (best bowler; from 2.45) | 242 | | 67.8% |
+| mid-innings batter (from 3.05) | 38 | -0.931 / -1.003 | 60.5% |
+| mid-innings hazard, per wicket | 829 wickets (38 subs) | **-0.156** / -0.186 (a constant rate) | |
+
+The bowling eleven's sixth / seventh bowler with X and Y drawn from the model on the real twelves and benches: held out 60.2 / 48.4 (real 59.9 / 48.6), fit half 63.2 / 49.4 (real 63.0 / 49.4).
+
+**In the engine.** Instant (`simulateMatch`): once the toss is known the side fielding first takes the field with Y for X, and X bats in the chase in Y's place (`impactSubs` records him when he first comes to the crease); the side batting first is asked at each wicket of its innings (`InningsExtra.impactBat`, in `arrive`) whether its bench batter comes in now, and otherwise fields from the break with Y for X. Both sides of an instant match play the plan, as both used the former subs. Live (`createMatchState`, the toss decision, `afterWicket`, `startSecondInnings`): the CPU sides play the same plan (`_internal.impactPlans`, `impactPending`); their five named subs hold the players the plan may bring on. The user's own side is untouched: the Impact Sub button, the bench batter offered at a wicket and the innings-break modal work as before (a sub made at the break now leaves the match at the break, where it used to resume play: a fix). The IPL now plays the attack table of section 8 (`ATTACK_MODEL.except` is empty). `IMPACT_MODEL.off` plays the former subs (`IMPACT_OFF=1` in the collectors, `ATTACK_EXCEPT=ipl` for the former attack).
+
+*The IPL in play* (`IMP_SIM=1 IMP_MATCHES=4000`, the game's IPL squads, innings of 19+ overs for the bowling columns; real: the IPL since 2024 for the bowling and extras, since 2023 for the subs):
+
+| | bowlers used | 6+ bowlers | 7+ bowlers | part-timer overs (rated under 50) | extras an innings | batting first: break / mid-innings / none | fielding first: sub / none | bowling eleven's 6th / 7th bowler | Y's bowling / X's batting |
+|---|---|---|---|---|---|---|---|---|---|
+| real | 5.99 | 83% | 15% | 1.42 | 8.9 | 74% / 25% / 1% | 91% / 9% | 63.0 / 49.4 (2023-24), 59.9 / 48.6 (2025+) | 73-76 / 81 |
+| engine before | 6.15 | 82% | 27% | 0.52 | 9.35 | a sub in each innings by the hand rules (both sides, both innings) | | 53 / 39 (section 8) | |
+| the former subs with the attack table (section 8, not shipped) | 6.32 | 91% | 37% | 2.10 | 9.57 | | | | |
+| the fitted subs, former attack | 6.24 | 80% | 36% | 0.45 | 9.37 | | | | |
+| **shipped** (fitted subs, attack table, IPL wicket level) | **6.05** | **83%** | **20%** | **1.44** | **9.36** | **71% / 27% / 2%** | **92% / 8%** | **63.6 / 49.9** | 78 / 81 |
+
+The attack alone made the IPL use seven bowlers in 37% of innings and its extras rise (9.35 to 9.57); with the fitted subs the bowling eleven has its sixth front-line bowler and the shape comes to real except the seventh bowler (20% against 15%, before 27%), with extras unchanged (9.35 to 9.36; real 8.9, a gap from before). (The impact subs alone, on the former attack, fix the bowling eleven but not the attack: the former order-based attack still brings on a seventh in 36%.)
+
+*League level* (`CALIBRATE_LEAGUES=1 CAL_SEASONS=64 CAL_ONLY=none`, whole IPL seasons, both innings; real 2024-26): the change took the IPL's wickets an innings from 6.01 to 5.88 (real 6.05; the extra bowling depth), so the IPL got a wicket level of its own (`LEAGUE_LEVELS.ipl`, wicket 1.05, from 32-season runs at 1.03 and 1.06 and two 64-season checks; its neutral grounds keep no profile, as before). The IPL's run level does not move its runs (1.04 and 1.07 read the same within noise: its phase context sets them), so the runs were left.
+
+| IPL | runs / innings | wickets / innings | first-innings all out |
+|---|---|---|---|
+| real | 183.7 | 6.05 | 7.7% (2021+) |
+| before (origin/main) | 176.5 | 6.01 | 8.9% |
+| the change, former level | 177.7 | 5.88 | 7.5% |
+| **shipped** (wicket level 1.05; two runs) | **175.8 / 175.7** | **6.08 / 6.06** | **9.7% / 9.7%** |
+
+(Two 64-season runs of one engine differ by about 1 run and 1 point of all-out, section 8.) Wickets come to real, runs and the all-out share stay within that noise of before (the IPL's 8-run gap and its all-out share are as they were).
+
+*Live v instant* (`LIVE_PARITY=1 PARITY_MATCHES=1000 PARITY_ONLY=ipl`, before the wicket level; runs / wickets / extras an innings / all out): instant 180.7 / 6.09 / 9.3 / 13.9%, live CPU 181.2 / 5.97 / 9.5 / 12.7%, live with a user side 182.4 / 5.90 / 9.5 / 12.1%.
+
+**Match prediction: the IPL actual-XI benchmark** (`IPL_BENCH=1 IPL_REPLAYS=1024 IPL_ARMS=old,new`, in `impact-player.test.ts`; the leagues had no match-level benchmark). Every decided IPL match since 2023 replayed with the players who really played: each side's eleven that batted, in the real batting order, with the twelfth (the impact player, or the man he replaced) as its only bench player, so each engine decides when and for whom to use him; the real home side (neutral when neither is at home); the engine's toss; the same seeds in every arm. Log loss per match of the real winner, p = (wins + 1) / (replays + 2) clamped to [0.03, 0.97]; paired difference against the engine before (the former subs, the former attack and level), minus is better:
+
+| arm | fit half 2023-24 (144 matches) | paired | holdout 2025+ (144 matches) | paired |
+|---|---|---|---|---|
+| a coin (p = 0.5) | 0.6931 | | 0.6931 | |
+| **1,024 replays** | | | | |
+| before: the former subs, the former attack, the former wicket level | 0.7143 +- 0.0140 | | 0.7045 +- 0.0135 | |
+| **shipped**: the fitted subs, the attack table, the IPL wicket level | 0.7123 +- 0.0120 | **-0.0019 +- 0.0051** | 0.7039 +- 0.0137 | **-0.0005 +- 0.0038** |
+| **256 replays** (before the wicket level; the arms apart) | | | | |
+| before | 0.7046 +- 0.0143 | | 0.7069 +- 0.0139 | |
+| the fitted subs + the attack table | 0.7053 | +0.0007 +- 0.0067 | 0.7028 | -0.0041 +- 0.0073 |
+| the fitted subs, the former attack | 0.7041 | -0.0005 +- 0.0070 | 0.7084 | +0.0015 +- 0.0066 |
+| the former subs + the attack table (section 8's rejected IPL) | 0.6995 | -0.0052 +- 0.0069 | 0.7067 | -0.0002 +- 0.0069 |
+
+(Bat-first win share of the replays 0.505 / 0.499 on the fit half, 0.512 / 0.506 held out, before / shipped; runs an innings 175.5 / 175.1 and 178.8 / 178.2. The paired standard error at 1,024 replays is 0.004-0.005, under the 0.006 aimed for; at 256 the replays' own noise was most of it.)
+
+**Verdict: shipped.** Out of sample the fitted choices beat the former rules and uniform (X, the hazard), the bowling eleven and the IPL's allocation shape come to real on the 2025+ elevens and the game's squads, the league level is refitted for wickets, and the new match benchmark does not get worse on either half (-0.0019 +- 0.0051 fitted, -0.0005 +- 0.0038 held out: level, a shade better on both). What it cannot show: an IPL match is close to a coin flip for the engine with the real twelves (0.704-0.714 per match against a coin's 0.693, before and after alike: the engine's IPL predictions are more spread than real IPL results, on the fit half and the holdout), so the benchmark has little power to see a change of this size either way.
+
+Saves: a live match saved before this change has no plans in its state, so its CPU sides use no sub (the user's side as before); nothing else is stored. Tests: `packages/engine/src/__tests__/impact-player.test.ts`.
+
+
 ## Refitting
 
 - League XIs (section 7): `cd packages/ratings && npx tsx src/pipeline/generate-league-xi.ts` (after a Cricsheet update), `LXI_OUT=xi.json npx vitest run packages/app/src/__tests__/league-xi.test.ts`, then

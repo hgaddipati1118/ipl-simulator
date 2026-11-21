@@ -88,8 +88,14 @@ describe("live T20 level", () => {
       const [h, a] = pairing(iplTeams(), i);
       const s = createMatchState(h, a, RULES, null, 2100 + i);
       const bowling = s.bowlingTeamId === h.id ? h : a;
-      // the XI the side drew for this match (xi-selection.ts: seeded by the match and the side)
-      const attack = bowling.getBowlingOrder(bowling.getPlayingXI(RULES.maxOverseasInXI, matchXiOptions(RULES, 2100 + i, bowling === h ? 0 : 1))).map(p => p.id);
+      // the eleven the side takes the field with: the XI it drew for this match (xi-selection.ts: seeded by the match and the side), with its
+      // impact sub for a batter when it fields first (impact-player.ts, docs/TACTICS.md section 9)
+      const drawn = bowling.getPlayingXI(RULES.maxOverseasInXI, matchXiOptions(RULES, 2100 + i, bowling === h ? 0 : 1));
+      const fieldIds = s.bowlingTeamId === s.homeTeam.id ? s._internal.homeXIIds : s._internal.awayXIIds;
+      const field = bowling.roster.filter(p => fieldIds.includes(p.id));
+      expect(field.filter(p => !drawn.includes(p)).length).toBeLessThanOrEqual(1);
+      // the IPL plays the attack table (section 8): the opener is any of the eleven it may choose (keepers apart)
+      const attack = field.filter(p => !p.isWicketKeeper || p.role === "all-rounder").map(p => p.id);
       const opener = s._internal.bowlingOrderIds[s.currentBowlerIdx];
       expect(attack).toContain(opener);
       if (["right-arm-fast", "right-arm-fast-medium", "right-arm-medium-fast", "right-arm-medium", "left-arm-fast", "left-arm-fast-medium", "left-arm-medium-fast", "left-arm-medium"].includes(s._internal.playerDataMap[opener].bowlingStyle)) paceOpeners++;

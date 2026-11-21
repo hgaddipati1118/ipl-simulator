@@ -201,6 +201,7 @@ a user side. The ODI work left every line as it was. Since then, on purpose:
 | the last pair, nine down (TACTICS.md section 5): men's T20 and Test | `8bd0d8775a66d7fc` / `9cfd6073b970d993` / `0c8aa066f2e29355` / `fe6316f1505c8955` | `034711f8e1ebc075` / `ed71b7a5881a8c56` | `93237d22e06be31a` |
 | league XIs and the clock's wicket row (TACTICS.md sections 6-7): the men's T20 lines (the IPL squads draw their XIs; the women and The Hundred unchanged) | `22286366428a3afc` / `0c9f38fc6da523cf` / women unchanged / Hundred unchanged | `30148222bd1f6ae5` / `095ffff5ed25e203` | `d999cd0e8896d605` |
 | the bowling attack from the whole eleven (TACTICS.md section 8): every line unchanged (the fingerprint plays the IPL's squads, which keep the former attack, women's rules and The Hundred; the other men's leagues move) | unchanged | unchanged | `d999cd0e8896d605` |
+| the Impact Player as real IPL sides use him, the IPL on the attack table and its own wicket level (TACTICS.md section 9): every line (the men's lines play the fitted subs and the attack; the women's and The Hundred's lines are played on the IPL's grounds, whose wicket level moved) | `8be6f754974e9e68` / `389a714421e33770` / `6e95d72b79f82ddf` / `38dcea0cfa605398` | `05f8d08b7dc69ed9` / `e34ed79c72c29d83` | `9829ca4f954cd63c` |
 
 ### Refitting
 

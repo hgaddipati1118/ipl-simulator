@@ -23,6 +23,8 @@ import {
 } from "../delivery-rules.js";
 import { MATCH_RULES_DATA as D } from "../match-rules-data.js";
 import { LEAGUE_XI_SWITCH } from "../xi-selection.js";
+import { IMPACT_MODEL } from "../impact-player.js";
+import { ATTACK_MODEL } from "../bowling-choice.js";
 
 function player(id: string, role: "batsman" | "bowler" | "all-rounder", intl = false, wk = false, style?: string): Player {
   const bat = role === "batsman";
@@ -292,9 +294,13 @@ describe("extras", () => {
   it("extras fitted to Cricsheet: about 8-9 extras an innings", () => {
     // the delivery model's level, on the former XI selection: these synthetic squads' all-rounders bowl at 50 accuracy, and the fitted league
     // selection (xi-selection.ts) plays more of them (on the real IPL squads extras go from 9.1 to 9.4 an innings, real 8.9: TACTICS.md section 7)
+    // (and on the former attack and impact subs: the IPL's attack table brings these squads' 50-accuracy all-rounders on more; on the real
+    // IPL squads its extras are unchanged with them, 9.35 to 9.36: TACTICS.md section 9)
     LEAGUE_XI_SWITCH.off = true;
+    IMPACT_MODEL.off = true;
+    ATTACK_MODEL.except = ["ipl"];
     let inns: InningsScore[];
-    try { inns = all(); } finally { LEAGUE_XI_SWITCH.off = false; }
+    try { inns = all(); } finally { LEAGUE_XI_SWITCH.off = false; IMPACT_MODEL.off = false; ATTACK_MODEL.except = []; }
     const mean = inns.reduce((s, i) => s + i.extras, 0) / inns.length;
     // the IPL's shape (RULES-MATCH.md 12.8) takes its extras from the real IPL since 2024: 8.9 an innings
     expect(mean).toBeGreaterThan(7.2);
