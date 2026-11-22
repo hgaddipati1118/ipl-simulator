@@ -7,6 +7,7 @@
  *   MD=1 ...            print the table as markdown (docs/FORMATS.md, Test section)
  *   RATINGS=t20 ...     leave the Test ratings off: every player plays on his T20 ratings (the fallback)
  *   BAZBALL=0 ...       England bat without the fitted Bazball factor (on by default: the squads are 2023+ England)
+ *   TEST_LEVEL=w,r ...  another men's level calibration (test-level-data.ts: wicket, scoring multipliers)
  *
  * The engine plays the modern era (base rates of men's Tests from 2023), so the first real column is 2023+ (and 2022+ for the
  * pooled 4th-innings chases, the bands being small); 2015+ is shown alongside.
@@ -17,10 +18,12 @@
  */
 import { simulateTestMatch, type TestMatchState } from "../test-match.js";
 import { TEST_MODEL } from "../test-model-data.js";
+import { TEST_LEVEL_CAL } from "../test-level-data.js";
 import { TEST_SQUADS } from "./test-squads.js";
 import { poolTestTeam, HAS_FORMAT_RATINGS } from "./test-pool-squads.js";
 
 const N = Number(process.argv[2] ?? 3000);
+if (process.env.TEST_LEVEL) { const [w, r] = process.env.TEST_LEVEL.split(",").map(Number); TEST_LEVEL_CAL.wickets = w; TEST_LEVEL_CAL.runs = r; }
 const gender = (process.env.GENDER === "female" ? "female" : "male") as "male" | "female";
 // first column: the era the engine plays (2023+); second: all men's Tests since 2015
 const real = gender === "female" ? TEST_MODEL.real.female : TEST_MODEL.real.male2023;

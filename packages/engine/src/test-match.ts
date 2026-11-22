@@ -27,6 +27,7 @@ import type { RNG } from "./rng.js";
 import { createRNG, randomSeed } from "./rng.js";
 import { TEST_MODEL as M } from "./test-model-data.js";
 import { TEST_BAZBALL_CAL } from "./test-bazball-data.js";
+import { TEST_LEVEL_CAL } from "./test-level-data.js";
 import { applyLastPairTest } from "./last-pair.js";
 import { TEST_PROFILE_DATA } from "./test-profile-data.js";
 import {
@@ -1026,8 +1027,9 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
   // (day - 3) / 3: -2/3 on day 1 to +2/3 on day 5, so days 4-5 against 1-2 differ by the drawn wear; mean 1 over a match
   const wearMul = st.wear ? Math.exp(st.wear * (Math.min(st.day, 5) - 3) / 3) : 1;
   const p = new Array<number>(K);
+  const lvW = st.gender === "male" ? TEST_LEVEL_CAL.wickets : 1, lvR = st.gender === "male" ? TEST_LEVEL_CAL.runs : 1;
   for (let k = 0; k < K; k++) {
-    let v = base[k] * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_WD[i][wd][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
+    let v = base[k] * (k === IW ? lvW : k < IW ? lvR : 1) * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_WD[i][wd][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
       * bat.batMul[k] * bowl.bowlMul[k] * st.cond[k];
     if (team.bazball) v *= T_BAZ[k] * (k === IW ? TEST_BAZBALL_CAL.wickets : k < IW ? TEST_BAZBALL_CAL.runs : 1);
     if (k < IW && inn.cond) v *= inn.cond;

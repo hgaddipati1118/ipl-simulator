@@ -9,7 +9,7 @@ import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
 import { createPoolLoader } from "../extended-pool";
 import { testFixture } from "../test-match/test-series";
 import { playTestInstantly } from "../test-match/test-entry";
-import { TEST_BAZBALL_CAL } from "@ipl-sim/engine";
+import { TEST_BAZBALL_CAL, TEST_LEVEL_CAL } from "@ipl-sim/engine";
 
 /**
  * Test results by country, three-way (docs/COUNTRY-VALIDATION.md, "Test results by country"; skipped unless BENCH_TEST3=1).
@@ -19,7 +19,7 @@ import { TEST_BAZBALL_CAL } from "@ipl-sim/engine";
  * (side a wins / draw / side b wins; counts + 0.5 over replays + 1.5), so draws count.
  *
  *   BENCH_TEST3=1 BENCH_HALF=fit|hold|all [BENCH_FROM=2023-01-01] BENCH_REPLAYS=128 BENCH_OUT=/path/out.json \
- *     [BENCH_TUNE='{"spread":1,"home":-1.5}'] npx vitest run packages/app/src/__tests__/benchmark-test-countries.test.ts -t "three-way"
+ *     [BENCH_TUNE='{"spread":1,"home":-1.5}'] [BENCH_LEVEL=w,r] [BENCH_BAZCAL=w,r] npx vitest run packages/app/src/__tests__/benchmark-test-countries.test.ts -t "three-way"
  *   BENCH_COMPARE3=a.json,b.json ... -t "paired"      paired per-match difference (b - a) and its standard error, by half
  * Fit half: to 2024-12-31; holdout: 2025+.
  */
@@ -94,6 +94,7 @@ it.skipIf(!process.env.BENCH_TEST3)("Test by country: three-way actual-XI replay
   const replays = Number(process.env.BENCH_REPLAYS ?? 64);
   const h = process.env.BENCH_HALF ?? "all";
   const from = process.env.BENCH_FROM ?? "2019-01-01";
+  if (process.env.BENCH_LEVEL) { const [w, r] = process.env.BENCH_LEVEL.split(",").map(Number); TEST_LEVEL_CAL.wickets = w; TEST_LEVEL_CAL.runs = r; }
   if (process.env.BENCH_BAZCAL) { const [w, r] = process.env.BENCH_BAZCAL.split(",").map(Number); TEST_BAZBALL_CAL.wickets = w; TEST_BAZBALL_CAL.runs = r; }
   if (process.env.BENCH_TUNE) SERIES_TUNING.test = { ...(SERIES_TUNING.test ?? {}), men: JSON.parse(process.env.BENCH_TUNE) as SeriesTuning };
   const FILE = JSON.parse(readFileSync(join(PUBLIC, "data", "format-ratings.json"), "utf-8")) as FormatRatingsFile;

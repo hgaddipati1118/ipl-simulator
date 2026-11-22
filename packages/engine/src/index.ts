@@ -331,6 +331,7 @@ export {
 export type { TestAdvanceUntil, TestAdvanceResult, TestBowlingOption, TestSituation } from "./test-live.js";
 export { TEST_MODEL } from "./test-model-data.js";
 export { TEST_BAZBALL_CAL } from "./test-bazball-data.js";
+export { TEST_LEVEL_CAL } from "./test-level-data.js";
 export { scoringContextFor, applyScoringContext } from "./scoring-context.js";
 export type { T20Context, ScoringContextId } from "./scoring-context.js";
 export { T20I_CONTEXT } from "./t20i-context-data.js";
