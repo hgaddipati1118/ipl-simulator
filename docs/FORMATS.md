@@ -206,6 +206,7 @@ a user side. The ODI work left every line as it was. Since then, on purpose:
 | concussion substitutes (RULES-MATCH.md 13.9): the men's and Hundred instant lines (the draw is off the engines' own random streams, so only the matches with a concussion move; none of the 100 women's matches nor the 100 + 100 live matches has one) | `2a4aaedd7e7b88cb` / `4e50762d0bb874da` / women unchanged / `bbabfe0e83881c8b` | unchanged | `1b53d9ac847efcc6` |
 | the league home-edge hook (docs/LEAGUES.md, "Home advantage"; fitted, not shipped: `LEAGUE_HOME` empty): every line unchanged | unchanged | unchanged | `1b53d9ac847efcc6` |
 | the chase wicket term by pressure, over and wickets down, and the extra leagues' levels refitted (TACTICS.md section 11): the men's instant lines and both live ones (IPL chases); the women's line (no table for the women) and The Hundred's (not a T20) unchanged | `c25a56e2a3ecd6d7` / `7fb1b9dd200e356b` / women unchanged / Hundred unchanged | `a9b04f376a49d662` / `d6f35f0e5b80787b` | `3bda2f67e5dff433` |
+| the Bazball wicket calibration (docs/COUNTRY-VALIDATION.md, "Test results by country"): Test only, every line unchanged | unchanged | unchanged | `3bda2f67e5dff433` |
 
 ### Refitting
 
@@ -247,6 +248,7 @@ Files:
 | `packages/engine/src/test-match.ts` | rules, ball model, fielding, DRS, captains' policies, results, scorecards, `simulateTestMatch` |
 | `packages/engine/src/test-live.ts` | live driver: user decisions, skip by over / session / day / innings, situation view, save / load |
 | `packages/engine/src/test-model-data.ts` | GENERATED fitted parameters (no runtime data dependency) |
+| `packages/engine/src/test-bazball-data.ts` | England's Bazball wicket factor as played on mapped player terms (x1.11, fitted on England's 2022-24 Tests; docs/COUNTRY-VALIDATION.md, "Test results by country") |
 | `packages/engine/src/test-profile-data.ts` | GENERATED each player's usual batting position, bowling workload, keeping record and share of his country's recent Tests (section 3.2; `test-player-profiles.py`) |
 | `packages/ratings/src/analysis/test-match-model.py` | the fit (DuckDB + Python, `python3 -I`) |
 | `docs/data/test_model.json` | the same parameters plus the era factors, as a report |
@@ -360,6 +362,11 @@ bye / leg bye 0.0094 (the dot is what is left, ~0.71; real men's Tests since 201
 
 Country x type (wickets, pace / spin, within type): India 0.90 / 1.06, Sri Lanka 0.96 / 1.11, Pakistan 0.86 / 0.94,
 South Africa 1.14 / 1.00, England 1.04 / 0.95, Australia 0.97 / 0.81, New Zealand 0.97 / 0.87.
+
+**Bazball as played.** The engine multiplies the Bazball wicket factor by 1.11 (`test-bazball-data.ts`). The fitted factor is net of the
+fitted batter terms, but England's batters play on rating-mapped terms. Their survival is read off battingIQ, which their Bazball-era
+records already carry. With the real elevens they outlasted the real England by 12% of balls per wicket against the same opponents
+(2022-24; the fit). The scoring factors are as fitted. Out of sample: docs/COUNTRY-VALIDATION.md, "Test results by country".
 
 The match's own conditions: SD 0.071 on the scoring rate, 0.19 on the wicket rate, correlation 0.15 (true spread beyond
 Poisson noise, centred within country). An innings' own scoring conditions add SD 0.09. How the pitch wears is drawn per
@@ -983,7 +990,10 @@ South Africa (55% in the sim against 78% real) was first lifted by a side-level 
 national-side term for South Africa's bowlers instead (`test-bowling-terms.ts`, fitted on 2014-22, docs/FORMAT-RATINGS-REPORT.md, "Test
 ratings by country"), which takes it to 70% with no offset. Still off: New Zealand (0.50 against 0.65), India and England (0.64 and 0.62
 against 0.53): India's and England's players did as rated or better in the next two seasons and New Zealand's batters' extra does not
-persist, so these are not ratings errors the data supports; no stretch or ground term fixes them either. Five-fors stayed at
+persist, so these are not ratings errors the data supports; no stretch or ground term fixes them either. Re-measured three-way with draws
+over 2019+ (docs/COUNTRY-VALIDATION.md, "Test results by country"): England's gap was the engine counting Bazball on top of ratings that
+already carry it (fixed: England 0.51 against 0.50 since 2023, was 0.57); India's is a few upsets and its draws, its ball-level play being
+right; New Zealand's is its players' ratings. Five-fors stayed at
 1.07 here: the bowler's wicket term already reaches its true spread, and the gap was in how the sim shared the overs (its
 leading bowler bowled 27% of them, real 30%); fixed in section 6.11.
 

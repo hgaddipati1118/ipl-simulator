@@ -26,6 +26,7 @@ import type { Team } from "./team.js";
 import type { RNG } from "./rng.js";
 import { createRNG, randomSeed } from "./rng.js";
 import { TEST_MODEL as M } from "./test-model-data.js";
+import { TEST_BAZBALL_CAL } from "./test-bazball-data.js";
 import { applyLastPairTest } from "./last-pair.js";
 import { TEST_PROFILE_DATA } from "./test-profile-data.js";
 import {
@@ -1028,7 +1029,7 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
   for (let k = 0; k < K; k++) {
     let v = base[k] * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_WD[i][wd][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
       * bat.batMul[k] * bowl.bowlMul[k] * st.cond[k];
-    if (team.bazball) v *= T_BAZ[k];
+    if (team.bazball) v *= T_BAZ[k] * (k === IW ? TEST_BAZBALL_CAL.wickets : k < IW ? TEST_BAZBALL_CAL.runs : 1);
     if (k < IW && inn.cond) v *= inn.cond;
     else if (k === IW && inn.condW) v *= inn.condW;
     if (k === IW) v *= fat.wkts * wearMul; else v *= fat.runs;
@@ -1044,7 +1045,7 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
     TEST_MATCH_HOOKS.traceWicket(inn, {
       age: T_AGE[ab][k], set: T_SET[sb][k], inn: T_INN[i][k], wd: T_WD[i][wd][k], day: T_DAY[type][d][k], spell: T_SPELL[sp][k], sit: sit[k],
       home: home[k], cty: cty[k], bat: bat.batMul[k], bowl: bowl.bowlMul[k], match: st.cond[k], innCond: k === IW ? inn.condW ?? 1 : k < IW ? inn.cond ?? 1 : 1,
-      wear: k === IW ? wearMul : 1, fatigue: k === IW ? fat.wkts : fat.runs, baz: team.bazball ? T_BAZ[k] : 1,
+      wear: k === IW ? wearMul : 1, fatigue: k === IW ? fat.wkts : fat.runs, baz: team.bazball ? T_BAZ[k] * (k === IW ? TEST_BAZBALL_CAL.wickets : k < IW ? TEST_BAZBALL_CAL.runs : 1) : 1,
       pW: p[k],
     });
   }

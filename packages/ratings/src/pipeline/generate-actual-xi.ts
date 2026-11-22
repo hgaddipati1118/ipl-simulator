@@ -4,6 +4,8 @@
  * the batting order it used, the host (the venue's country is one of the two sides') and the bowlers' overs.
  *
  *   npx tsx src/pipeline/generate-actual-xi.ts <dir with the unzipped Cricsheet json: t20s/ odis/ tests/>   -> docs/data/actual_xi.json
+ *   TEST_ALL=1 npx tsx src/pipeline/generate-actual-xi.ts <dir>   -> docs/data/actual_xi_test.json: men's Tests only, since 2019, draws
+ *     included (winner null), for the three-way Test benchmark (docs/COUNTRY-VALIDATION.md, "Test results by country")
  *
  * The Cricsheet ball-by-ball json (cricsheet.org/downloads/{t20s,odis,tests}_json.zip) lists each side's players (info.players), which
  * the parquet extracts do not keep. Players are keyed like the rest of the app (`sourceId ?? id`: `espn_<id>`, `ca_<id>`) through
@@ -21,7 +23,8 @@ import { decodeShard, type PoolShard } from "../extended-pool.js";
 const ROOT = new URL("../../", import.meta.url).pathname;
 const DIR = `${ROOT}data/analysis/`;
 const POOL_DIR = new URL("../../../app/public/pool/", import.meta.url).pathname;
-const OUT = new URL("../../../../docs/data/actual_xi.json", import.meta.url).pathname;
+const TEST_ALL = !!process.env.TEST_ALL;
+const OUT = new URL(TEST_ALL ? "../../../../docs/data/actual_xi_test.json" : "../../../../docs/data/actual_xi.json", import.meta.url).pathname;
 const JSON_DIR = process.argv[2];
 if (!JSON_DIR) throw new Error("usage: generate-actual-xi.ts <dir with t20s/ odis/ tests/ of Cricsheet json>");
 
@@ -33,6 +36,7 @@ const SETS: [string, "men" | "women", Gender, string[], string, string][] = [
   ["odi", "men", "male", ["ODI", "ODM"], "2019-01-01", "odis"], ["odi", "women", "female", ["ODI", "ODM"], "2019-01-01", "odis"],
   ["test", "men", "male", ["Test"], "2023-01-01", "tests"],
 ];
+if (TEST_ALL) SETS.splice(0, SETS.length, ["test", "men", "male", ["Test"], "2019-01-01", "tests"]);
 
 function duck<T>(sql: string): T[] {
   const out = execFileSync("duckdb", ["-json", "-c", "SET memory_limit='2GB'; " + sql], { encoding: "utf-8", cwd: DIR, maxBuffer: 2 * 1024 * 1024 * 1024 });
@@ -79,7 +83,8 @@ SELECT m.match_id, strftime(m.date, '%Y-%m-%d') date, m.team1, m.team2, m.winner
     const list: unknown[] = [];
     let missingFile = 0, short = 0;
     for (const r of rows) {
-      if (r.winner === null || (r.winner !== r.team1 && r.winner !== r.team2) || (r.outcome_method ?? "") !== "" || r.result === "tie" || r.result === "no result") continue;
+      const drawn = TEST_ALL && r.winner === null && r.result === "draw";
+      if (!drawn && (r.winner === null || (r.winner !== r.team1 && r.winner !== r.team2) || (r.outcome_method ?? "") !== "" || r.result === "tie" || r.result === "no result")) continue;
       const file = `${JSON_DIR}/${folder}/${r.match_id}.json`;
       if (!existsSync(file)) { missingFile++; continue; }
       const cs = JSON.parse(readFileSync(file, "utf-8")) as CsMatch;
@@ -113,7 +118,7 @@ SELECT m.match_id, strftime(m.date, '%Y-%m-%d') date, m.team1, m.team2, m.winner
       if (a.length !== 11 || b.length !== 11) short++;
       const host = r.vc === CODE[r.team1] ? "a" : r.vc === CODE[r.team2] ? "b" : null;
       list.push({
-        id: r.match_id, date: r.date, a: r.team1, b: r.team2, host, venue: r.venue, city: r.city, winner: r.winner === r.team1 ? "a" : "b",
+        id: r.match_id, date: r.date, a: r.team1, b: r.team2, host, venue: r.venue, city: r.city, winner: drawn ? null : r.winner === r.team1 ? "a" : "b",
         xi: { a, b }, bat: { a: card(r.team1), b: card(r.team2) }, ...(fmt === "test" ? {} : { bowl: { a: bowlOvers(r.team1), b: bowlOvers(r.team2) } }),
       });
     }

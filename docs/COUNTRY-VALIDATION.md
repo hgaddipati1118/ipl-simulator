@@ -319,6 +319,127 @@ match-level run / wicket spread, and never on the sides' ratings. The home term 
 left over after the ground's own effect; a preset replaces the ground's effect and the home term stays as it was, so nothing is counted twice.
 `series-tuning.test.ts` checks that the sides' shifts are identical with and without a pitch / light / weather setting, in a Test and an ODI.
 
+## Test results by country (three-way, draws included)
+
+The earlier Test checks scored decided Tests only. This one scores win / draw / loss, over a longer window.
+
+**Benchmark.** `docs/data/actual_xi_test.json` holds 289 men's Tests between full members since 2019, draws included (34 of them).
+It is written by `TEST_ALL=1 npx tsx src/pipeline/generate-actual-xi.ts <dir with tests/>`, with 38 of 6,383 places not in the
+pool. `benchmark-test-countries.test.ts` plays every Test with the elevens that played, the real host and the shipped series
+tuning, 256 replays each:
+
+```
+BENCH_TEST3=1 BENCH_HALF=fit|hold BENCH_REPLAYS=256 BENCH_OUT=out.json \
+  npx vitest run packages/app/src/__tests__/benchmark-test-countries.test.ts -t three-way
+BENCH_COMPARE3=a.json,b.json ... -t paired
+```
+
+- A match's loss is -log of the simulated probability of the real result ((count + 0.5) / (replays + 1.5)).
+- England bat with the Bazball factor from June 2022 only.
+- Fit half: 2019-2024 (226 Tests). Holdout: 2025+ (63).
+- Options: `BENCH_TEAM` (one side's Tests), `BENCH_TUNE` (another tuning), `BENCH_BAZCAL=w,r` (another Bazball calibration).
+
+**The gaps, measured first.** Win share counts draws as not won. Real SE is binomial. 2023+, current main:
+
+| | real | sim | real home / away | sim home / away |
+|---|---|---|---|---|
+| India (35) | 0.46 ± 0.08 | 0.58 | 0.56 / 0.38 | 0.68 / 0.49 |
+| England (42) | 0.50 ± 0.08 | 0.57 | 0.62 / 0.33 | 0.65 / 0.46 |
+| New Zealand (28) | 0.61 ± 0.09 | 0.46 | 0.57 / 0.64 | 0.46 / 0.46 |
+
+Since 2019 (n 68 / 93 / 56) the gaps are smaller: India 0.53 against 0.60, England 0.47 against 0.52, New Zealand 0.55 against 0.42.
+Each side's z (real wins less the sim's expected wins, over the sim's binomial sd) is India -1.3, England -1.0, New Zealand +2.2. Over
+all eleven sides the sum of z squared is 13.9 on 11 (2019+) and 11.0 on 11 (2023+), which is what noise alone gives. Only three sides
+keep the sign of their residual from the fit half to the holdout: New Zealand (+1.8 / +1.5), India (-0.9 / -1.2) and England
+(-0.6 / -1.0). Draws are right since 2023 (8.5% against 8.9%). They are too few in 2019-22 (7.7% against 14.8%), the slower era the
+engine does not play.
+
+**Candidate causes.**
+
+- **Home advantage and the gap between the sides** (the series tuning). On the fit half, a grid of stretch 0.5 / 0.75 / 1 and home
+  -1.5 / 0 / +1.5 / +3 (128 replays, paired against the shipped stretch 1, home -1.5) gave nothing better than -0.017 ± 0.018.
+  +1.5 and +3 were worse. The home share of decided Tests matches: sim 58.0% against real 59.5% in 2023-24, and 54.0% against 54.4%
+  on the holdout. The 2019-22 home edge was larger (real 63.6%, sim 54.9%), an era effect.
+- **Per-country home edges, ball by ball.** A Poisson fit on every men's Test ball 2006-2024 (batter, bowler, match, innings x wickets
+  down, and the batting side's standing by host or by nation) gives country contrasts of 0.03-0.10 in log wicket rate. Some are
+  stable from 2006-16 to 2017-24 (England's bowling at home, Pakistan's flat home pitches). New Zealand's (-0.01 then -0.14) and
+  India's (-0.07 then +0.13) are not. None follows the three result gaps. India's ball-level play with the real elevens is right
+  since 2023: runs per wicket relative to their opponents in the same Tests, sim against real, 0.98 (2023-24) and 1.02 (2025+).
+- **India's gap is a few results.** New Zealand's 3-0 in India in 2024 (the sim gave India 0.87 / 0.83 / 0.73) and South Africa's 2-0
+  there in 2025 (0.57 / 0.61). India also drew 14% against the sim's 7% (Ahmedabad 2023, Port of Spain 2023, Brisbane 2024, Manchester
+  2025, Sri Lanka 2026). Neither is a term the data supports.
+- **New Zealand is the ratings.** Runs per wicket relative to their opponents in the same Tests, sim against real: 0.73 (2019-22),
+  0.95 (2023-24), 0.61 (2025+). The sim's New Zealand bats and bowls worse than the real side in every window. The deficit is at
+  home and away, so it is not a ground term. It is New Zealand's players as rated. FORMAT-RATINGS-REPORT.md, "Test ratings by
+  country", found their batters 4.2 (SE 2.2) runs per 100 balls better than their estimates in all four folds. There a batting term
+  did not hold out player by player, but the side's deficit here holds in all three windows (0.78 since 2019: the
+  sim's New Zealand makes 22% fewer runs per wicket than the real one, relative to the same opponents). A side offset for them (`strengthBy`) was tried and rejected in the first round (flat fit half). It is a ratings question,
+  for the next Test ratings round (branch `format-ratings-2` is not merged), not an engine one.
+- **England's gap is the engine: Bazball counted on top of ratings that already carry it** (shipped).
+
+**England's batting from June 2022.** The engine plays England with the ball model's Bazball factor. That factor is fitted net of
+the fitted batter terms (wickets x1.02, singles x1.27, sixes x1.65). But the engine plays the rating maps' terms, and the maps read a
+batter's survival off battingIQ, the level attribute. England's batters carry that level from records made at the Bazball scoring
+rate. With the real elevens, England's balls per wicket relative to their opponents in the same Tests, sim against real, was:
+
+| 2022 (Jun-Dec) | 2023 | 2024 | 2025 | 2026 |
+|---|---|---|---|---|
+| 1.105 | 1.070 | 1.158 | 1.033 | 1.163 |
+
+The sim's England survive too long every year. Their scoring rate, by contrast, drifts: 0.86, 0.84, 1.02, 1.06 and 1.23 in the same
+years. England's real scoring has slowed since 2024, so it is not a stable quantity to fit; the survival gap is.
+
+The engine now multiplies the Bazball wicket factor by **1.11** (`packages/engine/src/test-bazball-data.ts`,
+`TEST_BAZBALL_CAL.wickets`). That is fitted on England's Tests from June 2022 to 2024 only, so that their relative balls per wicket is
+1.0 (1.125 before, 1.006 after). The scoring classes stay as fitted (`runs: 1`).
+
+Two versions were set before the holdout was read:
+- **A**, both terms fitted on 2022-24 (wickets 1.11, runs 1.09);
+- **B**, the wicket term alone (shipped).
+
+| paired three-way loss, minus is better | fit 2019-24 (226) | holdout 2025+ (63) | England's holdout Tests (17) |
+|---|---|---|---|
+| A: wickets 1.11, runs 1.09 | -0.0036 ± 0.0042 | -0.0088 ± 0.0079 | -0.033 ± 0.029 |
+| **B: wickets 1.11 (shipped)** | **-0.0014 ± 0.0065** | **-0.0146 ± 0.0124** | **-0.054 ± 0.046** |
+
+Loss per match, fit / holdout: 0.9296 / 0.8040 before, 0.9282 / 0.7894 after. Tests without England are identical, since the
+streams are seeded. B is level on the fit half and better on the holdout, within noise (1.2 SE). It closes a calibration gap:
+- England's survival relative to their opponents goes to 1.006 on the fit half and 0.967 on the holdout (from 1.125 and 1.085).
+- England's win share goes to 0.51 against 0.50 since 2023 (was 0.57), and 0.52 against 0.47 on the holdout (was 0.58).
+
+A's scoring term overshoots on the holdout: England's run rate relative to their opponents goes 1.13 -> 1.21.
+
+**Before / after by country, 2023+** (146 Tests; win share real (SE) / sim before / sim after):
+
+| country | n | win: real (SE) / before / after | draw: real / before / after | home: n, real / before / after | away: n, real / before / after |
+|---|---|---|---|---|---|
+| Australia | 39 | 0.62 (0.08) / 0.65 / 0.68 | 0.10 / 0.06 / 0.05 | 18, 0.67 / 0.71 / 0.74 | 19, 0.58 / 0.60 / 0.62 |
+| Bangladesh | 25 | 0.44 (0.10) / 0.35 / 0.35 | 0.04 / 0.13 / 0.13 | 14, 0.50 / 0.41 / 0.41 | 11, 0.36 / 0.28 / 0.28 |
+| **England** | 42 | **0.50 (0.08) / 0.57 / 0.51** | 0.05 / 0.09 / 0.07 | 24, 0.62 / 0.65 / 0.59 | 18, 0.33 / 0.46 / 0.39 |
+| **India** | 35 | **0.46 (0.08) / 0.58 / 0.61** | 0.14 / 0.07 / 0.06 | 18, 0.56 / 0.68 / 0.71 | 16, 0.38 / 0.49 / 0.53 |
+| Ireland | 9 | 0.22 (0.14) / 0.27 / 0.28 | 0.00 / 0.09 / 0.09 | 2, 0.50 / 0.48 / 0.48 | 7, 0.14 / 0.21 / 0.22 |
+| **New Zealand** | 28 | **0.61 (0.09) / 0.46 / 0.49** | 0.07 / 0.11 / 0.10 | 14, 0.57 / 0.46 / 0.50 | 14, 0.64 / 0.46 / 0.48 |
+| Pakistan | 24 | 0.29 (0.09) / 0.20 / 0.21 | 0.04 / 0.12 / 0.11 | 10, 0.40 / 0.21 / 0.23 | 14, 0.21 / 0.19 / 0.20 |
+| South Africa | 25 | 0.72 (0.09) / 0.67 / 0.67 | 0.08 / 0.05 / 0.05 | 11, 0.82 / 0.72 / 0.72 | 13, 0.62 / 0.65 / 0.65 |
+| Sri Lanka | 23 | 0.35 (0.10) / 0.37 / 0.38 | 0.13 / 0.10 / 0.10 | 12, 0.42 / 0.46 / 0.46 | 11, 0.27 / 0.27 / 0.30 |
+| West Indies | 30 | 0.23 (0.08) / 0.28 / 0.29 | 0.17 / 0.07 / 0.06 | 13, 0.23 / 0.30 / 0.30 | 17, 0.24 / 0.26 / 0.28 |
+| Zimbabwe | 12 | 0.17 (0.11) / 0.11 / 0.12 | 0.08 / 0.09 / 0.09 | 8, 0.12 / 0.10 / 0.10 | 4, 0.25 / 0.14 / 0.15 |
+
+Since 2019 (289 Tests): England 0.47 (SE 0.05) / 0.52 / 0.48, India 0.53 (0.06) / 0.60 / 0.61, New Zealand 0.55 (0.07) / 0.42 / 0.44.
+Holdout only (63): England 0.47 (0.12) / 0.58 / 0.52, India 0.42 (0.14) / 0.57 / 0.61, New Zealand 0.78 (0.14) / 0.56 / 0.59.
+
+England's opponents gain a little: India, Australia and New Zealand play them 10-14 times, so India's gap widens by 0.03. India and
+New Zealand are left for the reasons above.
+
+In the best-squad Test benchmark (`benchmark-test.ts 4000`), England's win share goes 53.3% -> 45.6% (real 46.6% since 2015, 50.0%
+since 2023). The aggregates move by England's share of the balls:
+- balls per wicket 48.5 -> 47.8 (real 50.6; the engine's level had already drifted from the 50.7 of FORMATS.md section 6.10);
+- innings 1 runs 318 -> 312;
+- hundreds 1.57 -> 1.53 per Test.
+
+No rating changes; England's batters are dismissed 11% more often per ball while batting Bazball, which is what their real survival
+says.
+
 ## Left over
 
 - Men's Test with the elevens that played (133 Tests since 2023): before the Test tuning (above) India won 66% against a real 53%, England
@@ -330,6 +451,9 @@ left over after the ground's own effect; a preset replaces the ground's effect a
   bias round checked for India and Australia and the country round for all nine sides: India's and England's players did as rated or better,
   and New Zealand's batters did better than rated but not persistently (FORMAT-RATINGS-REPORT.md, "Test ratings by country"). The
   South Africa offset is gone; the sides' remaining gaps are not a ratings error that out-of-sample data supports.
+  Re-measured three-way with draws over 2019+ ("Test results by country" above): England's part was the engine (Bazball on top of
+  ratings that carry it; fixed, England 0.57 -> 0.51 against 0.50 since 2023); India's is a few upsets and draws (its ball-level play
+  is right); New Zealand's is its players' ratings (0.78 of the real runs-per-wicket edge since 2019).
 - Sri Lanka, West Indies and Zimbabwe men's T20I still win 0.40-0.49 against 0.29-0.41: their squads rate higher than they played
   over 2019-26 (an order-of-sides error, not a spread one).
 - Women's Zimbabwe and Bangladesh (real 0.00 and 0.18) are still too strong at 0.19 / 0.37, and score 20-25 runs more per
