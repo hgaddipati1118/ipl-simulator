@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
-import { ATTACK_MODEL, BATTER_RESPONSE, CAPTAIN_MODEL, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, IN_MATCH_INJURY_SWITCH, LAST_PAIR_SWITCH, LEAGUE_LEVELS, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, type Player } from "@ipl-sim/engine";
+import { ATTACK_MODEL, BATTER_RESPONSE, LAST_PAIR, INNINGS_CLOCK_SWITCH as CLOCK_SWITCH, CAPTAIN_MODEL, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, IN_MATCH_INJURY_SWITCH, LAST_PAIR_SWITCH, LEAGUE_LEVELS, MATCH_CONDITIONS, ODI_CAL, T20_BOWLER_TYPE, VENUE_LEVEL_SWITCH, setRuleOverrides, type Player } from "@ipl-sim/engine";
 import { XI_SHARPEN } from "../realistic-xi";
 import { availabilitySource, createSeries, matchContext, seriesFormat, seriesSquads, type SeriesGender, type SeriesMatchRecord } from "../international";
 import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
@@ -110,6 +110,12 @@ async function setup() {
   if (process.env.BENCH_NO_RESPONSE) for (const g of ["male", "female"] as const) for (const k of Object.keys(BATTER_RESPONSE[g])) BATTER_RESPONSE[g][k] = BATTER_RESPONSE[g][k].map(() => 0);
   // BENCH_LP_OFF=t20,odi,test: no last-pair term (docs/TACTICS.md section 5) in those formats; BENCH_LP_SCALE=t20:0.5,odi:1 scales it
   for (const f of (process.env.BENCH_LP_OFF ?? "").split(",").filter(Boolean)) LAST_PAIR_SWITCH.off[f as "t20" | "odi" | "test"] = true;
+  // BENCH_WT20I_LEVELS=on: a women's T20I at a franchise ground plays the league's wicket and dot levels (the engine before docs/COUNTRY-VALIDATION.md, "Women's T20I tails")
+  if (process.env.BENCH_WT20I_LEVELS === "on") VENUE_LEVEL_SWITCH.womenT20I = false;
+  // BENCH_LP_WOMEN=1: the women's T20I last-pair table of docs/data/last_pair.json (fitted, not shipped: docs/TACTICS.md section 5) played
+  if (process.env.BENCH_LP_WOMEN) LAST_PAIR.t20i.female = JSON.parse(readFileSync(join(REPO, "docs", "data", "last_pair.json"), "utf-8")).tables.t20i.female;
+  // BENCH_WCLOCK=off: no women's T20I innings clock (the engine before docs/COUNTRY-VALIDATION.md, "Women's T20I tails")
+  if (process.env.BENCH_WCLOCK === "off") CLOCK_SWITCH.womenT20I = false;
   // IMI_OFF=1: no concussion substitutes (in-match-injury.ts; the engine before them)
   if (process.env.IMI_OFF) IN_MATCH_INJURY_SWITCH.off = true;
   for (const kv of (process.env.BENCH_LP_SCALE ?? "").split(",").filter(Boolean)) { const [f, v] = kv.split(":"); LAST_PAIR_SWITCH.scale[f as "t20" | "odi" | "test"] = Number(v); }
@@ -353,6 +359,10 @@ interface ActualOpts {
   order?: boolean;
   /** the real ground by name (default); false: the host's busiest ground */
   ground?: boolean;
+  /** false: the series' own sides (their best XIs, the engine's order) on the real match's ground and date (diagnostics) */
+  actualXI?: boolean;
+  /** true: every match at a neutral venue (no ground, no home side; diagnostics) */
+  neutral?: boolean;
   /** called with every replayed match's record, the real match and the XI's squads (BENCH_POSITIONS) */
   collect?: (m: ActualMatch, rec: SeriesMatchRecord, sideOf: (teamId: string) => "a" | "b", order: [string[], string[]], squads: [Player[], Player[]]) => void;
 }
@@ -384,11 +394,12 @@ function runActual(key: string, real: RealSet, matches: ActualMatch[], replays: 
     const [fa, fb] = [m.a, m.b].sort();
     const k = fixtureIdx.get(`${fa} v ${fb}|${hostName}`);
     if (k === undefined) return;
-    const series = createSeries({ format: fmt, gender, nations: [m.a, m.b], length: 1, host: m.host === "a" ? "a" : m.host === "b" ? "b" : "neutral", userSide: null, seed: 3000 + i }, FILE, ACTIVITY, extended);
+    const series = createSeries({ format: fmt, gender, nations: [m.a, m.b], length: 1, host: opts.neutral ? "neutral" : m.host === "a" ? "a" : m.host === "b" ? "b" : "neutral", userSide: null, seed: 3000 + i }, FILE, ACTIVITY, extended);
     if (opts.ground !== false) series.ground = m.venue;
     // the real eleven (unknown places filled from the side's best), in the real batting order
     const fallback = seriesSquads(series, FILE, extended);
     for (const side of [0, 1] as const) {
+      if (opts.actualXI === false) break;
       const real11 = (side === 0 ? m.xi.a : m.xi.b).filter((x): x is string => x !== null);
       let ids = [...new Set(real11)];
       for (let pass = 0; pass < 2; pass++) {
@@ -401,6 +412,7 @@ function runActual(key: string, real: RealSet, matches: ActualMatch[], replays: 
       (series.lineups ??= [null, null])[side] = { xi: ids.slice(0, 11), order: opts.order === false ? [] : ids.slice(0, 11) };
     }
     const squads = seriesSquads(series, FILE, extended);
+    if (opts.actualXI === false) series.lineups = [{ xi: squads[0].slice(0, 11).map(p => p.id), order: [] }, { xi: squads[1].slice(0, 11).map(p => p.id), order: [] }];
     const sideOf = (teamId: string) => (teamId === series.sides[0].id ? m.a : m.b);
     const winnerName = m.winner === "a" ? m.a : m.b;
     let mw = 0, mn = 0, aw = 0;
@@ -522,4 +534,90 @@ it.skipIf(!process.env.BENCH_POSITIONS)("batting position against real", async (
     }
     console.log(out.join("\n"));
   }
+}, 14_400_000);
+
+/**
+ * BENCH_TAILS=out.json [BENCH_REPLAYS=8] [BENCH_ONLY=t20i-women]: the lower order against real (docs/COUNTRY-VALIDATION.md, "Women's T20I tails").
+ * For the matches played with the real XIs, per innings: runs / balls by batting position (a not-out batter who came in and faced no ball counted 0 / 0,
+ * as the real record has him), legal balls / runs / wickets by wickets down (from the fall of wickets), the last-wicket stand, first-innings all-out and
+ * total; the XI's places that are not in the pool (played by a stand-in from the side's best) by position. Per real match, so the real side
+ * (packages/ratings/src/analysis/t20-tails.py) can be read on the same matches and the halves split by date. Dumps json.
+ */
+it.skipIf(!process.env.BENCH_TAILS)("tails against real (dump)", async () => {
+  const { FILE, ACTIVITY, ext } = await setup();
+  const ACT = JSON.parse(readFileSync(join(REPO, "docs", "data", "actual_xi.json"), "utf-8")) as Record<string, ActualMatch[]>;
+  const REAL = JSON.parse(readFileSync(join(REPO, "docs", "data", "country_validation.json"), "utf-8")) as Record<string, RealSet>;
+  const replays = Number(process.env.BENCH_REPLAYS ?? 8);
+  const only = (process.env.BENCH_ONLY ?? "t20i-women").split(",");
+  // BENCH_TAILS_RAIN=off: no rain (the real matches of actual_xi.json were all played out)
+  if (process.env.BENCH_TAILS_RAIN === "off") setRuleOverrides({ rainNoResult: 0, rainReduced: 0 });
+  const out: Record<string, unknown> = {};
+  for (const key of only) {
+    const players = await ext(key.split("-")[1] as SeriesGender);
+    const perMatch = new Map<string, { date: string; n: number; pos: number[][]; rat: number[][]; state: number[][]; state2: number[][]; phase: number[][]; over1: number[][]; last: number[]; first: number[]; firstW: number; allOut: number; standIn: number[] }>();
+    const ballsOf = (s: string) => { const m = /\((\d+)\.(\d+) ov\)/.exec(s); return m ? Number(m[1]) * 6 + Number(m[2]) : NaN; };
+    // BENCH_TAILS_GROUND=default: the host's busiest ground in place of the real one
+    runActual(key, REAL[key], ACT[key], replays, FILE, ACTIVITY, players, {
+      ground: process.env.BENCH_TAILS_GROUND !== "default",
+      actualXI: process.env.BENCH_TAILS_XI !== "series",
+      neutral: process.env.BENCH_TAILS_GROUND === "neutral",
+      collect: (m, rec, sideOf, order, squads) => {
+        let pm = perMatch.get(m.id);
+        if (!pm) {
+          pm = { date: m.date, n: 0, pos: Array.from({ length: 11 }, () => [0, 0, 0, 0]), rat: Array.from({ length: 11 }, () => [0, 0]), state: Array.from({ length: 10 }, () => [0, 0, 0]), state2: Array.from({ length: 10 }, () => [0, 0, 0]), phase: Array.from({ length: 6 }, () => [0, 0, 0]), over1: Array.from({ length: 20 }, () => [0, 0, 0]), last: [0, 0, 0], first: [0, 0], firstW: 0, allOut: 0, standIn: Array(11).fill(0) };
+          perMatch.set(m.id, pm);
+          // a place of the real XI the pool does not have: its batters move up and a stand-in bats last
+          for (const side of [0, 1] as const) {
+            const have = new Set(order[side]);
+            const real = side === 0 ? m.xi.a : m.xi.b;
+            real.forEach((id, i) => { if (i < 11 && (id === null || !have.has(id))) pm!.standIn[i]++; });
+          }
+        }
+        pm.n++;
+        const byName = new Map(squads.flat().map(p => [p.name, p]));
+        rec.innings.slice(0, 2).forEach((inn, q) => {
+          const w = inn.totalWickets;
+          const bats = inn.batters.map(b => [b.runs, b.balls, byName.get(b.playerName), b.howOut !== "not out" && !/retired hurt/i.test(b.howOut) ? 1 : 0]) as [number, number, Player | undefined, number][];
+          if (w < 10 && bats.length === w + 1) bats.push([0, 0, undefined, 0]); // the not-out partner who faced no ball (the scorecard leaves him off)
+          bats.forEach(([r, b, p, o], i) => { if (i < 11) { pm!.pos[i][0] += r; pm!.pos[i][1] += b; pm!.pos[i][2]++; pm!.pos[i][3] += o; if (p) { pm!.rat[i][0] += (p.battingOvr + p.ratings.timing) / 200; pm!.rat[i][1]++; } } });
+          let pr = 0, pb = 0;
+          inn.fallOfWickets.forEach((s, k) => {
+            const r = Number(s.split("/")[0]), b = ballsOf(s);
+            if (k < 10) for (const st of q === 0 ? [pm!.state, pm!.state2] : [pm!.state]) { st[k][0] += b - pb; st[k][1] += r - pr; st[k][2]++; }
+            pr = r; pb = b;
+          });
+          const [ov, bl] = inn.totalOvers.split(".").map(Number);
+          const tb = ov * 6 + (bl || 0);
+          if (w < 10) for (const st of q === 0 ? [pm!.state, pm!.state2] : [pm!.state]) { st[w][0] += tb - pb; st[w][1] += inn.totalRuns - pr; }
+          // by innings and phase (overs 1-6, 7-15, 16-20): legal balls, runs (the worm), wickets
+          const ph = (b: number) => (b <= 36 ? 0 : b <= 90 ? 1 : 2);
+          const wm = rec.worm[q] ?? [];
+          const at = (o: number) => (o <= 0 ? 0 : wm[Math.min(o, wm.length) - 1] ?? 0);
+          for (let k = 0; k < 3; k++) {
+            const [b0, b1] = [[0, 36], [36, 90], [90, 120]][k];
+            const e = pm!.phase[3 * q + k];
+            e[0] += Math.max(0, Math.min(tb, b1) - b0);
+            e[1] += (k === 2 ? inn.totalRuns : at(b1 / 6)) - at(b0 / 6);
+          }
+          inn.fallOfWickets.forEach(s => { pm!.phase[3 * q + ph(ballsOf(s))][2]++; });
+          // first innings by over: legal balls, wickets, runs
+          if (q === 0) {
+            for (let o = 0; o < 20; o++) { pm!.over1[o][0] += Math.max(0, Math.min(tb, 6 * o + 6) - 6 * o); pm!.over1[o][2] += (o === 19 ? inn.totalRuns : at(o + 1)) - at(o); }
+            inn.fallOfWickets.forEach(s => { const b = ballsOf(s); pm!.over1[Math.max(0, Math.min(19, Math.floor((b - 1) / 6)))][1]++; });
+          }
+          if (w >= 9) {
+            const nine = inn.fallOfWickets[8];
+            const r9 = Number(nine.split("/")[0]), b9 = ballsOf(nine);
+            const end = w === 10 ? inn.fallOfWickets[9] : null;
+            pm!.last[0] += (end ? ballsOf(end) : tb) - b9; pm!.last[1] += (end ? Number(end.split("/")[0]) : inn.totalRuns) - r9; pm!.last[2]++;
+          }
+          if (q === 0) { pm!.first[0] += inn.totalRuns; pm!.first[1] += inn.totalRuns ** 2; pm!.firstW += w; if (w === 10) pm!.allOut++; }
+          void sideOf;
+        });
+      },
+    });
+    out[key] = Object.fromEntries(perMatch);
+    console.log(`${key}: ${perMatch.size} matches x ${replays}`);
+  }
+  writeFileSync(process.env.BENCH_TAILS!, JSON.stringify(out));
 }, 14_400_000);

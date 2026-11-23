@@ -46,6 +46,7 @@ import {
   ENGINE_INTRINSIC_CHASE,
   deriveStadiumBowlingRating,
   getOdiVenueProfile,
+  VENUE_LEVEL_SWITCH,
   type VenueProfile,
 } from "./venues.js";
 import { ODI_CONDITIONS } from "./odi-venue-data.js";
@@ -994,7 +995,7 @@ function getVenueContext(
     };
   }
 
-  const ground = getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id, { league: rules.scoringContext !== "t20i" });
+  const ground = getVenueProfileForTeam(homeTeam.config.venueTeamId ?? homeTeam.id, { league: rules.scoringContext !== "t20i", ...(rules.scoringContext === "t20i" && genderOf(rules) === "female" && VENUE_LEVEL_SWITCH.womenT20I ? { levels: false } : {}) });
   const profile = applyConditionsToProfile(ground, options?.conditions, "t20", leagueChase);
   return {
     stadiumBowlRating: stadiumRatingFor(homeTeam, ground) * (2 - rules.scoringMultiplier),

@@ -11,6 +11,8 @@ Run from packages/ratings (needs the `duckdb` CLI, numpy and scipy):
     python3 -I src/analysis/t20-wicket-timing.py build  work.duckdb                (real table: slow, once)
     python3 -I src/analysis/t20-wicket-timing.py report work.duckdb simdir         (real against sim: wickets down by over, all-outs, hazards)
     python3 -I src/analysis/t20-wicket-timing.py fit    work.duckdb simdir [--write]
+--women (every command): the women's T20I alone (T20Is between full members since 2019, women's ratings), its own slot, no pooled league
+term; with `fit`, --level keeps the term's level (not made neutral in shares; tried and not taken: it overshoots the all-outs) and --emit-women writes packages/engine/src/womens-t20i-clock-data.ts (docs/COUNTRY-VALIDATION.md, "Women's T20I tails").
 """
 import importlib.util
 import json
@@ -45,6 +47,7 @@ def duck(db: Path, sql: str, json_out: bool = False):
     return json.loads(p.stdout) if json_out and p.stdout.strip() else []
 
 MEN_LEAGUES = ["ipl", "bbl", "psl", "sa20", "cpl", "ilt20", "mlc", "bpl", "lpl"]
+WOMEN = "--women" in sys.argv
 
 
 def build(db: Path):
@@ -55,11 +58,12 @@ def build(db: Path):
     gp = LP.ratings_csv(tmp)
     members = ", ".join(f"'{t}'" for t in LP.FULL_MEMBERS)
     sel = []
-    for gid in MEN_LEAGUES:
+    for gid in ([] if WOMEN else MEN_LEAGUES):
         events, gender, _ = br.LEAGUES[gid]
         ev = ", ".join("'" + e.replace("'", "''") + "'" for e in events)
-        sel.append(f"SELECT match_id,'{gid}' AS comp FROM 'matches.parquet' WHERE event IN ({ev}) AND gender='male' AND date>=DATE '2016-01-01'")
-    sel.append(f"SELECT match_id,'t20i-men' FROM 'matches.parquet' WHERE gender='male' AND team_type='international' AND match_type IN ('T20','IT20') AND team1 IN ({members}) AND team2 IN ({members}) AND date>=DATE '2019-01-01'")
+        sel.append(f"SELECT match_id,'{gid}' AS comp,'male' AS gender FROM 'matches.parquet' WHERE event IN ({ev}) AND gender='male' AND date>=DATE '2016-01-01'")
+    for comp, gender in ([("t20i-women", "female")] if WOMEN else [("t20i-men", "male")]):
+        sel.append(f"SELECT match_id,'{comp}' AS comp,'{gender}' AS gender FROM 'matches.parquet' WHERE gender='{gender}' AND team_type='international' AND match_type IN ('T20','IT20') AND team1 IN ({members}) AND team2 IN ({members}) AND date>=DATE '2019-01-01'")
     cls = ("CASE WHEN d.wides>0 THEN 'wide' WHEN d.noballs>0 THEN 'noball' WHEN d.is_wicket>0 THEN 'wicket' WHEN d.byes+d.legbyes>0 AND d.runs_batter=0 THEN 'legbye' "
            "WHEN d.runs_batter>=6 THEN '6' WHEN d.runs_batter>=4 THEN '4' WHEN d.runs_batter=0 THEN 'dot' ELSE d.runs_batter::VARCHAR END")
     duck(db, f"""
@@ -69,7 +73,7 @@ CREATE TABLE full_m AS SELECT match_id FROM 'deliveries.parquet' WHERE innings=2
 CREATE TABLE gp AS SELECT * FROM read_csv('{gp}');
 CREATE TABLE pid AS SELECT DISTINCT cricsheet_id, cricinfo_id FROM 'people.parquet';
 CREATE TABLE d0 AS
-SELECT s.comp,m.date,CASE WHEN m.date<=DATE '{FIT_END}' THEN 'fit' ELSE 'test' END AS half,
+SELECT s.comp,s.gender,m.date,CASE WHEN m.date<=DATE '{FIT_END}' THEN 'fit' ELSE 'test' END AS half,
  d.match_id,d.innings,d.over,d.ball,d.legal_ball_no,d.batter_id,d.non_striker_id,d.player_out_id,d.runs_batter,d.runs_total,d.wides,d.noballs,d.is_wicket,{cls} AS cls,
  row_number() OVER (PARTITION BY d.match_id,d.innings ORDER BY d.over,d.ball,d.legal_ball_no) AS seq
 FROM 'deliveries.parquet' d JOIN sel s USING(match_id) JOIN 'matches.parquet' m USING(match_id)
@@ -90,8 +94,8 @@ SELECT d.*, a1.pos AS spos, a2.pos AS npos,
 FROM d1 d
 LEFT JOIN arr a1 ON a1.match_id=d.match_id AND a1.innings=d.innings AND a1.pl=d.batter_id
 LEFT JOIN arr a2 ON a2.match_id=d.match_id AND a2.innings=d.innings AND a2.pl=d.non_striker_id
-LEFT JOIN pid p1 ON p1.cricsheet_id=d.batter_id LEFT JOIN gp g1 ON g1.cricinfo=p1.cricinfo_id AND g1.g='male'
-LEFT JOIN pid p2 ON p2.cricsheet_id=d.non_striker_id LEFT JOIN gp g2 ON g2.cricinfo=p2.cricinfo_id AND g2.g='male';
+LEFT JOIN pid p1 ON p1.cricsheet_id=d.batter_id LEFT JOIN gp g1 ON g1.cricinfo=p1.cricinfo_id AND g1.g=d.gender
+LEFT JOIN pid p2 ON p2.cricsheet_id=d.non_striker_id LEFT JOIN gp g2 ON g2.cricinfo=p2.cricinfo_id AND g2.g=d.gender;
 DROP TABLE d0; DROP TABLE d1;
 """)
     print(duck(db, "SELECT comp, half, count(DISTINCT match_id) m, count(*) n, avg((srat IS NOT NULL)::INT) rated FROM dw GROUP BY ALL ORDER BY 1,2", True))
@@ -126,11 +130,11 @@ def cmd_report(db: Path, simdir: Path, since: str = "2021-01-01"):
     sim = innings_shape(db, "sims")
     print(f"First innings, real since {since} | sim: all out; runs; wickets; the ninth wicket's over (mean, 0-based, with the ball: 18.5 = halfway through the 19th); ninth wicket in the last two overs")
     mae, n_ = 0.0, 0
-    for c in MEN_LEAGUES + ["t20i-men"]:
+    for c in MEN_LEAGUES + ["t20i-men", "t20i-women"]:
         if c in real and c in sim:
             r, s_ = real[c], sim[c]
             print(f"  {c:9s} all out {100*r['allout']:5.1f} / {100*s_['allout']:5.1f} | runs {r['runs']:6.1f} / {s_['runs']:6.1f} | wkts {r['wkts']:.2f} / {s_['wkts']:.2f} | 9th wkt over {r['o9']:.2f} / {s_['o9']:.2f} | 9th in overs 19-20 {100*r['late9']:4.1f} / {100*s_['late9']:4.1f}")
-            if c != "t20i-men":
+            if not c.startswith("t20i"):
                 mae += abs(r["allout"] - s_["allout"]); n_ += 1
     print(f"  all-out mean absolute error over the leagues: {100*mae/max(n_,1):.2f} points")
     if "--full" not in sys.argv:
@@ -197,7 +201,7 @@ FITTED = ["dot", "1", "2", "4", "6", "wicket"]   # a 3 takes the 2's term; the e
 NF = len(FITTED)
 OVERS = 20
 PHASE_OF = [0] * 6 + [1] * 9 + [2] * 5            # the engine's phases (powerplay 0-5, middle 6-14, death 15-19): its multipliers step there
-SLOTS = MEN_LEAGUES + ["t20i-men"]
+SLOTS = ["t20i-women"] if WOMEN else MEN_LEAGUES + ["t20i-men"]
 WKB = "CASE WHEN wk<=1 THEN 0 WHEN wk<=3 THEN 1 WHEN wk<=5 THEN 2 WHEN wk<=7 THEN 3 ELSE 4 END"
 RBIN = "CASE WHEN srat<0.35 THEN 0 WHEN srat<0.45 THEN 1 WHEN srat<0.55 THEN 2 WHEN srat<0.65 THEN 3 WHEN srat<0.75 THEN 4 ELSE 5 END"
 SETB = "CASE WHEN sballs<=2 THEN 0 WHEN sballs<=9 THEN 1 WHEN sballs<=19 THEN 2 ELSE 3 END"
@@ -347,7 +351,9 @@ def cmd_fit(db: Path, simdir: Path, write: bool, lam_u: float, lam_d: float, lam
     for si, c in enumerate(SLOTS):
         if c not in df:
             continue
-        th = neutralise(full_theta(clock_theta(x, si), OVERS), dsim[c])
+        th = full_theta(clock_theta(x, si), OVERS)
+        if "--level" not in sys.argv:
+            th = neutralise(th, dsim[c])
         tables[c] = th
         line = f"  {c:9s}"
         for name, d in (("fit", df), ("test", dt)):
@@ -355,7 +361,7 @@ def cmd_fit(db: Path, simdir: Path, write: bool, lam_u: float, lam_d: float, lam
                 l0, dd, se = ll_diff(th, d[c])
                 n = d[c][0].sum()
                 line += f" | {name} {int(n):7d} balls: engine {l0:.4f} diff {dd:+.4f} +- {se:.4f}"
-                if c != "t20i-men":
+                if not c.startswith("t20i"):
                     t = tot[name]; t[0] += dd * n; t[1] += n; t[2] += (se * n) ** 2
         print(line)
         iw = CLASSES.index("wicket")
@@ -366,6 +372,14 @@ def cmd_fit(db: Path, simdir: Path, write: bool, lam_u: float, lam_d: float, lam
             print("      dot x by over:    " + " ".join(f"{np.exp(th[o, CLASSES.index('dot')]):.2f}" for o in range(OVERS)))
     # any other men's T20: the pooled league term, neutral over the nine leagues' simulated innings together
     allsim = [dsim[c] for c in MEN_LEAGUES if c in dsim]
+    if WOMEN or not allsim:
+        if write:
+            out = {"t20i-female": [[round(float(v), 4) for v in row] for row in tables["t20i-women"]]}
+            Path(write).write_text(json.dumps({"classes": CLASSES, "lam": [lam_u, lam_d, lam_s], "since": since, "fit_end": fit_end, "level": "--level" in sys.argv, "wicket_only": only_wicket, "tables": out}, indent=1))
+            print("wrote", write)
+            if "--emit-women" in sys.argv:
+                emit_women(out["t20i-female"], lam_u, lam_d, lam_s, since, fit_end, only_wicket)
+        return
     pooled_cells = (np.concatenate([a[0] for a in allsim]), np.concatenate([a[1] for a in allsim]), np.concatenate([a[2] for a in allsim]))
     tables["default"] = neutralise(full_theta(x.reshape(len(SLOTS) + 1, OVERS, NF)[0], OVERS), pooled_cells)
     for name, t in tot.items():
@@ -381,6 +395,23 @@ def cmd_fit(db: Path, simdir: Path, write: bool, lam_u: float, lam_d: float, lam
 
 
 OUT_TS = ROOT.parent / "engine" / "src" / "innings-clock-data.ts"
+OUT_WOMEN_TS = ROOT.parent / "engine" / "src" / "womens-t20i-clock-data.ts"
+
+
+def emit_women(rows, lam_u, lam_d, lam_s, since, fit_end, only_wicket):
+    lines = ["/**", f" * GENERATED by packages/ratings/src/analysis/t20-wicket-timing.py (fit --women{' --wicket-only' if only_wicket else ''}{' --level' if '--level' in sys.argv else ''}). Do not edit by hand.", " *",
+             " * The women's T20I innings clock (innings-clock.ts; docs/COUNTRY-VALIDATION.md, \"Women's T20I tails\"): the log multiplier of each outcome",
+             f" * class by the over of a women's T20I first innings, [over 0..19][class: {', '.join(CLASSES)}], fitted on Cricsheet ball by ball {since} to",
+             f" * {fit_end} (T20Is between full members) against the engine with the real XIs, the situation (wickets down, the striker's rating and balls",
+             f" * faced) held fixed; {'the wicket class only' if only_wicket else 'every batting class'}, "
+             + ("its level kept" if "--level" in sys.argv else "made neutral in shares over the engine's own first innings (only when the wickets fall moves)")
+             + f" (ridge {lam_u} / {lam_d}, smoothing {lam_s}).", " */",
+             "export const WOMENS_T20I_CLOCK: number[][] = ["]
+    for row in rows:
+        lines.append("  [" + ", ".join(f"{v:.4f}" for v in row) + "],")
+    lines.append("];")
+    OUT_WOMEN_TS.write_text("\n".join(lines) + "\n")
+    print("wrote", OUT_WOMEN_TS)
 OUT_JSON = REPO / "docs" / "data" / "t20_innings_clock.json"
 
 

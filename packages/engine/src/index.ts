@@ -41,7 +41,7 @@ export { IMPACT_FIT } from "./impact-player-data.js";
 export {
   getVenueProfileForTeam, getLeagueChaseAdvantage, deriveStadiumBowlingRating,
   derivePitchType, deriveBoundarySize, deriveDewFactor, getOdiVenueProfile,
-  LEAGUE_LEVELS,
+  LEAGUE_LEVELS, VENUE_LEVEL_SWITCH,
 } from "./venues.js";
 export type { VenueProfile } from "./venues.js";
 

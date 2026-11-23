@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
-import { EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LEAGUE_LEVELS, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, simulateMatch, odiRules, RULE_PRESETS, type BallEvent, type Player, type RuleSet } from "@ipl-sim/engine";
+import { EXTRA_LEAGUES, INNINGS_CLOCK, INNINGS_CLOCK_SWITCH, LEAGUE_LEVELS, LEAGUE_XI_SWITCH, LAST_PAIR_SWITCH, setRuleOverrides, simulateMatch, odiRules, RULE_PRESETS, type BallEvent, type Player, type RuleSet } from "@ipl-sim/engine";
 import { createGameState } from "../game-state";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
@@ -34,6 +34,8 @@ if (process.env.LXI_OFF) LEAGUE_XI_SWITCH.off = true;
 // LEVELS_FILE=levels.json: LEAGUE_LEVELS entries replaced ({ "bbl": { "run": 1, "wicket": 0.9, "dot": 1.1 }, ... }), to refit them without a rebuild
 if (process.env.LEVELS_FILE) Object.assign(LEAGUE_LEVELS, JSON.parse(readFileSync(process.env.LEVELS_FILE, "utf-8")));
 if (process.env.WT_OFF) INNINGS_CLOCK_SWITCH.off = true;
+// LP_RAIN=off: no rain (the real tables are full matches; docs/COUNTRY-VALIDATION.md, "Women's T20I tails")
+if (process.env.LP_RAIN === "off") setRuleOverrides({ rainNoResult: 0, rainReduced: 0 });
 if (process.env.WT_FILE) { const t = JSON.parse(readFileSync(process.env.WT_FILE, "utf-8")).tables; for (const k of Object.keys(INNINGS_CLOCK)) delete INNINGS_CLOCK[k]; Object.assign(INNINGS_CLOCK, t); }
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..", "..", "..");

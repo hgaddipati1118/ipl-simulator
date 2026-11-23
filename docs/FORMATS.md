@@ -1514,6 +1514,8 @@ the leagues' entries are kept). The women's spread is still 3 runs short (their 
 docs/COUNTRY-VALIDATION.md (the gap between the sides stretched) the shapes were refitted: men 0.24 / 0.24, women 0.23 / 0.46 (women 0.07 / 0.035 since the batter response, TACTICS.md section 5), giving
 men 164.0 (sd 35.4, 200+ 15.2%) and women 140.6 (31.2, 3.1%) against the real 169.5 (37.3, 19.2%) and 142.2 (34.6, 5.1%).
 
+**The women's T20I first innings** has its own innings clock (more wickets in the 19th and 20th overs, fewer early), and a women's T20I at a franchise ground plays no league level. Its context was refitted on the T20Is to 2024 (`docs/data/t20i_validation_to2024.json`): docs/COUNTRY-VALIDATION.md, "Women's T20I tails".
+
 **The women's leagues** (WPL, WBBL, the women's Hundred) were off the same way and now have contexts of their own, fitted
 the same way on their matches since 2024: docs/RULES-MATCH.md 12.7.
 

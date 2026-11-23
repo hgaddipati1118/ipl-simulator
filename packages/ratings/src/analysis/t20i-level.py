@@ -20,6 +20,7 @@ no-ball first, then a dismissal (run-outs included), then byes / leg byes with n
 bat (5 counts as 4, 7+ as 6).
 """
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -30,6 +31,10 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "analysis"
 REPO = ROOT.parent.parent
 OUT = REPO / "docs" / "data" / "t20i_validation.json"
+# T20I_END=2024-12-31 T20I_OUT=file.json: the T20Is to that date only, written elsewhere (the fit half of a refit: docs/COUNTRY-VALIDATION.md, "Women's T20I tails")
+T20I_END = os.environ.get("T20I_END")
+if os.environ.get("T20I_OUT"):
+    OUT = Path(os.environ["T20I_OUT"])
 
 FULL_MEMBERS = ["Afghanistan", "Australia", "Bangladesh", "England", "India", "Ireland", "New Zealand", "Pakistan",
                 "South Africa", "Sri Lanka", "West Indies", "Zimbabwe"]
@@ -124,7 +129,8 @@ CREATE OR REPLACE TABLE inn AS SELECT match_id, innings, gender, any_value(batti
 def main() -> None:
     fm = ", ".join(f"'{t}'" for t in FULL_MEMBERS)
     t20i = measures(f"m.match_type IN ('T20', 'IT20') AND m.team_type = 'international' AND m.date >= DATE '2019-01-01' "
-                    f"AND m.team1 IN ({fm}) AND m.team2 IN ({fm})")
+                    + (f"AND m.date <= DATE '{T20I_END}' " if T20I_END else "")
+                    + f"AND m.team1 IN ({fm}) AND m.team2 IN ({fm})")
     leagues = {}
     for lid, (event, hundred) in LEAGUES.items():
         quoted = event.replace("'", "''")

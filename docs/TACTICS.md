@@ -428,6 +428,8 @@ Mean absolute error against the real innings: runs 3.62 -> 3.30, wickets 0.128 -
 
 ## 6. When wickets fall: the innings clock (wicket row shipped for the men's leagues with the league XIs of section 7)
 
+(The women's T20I has its own wicket-row clock since docs/COUNTRY-VALIDATION.md, "Women's T20I tails": fitted the same way on women's T20Is to 2024, neutral in shares, with the context refitted after it.)
+
 Section 5 left this open: a men's T20 league first innings in the engine reaches nine down too early, so its last pair has too long to bat, and the engine reaches 8, 9 and 10 down more often than real. The diagnosis and a fitted term follow (`packages/ratings/src/analysis/t20-wicket-timing.py`; engine `innings-clock.ts`, data `innings-clock-data.ts`; candidate tables `docs/data/t20_innings_clock.json`). **On the former XIs the term was not shipped**: it fixes when wickets fall and is much better ball by ball out of sample, but it moved the leagues' all-out shares away from real (for a reason that is not the ball model: below) and does not improve the actual-XI match benchmark. **With the league XIs of section 7 its wicket row ships for the men's leagues** (not the T20I): the end of this section.
 
 *What real does and what the engine did* (Cricsheet, first innings of full matches of the nine men's leagues since 2021 against 3,000 engine matches a league on the game's squads, `last-pair-collect.test.ts` with `LP_LEAGUES=1 LP_MIN_WK=0`; per ball, wides out):

@@ -7,7 +7,7 @@
  * are left alone), per competition, fitted from Cricsheet ball by ball against the engine as it was, with the situation (wickets
  * down, the striker's rating and balls faced) held fixed, and made neutral in shares over the engine's own innings so each class's
  * rate over an innings stays where the league levels put it (innings-clock-data.ts, from packages/ratings/src/analysis/t20-wicket-timing.py;
- * docs/TACTICS.md section 6). Men's T20 first innings only (not The Hundred, a chase or a super over), both engines (ballProbabilities).
+ * docs/TACTICS.md section 6). T20 first innings only (not The Hundred, a chase or a super over), both engines (ballProbabilities); the men.s leagues and the women.s T20I.
  * Shipped for the men's leagues only, the wicket row alone, fitted on the engine with the fitted league XIs (xi-selection.ts, TACTICS
  * section 7): with the deeper XIs it brings the ninth wicket's timing to real and the all-out shares toward real against the XIs alone.
  * The men's T20I has no table (its candidate did not improve the actual-XI benchmark); the other candidates are in
@@ -15,15 +15,20 @@
  */
 import type { BallOutcome } from "./match.js";
 import { INNINGS_CLOCK } from "./innings-clock-data.js";
+import { WOMENS_T20I_CLOCK } from "./womens-t20i-clock-data.js";
 
 const CLASSES: BallOutcome[] = ["dot", "1", "2", "3", "4", "6", "wicket", "wide", "noball", "legbye"];
 
-/** Test hook (collectors, benchmarks): switch the term off or replace its tables; never used by the game */
-export const INNINGS_CLOCK_SWITCH: { off: boolean } = { off: false };
+/** Test hook (collectors, benchmarks): switch the term off (all of it, or the women's T20I table alone) or replace its tables; never used by the game */
+export const INNINGS_CLOCK_SWITCH: { off: boolean; womenT20I: boolean } = { off: false, womenT20I: true };
 
-/** The competition's table: a league of its own, the men's T20I, or the men's default (none for the women, The Hundred) */
+/**
+ * The competition's table: a league of its own, the men's default, or the women's T20I (`t20i-female`: its own fit, the wicket row made
+ * neutral, docs/COUNTRY-VALIDATION.md "Women's T20I tails"); none for the men's T20I, the women's leagues and The Hundred
+ */
 export function inningsClockTable(key: string): number[][] | undefined {
   if (INNINGS_CLOCK_SWITCH.off) return undefined;
+  if (key === "t20i-female") return INNINGS_CLOCK[key] ?? (INNINGS_CLOCK_SWITCH.womenT20I ? WOMENS_T20I_CLOCK : undefined);
   return INNINGS_CLOCK[key];
 }
 

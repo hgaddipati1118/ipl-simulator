@@ -123,6 +123,14 @@ function labelRunLevel(league: string): number {
   return league !== "ipl" && LEAGUE_LEVELS[league] ? 1.0 : LEAGUE_LEVEL_RUN;
 }
 
+/**
+ * A women's T20I at a franchise ground plays the ground and no league level (`getVenueProfileForTeam`, `levels: false`): the levels are
+ * the men's leagues' (and the women's leagues' own), fitted on their matches, while a women's T20I has its own fitted level (scoring-context.ts),
+ * fitted at neutral venues. Test hook: `womenT20I: false` restores the leagues' wicket and dot levels there (docs/COUNTRY-VALIDATION.md,
+ * "Women's T20I tails").
+ */
+export const VENUE_LEVEL_SWITCH: { womenT20I: boolean } = { womenT20I: true };
+
 /** Ground effects on wickets did not hold up out of sample, so keep only a quarter of them. */
 export const WICKET_FACTOR_WEIGHT = 0.25;
 /** Weight on a ground's own chase record relative to its league's baseline. */
@@ -174,7 +182,7 @@ function computeNorm(ids: string[]) {
  * IPL's own levels (LEAGUE_LEVELS.ipl, fitted on IPL matches: docs/TACTICS.md sections 9-10): the ground at the engine's base levels.
  * The extra leagues' wicket and dot levels stay in a T20I at their grounds, as the T20I level was fitted with them.
  */
-export function getVenueProfileForTeam(teamId: string, opts?: { league?: boolean }): VenueProfile | null {
+export function getVenueProfileForTeam(teamId: string, opts?: { league?: boolean; levels?: boolean }): VenueProfile | null {
   const rec = VENUE_DATA.teams[teamId];
   const league = leagueOf(teamId);
   if (!rec || !league) return null;
@@ -182,7 +190,7 @@ export function getVenueProfileForTeam(teamId: string, opts?: { league?: boolean
   const base = chaseBaseline(league);
   const ground = rec.chaseAdvantage ?? norm.chase;
   const wkt = rec.wicketFactor / 100 / norm.wkt;
-  const level = opts?.league === false && league === "ipl" ? undefined : LEAGUE_LEVELS[league];
+  const level = opts?.levels === false || (opts?.league === false && league === "ipl") ? undefined : LEAGUE_LEVELS[league];
   const levelRun = (level?.run ?? LEAGUE_LEVEL_RUN) / labelRunLevel(league);
   return {
     groundName: rec.name,

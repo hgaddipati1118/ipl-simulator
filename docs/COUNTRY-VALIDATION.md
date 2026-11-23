@@ -440,6 +440,96 @@ since 2023). The aggregates move by England's share of the balls:
 No rating changes; England's batters are dismissed 11% more often per ball while batting Bazball, which is what their real survival
 says.
 
+## Women's T20I tails (a first-innings clock and no men's league levels at their grounds; shipped)
+
+Earlier rounds left the women's lower order open (docs/TACTICS.md section 5: numbers 10 and 11 score too much). This round measured
+it per state and per over before changing anything (`BENCH_TAILS=out.json` in `benchmark-countries.test.ts`, the real XIs in their
+real order, no rain because the real matches were all played out: `BENCH_TAILS_RAIN=off`; real side and standard errors clustered by
+match: `packages/ratings/src/analysis/t20-tails.py`). The women's leagues have no actual-XI benchmark (too many of their players are
+missing from the pool), so the women's T20I is the test set: 315 matches to 2024 (fit) and 120 from 2025 (holdout).
+
+**What is off.** Three things, all women's only (the same table for the men's T20I has numbers 10 and 11 at the real runs per ball,
+0.88 / 0.81 against 0.96 / 0.78, and a death-over wicket rate 6% short, not 50%):
+1. *When wickets fall in a first innings.* Real women's T20I sides lose wickets ever faster at the end of a first innings (over 16
+   6.1% a ball, over 19 9.7%, over 20 14.7%); the engine's rate was flat from the 16th over (6.9-7.2%) because its phases step at over
+   16 and nothing else changes. Its wickets in hand table works within over bands, and the men's leagues' innings clock (TACTICS section
+   6) never had a women's table. The rest follows: fewer first-innings wickets (5.57 against 6.35), fewer all-outs (6.2% against
+   10.2%), and numbers 5 to 8 out 10-20% less often per ball than real, so 8 to 11 face fewer balls (6.4 against 7.3 an innings).
+2. *The men's league levels at women's T20I grounds.* A T20I at a franchise ground played that league's fitted wicket and dot levels
+   (`LEAGUE_LEVELS`: BBL, PSL, SA20, CPL, the men's Hundred grounds and others; wicket 0.92-0.99, dot 1.14-1.38). Those levels were
+   fitted on men's league matches. The women's T20I context was fitted at neutral venues, so these grounds cost a women's T20I first
+   innings 0.2 wickets on average (5.57 at the real grounds, 5.78 at neutral venues).
+3. *Numbers 10 and 11 score too fast and survive about right* (runs per ball 0.85 / 0.82 against 0.72 / 0.50; outs per ball 0.113 /
+   0.116 against 0.114 / 0.104). Almost all of it comes with nine down (1.00 runs a ball against 0.79): it is the last pair's state
+   (section 5's term, fitted for the women's T20I and not shipped), not their ratings. Stand-ins are not the cause: 14 of the 9,570
+   real XI places are not in the pool, none in the holdout.
+
+**What was changed.**
+- *A women's T20I innings clock* (`innings-clock.ts`, table `t20i-female`, generated `womens-t20i-clock-data.ts`): the same fit as the
+  men's leagues' (`t20-wicket-timing.py fit --women --wicket-only`; real: Cricsheet women's T20Is between full members 2019-2024,
+  full matches; sim: `last-pair-collect.test.ts` with `LP_ONLY=t20i-women LP_MIN_WK=0 LP_RAIN=off`, 8 replays of the real XIs). It is
+  the wicket row alone with the situation held fixed (over x wickets down x the striker's rating and balls faced) and is made neutral
+  in shares over the engine's own first innings, so it changes when wickets fall and not how many. Multipliers: 0.81-0.92 in overs 1-11,
+  1.08-1.16 in 13-15, 0.77 in the 16th (where the phase steps up), 1.26 in the 19th, 1.94 in the 20th. Per ball on 2025+ first
+  innings: -0.0005 +- 0.0005 (fit half -0.0017 +- 0.0003). Kept-level and full-term versions were tried and not taken: with the level
+  kept, the all-outs overshot (12.9% against 10.2% on the fit half, 14.0% against 7.5% on the holdout), and the full term was worse
+  per ball on 2025+ (+0.0004 +- 0.0009).
+- *No league level at a women's T20I ground* (`getVenueProfileForTeam(..., { levels: false })`, `VENUE_LEVEL_SWITCH`). The ground's own
+  run, six and wicket factors stay. The men's T20I is unchanged.
+- *The women's T20I context refitted on the fit half* (`calibrate-contexts.test.ts`, `CALIBRATE_T20I=1 CAL_GENDER=women CAL_ITER=6
+  CAL_REPLAYS=4`, `CAL_REAL=docs/data/t20i_validation_to2024.json` from `t20i-level.py` with `T20I_END=2024-12-31`). This is needed because
+  a neutral clock means fewer early wickets, which adds about 3 runs an innings. The shipped context had been fitted on every T20I since
+  2019, the holdout included. Calibration harness, first innings: 136.1 runs, 6.02 wickets, 11.5% all out against the real 137.1,
+  6.31 and 9.8% to 2024. The men's table is unchanged.
+
+**Real against sim** (actual XIs, 16 replays, no rain; first innings unless marked; before = origin/main):
+
+| | fit real | fit before | fit after | holdout real | holdout before | holdout after |
+|---|---|---|---|---|---|---|
+| wickets a ball, over 16 | 6.09% | 6.93% | 5.42% | 5.08% | 6.65% | 5.11% |
+| over 19 | 9.71% | 7.22% | 8.96% | 8.62% | 7.60% | 9.01% |
+| over 20 | 14.73% | 7.14% | 13.03% | 11.95% | 7.02% | 12.95% |
+| wickets | 6.35 +- 0.12 | 5.57 | 5.88 | 6.04 +- 0.20 | 5.61 | 5.83 |
+| all out | 10.2% +- 1.7 | 6.2% | 8.0% | 7.5% +- 2.4 | 8.0% | 8.6% |
+| total (sd) | 136.2 (33.0) | 138.4 (27.7) | 135.4 (25.7) | 154.9 (37.6) | 139.0 (28.8) | 136.1 (26.4) |
+| balls faced by 8-11 (both innings) | 7.31 +- 0.38 | 6.37 | 6.87 | 7.72 +- 0.73 | 6.53 | 6.69 |
+| number 8 outs a ball | 0.097 | 0.079 | 0.087 | 0.075 | 0.078 | 0.085 |
+| number 10 runs / innings, runs a ball | 2.80, 0.72 | 3.75, 0.85 | 3.42, 0.86 | 2.92, 0.63 | 3.97, 0.86 | 3.34, 0.83 |
+| number 11 runs / innings, runs a ball | 1.53, 0.50 | 2.69, 0.82 | 2.54, 0.81 | 2.35, 0.63 | 2.56, 0.81 | 2.22, 0.78 |
+| nine down: runs a ball | 0.79 | 1.00 | 0.97 | 0.88 | 0.97 | 0.94 |
+| last stand: balls, runs | 6.2, 4.9 | 5.5, 5.5 | 5.2, 5.1 | 6.6, 5.8 | 5.2, 5.1 | 4.8, 4.5 |
+
+(Real standard errors: a per-over wicket rate +- 0.5-0.8 points to 2024 and +- 0.7-1.3 from 2025; number 10 and 11 runs +- 0.2-0.5.)
+The death overs and the first-innings wickets come to real, the all-out share moves toward it on the fit half and stays inside the
+holdout's error, and numbers 10 and 11 lose 0.15-0.6 runs an innings. Their runs per ball do not move (the nine-down state, item 3).
+Two things got worse. The last stand is a ball shorter (more of them start in the 19th and 20th overs, as real ones do; the engine's
+last pair still bats as before), and the first-innings sd is 2 runs narrower (27.7 to 25.7 against a real 33.0). The T20I conditions
+term (`calibrate-spread.test.ts`, `CAL_T20I=1`) was not refitted in this round.
+
+**Win prediction** (`BENCH_ACTUAL=1 BENCH_MODES=actual BENCH_REPLAYS=384 BENCH_ONLY=t20i-women BENCH_DUMP=...`, log loss per real match,
+paired per match, minus is better; before = origin/main):
+
+| half (matches) | before | after | paired difference |
+|---|---|---|---|
+| holdout 2025+ (120) | 0.4512 +- 0.042 | 0.4448 +- 0.040 | **-0.0064 +- 0.0065** |
+| fit to 2024 (315) | 0.5204 +- 0.031 | 0.5171 +- 0.030 | -0.0033 +- 0.0040 |
+
+Both halves are within noise and lean toward better, and the change closes a clear calibration gap (the death-over wicket rate).
+By the holdout rule it ships. Each piece alone at 96 replays was level (no league levels: +0.002 +- 0.005 holdout; the clock on top:
++0.001 +- 0.008).
+
+**Not changed.** *The women's last pair.* Played on top, the not-shipped section-5 table brings number 11 to 0.60 runs a ball (real
+0.50). It also takes the last stand to 4.0 runs (real 4.9) and the holdout's nine-down scoring below real (0.71 against 0.88). It was
+fitted on the engine before this clock, so it would need a refit (`last-pair.py`) before it can be judged. *The women's T20I level in
+2025+.* Real first innings went from 136 to 155 runs (holdout real 154.9, sim 136-139 before and after). That is the women's game
+scoring more, not a tail effect, and it was left out of this fit by rule. *The women's leagues* (WBBL, WPL, the women's Hundred) have
+no actual-XI benchmark, so they were not measured. Their key `default-female` and their own levels are untouched.
+
+Reproduce: `BENCH_TAILS=x.json BENCH_TAILS_RAIN=off BENCH_ONLY=t20i-women BENCH_REPLAYS=16 npx vitest run
+packages/app/src/__tests__/benchmark-countries.test.ts -t "tails against real"`, then `TAILS_OVERS=1 TAILS_FROM=0 python3 -I
+src/analysis/t20-tails.py x.json` (from packages/ratings). Before: `BENCH_WCLOCK=off BENCH_WT20I_LEVELS=on` with the former
+`t20i-context-data.ts`. Diagnostics: `BENCH_TAILS_GROUND=neutral|default`, `BENCH_TAILS_XI=series`, `BENCH_LP_WOMEN=1`.
+
 ## Left over
 
 - Men's Test with the elevens that played (133 Tests since 2023): before the Test tuning (above) India won 66% against a real 53%, England
