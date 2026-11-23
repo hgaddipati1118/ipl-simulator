@@ -209,6 +209,7 @@ a user side. The ODI work left every line as it was. Since then, on purpose:
 | the Bazball wicket calibration (docs/COUNTRY-VALIDATION.md, "Test results by country"): Test only, every line unchanged | unchanged | unchanged | `3bda2f67e5dff433` |
 | the men's Test level refitted (Test section 6.12): Test only, every line unchanged | unchanged | unchanged | `3bda2f67e5dff433` |
 | the men's Test match form (Test section 6.13): Test only, every line unchanged | unchanged | unchanged | `3bda2f67e5dff433` |
+| the women's T20I tails (docs/COUNTRY-VALIDATION.md, "Women's T20I tails": a women's T20I innings clock, no league levels at women's T20I grounds, the women's T20I context refitted): women's T20I only, every line unchanged (the women's line plays the IPL's rules) | unchanged | unchanged | `3bda2f67e5dff433` |
 
 ### Refitting
 

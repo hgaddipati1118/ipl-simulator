@@ -42,7 +42,10 @@ test("the user picks a concussion substitute in a live match", async ({ page }) 
       await page.waitForTimeout(400);
       if (await modal.isVisible().catch(() => false)) continue;
       const batFirst = page.getByText("Bat First", { exact: true }).first();
+      // the Impact Player prompt needs two picks and a confirm: clicking its first option again and again never closes it, so skip it
+      const skip = page.getByRole("button", { name: "Skip", exact: true }).first();
       if (await batFirst.isVisible().catch(() => false)) await batFirst.click();
+      else if (await skip.isVisible().catch(() => false)) await skip.click();
       else await page.locator("div.fixed.inset-0 button:visible").first().click({ timeout: 2000 }).catch(() => {});
       await page.waitForTimeout(300);
       continue;
