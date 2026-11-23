@@ -9,4 +9,4 @@
  * classes (1, 2, 3, 4, 6). Men only: the women's base is levelled on their own squads. Mutable so the benchmarks can try other
  * values (TEST_LEVEL / BENCH_LEVEL); the game never changes it.
  */
-export const TEST_LEVEL_CAL: { wickets: number; runs: number } = { wickets: 1, runs: 1 };
+export const TEST_LEVEL_CAL: { wickets: number; runs: number } = { wickets: 0.96, runs: 0.99 };
