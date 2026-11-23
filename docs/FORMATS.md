@@ -208,6 +208,7 @@ a user side. The ODI work left every line as it was. Since then, on purpose:
 | the chase wicket term by pressure, over and wickets down, and the extra leagues' levels refitted (TACTICS.md section 11): the men's instant lines and both live ones (IPL chases); the women's line (no table for the women) and The Hundred's (not a T20) unchanged | `c25a56e2a3ecd6d7` / `7fb1b9dd200e356b` / women unchanged / Hundred unchanged | `a9b04f376a49d662` / `d6f35f0e5b80787b` | `3bda2f67e5dff433` |
 | the Bazball wicket calibration (docs/COUNTRY-VALIDATION.md, "Test results by country"): Test only, every line unchanged | unchanged | unchanged | `3bda2f67e5dff433` |
 | the men's Test level refitted (Test section 6.12): Test only, every line unchanged | unchanged | unchanged | `3bda2f67e5dff433` |
+| the men's Test match form (Test section 6.13): Test only, every line unchanged | unchanged | unchanged | `3bda2f67e5dff433` |
 
 ### Refitting
 
