@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { it } from "vitest";
+import { expect, it } from "vitest";
 import type { FormatRatingsFile } from "@ipl-sim/ratings/dist/format-ratings.js";
 import type { PlayerActivityFile } from "@ipl-sim/ratings/dist/player-activity.js";
 import { createSeries, matchContext, seriesSquads } from "../international";
@@ -9,7 +9,7 @@ import { SERIES_TUNING, type SeriesTuning } from "../series-tuning-data";
 import { createPoolLoader } from "../extended-pool";
 import { testFixture } from "../test-match/test-series";
 import { playTestInstantly } from "../test-match/test-entry";
-import { TEST_BAZBALL_CAL, TEST_LEVEL_CAL } from "@ipl-sim/engine";
+import { TEST_BAZBALL_CAL, TEST_FORM, TEST_LEVEL_CAL } from "@ipl-sim/engine";
 
 /**
  * Test results by country, three-way (docs/COUNTRY-VALIDATION.md, "Test results by country"; skipped unless BENCH_TEST3=1).
@@ -19,7 +19,7 @@ import { TEST_BAZBALL_CAL, TEST_LEVEL_CAL } from "@ipl-sim/engine";
  * (side a wins / draw / side b wins; counts + 0.5 over replays + 1.5), so draws count.
  *
  *   BENCH_TEST3=1 BENCH_HALF=fit|hold|all [BENCH_FROM=2023-01-01] BENCH_REPLAYS=128 BENCH_OUT=/path/out.json \
- *     [BENCH_TUNE='{"spread":1,"home":-1.5}'] [BENCH_LEVEL=w,r] [BENCH_BAZCAL=w,r] npx vitest run packages/app/src/__tests__/benchmark-test-countries.test.ts -t "three-way"
+ *     [BENCH_TUNE='{"spread":1,"home":-1.5}'] [BENCH_LEVEL=w,r] [BENCH_FORM=sd] [BENCH_BAZCAL=w,r] npx vitest run packages/app/src/__tests__/benchmark-test-countries.test.ts -t "three-way"
  *   BENCH_COMPARE3=a.json,b.json ... -t "paired"      paired per-match difference (b - a) and its standard error, by half
  * Fit half: to 2024-12-31; holdout: 2025+.
  */
@@ -35,6 +35,10 @@ interface ActualTest {
 export interface Test3Out {
   id: string; date: string; a: string; b: string; host: string | null; res: "a" | "b" | "d";
   aw: number; bw: number; d: number; ar: number; awk: number; br: number; bwk: number; ab: number; bb: number;
+  /** Replays won by an innings, with the follow-on enforced, drawn after the 4th innings began, and the days played summed */
+  inn?: number; fo?: number; d4?: number; days?: number;
+  /** Sum and sum of squares over replays of log(a's runs per wicket / b's), wickets + 0.5 (the spread of the margin) */
+  lr?: number; lr2?: number;
 }
 
 export function loss3(m: Test3Out): number {
@@ -85,16 +89,54 @@ export function summary3(ms: Test3Out[]): string {
   const f = (c: Cell) => c.n ? `${(c.rw / c.n).toFixed(2)}/${(c.sw / c.n).toFixed(2)} d ${(c.rd / c.n).toFixed(2)}/${(c.sd / c.n).toFixed(2)} n ${String(c.n).padStart(3)} z ${((c.rw - c.sw) / Math.sqrt(Math.max(0.25, c.v))).toFixed(1).padStart(4)}` : "-";
   lines.push(`${"country".padEnd(13)} ${"all: win real/sim, draw real/sim, n, z".padEnd(44)} | ${"home".padEnd(44)} | away | sim runs/wkt`);
   for (const [t, o] of Object.entries(byCountry(ms)).sort()) lines.push(`${t.padEnd(13)} ${f(o.all).padEnd(44)} | ${f(o.home).padEnd(44)} | ${f(o.away).padEnd(44)} | ${(o.runs / Math.max(1, o.wkts)).toFixed(1)}`);
+  for (const b of byFavourite(ms)) if (b.n) lines.push(`sim favourite ${b.lo.toFixed(2)}-${Math.min(1, b.hi).toFixed(2)}: n ${b.n}, favourite wins real ${(100 * b.realWin).toFixed(1)}% sim ${(100 * b.simWin).toFixed(1)}%, draws real ${(100 * b.realDraw).toFixed(1)}% sim ${(100 * b.simDraw).toFixed(1)}%, sim innings wins ${(100 * b.simInn).toFixed(1)}%`);
   return lines.join("\n");
 }
 
+/** One bucket of Tests by the sim's favourite: real and sim win share of the favourite, draws and innings victories */
+export interface FavBucket { lo: number; hi: number; n: number; realWin: number; simWin: number; realDraw: number; simDraw: number; simInn: number }
+/**
+ * Favourite calibration (docs/FORMATS.md, Test section 6.13): Tests put in buckets by the sim's win probability of its favourite
+ * (the side with more replay wins), with the real share the favourite won and drew against the sim's. A sim whose favourites win
+ * too often shows real below sim in the top buckets. `simInn` is the share of replays won by an innings (when recorded).
+ */
+export function byFavourite(ms: Test3Out[], edges: number[] = [0, 0.5, 0.65, 0.8, 1.01]): FavBucket[] {
+  const out: FavBucket[] = edges.slice(0, -1).map((lo, k) => ({ lo, hi: edges[k + 1], n: 0, realWin: 0, simWin: 0, realDraw: 0, simDraw: 0, simInn: 0 }));
+  for (const m of ms) {
+    const n = m.aw + m.bw + m.d;
+    const fav = m.aw >= m.bw ? "a" : "b";
+    const p = (fav === "a" ? m.aw : m.bw) / n;
+    const b = out.find(x => p >= x.lo && p < x.hi);
+    if (!b) continue;
+    b.n++; b.realWin += m.res === fav ? 1 : 0; b.simWin += p; b.realDraw += m.res === "d" ? 1 : 0; b.simDraw += m.d / n; b.simInn += (m.inn ?? 0) / n;
+  }
+  for (const b of out) if (b.n) { b.realWin /= b.n; b.simWin /= b.n; b.realDraw /= b.n; b.simDraw /= b.n; b.simInn /= b.n; }
+  return out;
+}
+
 const half = (date: string, h: string) => h === "all" || (h === "fit" ? date <= "2024-12-31" : date >= "2025-01-01");
+
+it("byFavourite buckets Tests by the sim favourite's win probability", () => {
+  const m = (aw: number, bw: number, d: number, res: Test3Out["res"], inn = 0): Test3Out => ({ id: "x", date: "2025-01-01", a: "A", b: "B", host: null, res, aw, bw, d, ar: 0, awk: 0, br: 0, bwk: 0, ab: 0, bb: 0, inn });
+  const [b0, b1, b2, b3] = byFavourite([m(90, 5, 5, "a", 30), m(10, 85, 5, "d"), m(60, 30, 10, "b"), m(40, 45, 15, "b")]);
+  expect(b3.n).toBe(2);
+  expect(b3.realWin).toBeCloseTo(0.5);
+  expect(b3.simWin).toBeCloseTo(0.875);
+  expect(b3.realDraw).toBeCloseTo(0.5);
+  expect(b3.simInn).toBeCloseTo(0.15);
+  expect(b2.n).toBe(0);
+  expect(b1.n).toBe(1);
+  expect(b1.realWin).toBe(0);
+  expect(b0.n).toBe(1);
+  expect(b0.simWin).toBeCloseTo(0.45);
+});
 
 it.skipIf(!process.env.BENCH_TEST3)("Test by country: three-way actual-XI replay", async () => {
   const replays = Number(process.env.BENCH_REPLAYS ?? 64);
   const h = process.env.BENCH_HALF ?? "all";
   const from = process.env.BENCH_FROM ?? "2019-01-01";
   if (process.env.BENCH_LEVEL) { const [w, r] = process.env.BENCH_LEVEL.split(",").map(Number); TEST_LEVEL_CAL.wickets = w; TEST_LEVEL_CAL.runs = r; }
+  if (process.env.BENCH_FORM) TEST_FORM.sd = Number(process.env.BENCH_FORM);
   if (process.env.BENCH_BAZCAL) { const [w, r] = process.env.BENCH_BAZCAL.split(",").map(Number); TEST_BAZBALL_CAL.wickets = w; TEST_BAZBALL_CAL.runs = r; }
   if (process.env.BENCH_TUNE) SERIES_TUNING.test = { ...(SERIES_TUNING.test ?? {}), men: JSON.parse(process.env.BENCH_TUNE) as SeriesTuning };
   const FILE = JSON.parse(readFileSync(join(PUBLIC, "data", "format-ratings.json"), "utf-8")) as FormatRatingsFile;
@@ -123,7 +165,7 @@ it.skipIf(!process.env.BENCH_TEST3)("Test by country: three-way actual-XI replay
       (series.lineups ??= [null, null])[side] = { xi: ids.slice(0, 11), order: ids.slice(0, 11) };
     }
     const squads = seriesSquads(series, FILE, extended);
-    const rec: Test3Out = { id: m.id, date: m.date, a: m.a, b: m.b, host: hostName, res: m.winner ?? "d", aw: 0, bw: 0, d: 0, ar: 0, awk: 0, br: 0, bwk: 0, ab: 0, bb: 0 };
+    const rec: Test3Out = { id: m.id, date: m.date, a: m.a, b: m.b, host: hostName, res: m.winner ?? "d", aw: 0, bw: 0, d: 0, ar: 0, awk: 0, br: 0, bwk: 0, ab: 0, bb: 0, inn: 0, fo: 0, d4: 0, days: 0, lr: 0, lr2: 0 };
     for (let j = 0; j < replays; j++) {
       const ctx = { ...matchContext(series, 0, squads), seed: 7919 * i + 104729 * (j + 1), key: undefined };
       const fx = testFixture(ctx);
@@ -132,11 +174,18 @@ it.skipIf(!process.env.BENCH_TEST3)("Test by country: three-way actual-XI replay
       const aId = series.sides[0].id;
       const w = res.result.kind === "win" ? res.result.winnerId : null;
       if (w === null) rec.d++; else if (w === aId) rec.aw++; else rec.bw++;
+      if (res.result.margin.startsWith("an innings")) rec.inn!++;
+      if (res.innings.some(x => x.followOn)) rec.fo!++;
+      if (w === null && res.innings.length >= 4) rec.d4!++;
+      rec.days! += res.result.day;
+      const rw = [0, 0, 0, 0];
       for (const inn of res.innings) {
         const [ov, bl] = inn.overs.split(".").map(Number);
         const balls = 6 * ov + (bl || 0);
-        if (inn.teamId === aId) { rec.ar += inn.runs; rec.awk += inn.wickets; rec.ab += balls; } else { rec.br += inn.runs; rec.bwk += inn.wickets; rec.bb += balls; }
+        if (inn.teamId === aId) { rec.ar += inn.runs; rec.awk += inn.wickets; rec.ab += balls; rw[0] += inn.runs; rw[1] += inn.wickets; } else { rec.br += inn.runs; rec.bwk += inn.wickets; rec.bb += balls; rw[2] += inn.runs; rw[3] += inn.wickets; }
       }
+      const lr = Math.log(((rw[0] + 1) / (rw[1] + 0.5)) / ((rw[2] + 1) / (rw[3] + 0.5)));
+      rec.lr! += lr; rec.lr2! += lr * lr;
     }
     out.push(rec);
   });

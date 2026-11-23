@@ -24,10 +24,10 @@ import { type ConditionsSetting, type PitchPreset, type WeatherPreset } from "./
 import { Player, calculateBattingOverall, type PlayerRatings } from "./player.js";
 import type { Team } from "./team.js";
 import type { RNG } from "./rng.js";
-import { createRNG, randomSeed } from "./rng.js";
+import { createRNG, deriveSeed, randomSeed } from "./rng.js";
 import { TEST_MODEL as M } from "./test-model-data.js";
 import { TEST_BAZBALL_CAL } from "./test-bazball-data.js";
-import { TEST_LEVEL_CAL } from "./test-level-data.js";
+import { TEST_FORM, TEST_LEVEL_CAL } from "./test-level-data.js";
 import { applyLastPairTest } from "./last-pair.js";
 import { TEST_PROFILE_DATA } from "./test-profile-data.js";
 import {
@@ -290,6 +290,8 @@ export interface TestTeamState {
   /** The user's batting approach (null = the captain's own choice: the fitted policy) */
   approach: TestApproach | null;
   bazball?: boolean;
+  /** The side's strength for this match (log wicket-rate shift, section 6.13: men's Tests; absent = 0) */
+  form?: number;
   /** The user's bowling plan for this side (bowling-choice.ts BowlingPlan): overs of an innings fixed to a bowler (0 and 1: who opens) and `spinFrom` */
   bowling?: BowlingPlan;
   /** The rest of the squad, who may come on as a concussion substitute (absent in matches saved before them: no substitutes) */
@@ -821,6 +823,11 @@ export function createTestMatch(home: Team, away: Team, options: TestMatchOption
   if (options.conditions?.pitch) st.cond = pitchConditions(options.conditions.pitch);
   // how this pitch wears: a wicket-rate slope across the days (days 4-5 against 1-2 has the fitted spread)
   st.wear = (M as { wearSpread?: { wicket: number } }).wearSpread?.wicket ? M.wearSpread.wicket * normal(r) : 0;
+  // each side's form for the match (men), from its own stream so the rest of the match draws as before
+  if (gender === "male" && TEST_FORM.sd > 0) {
+    const fr = createRNG(deriveSeed(seed, 0x464f524d));
+    for (const id of st.teamOrder) st.teams[id].form = TEST_FORM.sd * normal(fr);
+  }
   st.dayCap = st.dayPlan[0];
   // the toss: a CPU winner follows the host country's fitted bat-first share; a user winner is asked
   const winner = r() < 0.5 ? home.id : away.id;
@@ -1027,7 +1034,9 @@ export function testBallProbs(st: TestMatchState, inn: TestInnings): number[] {
   // (day - 3) / 3: -2/3 on day 1 to +2/3 on day 5, so days 4-5 against 1-2 differ by the drawn wear; mean 1 over a match
   const wearMul = st.wear ? Math.exp(st.wear * (Math.min(st.day, 5) - 3) / 3) : 1;
   const p = new Array<number>(K);
-  const lvW = st.gender === "male" ? TEST_LEVEL_CAL.wickets : 1, lvR = st.gender === "male" ? TEST_LEVEL_CAL.runs : 1;
+  const formSd = st.gender === "male" ? TEST_FORM.sd : 0;
+  const form = Math.exp(-(team.form ?? 0) + (st.teams[inn.bowlingTeamId].form ?? 0) - formSd * formSd);
+  const lvW = (st.gender === "male" ? TEST_LEVEL_CAL.wickets : 1) * (team.form !== undefined ? form : 1), lvR = st.gender === "male" ? TEST_LEVEL_CAL.runs : 1;
   for (let k = 0; k < K; k++) {
     let v = base[k] * (k === IW ? lvW : k < IW ? lvR : 1) * T_AGE[ab][k] * T_SET[sb][k] * T_INN[i][k] * T_WD[i][wd][k] * T_DAY[type][d][k] * T_SPELL[sp][k] * sit[k] * home[k] * cty[k]
       * bat.batMul[k] * bowl.bowlMul[k] * st.cond[k];
