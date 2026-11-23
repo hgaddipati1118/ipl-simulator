@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { freshGame, pickTeam, openUserLiveMatch } from "./helpers";
-import { answerDecisions, startLiveMatch } from "./live-helpers";
+import { startLiveMatch } from "./live-helpers";
 
 /**
  * Concussion substitutes in the live match (docs/RULES-MATCH.md section 13.9): with the rate raised through the engine's test
@@ -36,7 +36,17 @@ test("the user picks a concussion substitute in a live match", async ({ page }) 
       await choice.click();
       break;
     }
-    if ((await page.locator("div.fixed.inset-0 button:visible").count()) > 0) { await answerDecisions(page); continue; }
+    // another decision (toss, bowler, batter, review): answer it one click at a time, so a concussion prompt that lands
+    // meanwhile is seen by the check above rather than answered blind with its first option
+    if ((await page.locator("div.fixed.inset-0 button:visible").count()) > 0) {
+      await page.waitForTimeout(400);
+      if (await modal.isVisible().catch(() => false)) continue;
+      const batFirst = page.getByText("Bat First", { exact: true }).first();
+      if (await batFirst.isVisible().catch(() => false)) await batFirst.click();
+      else await page.locator("div.fixed.inset-0 button:visible").first().click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(300);
+      continue;
+    }
     if (await step.isEnabled().catch(() => false)) await step.click();
     await page.waitForTimeout(120);
   }
